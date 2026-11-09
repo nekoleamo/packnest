@@ -9,8 +9,8 @@
 | **M0** | 骨架：module、9 命令、provider 加载、镜像探测、testkit 假镜像、L1 单测 | ✅ 完成（2026-11-10） | `M0_ProviderLoad` ✅ · `M0_MirrorProbe` ✅ · `M0_DoctorNoPanic` ✅ · `M0_DualNameConsistent` ✅ |
 | **M1** | node + 伴生 npm：解压层 · 校验+TOFU · 版本索引 · 伴生反查 · 安装编排 · 真卸载 | ✅ 完成（2026-11-10，含真网实测） | `M1_NpmCompanion` ✅ · `_NpmPinConflict` ✅ · `_PatchLevelBoundary` ✅ · `_OfflineFromCache` ✅ · `_ShimLatency` ✅ · `_UninstallClean` ✅ · `_WindowsAtomicReplace` ✅ · `_WindowsZipNoSymlink` ✅ · `_FailureMatrix`（90 格）✅ |
 | **M2** | pnpm / bun / deno | ✅ 完成（2026-11-10，含真网实测） | `M2_PnpmRequiresNode` ✅ · `_SingleFileLayout` ✅ · `_ThreePlatformSmoke` ✅ · `_OfficialUnreachable`（5 工具）✅ |
-| **M3** | go + python（`GOTOOLCHAIN=local`、pbs 文件名模板） | ⏳ 下一步 | `M3_GoNoDoubleDownload` / `_PythonNoCompile` / `_PbsDirectoryIndex` |
-| M4 | 台账/锁/GC/全局包 | 未开始 | `M4_GcZeroRef` / `_LedgerRecover` / `_FrozenMismatchExitCode` / `_CtrlCNoPartial` / `_GlobalSurvivesNodeSwitch` / `_GlobalBinNoReshim` / `_NativeGlobalDetect` / `_StartupSweep` |
+| **M3** | go + python | ✅ 完成（2026-11-10，含真网实测） | `M3_GoNoDoubleDownload` ✅ · `_PythonNoCompile` ✅ · `_PbsDirectoryIndex` ✅ |
+| **M4** | 台账/引用计数/GC/全局包/启动清扫 | ⏳ 下一步 | `M4_GcZeroRef` / `_LedgerRecover` / `_FrozenMismatchExitCode` / `_CtrlCNoPartial` / `_GlobalSurvivesNodeSwitch` / `_GlobalBinNoReshim` / `_NativeGlobalDetect` / `_StartupSweep` |
 | M5 | CLI 收口（doctor 全量、错误码定型、`--json` 冻结、6 平台产物、分发） | 未开始 | §12.2 的 10 条 CLI-DONE |
 | G0–G2 | Wails v3.1.0 桌面端 | 未开始（CLI 冻结后才动） | — |
 
@@ -109,9 +109,44 @@ pk install pnpm  → 12.18.0（1.1 MB）→ pnpm --version 12.18.0
 
 **门禁**：覆盖率 internal 85.3–100% / cmd 86.4%；fuzz 三个目标（`FuzzSpec` / `FuzzSHASUMS` / `FuzzArchivePath`）；6 平台交叉编译（7.0–7.8 MB）；验收 17 条全绿。
 
+## M3 交付清单（2026-11-10）
+
+**新增包 `internal/toolchain`**（方案 §4.0 的"非标语义"都收在这里）
+
+- `CheckGoEnv`：`GOTOOLCHAIN` 不是 `local` 就给告警 + 处置（goproxy.cn 确实能提供 golang.org/toolchain，
+  所以这条不是形式主义）；`pk doctor` 在装了 go 时自动检查，问题码 `GO_TOOLCHAIN_NOT_LOCAL`
+- `LoadPBSIndex`：python-build-standalone 的**两级目录列举**（release 标签目录 → 目录下的文件），
+  最新标签缺产物时自动退到上一个有产物的标签；只认 `...-install_only.tar.gz`（排除 `_stripped`/`debug`/`bsdiff`）
+
+**provider 扩展**
+
+- 索引形态 `pbs`（解析委托给 toolchain，provider 不反向依赖，避免成环）
+- `index.version_prefix`（go 的 `go1.27.3` → `1.27.3`）
+- 产物/校验和模板新增 `{filename}` 与 `{tag}` 占位符（`ArtifactURLsFor` / `ChecksumURLsFor`）
+- 校验和形态 `index-inline`（go 的 dl JSON 自带每个产物的 sha256，省掉一次校验和请求）
+
+**真网实测（2026-11-10，镜像档 cn）**
+
+```
+pk install go        → 1.27.3（65.0 MB，go.dev 索引 + aliyun 产物可选）→ go version go1.27.3 darwin/arm64
+pk install python@3.13 → 3.13.18（24.2 MB，npmmirror pbs 两级列举）→ Python 3.13.18
+pk which pip3        → <root>/tools/python/3.13.18/bin/pip3
+pk env               → GOTOOLCHAIN=local（去重后只导出一次）+ GOPROXY=https://goproxy.cn
+```
+
+**踩到并修掉的两个细节**
+
+1. go 的 `https://go.dev/dl/?mode=json` 默认**只返回 2 条**（最新 + 次新），必须加 `&include=all`（369 条），否则 `pk install go@1.24` 直接找不到
+2. `pk env` 原来把 `GOTOOLCHAIN` 导出两次（registry 变量 + provider 的 `toolchain.env`）→ 按键去重，后者覆盖前者
+
+**门禁**：覆盖率 internal 85.6–100% / cmd 86.9%（toolchain 92.6%）；fuzz 三目标；6 平台交叉编译；验收 20 条全绿。
+
 ## 已知缺口（按计划补齐，不是遗漏）
 
-- `internal/toolchain` 尚未创建（M3 的 go `GOTOOLCHAIN` / python 的 pbs 文件名模板）。
+- go 的国内索引源：npmmirror 没有 go 的产物/索引（实测），所以索引只声明官方 `?mode=json&include=all`，
+  拿不到时走 24h stale 缓存；产物与校验和可以走 aliyun/index-inline，不影响安装。
+- python 的索引只声明 npmmirror（官方 GitHub 没有目录列举接口），官方只作为产物/校验和的回退源；
+  若镜像索引整体不可用，只能靠 stale 缓存。
 - pnpm 12 的 tarball 只是启动器，首次运行会自己再下平台二进制（pnpm 上游行为）。方案原本假设
   「npm registry tarball 即产物」，实际多了第 4 个下载面；M5 收口时决定是否改用 pnpm 自带二进制地址
   （npmmirror 有 `/-/binary/pnpm/`）。

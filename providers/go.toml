@@ -4,16 +4,18 @@ display = "Go"
 kind = "binary"
 
 [index]
+# 官方 dl 页的 JSON 自带每个产物的 sha256（省一次校验和请求）。
+# ⚠️ 必须带 include=all，否则只返回最新两条（实测 2 条 vs 369 条）。
 kind = "json"
+version_prefix = "go"
 [index.urls]
-# 官方 dl 页的 JSON 自带 sha256（省一次校验和请求）。M3 会补国内索引源；
-# 拿不到时走 stale 缓存，不阻塞安装（方案 §6.2）。
-default = "https://go.dev/dl/?mode=json"
+default = "https://go.dev/dl/?mode=json&include=all"
 
 [artifact]
+# 文件名直接用索引给的（go{version}.{platform}.{ext}），{filename} 更稳。
 [artifact.urls]
-default = "https://go.dev/dl/go{version}.{platform}.{ext}"
-aliyun  = "https://mirrors.aliyun.com/golang/go{version}.{platform}.{ext}"
+default = "https://go.dev/dl/{filename}"
+aliyun  = "https://mirrors.aliyun.com/golang/{filename}"
 [artifact.ext]
 windows = "zip"
 darwin  = "tar.gz"
@@ -27,10 +29,8 @@ windows-amd64 = "windows-amd64"
 windows-arm64 = "windows-arm64"
 
 [checksum]
-format = "gnu-sums"
+format = "index-inline"
 mode   = "tofu-then-verify"
-[checksum.urls]
-default = "https://go.dev/dl/?mode=json"
 
 [layout]
 strip = 1

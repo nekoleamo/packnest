@@ -29,6 +29,7 @@ import (
 	"github.com/packnest/packnest/internal/shim"
 	"github.com/packnest/packnest/internal/spec"
 	"github.com/packnest/packnest/internal/store"
+	"github.com/packnest/packnest/internal/toolchain"
 	"github.com/packnest/packnest/internal/verify"
 )
 
@@ -143,10 +144,11 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		return Result{}, err
 	}
 
-	version, idx, err := i.resolveVersion(ctx, p, specStr)
+	resolved, idx, err := i.resolveVersion(ctx, p, specStr)
 	if err != nil {
 		return Result{}, err
 	}
+	version := resolved.Version
 	i.emit(jsonout.Event{Ev: "resolve", Tool: tool, Version: version})
 
 	platform := i.opt.GOOS + "-" + i.opt.GOARCH
@@ -160,7 +162,7 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 
 	res := Result{Tool: tool, Version: version, Path: target}
 
-	archivePath, artifactURL, fromCache, err := i.fetchArtifact(ctx, p, version, idx)
+	archivePath, artifactURL, fromCache, err := i.fetchArtifact(ctx, p, resolved, idx)
 	if err != nil {
 		return Result{}, err
 	}
@@ -169,11 +171,11 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		return Result{}, err
 	}
 
-	vr, err := i.verifyArtifact(ctx, p, version, platform, artifactURL, archivePath, res.SHA256, idx)
+	vr, err := i.verifyArtifact(ctx, p, resolved, platform, artifactURL, archivePath, res.SHA256, idx)
 	if err != nil && fromCache {
 		// 缓存坏了（截断/篡改）：删掉重下一次，而不是让用户手动清缓存。
 		_ = os.Remove(archivePath)
-		archivePath, artifactURL, _, ferr := i.fetchArtifact(ctx, p, version, idx)
+		archivePath, artifactURL, _, ferr := i.fetchArtifact(ctx, p, resolved, idx)
 		if ferr != nil {
 			return Result{}, ferr
 		}
@@ -181,7 +183,7 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		if err != nil {
 			return Result{}, err
 		}
-		vr, err = i.verifyArtifact(ctx, p, version, platform, artifactURL, archivePath, res.SHA256, idx)
+		vr, err = i.verifyArtifact(ctx, p, resolved, platform, artifactURL, archivePath, res.SHA256, idx)
 	}
 	if err != nil {
 		if !fromCache {
@@ -300,7 +302,7 @@ func (i *Installer) installedVersions(tool string) []string {
 	return out
 }
 
-func (i *Installer) resolveVersion(ctx context.Context, p *provider.Provider, specStr string) (string, *provider.Index, error) {
+func (i *Installer) resolveVersion(ctx context.Context, p *provider.Provider, specStr string) (provider.Version, *provider.Index, error) {
 	if specStr == "" {
 		if pinned, ok := i.opt.Project[p.ID]; ok && pinned != "" {
 			specStr = pinned
@@ -312,28 +314,40 @@ func (i *Installer) resolveVersion(ctx context.Context, p *provider.Provider, sp
 	}
 	sp, err := spec.Parse(specStr)
 	if err != nil {
-		return "", nil, fmt.Errorf("版本说明符 %q 非法: %w", specStr, err)
+		return provider.Version{}, nil, fmt.Errorf("版本说明符 %q 非法: %w", specStr, err)
 	}
 	if sp.Kind() == spec.Exact && !sp.IsAlias() {
 		version := strings.TrimPrefix(specStr, "v")
-		// registry 型（npm/pnpm）的校验和来自元数据，所以即便钉了精确版本也要读索引；
-		// 读不到不算失败（会走 --insecure 或直接报缺校验和）。
-		if p.Index.Kind == provider.IndexRegistry {
+		// registry 型（npm/pnpm）的校验和来自元数据、index-inline 型的校验和也在索引里，
+		// 所以即便钉了精确版本也要读索引；读不到不算失败（会走 --insecure 或报缺校验和）。
+		if p.Index.Kind == provider.IndexRegistry || p.Checksum.Format == provider.ChecksumIndexInline ||
+			strings.Contains(strings.Join(mapValues(p.Artifact.URLs), " "), "{filename}") {
 			if idx, err := i.loadIndex(ctx, p); err == nil {
-				return version, idx, nil
+				if v, ok := idx.Find(version); ok {
+					return v, idx, nil
+				}
+				return provider.Version{Version: version}, idx, nil
 			}
 		}
-		return version, nil, nil
+		return provider.Version{Version: version}, nil, nil
 	}
 	idx, err := i.loadIndex(ctx, p)
 	if err != nil {
-		return "", nil, err
+		return provider.Version{}, nil, err
 	}
 	v, err := idx.Resolve(sp)
 	if err != nil {
-		return "", idx, err
+		return provider.Version{}, idx, err
 	}
-	return v.Version, idx, nil
+	return v, idx, nil
+}
+
+func mapValues(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for _, v := range m {
+		out = append(out, v)
+	}
+	return out
 }
 
 func (i *Installer) loadIndex(ctx context.Context, p *provider.Provider) (*provider.Index, error) {
@@ -341,6 +355,7 @@ func (i *Installer) loadIndex(ctx context.Context, p *provider.Provider) (*provi
 		Client:   i.opt.Client,
 		CacheDir: i.opt.Paths.CacheMeta(),
 		TTL:      i.opt.TTL,
+		Custom:   toolchain.LoadPBSIndex,
 	}
 	idx, err := loader.Load(ctx, p, i.opt.Profile)
 	if err != nil {
@@ -350,14 +365,15 @@ func (i *Installer) loadIndex(ctx context.Context, p *provider.Provider) (*provi
 }
 
 // fetchArtifact 返回（本地缓存路径, 实际下载 URL, 是否来自缓存）。
-func (i *Installer) fetchArtifact(ctx context.Context, p *provider.Provider, version string, idx *provider.Index) (string, string, bool, error) {
+func (i *Installer) fetchArtifact(ctx context.Context, p *provider.Provider, resolved provider.Version, idx *provider.Index) (string, string, bool, error) {
 	if _, err := p.Platform(i.opt.GOOS, i.opt.GOARCH); err != nil {
 		return "", "", false, err
 	}
-	urls, err := p.ArtifactURLs(version, i.opt.GOOS, i.opt.GOARCH, i.opt.Profile)
+	urls, err := p.ArtifactURLsFor(resolved, i.opt.GOOS, i.opt.GOARCH, i.opt.Profile)
 	if err != nil {
 		return "", "", false, err
 	}
+	version := resolved.Version
 	ext := extOrDefault(p, i.opt.GOOS)
 	platform := i.opt.GOOS + "-" + i.opt.GOARCH
 	cachePath := filepath.Join(i.opt.Paths.CacheArchives(),
@@ -430,14 +446,21 @@ func registryDigest(idx *provider.Index, version, archivePath, sha256 string) (s
 	return verify.AlgoSHA256, sha256
 }
 
-func (i *Installer) verifyArtifact(ctx context.Context, p *provider.Provider, version, platform, artifactURL, archivePath, sha256 string, idx *provider.Index) (verify.Result, error) {
-	sumsURLs, err := p.ChecksumURLs(version, i.opt.GOOS, i.opt.GOARCH, i.opt.Profile)
+func (i *Installer) verifyArtifact(ctx context.Context, p *provider.Provider, resolved provider.Version, platform, artifactURL, archivePath, sha256 string, idx *provider.Index) (verify.Result, error) {
+	version := resolved.Version
+	sumsURLs, err := p.ChecksumURLsFor(resolved, i.opt.GOOS, i.opt.GOARCH, i.opt.Profile)
 	if err != nil {
 		return verify.Result{}, err
 	}
 	algo, digest := registryDigest(idx, version, archivePath, sha256)
 	inline := ""
-	if p.Checksum.Format != "registry-integrity" {
+	if p.Checksum.Format == provider.ChecksumIndexInline {
+		// go 的 dl JSON 自带每个产物的 sha256：省掉一次校验和请求。
+		algo, digest = verify.AlgoSHA256, sha256
+		if f, ok := resolved.FileFor(i.opt.GOOS, i.opt.GOARCH); ok {
+			inline = f.SHA256
+		}
+	} else if p.Checksum.Format != "registry-integrity" {
 		algo, digest = verify.AlgoSHA256, sha256
 	} else if idx != nil {
 		if v, ok := idx.Find(version); ok {

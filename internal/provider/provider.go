@@ -33,6 +33,9 @@ const (
 	IndexDirList  = "dirlist"  // 目录列举式 JSON（npmmirror 的 /-/binary/<tool>/）
 	// IndexGitHub 是 GitHub Releases API（bun/deno 的"官方源"）。
 	IndexGitHub = "github-releases"
+	// IndexPBS 是 python-build-standalone 的两级目录列举（release 标签 → 文件）。
+	// 解析在 internal/toolchain 里，provider 只负责声明。
+	IndexPBS = "pbs"
 )
 
 // 校验和形态。
@@ -40,6 +43,8 @@ const (
 	ChecksumGNUSums     = "gnu-sums"           // SHASUMS256.txt 风格
 	ChecksumRegistry    = "registry-integrity" // npm registry 的 dist.integrity/shasum
 	ChecksumPerArtifact = "per-artifact"       // 与产物同目录的 <name>.sha256
+	// ChecksumIndexInline 表示校验和就在版本索引里（go 的 dl JSON 自带 sha256）。
+	ChecksumIndexInline = "index-inline"
 )
 
 // Provider 是一个工具的声明式清单。
@@ -63,6 +68,8 @@ type IndexBlock struct {
 	URLs map[string]string `toml:"urls"`
 	// Path 是索引里的字段路径（如 "versions"），dirlist 时不用。
 	Path string `toml:"path"`
+	// VersionPrefix 是版本号前缀（go 的 "go1.27.3" → 去掉 "go"）。
+	VersionPrefix string `toml:"version_prefix"`
 }
 
 // ArtifactBlock 描述产物下载地址与平台命名。
@@ -204,9 +211,9 @@ func (p *Provider) Validate() error {
 		return fmt.Errorf("%s: 缺少 display", p.ID)
 	}
 	switch p.Index.Kind {
-	case IndexJSON, IndexRegistry, IndexDirList, IndexGitHub:
+	case IndexJSON, IndexRegistry, IndexDirList, IndexGitHub, IndexPBS:
 	default:
-		return fmt.Errorf("%s: index.kind = %q 非法（json/registry/dirlist/github-releases）", p.ID, p.Index.Kind)
+		return fmt.Errorf("%s: index.kind = %q 非法（json/registry/dirlist/github-releases/pbs）", p.ID, p.Index.Kind)
 	}
 	if len(p.Index.URLs) == 0 {
 		return fmt.Errorf("%s: 缺少 index.urls", p.ID)
@@ -241,7 +248,7 @@ func (p *Provider) Validate() error {
 		return fmt.Errorf("%s: layout.bins 不能为空", p.ID)
 	}
 	switch p.Checksum.Format {
-	case ChecksumGNUSums, ChecksumRegistry, ChecksumPerArtifact:
+	case ChecksumGNUSums, ChecksumRegistry, ChecksumPerArtifact, ChecksumIndexInline:
 	default:
 		return fmt.Errorf("%s: checksum.format = %q 非法", p.ID, p.Checksum.Format)
 	}
@@ -250,7 +257,7 @@ func (p *Provider) Validate() error {
 	default:
 		return fmt.Errorf("%s: checksum.mode = %q 非法（tofu-then-verify/verify/none）", p.ID, p.Checksum.Mode)
 	}
-	if p.Checksum.Mode != "none" && p.Checksum.Format != ChecksumRegistry && len(p.Checksum.URLs) == 0 {
+	if p.Checksum.Mode != "none" && p.Checksum.Format != ChecksumRegistry && p.Checksum.Format != ChecksumIndexInline && len(p.Checksum.URLs) == 0 {
 		return fmt.Errorf("%s: 缺少 checksum.urls（校验源必须与产物源解耦）", p.ID)
 	}
 	for name, c := range p.Companions {
@@ -299,39 +306,50 @@ func (p *Provider) ArtifactURL(version, goos, goarch, profile string) (string, e
 	if !ok {
 		return "", fmt.Errorf("%s: artifact.urls 缺少可用档位", p.ID)
 	}
-	platform, err := p.Platform(goos, goarch)
+	vars, err := p.urlVars(Version{Version: version}, goos, goarch, profile)
 	if err != nil {
 		return "", err
+	}
+	return render(tmpl, vars)
+}
+
+// urlVars 构造模板变量：{version} {platform} {ext} {registry} {filename} {tag}。
+func (p *Provider) urlVars(v Version, goos, goarch, profile string) (map[string]string, error) {
+	platform, err := p.Platform(goos, goarch)
+	if err != nil {
+		return nil, err
 	}
 	ext, err := p.ExtFor(goos)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return render(tmpl, map[string]string{
-		"version":  version,
+	filename := v.ArtifactName
+	if filename == "" {
+		if f, ok := v.FileFor(goos, goarch); ok {
+			filename = f.Filename
+		}
+	}
+	return map[string]string{
+		"version":  v.Version,
 		"platform": platform,
 		"ext":      ext,
 		"registry": registryBase(profile),
 		"tool":     p.ID,
-	})
+		"filename": filename,
+		"tag":      v.Tag,
+	}, nil
 }
 
 // ArtifactURLs 返回按回退链排好序的产物 URL 列表（同一版本所有档位）。
 func (p *Provider) ArtifactURLs(version, goos, goarch, profile string) ([]string, error) {
-	platform, err := p.Platform(goos, goarch)
+	return p.ArtifactURLsFor(Version{Version: version}, goos, goarch, profile)
+}
+
+// ArtifactURLsFor 与 ArtifactURLs 相同，但带着索引里的版本元数据（{filename}/{tag}）。
+func (p *Provider) ArtifactURLsFor(v Version, goos, goarch, profile string) ([]string, error) {
+	vars, err := p.urlVars(v, goos, goarch, profile)
 	if err != nil {
 		return nil, err
-	}
-	ext, err := p.ExtFor(goos)
-	if err != nil {
-		return nil, err
-	}
-	vars := map[string]string{
-		"version":  version,
-		"platform": platform,
-		"ext":      ext,
-		"registry": registryBase(profile),
-		"tool":     p.ID,
 	}
 	urls, err := renderAll(p.Artifact.URLs, vars, profile)
 	if err != nil {
@@ -350,23 +368,17 @@ func (p *Provider) ArtifactURLs(version, goos, goarch, profile string) ([]string
 
 // ChecksumURLs 返回按回退链排好序的校验和 URL 列表。
 func (p *Provider) ChecksumURLs(version, goos, goarch, profile string) ([]string, error) {
+	return p.ChecksumURLsFor(Version{Version: version}, goos, goarch, profile)
+}
+
+// ChecksumURLsFor 携带索引元数据（{filename}/{tag}）的校验和 URL 列表。
+func (p *Provider) ChecksumURLsFor(v Version, goos, goarch, profile string) ([]string, error) {
 	if len(p.Checksum.URLs) == 0 {
 		return nil, nil
 	}
-	platform, err := p.Platform(goos, goarch)
+	vars, err := p.urlVars(v, goos, goarch, profile)
 	if err != nil {
 		return nil, err
-	}
-	ext, err := p.ExtFor(goos)
-	if err != nil {
-		return nil, err
-	}
-	vars := map[string]string{
-		"version":  version,
-		"platform": platform,
-		"ext":      ext,
-		"registry": registryBase(profile),
-		"tool":     p.ID,
 	}
 	urls, err := renderAll(p.Checksum.URLs, vars, profile)
 	if err != nil {

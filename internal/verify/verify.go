@@ -327,6 +327,17 @@ func (v *Verifier) collect(ctx context.Context, req Request) (map[string]string,
 		algo = AlgoSHA256
 	}
 
+	if req.Format == "index-inline" {
+		// 校验和直接来自版本索引（go 的 dl JSON），sha256 十六进制。
+		if sum := strings.ToLower(strings.TrimSpace(req.InlineShasum)); len(sum) == 64 && isHex(sum) {
+			if algo == AlgoSHA256 {
+				expected[sum] = sum
+				sources++
+			}
+		} else if sum != "" {
+			return nil, 0, fmt.Errorf("%w: 索引里的 sha256 格式非法: %q", ErrChecksum, req.InlineShasum)
+		}
+	}
 	if req.Format == "registry-integrity" {
 		// registry 给的可能是 sha1（dist.shasum，40 位）或 sha512 SRI（dist.integrity）。
 		if sum := strings.TrimSpace(req.InlineShasum); sum != "" {

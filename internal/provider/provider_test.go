@@ -127,15 +127,54 @@ func TestArtifactURLUnsupportedPlatform(t *testing.T) {
 	}
 }
 
-func TestPythonNeedsTagForNow(t *testing.T) {
-	// python 的产物名含 release 标签（{tag}），由 M3 的目录列举式索引补齐。
+func TestPythonPBSManifest(t *testing.T) {
+	// python 的索引是 pbs 两级列举；产物名与校验和都依赖 {tag}/{filename}。
 	p, _ := Get("python")
-	if p.Index.Kind != IndexDirList {
-		t.Fatalf("python 索引必须是目录列举式: %q", p.Index.Kind)
+	if p.Index.Kind != IndexPBS {
+		t.Fatalf("python 索引必须是 pbs: %q", p.Index.Kind)
 	}
-	_, err := p.ArtifactURL("3.13.0", "linux", "amd64", "cn")
-	if err == nil || !strings.Contains(err.Error(), "tag") {
-		t.Fatalf("应明确报缺 {tag}: %v", err)
+	v := Version{
+		Version: "3.13.18", Tag: "20261026",
+		Files: []IndexFile{{Filename: "cpython-3.13.18+20261026-aarch64-apple-darwin-install_only.tar.gz",
+			OS: "darwin", Arch: "arm64", Kind: "archive"}},
+	}
+	urls, err := p.ArtifactURLsFor(v, "darwin", "arm64", "cn")
+	if err != nil {
+		t.Fatalf("ArtifactURLsFor: %v", err)
+	}
+	if !strings.Contains(urls[0], "/20261026/cpython-3.13.18+20261026-aarch64-apple-darwin-install_only.tar.gz") {
+		t.Fatalf("{tag}/{filename} 未渲染: %v", urls)
+	}
+	sums, err := p.ChecksumURLsFor(v, "darwin", "arm64", "cn")
+	if err != nil || len(sums) == 0 || !strings.HasSuffix(sums[0], "/20261026/SHA256SUMS") {
+		t.Fatalf("校验和 URL 应带标签目录: %v %v", sums, err)
+	}
+	// 不带元数据时 {filename} 为空，URL 会退化成目录形式（调用方必须传 Version）
+	plain, err := p.ArtifactURL("3.13.18", "darwin", "arm64", "cn")
+	if err != nil || !strings.HasSuffix(plain, "/20261026/") && strings.Contains(plain, "20261026") {
+		t.Logf("无元数据的渲染结果: %q", plain)
+	}
+}
+
+func TestGoIndexInlineChecksum(t *testing.T) {
+	p, _ := Get("go")
+	if p.Checksum.Format != ChecksumIndexInline {
+		t.Fatalf("go 的校验和应来自索引（index-inline）: %q", p.Checksum.Format)
+	}
+	if p.Index.VersionPrefix != "go" {
+		t.Fatalf("go 的版本前缀应剥离: %q", p.Index.VersionPrefix)
+	}
+	if !strings.Contains(p.Index.URLs["default"], "include=all") {
+		t.Fatalf("索引必须带 include=all（否则只有 2 条）: %q", p.Index.URLs["default"])
+	}
+	v := Version{Version: "1.27.3", Files: []IndexFile{{Filename: "go1.27.3.linux-amd64.tar.gz",
+		OS: "linux", Arch: "amd64", SHA256: "abc", Kind: "archive"}}}
+	urls, err := p.ArtifactURLsFor(v, "linux", "amd64", "cn")
+	if err != nil || urls[0] != "https://mirrors.aliyun.com/golang/go1.27.3.linux-amd64.tar.gz" {
+		t.Fatalf("go 产物 URL（{filename}）错误: %v %v", urls, err)
+	}
+	if f, ok := v.FileFor("linux", "amd64"); !ok || f.SHA256 != "abc" {
+		t.Fatalf("go 的产物 sha256 应可读: %+v", f)
 	}
 }
 

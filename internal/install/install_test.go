@@ -35,6 +35,10 @@ func fakeLookup(fm *testkit.FakeNode) func(string) (*provider.Provider, error) {
 
 func newInstaller(t *testing.T, fm *testkit.FakeNode, mutate func(*Options)) *Installer {
 	t.Helper()
+	if fm == nil {
+		fm = &testkit.FakeNode{}
+	}
+	t.Helper()
 	root := t.TempDir()
 	p, err := paths.New(root)
 	if err != nil {
@@ -1063,5 +1067,110 @@ func TestUninstallWhenShimDirMissing(t *testing.T) {
 	}
 	if err := inst.Uninstall("node", "22.22.2", true); err != nil {
 		t.Fatalf("shim 目录不在时卸载也应成功: %v", err)
+	}
+}
+
+func TestInstallGo(t *testing.T) {
+	fg := testkit.NewFakeGo(t, []string{"1.26.0", "1.27.3"})
+	inst := newInstaller(t, nil, func(o *Options) {
+		o.LookupProvider = func(id string) (*provider.Provider, error) {
+			if id == "go" {
+				return fg.Provider, nil
+			}
+			return nil, errors.New("未知工具 " + id)
+		}
+	})
+	ctx := context.Background()
+	res, err := inst.Install(ctx, "go", "latest")
+	if err != nil {
+		t.Fatalf("装 go: %v", err)
+	}
+	if res.Version != "1.27.3" {
+		t.Fatalf("latest 应取 1.27.3，得到 %q", res.Version)
+	}
+	// 校验和来自索引（index-inline）：单源 → weak
+	if res.Verified != verify.VerifiedWeak {
+		t.Fatalf("index-inline 单源应为 weak，得到 %q", res.Verified)
+	}
+	if _, err := os.Stat(filepath.Join(res.Path, "bin", "go")); err != nil {
+		t.Fatalf("缺少 bin/go: %v", err)
+	}
+	if err := inst.Finalize(); err != nil {
+		t.Fatal(err)
+	}
+	// 装 go 不需要任何额外请求：TOFU 表只记一条，且 sha 与索引一致
+	known, err := verify.LoadKnown(rootOf(t, inst).Known())
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry, ok := known.Get("go@1.27.3/darwin-arm64")
+	if !ok || entry.Digest != fg.Sha256["1.27.3"] {
+		t.Fatalf("TOFU 摘要应与索引里的 sha256 一致: %+v", entry)
+	}
+	// go 精确版本也要能装（索引带 sha256，靠索引取校验和）
+	if _, err := inst.Install(ctx, "go", "1.26.0"); err != nil {
+		t.Fatalf("装 go 1.26.0: %v", err)
+	}
+}
+
+func TestInstallGoUnsupportedPlatform(t *testing.T) {
+	fg := testkit.NewFakeGo(t, []string{"1.27.3"})
+	inst := newInstaller(t, nil, func(o *Options) {
+		o.GOOS, o.GOARCH = "linux", "arm64" // 假镜像没这个平台
+		o.LookupProvider = func(string) (*provider.Provider, error) { return fg.Provider, nil }
+	})
+	if _, err := inst.Install(context.Background(), "go", "1.27.3"); err == nil {
+		t.Fatal("镜像不支持的平台应报错")
+	}
+}
+
+func TestInstallPythonPB(t *testing.T) {
+	fp := testkit.NewFakePBS(t, testkit.PBSOptions{
+		Tags:     []string{"20261026"},
+		Versions: []string{"3.12.16", "3.13.18"},
+	})
+	inst := newInstaller(t, nil, func(o *Options) {
+		o.LookupProvider = func(id string) (*provider.Provider, error) {
+			if id == "python" {
+				return fp.Provider, nil
+			}
+			return nil, errors.New("未知工具 " + id)
+		}
+	})
+	ctx := context.Background()
+	res, err := inst.Install(ctx, "python", "3.13")
+	if err != nil {
+		t.Fatalf("装 python: %v", err)
+	}
+	if res.Version != "3.13.18" {
+		t.Fatalf("3.13 → %q", res.Version)
+	}
+	if _, err := os.Stat(filepath.Join(res.Path, "bin", "python3")); err != nil {
+		t.Fatalf("缺少 bin/python3: %v", err)
+	}
+	// 只下预编译产物：缓存里应只有一个 tar.gz，且没有源码包
+	entries, err := os.ReadDir(rootOf(t, inst).CacheArchives())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("只该下一次产物，得到 %v", entries)
+	}
+	if !strings.HasSuffix(entries[0].Name(), ".tar.gz") {
+		t.Fatalf("应是预编译 tar.gz: %v", entries[0].Name())
+	}
+}
+
+func TestInstallPythonAliasLatest(t *testing.T) {
+	fp := testkit.NewFakePBS(t, testkit.PBSOptions{
+		Tags:     []string{"20261026"},
+		Versions: []string{"3.13.18", "3.11.18"},
+	})
+	inst := newInstaller(t, nil, func(o *Options) {
+		o.LookupProvider = func(string) (*provider.Provider, error) { return fp.Provider, nil }
+	})
+	res, err := inst.Install(context.Background(), "python", "latest")
+	if err != nil || res.Version != "3.13.18" {
+		t.Fatalf("latest → %+v/%v", res, err)
 	}
 }

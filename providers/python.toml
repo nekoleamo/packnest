@@ -1,19 +1,21 @@
 # Python —— 只装 python-build-standalone 预编译版，永不源码编译（方案 §4.0 / §18）
-# 索引是目录列举式（npmmirror 已镜像，20261026/ 下 993 个条目），不是 index.json。
+#
+# 索引是**两级目录列举**：npmmirror 的 /python-build-standalone/ 下是 release 标签目录
+# （20261026/），标签目录下是 993 个产物文件（cpython-3.13.18+20261026-aarch64-apple-darwin-install_only.tar.gz）。
+# 因为官方 GitHub 没有"目录列举"接口，这里只声明镜像索引；官方只作为产物/校验和的回退源。
 id = "python"
 display = "Python"
 kind = "binary"
 
 [index]
-kind = "dirlist"
+kind = "pbs"
 [index.urls]
-default = "https://github.com/astral-sh/python-build-standalone/releases"
-cn      = "https://registry.npmmirror.com/-/binary/python-build-standalone/"
+cn = "https://registry.npmmirror.com/-/binary/python-build-standalone"
 
 [artifact]
 [artifact.urls]
-default = "https://github.com/astral-sh/python-build-standalone/releases/download/{version}/cpython-{version}+{tag}-{platform}-install_only.{ext}"
-cn      = "https://registry.npmmirror.com/-/binary/python-build-standalone/{version}/cpython-{version}+{tag}-{platform}-install_only.{ext}"
+cn      = "https://registry.npmmirror.com/-/binary/python-build-standalone/{tag}/{filename}"
+default = "https://github.com/astral-sh/python-build-standalone/releases/download/{tag}/{filename}"
 [artifact.ext]
 windows = "tar.gz"
 darwin  = "tar.gz"
@@ -26,12 +28,11 @@ linux-arm64   = "aarch64-unknown-linux-gnu"
 windows-amd64 = "x86_64-pc-windows-msvc"
 
 [checksum]
-# pbs 每个 release 有 SHA256SUMS
 format = "gnu-sums"
 mode   = "tofu-then-verify"
 [checksum.urls]
-default = "https://github.com/astral-sh/python-build-standalone/releases/download/{version}/SHA256SUMS"
-cn      = "https://registry.npmmirror.com/-/binary/python-build-standalone/{version}/SHA256SUMS"
+cn      = "https://registry.npmmirror.com/-/binary/python-build-standalone/{tag}/SHA256SUMS"
+default = "https://github.com/astral-sh/python-build-standalone/releases/download/{tag}/SHA256SUMS"
 
 [layout]
 strip = 1

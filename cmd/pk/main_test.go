@@ -532,3 +532,36 @@ func TestInstallTargets(t *testing.T) {
 		t.Fatal("只有 npm 时应报错")
 	}
 }
+
+func TestDoctorGoToolchainWarning(t *testing.T) {
+	// 装了 go 但 GOTOOLCHAIN 不是 local → 必须告警（方案 §6.6：会多下一次工具链）
+	root := t.TempDir()
+	p, _ := paths.New(root)
+	dir := p.ToolVersion("go", "1.27.3")
+	if err := os.MkdirAll(filepath.Join(dir, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ledger := &store.Ledger{}
+	ledger.Upsert(store.Install{Tool: "go", Version: "1.27.3", Path: dir})
+	if err := ledger.Save(p.Ledger()); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("GOTOOLCHAIN", "")
+	code, out, _ := execCLI(t, "--root", root, "--json", "doctor")
+	if code != 0 {
+		t.Fatalf("doctor 退出码 %d", code)
+	}
+	if !strings.Contains(out, "GO_TOOLCHAIN_NOT_LOCAL") {
+		t.Fatalf("应告警 GOTOOLCHAIN 未设: %s", out)
+	}
+	if !strings.Contains(out, "pk env") {
+		t.Fatalf("告警应给处置: %s", out)
+	}
+
+	t.Setenv("GOTOOLCHAIN", "local")
+	_, out, _ = execCLI(t, "--root", root, "--json", "doctor")
+	if strings.Contains(out, "GO_TOOLCHAIN_NOT_LOCAL") {
+		t.Fatalf("local 时不该告警: %s", out)
+	}
+}

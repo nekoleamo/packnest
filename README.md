@@ -19,14 +19,16 @@
 
 ## 状态
 
-**M2 已完成**（详见 `docs/progress.md`）：node / npm / pnpm / bun / deno 五个工具在真网全部装得通
-（实测 bun 1.4.4 / deno 2.9.8 / pnpm 12.18.0 可运行）。
+**M3 已完成**（详见 `docs/progress.md`）：7 个工具在真网全部装得通并跑得起来 ——
+node 22.23.4 / npm 12.2.2（伴生）/ pnpm 12.18.0 / bun 1.4.4 / deno 2.9.8 / go 1.27.3 / python 3.13.18。
+
+**M2 已完成**：pnpm / bun / deno（索引补齐 `dirlist` 与 `github-releases` 两种形态）。
 
 **M1 已完成**：`pk install node@22` 在真网跑通 —— node 从 npmmirror 下载并
 多源校验、npm 按 `engines.node` 反查后替换进 node prefix（npmmirror tarball 返回 500 时自动退回
 registry.npmjs.org）、卸载后离线重装 0 网络走 TOFU。90 格故障矩阵、8 条 M1 验收用例、`make check` 7 项门禁全绿。
 
-`go` / `python`（M3）、`use` / `gc` / 引用计数（M4）尚未实现，命令会**明确报出里程碑**并以 1 退出。
+`use` / `gc` / 引用计数 / 全局包共享前缀（M4）尚未实现，命令会**明确报出里程碑**并以 1 退出。
 
 ## 快速开始
 
@@ -63,6 +65,7 @@ internal/spec/       版本说明符、engines 匹配、预发布过滤
 internal/archive/    tar.gz/tgz/zip 解压、strip、单文件布局、原子替换
 internal/verify/     SHASUMS/registry integrity 校验 + TOFU 表
 internal/companion/  node↔npm 伴生反查（engines 精确匹配）
+internal/toolchain/  go 的 GOTOOLCHAIN 检查 + python 的 pbs 两级目录列举
 internal/install/    安装编排：索引→下载→校验→解压→伴生→shim→台账
 internal/provider/   provider TOML 模型 + URL 模板渲染 + 版本索引加载
 internal/mirror/     镜像档、回退链、探测（6h TTL）

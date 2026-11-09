@@ -36,7 +36,12 @@ type Version struct {
 	Shasum  string // npm registry 的 dist.shasum（sha1）
 	// Integrity 是 npm registry 的 dist.integrity（sha512 SRI，比 shasum 强）。
 	Integrity string
-	Files     []IndexFile
+	// ArtifactName 是索引给出的精确产物文件名（go 的 go1.27.3.linux-amd64.tar.gz、
+	// python 的 cpython-3.13.18+20261026-aarch64-apple-darwin-install_only.tar.gz）。
+	ArtifactName string
+	// Tag 是发布标签（python-build-standalone 的 20261026）。
+	Tag   string
+	Files []IndexFile
 }
 
 // FileFor 返回匹配 OS/Arch 的产物条目（go 用）。
@@ -64,6 +69,9 @@ type IndexLoader struct {
 	Client   *fetch.Client
 	CacheDir string
 	TTL      time.Duration
+	// Custom 是自定义索引形态的钩子（目前只有 pbs 两级目录列举，实现在 internal/toolchain，
+	// 这样 provider 不必反过来依赖 toolchain，避免成环）。
+	Custom func(ctx context.Context, p *Provider, profile string, client *fetch.Client, cacheDir string) ([]Version, error)
 }
 
 // Load 按镜像回退链依次尝试索引源。
@@ -72,6 +80,17 @@ func (l *IndexLoader) Load(ctx context.Context, p *Provider, profile string) (*I
 	if len(urls) == 0 {
 		return nil, fmt.Errorf("%s: 没有可用的索引源", p.ID)
 	}
+	if p.Index.Kind == IndexPBS {
+		if l.Custom == nil {
+			return nil, fmt.Errorf("%s: pbs 索引需要 toolchain 钩子（内部错误）", p.ID)
+		}
+		versions, err := l.Custom(ctx, p, profile, l.client(), l.CacheDir)
+		if err != nil {
+			return nil, err
+		}
+		return &Index{Provider: p, Versions: versions}, nil
+	}
+
 	var errs []string
 	for _, url := range urls {
 		bodyPath := filepath.Join(l.CacheDir, p.ID+".json")
@@ -81,7 +100,7 @@ func (l *IndexLoader) Load(ctx context.Context, p *Provider, profile string) (*I
 			errs = append(errs, fmt.Sprintf("%s: %v", url, err))
 			continue
 		}
-		versions, err := parseIndex(p.Index.Kind, res.Body)
+		versions, err := parseIndexFor(p, res.Body)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", url, err))
 			continue
@@ -183,6 +202,22 @@ func (i *Index) notFound(sp spec.Spec) error {
 		hint += fmt.Sprintf("，可用 `pk install %s@%s` 或 `pk mirror use default`", i.Provider.ID, latest.Version)
 	}
 	return fmt.Errorf("%s 没有满足 %q 的版本%s", i.Provider.ID, sp.String(), hint)
+}
+
+// parseIndexFor 在 parseIndex 之上做 provider 声明的版本号前缀剥离（go 的 "go1.27.3"）。
+func parseIndexFor(p *Provider, data []byte) ([]Version, error) {
+	versions, err := parseIndex(p.Index.Kind, data)
+	if err != nil {
+		return nil, err
+	}
+	prefix := p.Index.VersionPrefix
+	if prefix == "" {
+		return versions, nil
+	}
+	for i := range versions {
+		versions[i].Version = strings.TrimPrefix(versions[i].Version, prefix)
+	}
+	return versions, nil
 }
 
 // parseIndex 按 provider 声明的索引形态解析。

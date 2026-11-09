@@ -13,6 +13,7 @@ import (
 	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/shim"
 	"github.com/packnest/packnest/internal/store"
+	"github.com/packnest/packnest/internal/toolchain"
 )
 
 // cmdDoctor 体检并给可执行建议（M0 覆盖：配置/镜像档/provider/台账/shim/PATH 顺序）。
@@ -91,6 +92,13 @@ func (a *app) cmdDoctor(args []string) int {
 		}
 	}
 
+	// 6b. go 的 GOTOOLCHAIN（方案 §6.6：不是 local 就多一个下载面）
+	if ledger != nil && len(installedTools(ledger, "go")) > 0 {
+		if msg := toolchain.CheckGoEnv(os.Getenv); msg != "" {
+			add(jsonout.SeverityWarn, "GO_TOOLCHAIN_NOT_LOCAL", msg, map[string]any{"current": os.Getenv("GOTOOLCHAIN")})
+		}
+	}
+
 	// 7. 其他管理器共存提示（只读，不自动改，方案 §18.10）
 	for _, other := range []string{".proto", ".nvm", ".volta", ".asdf", ".mise"} {
 		home, err := os.UserHomeDir()
@@ -145,6 +153,7 @@ func (a *app) cmdEnv(args []string) int {
 	if p, err := provider.Get("go"); err == nil && p.Toolchain != nil {
 		vars = append(vars, env.ToolchainVars(p.Toolchain.Env)...)
 	}
+	vars = mergeVars(vars)
 
 	if a.json {
 		return a.emit(struct {
@@ -175,6 +184,32 @@ func npmCacheDir(root string) string {
 		}
 	}
 	return filepath.Join(root, "cache", "npm")
+}
+
+// mergeVars 按键去重（后者覆盖前者，保留首次出现的位置）。
+func mergeVars(vars []env.KV) []env.KV {
+	index := map[string]int{}
+	out := make([]env.KV, 0, len(vars))
+	for _, kv := range vars {
+		if i, ok := index[kv.Key]; ok {
+			out[i] = kv
+			continue
+		}
+		index[kv.Key] = len(out)
+		out = append(out, kv)
+	}
+	return out
+}
+
+// installedTools 返回某工具的已装版本（doctor 用来决定要不要检查该工具的特情）。
+func installedTools(l *store.Ledger, tool string) []string {
+	var out []string
+	for _, in := range l.Installs {
+		if in.Tool == tool {
+			out = append(out, in.Version)
+		}
+	}
+	return out
 }
 
 func splitPath(p string) []string {

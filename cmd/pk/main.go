@@ -23,7 +23,7 @@ import (
 )
 
 // Version 是 CLI 版本（渠道发布号由构建注入）。
-var Version = "0.3.0-M2"
+var Version = "0.4.0-M3"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -193,7 +193,7 @@ func printUsage(w io.Writer) {
 用法: pk <命令> [参数] [--json] [--offline] [--yes]
 
 命令:
-  install [工具@版本]     安装（无参数按 pk.toml；node/npm/pnpm/bun/deno）
+  install [工具@版本]     安装（无参数按 pk.toml；7 个工具全支持）
   uninstall 工具@版本     台账驱动卸载（被引用需 --force）
   use 工具@版本           切换全局默认版本                  [M4]
   list [--available]      已装/可装工具
