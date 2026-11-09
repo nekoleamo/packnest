@@ -23,7 +23,7 @@ import (
 )
 
 // Version 是 CLI 版本（渠道发布号由构建注入）。
-var Version = "0.4.0-M3"
+var Version = "0.5.0-M4"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -201,7 +201,7 @@ func printUsage(w io.Writer) {
   mirror list|probe|use   镜像档：列出 / 探测 / 切换
   doctor                  环境体检（PATH/shim/台账/镜像）
   env [--shell S] [--write] 输出 shell 环境片段
-  gc [--dry-run]          回收零引用与过期缓存              [M4]
+  gc [--dry-run] [--cache-max]  回收零引用版本与超限缓存
 
 全局开关:
   --json      机器可读输出（GUI 与脚本的唯一入口）

@@ -6,6 +6,7 @@ package env
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -34,6 +35,26 @@ func RegistryVars(profile string) []KV {
 		{"GOPROXY", prof.GoProxy},
 		// go 装完必须写：否则 go 自己会再去下一套工具链（方案 §4.0）
 		{"GOTOOLCHAIN", "local"},
+	}
+}
+
+// SharedVarsFor 按 global_mode 返回全局包变量：shared（默认）或 per-version（nvm 式）。
+//
+// shared 是整个方案的关键：固定目录 → 新装全局包无需 reshim，切 node 版本全局包不动。
+func SharedVarsFor(mode string, p paths.Paths, npmCache, nodeVersion string) []KV {
+	if mode != "per-version" || nodeVersion == "" {
+		return SharedVars(p, npmCache)
+	}
+	prefix := filepath.Join(p.Root, "global", "node-"+nodeVersion)
+	return []KV{
+		{"npm_config_prefix", prefix},
+		{"npm_config_cache", npmCache},
+		{"npm_config_globalconfig", filepath.Join(prefix, "etc", "npmrc")},
+		{"npm_config_prefer_offline", "true"},
+		{"PNPM_HOME", filepath.Join(prefix, "pnpm")},
+		{"BUN_INSTALL", filepath.Join(prefix, "bun")},
+		{"DENO_INSTALL_ROOT", filepath.Join(prefix, "deno")},
+		{"DENO_DIR", p.Root + "/cache/deno"},
 	}
 }
 

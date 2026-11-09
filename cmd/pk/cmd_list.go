@@ -20,9 +20,12 @@ func (a *app) cmdList(args []string) int {
 		return a.failUsage(err)
 	}
 
-	ledger, err := store.LoadLedger(a.paths.Ledger())
+	ledger, recovered, err := store.LoadLedgerWithRecovery(a.paths.Ledger())
 	if err != nil {
 		return a.fail(err)
+	}
+	if recovered && !a.json {
+		fmt.Fprintf(a.errOut, "pk: 台账损坏，已从 %s.bak 恢复（`pk doctor` 查看详情）\n", a.paths.Ledger())
 	}
 
 	entries := make([]jsonout.ToolEntry, 0, len(ledger.Installs))

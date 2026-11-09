@@ -45,9 +45,6 @@ func (a *app) cmdInstall(args []string) int {
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
-	if *frozen {
-		return a.notImplemented("install --frozen", "M4")
-	}
 	_ = jobs
 
 	project, err := install.LoadProject(a.cwd())
@@ -57,6 +54,18 @@ func (a *app) cmdInstall(args []string) int {
 	targets, err := installTargets(fs.Args(), project)
 	if err != nil {
 		return a.failUsage(err)
+	}
+
+	var lockFile *install.Lock
+	if *frozen {
+		lockFile, err = install.LoadLock(a.cwd())
+		if err != nil {
+			return a.fail(err)
+		}
+		if err := install.CheckFrozen(project, lockFile); err != nil {
+			fmt.Fprintf(a.errOut, "pk: %v\n", err)
+			return jsonout.ExitFail
+		}
 	}
 
 	unlock, err := store.Lock(a.paths.Lock())
@@ -80,11 +89,17 @@ func (a *app) cmdInstall(args []string) int {
 		GOOS:           runtime.GOOS,
 		GOARCH:         runtime.GOARCH,
 		Project:        project,
+		Frozen:         *frozen,
+		Lock:           lockFile,
 		Events:         a.eventWriter(),
 		LookupProvider: nil,
 	})
 	if err != nil {
 		return a.failWith(err)
+	}
+	// 写操作前先清扫崩溃残留（断电/强杀留下的 .tmp/.old/.part）。
+	if swept, err := inst.SweepStale(); err == nil && len(swept.Removed) > 0 && !a.json {
+		fmt.Fprintf(a.out, "清扫残留 %d 项（约 %.1f MB）\n", len(swept.Removed), float64(swept.Bytes)/(1<<20))
 	}
 
 	var failed bool
@@ -113,6 +128,23 @@ func (a *app) cmdInstall(args []string) int {
 	}
 	if failed {
 		return jsonout.ExitFail
+	}
+	// 项目里安装成功就刷新 pk.lock（--frozen 不动锁）。
+	if !*frozen && len(project) > 0 {
+		active := map[string]string{}
+		for tool, version := range a.cfg.Tools {
+			active[tool] = version
+		}
+		lock, err := install.BuildProjectLock(project, inst.Ledger(), active)
+		if err != nil {
+			return a.fail(err)
+		}
+		if err := lock.Save(a.cwd()); err != nil {
+			return a.fail(err)
+		}
+		if !a.json {
+			fmt.Fprintf(a.out, "已更新 %s（%s）\n", install.LockFileName, lock.LockTools())
+		}
 	}
 	return jsonout.ExitOK
 }

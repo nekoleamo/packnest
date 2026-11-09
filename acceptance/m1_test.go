@@ -236,7 +236,11 @@ func TestAcceptance_M1_UninstallClean(t *testing.T) {
 	if err := inst.Finalize(); err != nil {
 		t.Fatal(err)
 	}
-	if err := inst.Uninstall("node", "22.22.2", false); err != nil {
+	// 首次安装即全局默认 → 卸载需要 --force（引用计数，方案 §8.2）
+	if err := inst.Uninstall("node", "22.22.2", false); err == nil {
+		t.Fatal("默认版本不带 --force 应被拒绝")
+	}
+	if err := inst.Uninstall("node", "22.22.2", true); err != nil {
 		t.Fatalf("Uninstall: %v", err)
 	}
 	if err := inst.Finalize(); err != nil {

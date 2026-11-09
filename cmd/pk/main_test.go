@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/packnest/packnest/internal/paths"
 	"github.com/packnest/packnest/internal/shim"
@@ -243,8 +244,8 @@ func TestDoctorText(t *testing.T) {
 	if code, out, _ := execCLI(t, "--root", root, "doctor", "--json"); code != 0 || !strings.Contains(out, `"schema": 1`) {
 		t.Fatalf("doctor --json = %d %q", code, out)
 	}
-	if code, _, errOut := execCLI(t, "--root", root, "doctor", "--globals"); code != 1 || !strings.Contains(errOut, "M4") {
-		t.Fatalf("doctor --globals 应报 M4: %d %q", code, errOut)
+	if code, out, _ := execCLI(t, "--root", root, "--json", "doctor", "--globals"); code != 0 || !strings.Contains(out, "GLOBALS_NONE") {
+		t.Fatalf("doctor --globals 应报告全局包目录为空: %d %q", code, out)
 	}
 }
 
@@ -309,9 +310,8 @@ func TestStubs(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"use", "node@22"}, "M4"},
-		{[]string{"gc", "--dry-run"}, "M4"},
-		{[]string{"install", "--frozen"}, "M4"},
+		{[]string{"use", "node@22"}, "还没装"},
+		{[]string{"mirror", "write"}, "M5"},
 	}
 	for _, c := range cases {
 		code, _, errOut := execCLI(t, append([]string{"--root", root}, c.args...)...)
@@ -321,6 +321,9 @@ func TestStubs(t *testing.T) {
 	}
 	if code, _, _ := execCLI(t, "--root", root, "uninstall"); code != 2 {
 		t.Errorf("uninstall 缺参数应退出 2，得到 %d", code)
+	}
+	if code, out, _ := execCLI(t, "--root", root, "--json", "gc", "--dry-run"); code != 0 || !strings.Contains(out, "schema") {
+		t.Errorf("gc --dry-run 应可用: %d %q", code, out)
 	}
 	if code, _, errOut := execCLI(t, "--root", root, "uninstall", "node@22.22.2"); code != 1 || !strings.Contains(errOut, "不在台账里") {
 		t.Errorf("卸载不在台账里的版本应退出 1: %d %q", code, errOut)
@@ -397,7 +400,11 @@ func TestCLIInstallAndUninstall(t *testing.T) {
 		t.Fatalf("install 后应补齐 pk shim: %d %q", code, out)
 	}
 
-	code, out, _ = execCLI(t, "--root", root, "uninstall", "node@22.99.99")
+	// 首次安装即全局默认；不带 --force 应被引用检查挡住
+	if code, _, errOut := execCLI(t, "--root", root, "uninstall", "node@22.99.99"); code != 1 || !strings.Contains(errOut, "--force") {
+		t.Fatalf("默认版本卸载应被拒并提示 --force: %d %q", code, errOut)
+	}
+	code, out, _ = execCLI(t, "--root", root, "uninstall", "node@22.99.99", "--force")
 	if code != 0 || !strings.Contains(out, "已卸载") {
 		t.Fatalf("uninstall: %d %q", code, out)
 	}
@@ -563,5 +570,159 @@ func TestDoctorGoToolchainWarning(t *testing.T) {
 	_, out, _ = execCLI(t, "--root", root, "--json", "doctor")
 	if strings.Contains(out, "GO_TOOLCHAIN_NOT_LOCAL") {
 		t.Fatalf("local 时不该告警: %s", out)
+	}
+}
+
+func TestCLIUseSwitchesVersion(t *testing.T) {
+	setupFakeMirror(t)
+	root := t.TempDir()
+	if code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99"); code != 0 {
+		t.Fatalf("安装失败: %d %s", code, errOut)
+	}
+	// 切到已装版本
+	code, out, _ := execCLI(t, "--root", root, "use", "node@22.99.99")
+	if code != 0 || !strings.Contains(out, "已切到 node@22.99.99") {
+		t.Fatalf("use 输出异常: %d %q", code, out)
+	}
+	code, out, _ = execCLI(t, "--root", root, "--json", "list")
+	if code != 0 || !strings.Contains(out, `"active": true`) {
+		t.Fatalf("list 应显示 active: %d %q", code, out)
+	}
+	// 切到没装的版本 → 报错并给建议
+	code, _, errOut := execCLI(t, "--root", root, "use", "node@1.0.0")
+	if code != 1 || !strings.Contains(errOut, "还没装") {
+		t.Fatalf("未装版本应报错: %d %q", code, errOut)
+	}
+	if code, _, _ := execCLI(t, "--root", root, "use", "node"); code != 2 {
+		t.Fatalf("use 缺版本应退出 2，得到 %d", code)
+	}
+}
+
+func TestCLIGCDryRunAndReal(t *testing.T) {
+	fm := setupFakeMirror(t)
+	// 第二个版本用来当"零引用"对象
+	fm2 := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "24.99.99", NPMVersion: "11.20.0"}},
+		NPM:      map[string]string{"11.20.0": "^20.17.0 || >=22.9.0"},
+	})
+	_ = fm2
+	root := t.TempDir()
+	// 装两个版本：第一个成为默认，第二个零引用
+	if code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99"); code != 0 {
+		t.Fatalf("装第一个: %d %s", code, errOut)
+	}
+	t.Setenv("PK_MIRROR_NODE_INDEX", fm.Server.URL+"/node/index.json")
+
+	code, out, errOut := execCLI(t, "--root", root, "--json", "gc", "--dry-run")
+	if code != 0 {
+		t.Fatalf("gc --dry-run: %d %s", code, errOut)
+	}
+	var doc struct {
+		Schema       int      `json:"schema"`
+		Removed      []string `json:"Removed"`
+		CacheRemoved []string `json:"CacheRemoved"`
+		KeptRef      []string `json:"KeptRef"`
+		DryRun       bool     `json:"DryRun"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("gc --json 非法: %v\n%s", err, out)
+	}
+	if !doc.DryRun {
+		t.Fatalf("应标记 dry-run: %s", out)
+	}
+	if len(doc.KeptRef) == 0 {
+		t.Fatalf("默认版本应报告保留原因: %s", out)
+	}
+	// 真删：缓存上限设 1 字节，产物应被淘汰
+	code, out, _ = execCLI(t, "--root", root, "gc", "--cache-max", "1")
+	if code != 0 || !strings.Contains(out, "已回收") {
+		t.Fatalf("gc 输出异常: %d %q", code, out)
+	}
+}
+
+func TestCLIProjectLockAndFrozen(t *testing.T) {
+	setupFakeMirror(t)
+	root := t.TempDir()
+	cwd := t.TempDir()
+	writeProject := func(content string) {
+		if err := os.WriteFile(filepath.Join(cwd, "pk.toml"), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PK_CWD", cwd)
+	writeProject("[tools]\nnode = \"22\"\nnpm = \"auto\"\n")
+
+	code, out, errOut := execCLI(t, "--root", root, "install")
+	if code != 0 {
+		t.Fatalf("按 pk.toml 安装失败: %d\n%s\n%s", code, out, errOut)
+	}
+	if !strings.Contains(out, "已更新 pk.lock") {
+		t.Fatalf("应写出 pk.lock:\n%s", out)
+	}
+	lockData, err := os.ReadFile(filepath.Join(cwd, "pk.lock"))
+	if err != nil {
+		t.Fatalf("读 pk.lock: %v", err)
+	}
+	if !strings.Contains(string(lockData), "version = \"22.99.99\"") {
+		t.Fatalf("锁里应有解析后的精确版本:\n%s", lockData)
+	}
+
+	// 清单改成不兼容的大版本 → --frozen 必须非 0
+	writeProject("[tools]\nnode = \"24\"\n")
+	code, _, errOut = execCLI(t, "--root", root, "install", "--frozen")
+	if code != 1 || !strings.Contains(errOut, "不一致") {
+		t.Fatalf("清单与锁不一致应退出 1: %d %q", code, errOut)
+	}
+	// 清单改回一致 → --frozen 通过（直接用锁里的版本，不做解析）
+	writeProject("[tools]\nnode = \"22\"\nnpm = \"auto\"\n")
+	code, out, errOut = execCLI(t, "--root", root, "install", "--frozen")
+	if code != 0 {
+		t.Fatalf("一致时 --frozen 应成功: %d\n%s\n%s", code, out, errOut)
+	}
+}
+
+func TestCLIStartupSweep(t *testing.T) {
+	setupFakeMirror(t)
+	root := t.TempDir()
+	p, _ := paths.New(root)
+	stale := filepath.Join(p.Tool("node"), "9.9.9.tmp.dead")
+	if err := os.MkdirAll(stale, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ts := time.Now().Add(-48 * time.Hour)
+	if err := os.Chtimes(stale, ts, ts); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errOut := execCLI(t, "--root", root, "install", "node@22.99.99")
+	if code != 0 {
+		t.Fatalf("安装失败: %d %s", code, errOut)
+	}
+	if !strings.Contains(out, "清扫残留") {
+		t.Fatalf("应报告清扫结果:\n%s", out)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Fatal("残留应被清掉")
+	}
+}
+
+func TestCLIUninstallRepoints(t *testing.T) {
+	setupFakeMirror(t)
+	root := t.TempDir()
+	if code, _, _ := execCLI(t, "--root", root, "install", "node@22.99.99"); code != 0 {
+		t.Fatalf("安装失败")
+	}
+	if code, _, _ := execCLI(t, "--root", root, "install", "node@22.99.99", "--force"); code != 0 {
+		t.Fatalf("强制重装失败")
+	}
+	// 卸载默认版本（--force）后，shim 与配置都应清理干净
+	if code, _, errOut := execCLI(t, "--root", root, "uninstall", "node@22.99.99", "--force"); code != 0 {
+		t.Fatalf("卸载失败: %d %s", code, errOut)
+	}
+	cfg, err := store.LoadConfig(filepath.Join(root, "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Tools["node"] != "" {
+		t.Fatalf("卸载默认版本后应清掉配置: %+v", cfg.Tools)
 	}
 }

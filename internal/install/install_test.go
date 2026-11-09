@@ -403,7 +403,11 @@ func TestUninstallClean(t *testing.T) {
 	}
 	root := rootOf(t, inst)
 
-	if err := inst.Uninstall("node", "22.22.2", false); err != nil {
+	// 首次安装即全局默认 → 直接卸载会被拒绝，需要 --force（方案 §8.2 第 4 条）。
+	if err := inst.Uninstall("node", "22.22.2", false); err == nil {
+		t.Fatal("默认版本不带 --force 应被拒绝")
+	}
+	if err := inst.Uninstall("node", "22.22.2", true); err != nil {
 		t.Fatalf("Uninstall: %v", err)
 	}
 	if err := inst.Finalize(); err != nil {

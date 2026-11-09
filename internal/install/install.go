@@ -55,6 +55,10 @@ type Options struct {
 	Events func(jsonout.Event)
 	// Project 是 pk.toml 里的工具声明（含 npm 显式 pin）。
 	Project map[string]string
+	// Frozen 为 true 时不解析版本，直接按 Lock 装（CI 用）。
+	Frozen bool
+	// Lock 是 pk.lock 的内容（--frozen 必需）。
+	Lock *Lock
 	// TTL 是索引缓存时长。
 	TTL time.Duration
 }
@@ -106,7 +110,7 @@ func New(opt Options) (*Installer, error) {
 	if opt.LookupProvider == nil {
 		opt.LookupProvider = provider.Get
 	}
-	ledger, err := store.LoadLedger(opt.Paths.Ledger())
+	ledger, _, err := store.LoadLedgerWithRecovery(opt.Paths.Ledger())
 	if err != nil {
 		return nil, err
 	}
@@ -120,12 +124,36 @@ func New(opt Options) (*Installer, error) {
 // Ledger 暴露台账（CLI 的 list 复用）。
 func (i *Installer) Ledger() *store.Ledger { return i.ledger }
 
-// Finalize 落盘台账与 TOFU 表。
+// Finalize 落盘台账、TOFU 表与全局配置（use/install 都可能改默认版本）。
 func (i *Installer) Finalize() error {
 	if err := i.ledger.Save(i.opt.Paths.Ledger()); err != nil {
 		return err
 	}
-	return i.known.Save(i.opt.Paths.Known())
+	if err := i.known.Save(i.opt.Paths.Known()); err != nil {
+		return err
+	}
+	return i.opt.Cfg.Save(i.opt.Paths.Config())
+}
+
+// now 返回时钟（可注入）。
+func (i *Installer) now() time.Time {
+	if i.opt.Now != nil {
+		return i.opt.Now()
+	}
+	return time.Now()
+}
+
+// dirSize 递归算目录大小。
+func dirSize(path string) int64 {
+	var total int64
+	_ = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		total += info.Size()
+		return nil
+	})
+	return total
 }
 
 func (i *Installer) emit(ev jsonout.Event) {
@@ -144,9 +172,21 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		return Result{}, err
 	}
 
-	resolved, idx, err := i.resolveVersion(ctx, p, specStr)
-	if err != nil {
-		return Result{}, err
+	var lockedSHA string
+	var resolved provider.Version
+	var idx *provider.Index
+	if i.opt.Frozen {
+		version, sha, err := i.lockedVersion(i.opt.Lock, tool)
+		if err != nil {
+			return Result{}, err
+		}
+		lockedSHA = sha
+		resolved = provider.Version{Version: version}
+	} else {
+		resolved, idx, err = i.resolveVersion(ctx, p, specStr)
+		if err != nil {
+			return Result{}, err
+		}
 	}
 	version := resolved.Version
 	i.emit(jsonout.Event{Ev: "resolve", Tool: tool, Version: version})
@@ -195,14 +235,26 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 	res.Verified = vr.Verified
 	i.emit(jsonout.Event{Ev: "verify", Tool: tool, Version: version, Mode: vr.Mode, OK: boolPtr(true)})
 
+	if i.opt.Frozen && lockedSHA != "" {
+		if err := verifyLockedSHA(archivePath, lockedSHA); err != nil {
+			return Result{}, err
+		}
+	}
+
 	tmpDir := target + ".tmp." + randomSuffix()
 	layout := archive.Layout{Strip: p.Layout.Strip, Single: p.Layout.Single, Bins: p.Layout.Bins, BinTargets: p.Layout.BinTargets}
 	format, err := archive.FormatFor(extOrDefault(p, i.opt.GOOS))
 	if err != nil {
 		return Result{}, err
 	}
+	// Ctrl-C / panic 也不许留半成品目录（方案 §12.1 `_M4_CtrlCNoPartial`）。
+	placed := false
+	defer func() {
+		if !placed {
+			_ = os.RemoveAll(tmpDir)
+		}
+	}()
 	if err := archive.Extract(archivePath, tmpDir, format, layout, i.opt.GOOS); err != nil {
-		_ = os.RemoveAll(tmpDir)
 		// 归档损坏：把缓存也删掉，下次重下（可能是截断的产物）。
 		_ = os.Remove(archivePath)
 		return Result{}, fmt.Errorf("解压失败（产物可能被截断或损坏）: %w", err)
@@ -210,18 +262,14 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 
 	npmVersion, npmBundled, err := i.applyCompanion(ctx, p, version, tmpDir, idx)
 	if err != nil {
-		_ = os.RemoveAll(tmpDir)
 		return Result{}, err
 	}
 	res.NPMVersion, res.NPMReplaced = npmVersion, npmBundled
 
 	if err := archive.Replace(target, tmpDir); err != nil {
-		_ = os.RemoveAll(tmpDir)
 		return Result{}, err
 	}
-	if err := i.installShims(p, target); err != nil {
-		return Result{}, err
-	}
+	placed = true
 
 	i.ledger.Upsert(store.Install{
 		Tool: tool, Version: version, Path: target,
@@ -229,6 +277,16 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		NpmBundled: npmBundled, NpmVersion: npmVersion,
 		Channel: "manual",
 	})
+	// 首次安装即设为全局默认；已有默认版本时不抢（切版本用 `pk use`）。
+	if i.ActiveVersion(tool) == "" {
+		if err := i.Activate(tool, version); err != nil {
+			return Result{}, err
+		}
+	} else if i.ActiveVersion(tool) == version {
+		if err := i.installShims(p, target); err != nil {
+			return Result{}, err
+		}
+	}
 	i.emit(jsonout.Event{Ev: "done", Tool: tool, Version: version, Path: target})
 	return res, nil
 }
@@ -252,7 +310,14 @@ func (i *Installer) Uninstall(tool, version string, force bool) error {
 	if err := i.removeShimsFor(in.Path); err != nil {
 		return err
 	}
+	wasActive := i.ActiveVersion(tool) == version
 	i.ledger.Remove(tool, version)
+	if wasActive {
+		i.clearActive(tool)
+		if err := i.repointAfterRemoval(tool); err != nil {
+			return err
+		}
+	}
 	i.emit(jsonout.Event{Ev: "uninstall", Tool: tool, Version: version})
 	return nil
 }
@@ -380,6 +445,7 @@ func (i *Installer) fetchArtifact(ctx context.Context, p *provider.Provider, res
 		fmt.Sprintf("%s-%s-%s.%s", p.ID, version, platform, ext))
 
 	if st, err := os.Stat(cachePath); err == nil && st.Size() > 0 && !i.opt.Force {
+		i.recordCacheTouch(filepath.Base(cachePath), i.now())
 		i.emit(jsonout.Event{Ev: "cache", Tool: p.ID, Version: version, Bytes: st.Size()})
 		return cachePath, urls[0], true, nil
 	}
@@ -422,6 +488,7 @@ func (i *Installer) downloadFromChain(ctx context.Context, tool, version string,
 		}
 		return "", 0, fmt.Errorf("%w: %v", ErrNetwork, err)
 	}
+	i.recordCacheTouch(filepath.Base(cachePath), i.now())
 	i.emit(jsonout.Event{Ev: "download", Tool: tool, Version: version, Bytes: n, Source: source})
 	return source, n, nil
 }

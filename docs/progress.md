@@ -10,8 +10,8 @@
 | **M1** | node + 伴生 npm：解压层 · 校验+TOFU · 版本索引 · 伴生反查 · 安装编排 · 真卸载 | ✅ 完成（2026-11-10，含真网实测） | `M1_NpmCompanion` ✅ · `_NpmPinConflict` ✅ · `_PatchLevelBoundary` ✅ · `_OfflineFromCache` ✅ · `_ShimLatency` ✅ · `_UninstallClean` ✅ · `_WindowsAtomicReplace` ✅ · `_WindowsZipNoSymlink` ✅ · `_FailureMatrix`（90 格）✅ |
 | **M2** | pnpm / bun / deno | ✅ 完成（2026-11-10，含真网实测） | `M2_PnpmRequiresNode` ✅ · `_SingleFileLayout` ✅ · `_ThreePlatformSmoke` ✅ · `_OfficialUnreachable`（5 工具）✅ |
 | **M3** | go + python | ✅ 完成（2026-11-10，含真网实测） | `M3_GoNoDoubleDownload` ✅ · `_PythonNoCompile` ✅ · `_PbsDirectoryIndex` ✅ |
-| **M4** | 台账/引用计数/GC/全局包/启动清扫 | ⏳ 下一步 | `M4_GcZeroRef` / `_LedgerRecover` / `_FrozenMismatchExitCode` / `_CtrlCNoPartial` / `_GlobalSurvivesNodeSwitch` / `_GlobalBinNoReshim` / `_NativeGlobalDetect` / `_StartupSweep` |
-| M5 | CLI 收口（doctor 全量、错误码定型、`--json` 冻结、6 平台产物、分发） | 未开始 | §12.2 的 10 条 CLI-DONE |
+| **M4** | 台账/引用计数/GC/全局包/启动清扫 | ✅ 完成（2026-11-10，含真网实测） | `M4_GcZeroRef` ✅ · `_LedgerRecover` ✅ · `_FrozenMismatchExitCode` ✅ · `_CtrlCNoPartial` ✅ · `_GlobalSurvivesNodeSwitch` ✅ · `_GlobalBinNoReshim` ✅ · `_NativeGlobalDetect` ✅ · `_StartupSweep` ✅ · `_CacheMax` ✅ | `M4_GcZeroRef` / `_LedgerRecover` / `_FrozenMismatchExitCode` / `_CtrlCNoPartial` / `_GlobalSurvivesNodeSwitch` / `_GlobalBinNoReshim` / `_NativeGlobalDetect` / `_StartupSweep` |
+| **M5** | CLI 收口（doctor 全量、`--json` 冻结、6 平台产物、分发） | ⏳ 下一步 | §12.2 的 10 条 CLI-DONE |
 | G0–G2 | Wails v3.1.0 桌面端 | 未开始（CLI 冻结后才动） | — |
 
 ## M0 交付清单（2026-11-10）
@@ -141,6 +141,46 @@ pk env               → GOTOOLCHAIN=local（去重后只导出一次）+ GOPROX
 
 **门禁**：覆盖率 internal 85.6–100% / cmd 86.9%（toolchain 92.6%）；fuzz 三目标；6 平台交叉编译；验收 20 条全绿。
 
+## M4 交付清单（2026-11-10）
+
+**台账与引用计数**
+
+- 台账损坏自动从 `installs.json.bak` 恢复（`LEDGER_RECOVERED` 告警；备��也坏才 `LEDGER_BROKEN`）
+- 引用计数落地：**首次安装即设为全局默认**（写 `config.toml` + `_global_` 引用 + shim），之后再装其他版本**不抢** shim；切版本必须 `pk use`
+- 卸载默认版本需 `--force`；删掉默认版本后自动切到剩下的最新版本并重指 shim
+- `pk use 工具@版本`：配置 + 引用 + shim 三处同步
+
+**GC 与缓存**
+
+- `pk gc [--dry-run] [--cache-max]`：零引用版本回收（被引用的列在 `KeptRef` 里）、缓存按 LRU 压到上限（`state/cache.json` 记 `last_used`）
+- `store.ParseSize` 支持 `5GB/500MB/1TB/1073741824`
+- 启动清扫：任何写操作前清 `tools/*/*.tmp.*`、`tools/*/*.old`、`cache/archives/*.part`（**超 24h 才删**，避免误删另一个进程正在用的临时目录）
+
+**全局包（方案 §8.5 的 L1/L2/L3）**
+
+- `pk doctor --globals`：`env.ScanGlobals` 扫 `<prefix>/lib/node_modules`（Windows 也认 `<prefix>/node_modules`），
+  L1 `GLOBAL_ENGINES_UNMET`（`engines.node` 与当前 node 比）、L2 `GLOBAL_NATIVE_ABI`（`.node`/`gypfile`/`binary` 且非 N-API）、
+  L3 `GLOBAL_SHADOWS_PROJECT`（全局命令名 ∩ 项目 `node_modules/.bin`）
+- `global_mode = per-version` 可用（`env.SharedVarsFor`），默认仍是 shared
+
+**Ctrl-C / 崩溃**
+
+- 解压目录用 `defer` 兜底清理（取消/panic 都不留半成品）；`.part` 交给启动清扫
+
+**真网实测（2026-11-10）**
+
+```
+/tmp/pk-proj 里 pk.toml: node = "22"
+pk install            → node 22.23.4 + npm 12.2.2，并写出 pk.lock（含 sha256 与 companion_of）
+pk install --frozen   → 直接用锁里的 22.23.4，不做解析（缓存命中）
+pk.toml 改成 24 后 --frozen → exit 1「锁的是 22.23.4，不满足 pk.toml 的 "24"」
+pk gc --dry-run       → 0 个零引用；1 项保留（node@22.23.4 (global)）
+pk use node@22.23.4   → 成功；pk list 显示 * node
+doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_ENGINES_UNMET
+```
+
+**门禁**：覆盖率 internal 86.7–100%（store 87.0 / install 86.7 / env 92.1）/ cmd 83.7%；验收 29 条全绿。
+
 ## 已知缺口（按计划补齐，不是遗漏）
 
 - go 的国内索引源：npmmirror 没有 go 的产物/索引（实测），所以索引只声明官方 `?mode=json&include=all`，
@@ -157,3 +197,5 @@ pk env               → GOTOOLCHAIN=local（去重后只导出一次）+ GOPROX
 - python 产物名含 release 标签 `{tag}`，`ArtifactURL` 现在会明确报错；M3 的目录列举式索引补齐。
 - go 的国内索引源只写了官方 `?mode=json`（自带 sha256），M3 补国内源或改走 stale 缓存。
 - `pk env --write`（写 rc 的 `# managed by pk` 块）与 `mirror write`（写 `~/.npmrc`）在 M5。
+- L4 检测（`doctor --globals --probe` 用 `process.dlopen` 试加载）与 `doctor --foreign`（其他管理器）在 M5。
+- 缓存仍按 `<tool>-<version>-<platform>.<ext>` 命名，未做内容寻址去重（同版本跨平台/跨项目靠文件名命中，够用）。

@@ -19,7 +19,10 @@
 
 ## 状态
 
-**M3 已完成**（详见 `docs/progress.md`）：7 个工具在真网全部装得通并跑得起来 ——
+**M4 已完成**（详见 `docs/progress.md`）：台账引用计数、`pk use` 切版本、`pk gc`（零引用 + 缓存 LRU）、
+`pk.lock` + `--frozen`（CI 用）、启动清扫、全局包 L1/L2/L3 体检，全部真网验证过。
+
+**M3 已完成**：7 个工具在真网全部装得通并跑得起来 ——
 node 22.23.4 / npm 12.2.2（伴生）/ pnpm 12.18.0 / bun 1.4.4 / deno 2.9.8 / go 1.27.3 / python 3.13.18。
 
 **M2 已完成**：pnpm / bun / deno（索引补齐 `dirlist` 与 `github-releases` 两种形态）。
@@ -28,7 +31,7 @@ node 22.23.4 / npm 12.2.2（伴生）/ pnpm 12.18.0 / bun 1.4.4 / deno 2.9.8 / g
 多源校验、npm 按 `engines.node` 反查后替换进 node prefix（npmmirror tarball 返回 500 时自动退回
 registry.npmjs.org）、卸载后离线重装 0 网络走 TOFU。90 格故障矩阵、8 条 M1 验收用例、`make check` 7 项门禁全绿。
 
-`use` / `gc` / 引用计数 / 全局包共享前缀（M4）尚未实现，命令会**明确报出里程碑**并以 1 退出。
+CLI-DONE 的 10 条（M5：`--json` 冻结、错误码定型、6 平台产物、npm/brew/gitee 分发）尚未收口，命令会**明确报出里程碑**并以 1 退出。
 
 ## 快速开始
 

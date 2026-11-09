@@ -25,8 +25,8 @@ func (a *app) cmdDoctor(args []string) int {
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
-	if *globals || *foreign {
-		return a.notImplemented("doctor --globals/--foreign", "M4")
+	if *foreign {
+		return a.notImplemented("doctor --foreign", "M5")
 	}
 
 	var issues []jsonout.Issue
@@ -58,10 +58,14 @@ func (a *app) cmdDoctor(args []string) int {
 	}
 
 	// 4. 台账自洽
-	ledger, err := store.LoadLedger(a.paths.Ledger())
+	ledger, recovered, err := store.LoadLedgerWithRecovery(a.paths.Ledger())
 	if err != nil {
 		add(jsonout.SeverityErr, "LEDGER_BROKEN", err.Error(), map[string]any{"path": a.paths.Ledger()})
-	} else {
+	} else if recovered {
+		add(jsonout.SeverityWarn, "LEDGER_RECOVERED",
+			"台账主文件损坏，已用 .bak 恢复；下次写入会重建主文件", map[string]any{"path": a.paths.Ledger()})
+	}
+	if err == nil {
 		for _, msg := range ledger.Validate() {
 			add(jsonout.SeverityErr, "LEDGER_INCONSISTENT", msg, nil)
 		}
@@ -96,6 +100,31 @@ func (a *app) cmdDoctor(args []string) int {
 	if ledger != nil && len(installedTools(ledger, "go")) > 0 {
 		if msg := toolchain.CheckGoEnv(os.Getenv); msg != "" {
 			add(jsonout.SeverityWarn, "GO_TOOLCHAIN_NOT_LOCAL", msg, map[string]any{"current": os.Getenv("GOTOOLCHAIN")})
+		}
+	}
+
+	// 6c. 全局包 L1/L2/L3 体检（方案 §8.5）
+	if *globals && ledger != nil {
+		nodeVersion := a.cfg.Tools["node"]
+		if nodeVersion == "" {
+			nodeVersion = ledger.Active("node")
+		}
+		prefix := a.paths.Global()
+		if a.cfg.GlobalMode == "per-version" && nodeVersion != "" {
+			prefix = filepath.Join(a.paths.Root, "global", "node-"+nodeVersion)
+		}
+		pkgs, err := env.ScanGlobals(prefix, goos())
+		if err != nil {
+			add(jsonout.SeverityWarn, "GLOBALS_SCAN_FAILED", err.Error(), map[string]any{"prefix": prefix})
+		}
+		for _, problem := range env.CheckGlobals(pkgs, nodeVersion) {
+			add(jsonout.SeverityWarn, problem.Code, problem.Message, problem.Detail)
+		}
+		for _, problem := range env.CheckShadowing(pkgs, projectBins(a.cwd())) {
+			add(jsonout.SeverityInfo, problem.Code, problem.Message, problem.Detail)
+		}
+		if len(pkgs) == 0 {
+			add(jsonout.SeverityInfo, "GLOBALS_NONE", fmt.Sprintf("全局包目录里没有包（%s）", prefix), map[string]any{"prefix": prefix})
 		}
 	}
 
@@ -197,6 +226,20 @@ func mergeVars(vars []env.KV) []env.KV {
 		}
 		index[kv.Key] = len(out)
 		out = append(out, kv)
+	}
+	return out
+}
+
+// projectBins 读取项目 node_modules/.bin 的命令名 → 所属包（L3 命令遮蔽检测）。
+func projectBins(dir string) map[string]string {
+	binDir := filepath.Join(dir, "node_modules", ".bin")
+	entries, err := os.ReadDir(binDir)
+	if err != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for _, e := range entries {
+		out[e.Name()] = "node_modules/.bin"
 	}
 	return out
 }

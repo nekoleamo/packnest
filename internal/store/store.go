@@ -71,6 +71,23 @@ func LoadLedger(path string) (*Ledger, error) {
 	return &l, nil
 }
 
+// LoadLedgerWithRecovery 读取台账；主文件损坏时退回 .bak，并返回恢复标记。
+// 两个都不可用才报错（doctor 会把错误码报出来）。
+func LoadLedgerWithRecovery(path string) (*Ledger, bool, error) {
+	l, err := LoadLedger(path)
+	if err == nil {
+		return l, false, nil
+	}
+	if _, statErr := os.Stat(path + ".bak"); statErr != nil {
+		return nil, false, err // 没有备份可利用，原始错误就是结论
+	}
+	backup, bakErr := LoadLedger(path + ".bak")
+	if bakErr != nil {
+		return nil, false, err
+	}
+	return backup, true, nil
+}
+
 // Find 按工具与版本查记录。
 func (l *Ledger) Find(tool, version string) *Install {
 	for i := range l.Installs {
