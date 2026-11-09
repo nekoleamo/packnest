@@ -5,3 +5,7 @@ coverage.out
 *.test
 *.out.tmp
 .DS_Store
+# 凭据（红线：不入库、不让 AI 读）
+secrets.env
+*.token
+.npmrc.local

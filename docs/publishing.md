@@ -17,6 +17,27 @@
 
 2FA 账号：token 勾 Bypass 2FA，或发布时 `--otp 123456`（脚本支持 `--otp`）。
 
+## 一·五、token 放哪儿（AI 不读凭据）
+
+本项目规约：**凭据文件不读、不打印、不入库**。所以 token 不放仓库、不放 `package.json`，只有两个安全落点：
+
+| 场景 | 落点 | 怎么放 |
+|---|---|---|
+| **本机自动化** | `~/.pi/agent/local/secrets.env`（权限 600，已在 `.gitignore` 里） | `sh scripts/set-npm-token.sh` —— 交互粘贴、不回显、不多写一行别的键 |
+| **CI** | 平台 Secret（GitHub Actions `secrets.NPM_TOKEN` / gitee 私密变量） | 流水线里 `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` |
+
+发布脚本 `scripts/release-npm.sh --publish` 自己按顺序找凭据，**只 echo "用了哪个来源"，从不打印值**：
+
+1. `NODE_AUTH_TOKEN` 环境变量；
+2. `PK_NPM_TOKEN_FILE`（默认 `~/.pi/agent/local/secrets.env`）里的 `NPM_TOKEN=`（会检查权限，不是 600 会给警告）；
+3. `~/.npmrc`（`npm login` 产生）。
+
+秘书（我）这边永远不需要读 token：脚本在子进程里 `export`，日志里只有 `<token 不显示>`；仓库里的 `.npmrc` 只放
+`registry` 和 `access=public` 这类非机密配置。
+实测：把假 token 放进临时凭据文件跑 `--dry-run`，输出里对 token 的命中数为 **0**。
+
+轮换：npmjs.com 删旧 token → `sh scripts/set-npm-token.sh` 重录 → 重新发版；CI 里改 Secret 即可。
+
 ## 二、发布流程（本项目）
 
 ```bash

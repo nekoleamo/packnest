@@ -1,0 +1,34 @@
+# GitHub Actions：发版时自动发布到 npm（免费额度足够）。
+# 凭据走仓库 Secret，**不落盘、不进日志**：Settings → Secrets and variables → Actions → NPM_TOKEN。
+# 对应 gitee Go 流水线同理：把 token 配成"私密变量"，用 ${NPM_TOKEN} 注入即可。
+name: npm-publish
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: 门禁
+        run: make check
+
+      - name: 打产物（6 平台 + npm 包）
+        run: |
+          make release VERSION="${GITHUB_REF_NAME#v}"
+          sh scripts/release-npm.sh
+
+      - name: 发布（先子包后主包）
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: sh scripts/release-npm.sh --publish
