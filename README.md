@@ -75,7 +75,8 @@ iwr https://你的域名/install.ps1 | iex   # 先 $env:PK_INSTALL_BASE='https:/
 | 自托管任意静态 host | 0（自己有机器就行） | `--base https://你的域名/packnest` |
 | GitHub release | 0（国内慢） | 备源 |
 
-`sh scripts/release-npm.sh` 会把 `dist/` 打成 6 个平台包 + 主包到 `dist/npm/`（`--publish` 直接发 npm）。
+`sh scripts/release-npm.sh` 会把 `dist/` 打成 6 个平台包 + 主包到 `dist/npm/`（`--publish` 直接发 npm，
+需要 `NODE_AUTH_TOKEN` 或 `npm login`；详见 [docs/publishing.md](docs/publishing.md)）。
 `install.sh --from npm` 从 registry 取平台包（默认 npmmirror），**全程不需要 gitee 或自建存储**；本机用模拟 registry 实测装成功。
 
 `make release` 产出的 `dist/` 目录结构（`latest` + `v<版本>/packnest_<版本>_<os>_<arch>.{tar.gz,zip}` + `checksums.txt` + `install.sh`）

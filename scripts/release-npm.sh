@@ -1,7 +1,13 @@
 #!/bin/sh
 # 把 dist/ 里的 6 平台产物打成 npm 包（免费分发路径，不需要自建 OSS）。
 #
-#   sh scripts/release-npm.sh [--publish] [--registry URL]
+#   sh scripts/release-npm.sh [--publish] [--dry-run] [--otp 123456] [--registry URL]
+#
+# 发布需要凭据（三选一）：
+#   npm login                                        # 本地交互，凭据落 ~/.npmrc
+#   export NODE_AUTH_TOKEN=npm_xxx                   # CI 用：npmjs.com → Access Tokens → Granular
+#   npm config set //registry.npmjs.org/:_authToken=npm_xxx
+# 账号开了 2FA 时：token 勾选 Bypass 2FA，或发布时传 --otp <6位>。
 #
 # 产物：dist/npm/
 #   @packnest/<platform>-<arch>/   ← 每个平台一个包，内含 bin/packnest[.exe]
@@ -15,11 +21,17 @@ set -eu
 DIST="${DIST:-dist}"
 OUT="$DIST/npm"
 PUBLISH=0
+DRY_RUN=0
+OTP=""
+TAG=""
 REGISTRY="${NPM_REGISTRY:-https://registry.npmjs.org}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --publish) PUBLISH=1; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
+    --otp) OTP="$2"; shift 2 ;;
+    --tag) TAG="$2"; shift 2 ;;
     --registry) REGISTRY="$2"; shift 2 ;;
     *) echo "未知参数: $1" >&2; exit 2 ;;
   esac
@@ -87,9 +99,30 @@ NODE
 echo "已生成 npm 包："
 find "$OUT" -name package.json -maxdepth 3 | sed 's|^|  |'
 
-if [ "$PUBLISH" -eq 1 ]; then
-  ( cd "$OUT" && for p in @packnest/*/ packnest/; do
-      ( cd "$p" && npm publish --registry "$REGISTRY" --access public ) || exit 1
-    done )
-  echo "已发布到 $REGISTRY（npmmirror 会在几分钟内自动镜像）"
+if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ]; then
+  # 顺序很重要：先发 6 个平台子包，再发主包（主包的 optionalDependencies 指向它们）。
+  # 反过来也能装上，但用户在执行 npm i 的瞬间子包不存在会报错。
+  PUBLISH_ARGS="--access public --registry $REGISTRY"
+  # 预发布版本（如 0.6.0-M5）npm 强制要求 --tag，否则报 "must specify a tag"
+  if [ -z "$TAG" ]; then
+    case "$VERSION" in
+      *-*) TAG=next ;;
+    esac
+  fi
+  [ -n "$TAG" ] && PUBLISH_ARGS="$PUBLISH_ARGS --tag $TAG"
+  [ -n "$OTP" ] && PUBLISH_ARGS="$PUBLISH_ARGS --otp $OTP"
+  [ "$DRY_RUN" -eq 1 ] && PUBLISH_ARGS="$PUBLISH_ARGS --dry-run"
+  for p in "$OUT"/@packnest/*/ "$OUT"/packnest/; do
+    echo "== 发布 $(basename "$(dirname "$p")")/$(basename "$p")"
+    # shellcheck disable=SC2086
+    ( cd "$p" && npm publish $PUBLISH_ARGS ) || exit 1
+  done
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "dry-run 完成（没有真的发布；这 7 个包都已打包好并校验过 manifest）"
+  else
+    echo "已发布到 $REGISTRY"
+    echo "npmmirror 自动同步通常几分钟内完成；要立刻触发："
+    echo "  curl -X PUT https://registry.npmmirror.com/-/package/packnest/syncs"
+    echo "  curl -X PUT https://registry.npmmirror.com/-/package/%40packnest%2Fdarwin-arm64/syncs"
+  fi
 fi

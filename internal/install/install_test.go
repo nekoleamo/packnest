@@ -1170,3 +1170,55 @@ func TestInstallPythonAliasLatest(t *testing.T) {
 		t.Fatalf("latest → %+v/%v", res, err)
 	}
 }
+
+func TestInstallDryRun(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.22.2", NPMVersion: "11.20.0"}},
+		NPM:      npmMatrix(),
+	})
+	inst := newInstaller(t, fm, func(o *Options) { o.DryRun = true })
+	var events []string
+	inst.opt.Events = func(ev jsonout.Event) { events = append(events, ev.Ev) }
+
+	res, err := inst.Install(context.Background(), "node", "22.22.2")
+	if err != nil {
+		t.Fatalf("dry-run: %v", err)
+	}
+	if !res.Planned || res.PlanURL == "" || res.PlanChecksum == "" {
+		t.Fatalf("dry-run 结果异常: %+v", res)
+	}
+	// 什么都没下、没落盘
+	root := rootOf(t, inst)
+	if entries, _ := os.ReadDir(root.CacheArchives()); len(entries) != 0 {
+		t.Fatalf("dry-run 不该下产物: %v", entries)
+	}
+	if _, err := os.Stat(root.ToolVersion("node", "22.22.2")); !os.IsNotExist(err) {
+		t.Fatal("dry-run 不该落盘")
+	}
+	if len(events) == 0 || events[len(events)-1] != "plan" {
+		t.Fatalf("应发出 plan 事件: %v", events)
+	}
+}
+
+func TestResolveAutoProfileFallsBackToCN(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.22.2"}},
+		NPM:      map[string]string{"11.20.0": "^20.17.0 || >=22.9.0"},
+	})
+	inst := newInstaller(t, fm, func(o *Options) { o.Profile = "auto" })
+	// 官方档（default）指向死地址，cn 指向假镜像 → 应判定为 cn
+	p := fm.NodeProvider
+	p.Index.URLs["default"] = "http://127.0.0.1:1/node/index.json"
+	inst.opt.LookupProvider = func(id string) (*provider.Provider, error) {
+		if id == "node" {
+			return p, nil
+		}
+		return fm.NPMProvider, nil
+	}
+	if _, err := inst.Install(context.Background(), "node", "22.22.2"); err != nil {
+		t.Fatalf("应回落到 cn 并装成功: %v", err)
+	}
+	if inst.opt.Profile != "cn" {
+		t.Fatalf("auto 应判定为 cn，得到 %q", inst.opt.Profile)
+	}
+}
