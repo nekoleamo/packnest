@@ -103,6 +103,7 @@ list-providers:
 
 # 发布产物（方案 §13.3）：包名固定 packnest_<version>_<os>_<arch>.{tar.gz,zip} + checksums.txt
 release:
+	@rm -rf $(DIST)
 	@mkdir -p $(DIST)
 	@for p in $(PLATFORMS); do \
 		os=$${p%/*}; arch=$${p#*/}; \
@@ -120,7 +121,7 @@ release:
 	@echo "产物在 $(DIST)/（命名符合方案 §13.3）"
 
 checksums:
-	@cd $(DIST) && sha256sum packnest_* > checksums.txt 2>/dev/null || shasum -a 256 packnest_* > checksums.txt
+	@cd $(DIST) && { sha256sum packnest_*.tar.gz packnest_*.zip 2>/dev/null || shasum -a 256 packnest_*.tar.gz packnest_*.zip; } > checksums.txt
 	@echo "已生成 $(DIST)/checksums.txt：" && cat $(DIST)/checksums.txt
 
 clean:
