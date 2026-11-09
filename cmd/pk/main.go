@@ -23,7 +23,7 @@ import (
 )
 
 // Version 是 CLI 版本（渠道发布号由构建注入）。
-var Version = "0.1.0-M0"
+var Version = "0.2.0-M1"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -193,10 +193,10 @@ func printUsage(w io.Writer) {
 用法: pk <命令> [参数] [--json] [--offline] [--yes]
 
 命令:
-  install [工具@版本]     安装（无参数按 pk.toml）        [M1]
-  uninstall 工具@版本     台账驱动卸载                      [M4]
+  install [工具@版本]     安装（无参数按 pk.toml；支持 node）
+  uninstall 工具@版本     台账驱动卸载（被引用需 --force）
   use 工具@版本           切换全局默认版本                  [M4]
-  list [--available]      已装/可装工具                     部分可用
+  list [--available]      已装/可装工具
   which <命令>            解析 shim 到真实二进制
   mirror list|probe|use   镜像档：列出 / 探测 / 切换
   doctor                  环境体检（PATH/shim/台账/镜像）
