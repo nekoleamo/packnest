@@ -189,6 +189,18 @@ load_token() {
   return 1
 }
 
+# npmmirror / cnpm / taobao 镜像都是**只读**的：往它们 publish 会被拒
+# （典型报错：Public registration is not allowed）。发布永远打 npmjs。
+case "$REGISTRY" in
+  *npmmirror*|*cnpm*|*taobao*|*npm.taobao*)
+    if [ "$PUBLISH" -eq 1 ]; then
+      echo "错误：$REGISTRY 是只读镜像，不能发布（会报 Public registration is not allowed）。" >&2
+      echo "发布请用 --registry https://registry.npmjs.org；国内用户安装时再走 npmmirror 镜像。" >&2
+      exit 2
+    fi
+    echo "提示：$REGISTRY 是只读镜像，dry-run 不受影响；真正发布时必须换成 registry.npmjs.org" >&2 ;;
+esac
+
 if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ]; then
   if [ "$PUBLISH" -eq 1 ]; then
     load_token || exit 3
