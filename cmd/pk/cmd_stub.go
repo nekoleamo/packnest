@@ -13,27 +13,6 @@ func (a *app) notImplemented(name, milestone string) int {
 	return jsonout.ExitFail
 }
 
-// cmdInstall 安装工具（M1 实现 node+npm）。
-func (a *app) cmdInstall(args []string) int {
-	fs := flag.NewFlagSet("install", flag.ContinueOnError)
-	fs.SetOutput(a.errOut)
-	_ = fs.Bool("frozen", false, "严格按 pk.lock，不做解析（CI 用）")
-	_ = fs.Bool("insecure", false, "允许无校验安装（标记 unverified）")
-	_ = fs.Int("jobs", 1, "并发下载数（默认 1：国内 CDN 分片常更慢）")
-	if err := fs.Parse(args); err != nil {
-		return a.failUsage(err)
-	}
-	return a.notImplemented("install", "M1")
-}
-
-// cmdUninstall 台账驱动卸载（M4）。
-func (a *app) cmdUninstall(args []string) int {
-	if len(args) == 0 {
-		return a.failUsage(fmt.Errorf("用法: pk uninstall <工具>@<版本> [--force]"))
-	}
-	return a.notImplemented("uninstall", "M4")
-}
-
 // cmdUse 切换全局默认版本（M4）。
 func (a *app) cmdUse(args []string) int {
 	if len(args) == 0 {

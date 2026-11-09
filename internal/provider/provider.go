@@ -7,6 +7,7 @@ package provider
 import (
 	"fmt"
 	"io/fs"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -263,9 +264,31 @@ func (p *Provider) Validate() error {
 	return nil
 }
 
+// 内网/自定义源覆盖（方案 §6.5）：PK_MIRROR_<TOOL>_<KIND> 优先级高于一切。
+const (
+	envMirrorRegistry = "PK_MIRROR_REGISTRY"
+	envMirrorPrefix   = "PK_MIRROR_"
+)
+
+func envOverride(tool, kind string) string {
+	return strings.TrimSpace(os.Getenv(envMirrorPrefix + strings.ToUpper(tool) + "_" + kind))
+}
+
+// registryBase 返回 npm registry 基地址（PK_MIRROR_REGISTRY 优先）。
+func registryBase(profile string) string {
+	if v := strings.TrimSpace(os.Getenv(envMirrorRegistry)); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	return mirror.RegistryFor(profile)
+}
+
 // IndexURLs 返回按镜像回退链排好序的索引 URL 列表。
 func (p *Provider) IndexURLs(profile string) []string {
-	return mirror.PickURLs(p.Index.URLs, mirror.Chain(profile))
+	urls := mirror.PickURLs(p.Index.URLs, mirror.Chain(profile))
+	if override := envOverride(p.ID, "INDEX"); override != "" {
+		urls = append([]string{override}, urls...)
+	}
+	return urls
 }
 
 // ArtifactURL 渲染单个产物 URL。
@@ -286,7 +309,7 @@ func (p *Provider) ArtifactURL(version, goos, goarch, profile string) (string, e
 		"version":  version,
 		"platform": platform,
 		"ext":      ext,
-		"registry": mirror.RegistryFor(profile),
+		"registry": registryBase(profile),
 		"tool":     p.ID,
 	})
 }
@@ -305,18 +328,18 @@ func (p *Provider) ArtifactURLs(version, goos, goarch, profile string) ([]string
 		"version":  version,
 		"platform": platform,
 		"ext":      ext,
-		"registry": mirror.RegistryFor(profile),
+		"registry": registryBase(profile),
 		"tool":     p.ID,
 	}
-	rendered := make(map[string]string, len(p.Artifact.URLs))
-	for k, tmpl := range p.Artifact.URLs {
-		u, err := render(tmpl, vars)
-		if err != nil {
-			return nil, err
-		}
-		rendered[k] = u
+	urls, err := renderAll(p.Artifact.URLs, vars, profile)
+	if err != nil {
+		return nil, fmt.Errorf("%s 产物 URL 渲染失败: %w", p.ID, err)
 	}
-	urls := mirror.PickURLs(rendered, mirror.Chain(profile))
+	if override := envOverride(p.ID, "ARTIFACT"); override != "" {
+		if u, err := render(override, vars); err == nil {
+			urls = append([]string{u}, urls...)
+		}
+	}
 	if len(urls) == 0 {
 		return nil, fmt.Errorf("%s: 没有可用的产物源", p.ID)
 	}
@@ -340,18 +363,96 @@ func (p *Provider) ChecksumURLs(version, goos, goarch, profile string) ([]string
 		"version":  version,
 		"platform": platform,
 		"ext":      ext,
-		"registry": mirror.RegistryFor(profile),
+		"registry": registryBase(profile),
 		"tool":     p.ID,
 	}
-	rendered := make(map[string]string, len(p.Checksum.URLs))
-	for k, tmpl := range p.Checksum.URLs {
+	urls, err := renderAll(p.Checksum.URLs, vars, profile)
+	if err != nil {
+		return nil, fmt.Errorf("%s 校验和 URL 渲染失败: %w", p.ID, err)
+	}
+	if override := envOverride(p.ID, "CHECKSUM"); override != "" {
+		if u, err := render(override, vars); err == nil {
+			urls = append([]string{u}, urls...)
+		}
+	}
+	return urls, nil
+}
+
+// renderAll 渲染一组档位模板，返回按回退链排好序的 URL 列表。
+//
+// 含 {registry} 的模板（npm/pnpm 的 registry tarball）要**按链上每个档位各渲染一次**：
+// 否则"国内档挂了我们退回官方 registry"这件事根本不会发生（实例：npmmirror 的
+// tarball 路径返回 500 时，必须能自动退到 registry.npmjs.org）。
+func renderAll(templates map[string]string, vars map[string]string, profile string) ([]string, error) {
+	hasRegistry := false
+	for _, tmpl := range templates {
+		if strings.Contains(tmpl, "{registry}") {
+			hasRegistry = true
+			break
+		}
+	}
+	if !hasRegistry {
+		rendered := make(map[string]string, len(templates))
+		for k, tmpl := range templates {
+			u, err := render(tmpl, vars)
+			if err != nil {
+				return nil, err
+			}
+			rendered[k] = u
+		}
+		return mirror.PickURLs(rendered, mirror.Chain(profile)), nil
+	}
+
+	var out []string
+	seen := map[string]bool{}
+	for _, name := range mirror.Chain(profile) {
+		for _, key := range sortedKeys(templates) {
+			tmpl := templates[key]
+			if !strings.Contains(tmpl, "{registry}") {
+				continue
+			}
+			local := make(map[string]string, len(vars)+1)
+			for k, v := range vars {
+				local[k] = v
+			}
+			local["registry"] = registryBase(name)
+			u, err := render(tmpl, local)
+			if err != nil {
+				return nil, err
+			}
+			if seen[u] {
+				continue
+			}
+			seen[u] = true
+			out = append(out, u)
+		}
+	}
+	// 不含 {registry} 的模板（自建源）追加在最后。
+	for _, key := range sortedKeys(templates) {
+		tmpl := templates[key]
+		if strings.Contains(tmpl, "{registry}") {
+			continue
+		}
 		u, err := render(tmpl, vars)
 		if err != nil {
 			return nil, err
 		}
-		rendered[k] = u
+		if seen[u] {
+			continue
+		}
+		seen[u] = true
+		out = append(out, u)
 	}
-	return mirror.PickURLs(rendered, mirror.Chain(profile)), nil
+	return out, nil
+}
+
+func sortedKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // Platform 返回产物命名里的平台串。

@@ -349,3 +349,62 @@ func TestPickProfileKeyUnknown(t *testing.T) {
 		t.Fatalf("应回落到链上第一个存在的档位: %q", got)
 	}
 }
+
+func TestEnvMirrorOverride(t *testing.T) {
+	p, _ := Get("node")
+	base, _ := p.ArtifactURL("22.22.2", "darwin", "arm64", "cn")
+	reg := func() string { u, _ := Get("pnpm"); v, _ := u.ArtifactURL("10.0.0", "linux", "amd64", "cn"); return v }()
+	_ = base
+
+	t.Setenv("PK_MIRROR_REGISTRY", "http://nexus.local/npm/")
+	if got := reg; got == "" {
+		t.Fatal("基线 registry 渲染失败")
+	}
+	pnpm, _ := Get("pnpm")
+	got, err := pnpm.ArtifactURL("10.0.0", "linux", "amd64", "cn")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "http://nexus.local/npm/pnpm/-/pnpm-10.0.0.tgz" {
+		t.Fatalf("PK_MIRROR_REGISTRY 未生效: %q", got)
+	}
+
+	t.Setenv("PK_MIRROR_NODE_INDEX", "http://nexus.local/index.json")
+	if urls := p.IndexURLs("cn"); urls[0] != "http://nexus.local/index.json" {
+		t.Fatalf("PK_MIRROR_<TOOL>_INDEX 应最优先: %v", urls)
+	}
+	t.Setenv("PK_MIRROR_NODE_ARTIFACT", "http://nexus.local/v{version}/node-{platform}.{ext}")
+	urls, err := p.ArtifactURLs("22.22.2", "darwin", "arm64", "cn")
+	if err != nil || urls[0] != "http://nexus.local/v22.22.2/node-darwin-arm64.tar.gz" {
+		t.Fatalf("PK_MIRROR_<TOOL>_ARTIFACT 未生效: %v %v", urls, err)
+	}
+	t.Setenv("PK_MIRROR_NODE_CHECKSUM", "http://nexus.local/sums/{version}")
+	sums, err := p.ChecksumURLs("22.22.2", "darwin", "arm64", "cn")
+	if err != nil || sums[0] != "http://nexus.local/sums/22.22.2" {
+		t.Fatalf("PK_MIRROR_<TOOL>_CHECKSUM 未生效: %v %v", sums, err)
+	}
+}
+
+func TestRegistryTemplatesRenderPerProfile(t *testing.T) {
+	// {registry} 模板必须按回退链各渲染一次，否则国内档挂了不会退到官方 registry。
+	pnpm, _ := Get("pnpm")
+	urls, err := pnpm.ArtifactURLs("10.4.1", "linux", "amd64", "cn")
+	if err != nil {
+		t.Fatalf("ArtifactURLs: %v", err)
+	}
+	if len(urls) < 2 {
+		t.Fatalf("应至少渲染出 2 个 registry（cn + 官方），得到 %v", urls)
+	}
+	if !strings.HasPrefix(urls[0], "https://registry.npmmirror.com/") {
+		t.Fatalf("首个应是国内 registry: %v", urls)
+	}
+	foundOfficial := false
+	for _, u := range urls {
+		if strings.HasPrefix(u, "https://registry.npmjs.org/") {
+			foundOfficial = true
+		}
+	}
+	if !foundOfficial {
+		t.Fatalf("回退链里必须有官方 registry: %v", urls)
+	}
+}

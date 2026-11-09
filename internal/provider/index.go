@@ -1,0 +1,382 @@
+package provider
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/packnest/packnest/internal/fetch"
+	"github.com/packnest/packnest/internal/spec"
+)
+
+// DefaultIndexTTL 是索引缓存有效期（方案 §6.2：首次 + 每 24h 一次 304）。
+const DefaultIndexTTL = 24 * time.Hour
+
+// IndexFile 是 JSON 索引里列出的产物文件（go 的 dl 页有 sha256）。
+type IndexFile struct {
+	Filename string `json:"filename"`
+	OS       string `json:"os"`
+	Arch     string `json:"arch"`
+	SHA256   string `json:"sha256"`
+	Kind     string `json:"kind"`
+}
+
+// Version 是索引里的一条可安装版本。
+type Version struct {
+	Version string
+	LTS     string
+	Date    string
+	Engines map[string]string
+	Shasum  string // npm registry 的 dist.shasum（sha1）
+	// Integrity 是 npm registry 的 dist.integrity（sha512 SRI，比 shasum 强）。
+	Integrity string
+	Files     []IndexFile
+}
+
+// FileFor 返回匹配 OS/Arch 的产物条目（go 用）。
+func (v Version) FileFor(goos, goarch string) (IndexFile, bool) {
+	for _, f := range v.Files {
+		if f.OS == goos && f.Arch == goarch && (f.Kind == "" || f.Kind == "archive") {
+			return f, true
+		}
+	}
+	return IndexFile{}, false
+}
+
+// Index 是某工具在某个档位下的版本清单。
+type Index struct {
+	Provider *Provider
+	Versions []Version
+	// Stale 表示这份索引来自过期缓存（镜像拉不到，但还是能用）。
+	Stale bool
+	// Source 是实际命中/缓存的索引 URL。
+	Source string
+}
+
+// IndexLoader 负责拉取与解析索引（Client 与缓存目录均可注入）。
+type IndexLoader struct {
+	Client   *fetch.Client
+	CacheDir string
+	TTL      time.Duration
+}
+
+// Load 按镜像回退链依次尝试索引源。
+func (l *IndexLoader) Load(ctx context.Context, p *Provider, profile string) (*Index, error) {
+	urls := p.IndexURLs(profile)
+	if len(urls) == 0 {
+		return nil, fmt.Errorf("%s: 没有可用的索引源", p.ID)
+	}
+	var errs []string
+	for _, url := range urls {
+		bodyPath := filepath.Join(l.CacheDir, p.ID+".json")
+		metaPath := filepath.Join(l.CacheDir, p.ID+".meta.json")
+		res, err := l.client().GetIndex(ctx, url, bodyPath, metaPath, l.ttl())
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", url, err))
+			continue
+		}
+		versions, err := parseIndex(p.Index.Kind, res.Body)
+		if err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", url, err))
+			continue
+		}
+		return &Index{Provider: p, Versions: versions, Stale: res.Stale, Source: url}, nil
+	}
+	return nil, fmt.Errorf("%s 的版本索引全部不可用：\n  %s\n建议：`pk mirror use cn` 换档，或检查代理设置", p.ID, strings.Join(errs, "\n  "))
+}
+
+// Resolve 把说明符解析成具体版本。
+func (i *Index) Resolve(sp spec.Spec) (Version, error) {
+	list := i.VersionList()
+	if len(list) == 0 {
+		return Version{}, fmt.Errorf("%s 的索引是空的（镜像异常？）", i.Provider.ID)
+	}
+	if sp.IsAlias() {
+		if sp.Alias() == "lts" {
+			best, ok := i.latestLTS()
+			if ok {
+				return best, nil
+			}
+			return Version{}, fmt.Errorf("%s 没有标记 LTS 的版本（镜像可能未同步）", i.Provider.ID)
+		}
+		latest, ok := spec.Latest(list)
+		if !ok {
+			return Version{}, fmt.Errorf("%s 索引里没有稳定版本", i.Provider.ID)
+		}
+		return i.mustFind(latest), nil
+	}
+	if best, ok := spec.Best(list, sp); ok {
+		return i.mustFind(best), nil
+	}
+	return Version{}, i.notFound(sp)
+}
+
+// VersionList 返回全部版本号（保持索引顺序）。
+func (i *Index) VersionList() []string {
+	out := make([]string, 0, len(i.Versions))
+	for _, v := range i.Versions {
+		out = append(out, v.Version)
+	}
+	return out
+}
+
+// Find 按精确版本查找。
+func (i *Index) Find(version string) (Version, bool) {
+	want := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(version)), "v")
+	for _, v := range i.Versions {
+		if strings.TrimPrefix(strings.ToLower(v.Version), "v") == want {
+			return v, true
+		}
+	}
+	return Version{}, false
+}
+
+// Latest 返回最高稳定版本。
+func (i *Index) Latest() (Version, bool) {
+	latest, ok := spec.Latest(i.VersionList())
+	if !ok {
+		return Version{}, false
+	}
+	return i.mustFind(latest), true
+}
+
+func (i *Index) latestLTS() (Version, bool) {
+	var best Version
+	var bestVer *specSortKey
+	for _, v := range i.Versions {
+		if v.LTS == "" {
+			continue
+		}
+		key := newSortKey(v.Version)
+		if key == nil || spec.IsPrerelease(v.Version) {
+			continue
+		}
+		if bestVer == nil || key.greater(bestVer) {
+			best, bestVer = v, key
+		}
+	}
+	return best, bestVer != nil
+}
+
+func (i *Index) mustFind(version string) Version {
+	if v, ok := i.Find(version); ok {
+		return v
+	}
+	return Version{Version: strings.TrimPrefix(version, "v")}
+}
+
+// notFound 给出"镜像滞后"这类可执行建议，而不是干巴巴的 404。
+func (i *Index) notFound(sp spec.Spec) error {
+	latest, hasLatest := i.Latest()
+	hint := ""
+	if hasLatest {
+		hint = fmt.Sprintf("；当前索引最新为 v%s", latest.Version)
+		if i.Stale {
+			hint += "（来自过期缓存，镜像可能未同步）"
+		}
+		hint += fmt.Sprintf("，可用 `pk install %s@%s` 或 `pk mirror use default`", i.Provider.ID, latest.Version)
+	}
+	return fmt.Errorf("%s 没有满足 %q 的版本%s", i.Provider.ID, sp.String(), hint)
+}
+
+// parseIndex 按 provider 声明的索引形态解析。
+func parseIndex(kind string, data []byte) ([]Version, error) {
+	switch kind {
+	case IndexJSON:
+		return parseJSONIndex(data)
+	case IndexRegistry:
+		return parseRegistryIndex(data)
+	case IndexDirList:
+		// shortcut: 目录列举式索引（python-build-standalone）留到 M3；
+		// 现在明确报错而不是猜格式。升级路径 = M3 解析 HTML/JSON 目录列表。
+		return nil, fmt.Errorf("目录列举式索引将在 M3 支持")
+	}
+	return nil, fmt.Errorf("未知索引形态 %q", kind)
+}
+
+// parseJSONIndex 解析数组式索引（node 的 index.json、go 的 ?mode=json）。
+func parseJSONIndex(data []byte) ([]Version, error) {
+	var raw []struct {
+		Version string          `json:"version"`
+		LTS     json.RawMessage `json:"lts"`
+		Date    string          `json:"date"`
+		// node 的 files 是字符串数组（"linux-x64"、"headers"…），go 的是对象数组；
+		// 两者都要能读，所以这里保留原始 JSON 再按形状解析。
+		Files  json.RawMessage `json:"files"`
+		SHA256 string          `json:"sha256"`
+		Stable bool            `json:"stable"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("索引不是 JSON 数组（%v）", err)
+	}
+	out := make([]Version, 0, len(raw))
+	for _, r := range raw {
+		if r.Version == "" {
+			continue
+		}
+		v := Version{
+			Version: strings.TrimPrefix(r.Version, "v"),
+			Date:    r.Date,
+			Files:   parseFiles(r.Files),
+			LTS:     parseLTS(r.LTS),
+		}
+		out = append(out, v)
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("索引里没有任何版本")
+	}
+	return out, nil
+}
+
+// parseFiles 兼容两种 files 形状：对象数组（go）与字符串数组（node）。
+func parseFiles(raw json.RawMessage) []IndexFile {
+	if len(raw) == 0 {
+		return nil
+	}
+	var objects []IndexFile
+	if err := json.Unmarshal(raw, &objects); err == nil {
+		return objects
+	}
+	var names []string
+	if err := json.Unmarshal(raw, &names); err != nil {
+		return nil
+	}
+	out := make([]IndexFile, 0, len(names))
+	for _, name := range names {
+		out = append(out, IndexFile{Filename: name})
+	}
+	return out
+}
+
+// parseLTS 处理 "lts": "Jod" / true / false 三种写法。
+func parseLTS(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	var b bool
+	if err := json.Unmarshal(raw, &b); err == nil && b {
+		return "lts"
+	}
+	return ""
+}
+
+// parseRegistryIndex 解析 npm registry 元数据（versions + engines + dist）。
+func parseRegistryIndex(data []byte) ([]Version, error) {
+	var doc struct {
+		Versions map[string]struct {
+			Version string            `json:"version"`
+			Engines map[string]string `json:"engines"`
+			Dist    struct {
+				Shasum    string `json:"shasum"`
+				Integrity string `json:"integrity"`
+			} `json:"dist"`
+		} `json:"versions"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("registry 元数据解析失败（%v）", err)
+	}
+	if len(doc.Versions) == 0 {
+		return nil, fmt.Errorf("registry 元数据里没有 versions")
+	}
+	out := make([]Version, 0, len(doc.Versions))
+	for key, meta := range doc.Versions {
+		version := meta.Version
+		if version == "" {
+			version = key
+		}
+		out = append(out, Version{
+			Version:   strings.TrimPrefix(version, "v"),
+			Engines:   meta.Engines,
+			Shasum:    meta.Dist.Shasum,
+			Integrity: meta.Dist.Integrity,
+		})
+	}
+	// 稳定顺序：按 semver 降序，保证输出可复现（golden / 测试友好）。
+	sorted := spec.SortDesc(versionStrings(out))
+	byVersion := make(map[string]Version, len(out))
+	for _, v := range out {
+		byVersion[v.Version] = v
+	}
+	ordered := make([]Version, 0, len(out))
+	for _, vs := range sorted {
+		if v, ok := byVersion[vs]; ok {
+			ordered = append(ordered, v)
+		}
+	}
+	// 预发布版本也要保留（显式钉预发布时才用得上）。
+	for _, v := range out {
+		if spec.IsPrerelease(v.Version) {
+			ordered = append(ordered, v)
+		}
+	}
+	return ordered, nil
+}
+
+func versionStrings(vs []Version) []string {
+	out := make([]string, 0, len(vs))
+	for _, v := range vs {
+		out = append(out, v.Version)
+	}
+	return out
+}
+
+// specSortKey 是一个只用于比较的轻量包装（避免在 provider 里再引 semver 类型）。
+type specSortKey struct {
+	major, minor, patch int
+}
+
+func newSortKey(version string) *specSortKey {
+	parts := strings.Split(strings.TrimPrefix(version, "v"), ".")
+	if len(parts) < 3 {
+		return nil
+	}
+	nums := make([]int, 3)
+	for i := 0; i < 3; i++ {
+		n, err := strconv.Atoi(parts[i])
+		if err != nil {
+			return nil
+		}
+		nums[i] = n
+	}
+	return &specSortKey{nums[0], nums[1], nums[2]}
+}
+
+func (k *specSortKey) greater(other *specSortKey) bool {
+	if k.major != other.major {
+		return k.major > other.major
+	}
+	if k.minor != other.minor {
+		return k.minor > other.minor
+	}
+	return k.patch > other.patch
+}
+
+func (l *IndexLoader) client() *fetch.Client {
+	if l.Client != nil {
+		return l.Client
+	}
+	return fetch.New()
+}
+
+func (l *IndexLoader) ttl() time.Duration {
+	if l.TTL > 0 {
+		return l.TTL
+	}
+	return DefaultIndexTTL
+}
+
+// SortVersionsDesc 返回降序版本号（展示用）。
+func SortVersionsDesc(vs []Version) []string {
+	out := versionStrings(vs)
+	sort.SliceStable(out, func(i, j int) bool { return out[i] > out[j] })
+	return spec.SortDesc(out)
+}

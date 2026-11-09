@@ -7,8 +7,8 @@
 | 阶段 | 内容 | 状态 | 验收用例 |
 |---|---|---|---|
 | **M0** | 骨架：module、9 命令、provider 加载、镜像探测、testkit 假镜像、L1 单测 | ✅ 完成（2026-11-10） | `M0_ProviderLoad` ✅ · `M0_MirrorProbe` ✅ · `M0_DoctorNoPanic` ✅ · `M0_DualNameConsistent` ✅ |
-| **M1** | node + npm 伴生：fetch(Range/ETag) · 解压 · 校验+TOFU · shim · 伴生反查 | ⏳ 下一步 | `M1_NpmCompanion` / `_NpmPinConflict` / `_PatchLevelBoundary` / `_OfflineFromCache` / `_ShimLatency` / `_UninstallClean` / `_WindowsAtomicReplace` / `_WindowsZipNoSymlink` |
-| M2 | pnpm / bun / deno | 未开始 | `M2_PnpmRequiresNode` / `_SingleFileLayout` / `_ThreePlatformSmoke` |
+| **M1** | node + 伴生 npm：解压层 · 校验+TOFU · 版本索引 · 伴生反查 · 安装编排 · 真卸载 | ✅ 完成（2026-11-10，含真网实测） | `M1_NpmCompanion` ✅ · `_NpmPinConflict` ✅ · `_PatchLevelBoundary` ✅ · `_OfflineFromCache` ✅ · `_ShimLatency` ✅ · `_UninstallClean` ✅ · `_WindowsAtomicReplace` ✅ · `_WindowsZipNoSymlink` ✅ · `_FailureMatrix`（90 格）✅ |
+| **M2** | pnpm / bun / deno | ⏳ 下一步 | `M2_PnpmRequiresNode` / `_SingleFileLayout` / `_ThreePlatformSmoke` |
 | M3 | go + python（`GOTOOLCHAIN=local`、目录列举式索引） | 未开始 | `M3_GoNoDoubleDownload` / `_PythonNoCompile` / `_PbsDirectoryIndex` |
 | M4 | 台账/锁/GC/全局包 | 未开始 | `M4_GcZeroRef` / `_LedgerRecover` / `_FrozenMismatchExitCode` / `_CtrlCNoPartial` / `_GlobalSurvivesNodeSwitch` / `_GlobalBinNoReshim` / `_NativeGlobalDetect` / `_StartupSweep` |
 | M5 | CLI 收口（doctor 全量、错误码定型、`--json` 冻结、6 平台产物、分发） | 未开始 | §12.2 的 10 条 CLI-DONE |
@@ -54,10 +54,39 @@
 | benchmark（`BenchmarkSpecParse` <50µs、`BenchmarkShimResolve` <15ms） | ✅（≈9.6µs / ≈8µs） |
 | `--json` golden | ✅ |
 
+## M1 交付清单（2026-11-10）
+
+**新包**
+
+- `internal/archive`：tar.gz/tgz/zip 解压 · strip 层级 · 单文件布局 · `bin_targets` · zip-slip 防护 · Windows 拒绝符号链接 · `Replace`（`dst → dst.old → 新 → 删`，失败回滚）
+- `internal/verify`：GNUSUMS / per-artifact / registry-integrity 解析 · TOFU 表（`state/known.json`）· 多源交叉验证（≥2 同值 = strong，1 源 = weak，`--insecure` = unverified）· **sha256 / sha1（npm shasum）/ sha512 SRI（npm integrity）三种摘要**
+- `internal/companion`：node↔npm 反查（`engines.node` 精确匹配、预发布排除、补丁号级分界）· 裁决优先级 显式 pin > pinned > latest-compatible > 自带 · 不兼容 pin 硬失败并给出"可用上限"
+- `internal/install`：安装编排（索引→下载→校验→解压→伴生→shim→台账）· 缓存命中即纯本地（0 网络）· 探测全挂时退化直连 · 真卸载（台账驱动 + 引用检查 + shim 清理 + 缓存保留）
+- `internal/provider/index.go`：版本索引加载（JSON 数组 / registry 元数据）· `latest`/`lts` 别名 · "镜像未同步"提示 · 索引 24h 缓存 + stale 回退
+
+**CLI 落地**：`install [工具@版本|按 pk.toml] [--insecure --force]`、`uninstall <工具>@<版本> [--force]`；全局锁（占用 → 退出码 5）；错误分类退出码（网络 3 / 校验 4 / 锁 5）；`--json` 为 NDJSON 事件流（resolve/cache/download/verify/companion/done）
+
+**真网实测（2026-11-10，本机 mac/arm64，镜像档 cn）**
+
+```
+解析 node@22.23.4 → 下载 47.7 MB（npmmirror）→ 校验通过（network）
+下载 npm@12.2.2（2.9 MB，npmmirror 的 tarball 路径 500 → 自动退回 registry.npmjs.org）
+伴生包 npm@12.2.2（replaced 10.9.9）→ 装好
+node --version = v22.23.4，npm --version = 12.2.2
+uninstall → 离线重装：缓存命中 47.7MB / 0 网络 / 校验走 TOFU
+```
+
+**真网暴露并修掉的 3 个真 bug**（都是测试测不出来的）
+
+1. node 的 `index.json` 里 `files` 是**字符串数组**（不是对象）→ 索引解析要按形状兼容
+2. registry 模板 `{registry}` 只按当前档渲染一次 → 国内档 tarball 挂了**不会退到官方 registry**；改成按回退链逐档渲染
+3. npm 的 `dist.shasum` 是 **sha1**（不是 sha256），`dist.integrity` 是 sha512 SRI → 校验层支持三算法，优先 integrity
+
 ## 已知缺口（按计划补齐，不是遗漏）
 
-- `internal/archive` / `verify` / `companion` / `toolchain` 尚未创建：M1 建 archive/verify/companion，M3 建 toolchain。
-  覆盖率门禁暂未统计它们；建包的同时纳入 `make check`。
+- `internal/toolchain` 尚未创建（M3 的 go `GOTOOLCHAIN` / python 目录列举式索引）。
+- 缓存目前按 `cache/archives/<tool>-<version>-<platform>.<ext>` 命名（校验每次重算 sha256），
+  未做方案里的"内容寻址 `<sha256>`"去重；功能等价（跨版本不重下），去重留到 M4 与 GC 一起做。
 - npm/pnpm 的 `layout.bin_targets`（`bin/pnpm.cjs` 等）已在清单里声明，落地逻辑随 M1/M2 的解压层实现。
 - python 产物名含 release 标签 `{tag}`，`ArtifactURL` 现在会明确报错；M3 的目录列举式索引补齐。
 - go 的国内索引源只写了官方 `?mode=json`（自带 sha256），M3 补国内源或改走 stale 缓存。

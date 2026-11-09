@@ -9,7 +9,10 @@ import (
 	"archive/zip"
 	"bytes"
 	"compress/gzip"
+	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/sha512"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -45,6 +48,7 @@ func MakeNode(spec NodeSpec) []byte {
 
 	writeTarEntry(tw, prefix+"bin/node", shellScript(spec.Version), 0o755, tar.TypeReg)
 	writeTarSymlink(tw, prefix+"bin/npm", "../lib/node_modules/npm/bin/npm-cli.js")
+	writeTarSymlink(tw, prefix+"bin/npx", "../lib/node_modules/npm/bin/npx-cli.js")
 	writeTarEntry(tw, prefix+"lib/node_modules/npm/package.json", npmPackageJSON(spec.NPMVersion), 0o644, tar.TypeReg)
 	writeTarEntry(tw, prefix+"lib/node_modules/npm/bin/npm-cli.js", "#!/usr/bin/env node\nconsole.log('npm');\n", 0o755, tar.TypeReg)
 	writeTarEntry(tw, prefix+"README.md", "fake node for tests\n", 0o644, tar.TypeReg)
@@ -61,6 +65,7 @@ func MakeNodeZip(spec NodeSpec) []byte {
 	zw := zip.NewWriter(&buf)
 	writeZipEntry(zw, prefix+"node.exe", "[fake node.exe]\n", 0o755)
 	writeZipEntry(zw, prefix+"npm.cmd", "@ECHO off\r\nnode \"%~dp0\\node_modules\\npm\\bin\\npm-cli.js\" %*\r\n", 0o755)
+	writeZipEntry(zw, prefix+"npx.cmd", "@ECHO off\r\nnode \"%~dp0\\node_modules\\npm\\bin\\npx-cli.js\" %*\r\n", 0o755)
 	writeZipEntry(zw, prefix+"node_modules/npm/package.json", npmPackageJSON(spec.NPMVersion), 0o644)
 	writeZipEntry(zw, prefix+"node_modules/npm/bin/npm-cli.js", "#!/usr/bin/env node\n", 0o755)
 	closeAll(zw)
@@ -182,6 +187,18 @@ func Sha256Hex(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// Sha1Hex 返回十六进制 sha1（npm registry 的 dist.shasum 就是它）。
+func Sha1Hex(data []byte) string {
+	sum := sha1.Sum(data)
+	return hex.EncodeToString(sum[:])
+}
+
+// Sha512SRI 返回 sha512 的 SRI 形式（"sha512-<base64>"，npm dist.integrity 的格式）。
+func Sha512SRI(data []byte) string {
+	sum := sha512.Sum512(data)
+	return "sha512-" + base64.StdEncoding.EncodeToString(sum[:])
+}
+
 // ───────────────────────── 假镜像 ─────────────────────────
 
 // Options 是故障注入矩阵（方案 §9.3）。
@@ -268,7 +285,8 @@ func Mirror(t testing.TB, files map[string][]byte, opts ...Option) *httptest.Ser
 		}
 
 		body, ok := lookup(files, r.URL.Path)
-		if !ok && o.staleIndex != nil && strings.HasSuffix(r.URL.Path, "index.json") {
+		// 过期索引优先于真实文件：模拟"镜像还没同步"。
+		if o.staleIndex != nil && strings.HasSuffix(r.URL.Path, "index.json") {
 			body, ok = o.staleIndex, true
 		}
 		if !ok {
@@ -297,6 +315,15 @@ func Mirror(t testing.TB, files map[string][]byte, opts ...Option) *httptest.Ser
 			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 			_, _ = w.Write(body[:o.truncateAt])
 			return
+		}
+		if o.dropAfter > 0 && int64(len(body)) > o.dropAfter {
+			// 断流：写出 Content-Length 与前半截内容后直接掐断连接。
+			w.Header().Set("Content-Length", strconv.Itoa(len(body)))
+			_, _ = w.Write(body[:o.dropAfter])
+			if f, ok := w.(http.Flusher); ok {
+				f.Flush()
+			}
+			panic(http.ErrAbortHandler)
 		}
 		http.ServeContent(w, r, pathBase(r.URL.Path), time.Unix(1700000000, 0), bytes.NewReader(body))
 	}))
@@ -348,4 +375,56 @@ func replaceSums(b []byte) []byte {
 		}
 	}
 	return []byte(strings.Join(lines, "\n") + "\n")
+}
+
+// MakeSingleFileZip 造只有单个文件的 zip（deno 的单文件布局）。
+func MakeSingleFileZip(name, content string) []byte {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	writeZipEntry(zw, name, content, 0o755)
+	closeAll(zw)
+	return buf.Bytes()
+}
+
+// MakeTarGz 把 name→content 打成 tar.gz（不带 strip 前缀），用于构造非法/边界归档。
+func MakeTarGz(files map[string]string) []byte {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	for name, content := range files {
+		writeTarEntry(tw, name, content, 0o755, tar.TypeReg)
+	}
+	closeAll(tw, gz)
+	return buf.Bytes()
+}
+
+// ZipEntry 是构造 zip 的一条目（支持目录与符号链接）。
+type ZipEntry struct {
+	Name    string
+	Content string
+	// Mode 为 0 时按常规文件 0755 处理；设为 os.ModeSymlink 时 Content 是链接目标。
+	Mode os.FileMode
+}
+
+// MakeZip 按条目构造 zip（用于覆盖目录/符号链接等边界）。
+func MakeZip(entries []ZipEntry) []byte {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for _, e := range entries {
+		mode := e.Mode
+		if mode == 0 {
+			mode = 0o755
+		}
+		hdr := &zip.FileHeader{Name: e.Name, Method: zip.Deflate}
+		hdr.SetMode(mode)
+		w, err := zw.CreateHeader(hdr)
+		if err != nil {
+			panic(err)
+		}
+		if _, err := w.Write([]byte(e.Content)); err != nil {
+			panic(err)
+		}
+	}
+	closeAll(zw)
+	return buf.Bytes()
 }

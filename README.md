@@ -19,10 +19,11 @@
 
 ## 状态
 
-**M0 骨架已完成**（详见 `docs/progress.md`）：9 个命令骨架、7 个内嵌 provider、镜像档与探测、
-台账/配置/锁、shim、`--json` 契约 v1、`internal/testkit` 假镜像 + 故障注入、`make check` 7 项门禁全绿。
+**M1 已完成**（详见 `docs/progress.md`）：`pk install node@22` 在真网跑通 —— node 从 npmmirror 下载并
+多源校验、npm 按 `engines.node` 反查后替换进 node prefix（npmmirror tarball 返回 500 时自动退回
+registry.npmjs.org）、卸载后离线重装 0 网络走 TOFU。90 格故障矩阵、8 条 M1 验收用例、`make check` 7 项门禁全绿。
 
-尚未实现的命令会**明确报出所属里程碑**并以退出码 1 失败，不会伪装成功。
+`pnpm` / `bun` / `deno`（M2）、`go` / `python`（M3）、`use` / `gc`（M4）尚未实现，命令会**明确报出里程碑**并以 1 退出。
 
 ## 快速开始
 
@@ -56,7 +57,11 @@ make cross    # 6 平台产物到 dist/
 cmd/pk/              CLI（9 命令 + 全局开关）
 internal/paths/      PK_ROOT 单根布局（测试用 t.TempDir() 完全隔离）
 internal/spec/       版本说明符、engines 匹配、预发布过滤
-internal/provider/   provider TOML 模型 + URL 模板渲染
+internal/archive/    tar.gz/tgz/zip 解压、strip、单文件布局、原子替换
+internal/verify/     SHASUMS/registry integrity 校验 + TOFU 表
+internal/companion/  node↔npm 伴生反查（engines 精确匹配）
+internal/install/    安装编排：索引→下载→校验→解压→伴生→shim→台账
+internal/provider/   provider TOML 模型 + URL 模板渲染 + 版本索引加载
 internal/mirror/     镜像档、回退链、探测（6h TTL）
 internal/fetch/      可注入 HTTP 层：Range 续传、ETag、超时、重试
 internal/store/      台账 installs.json + config.toml + 全局锁

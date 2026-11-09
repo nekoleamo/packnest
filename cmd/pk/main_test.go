@@ -11,6 +11,7 @@ import (
 	"github.com/packnest/packnest/internal/paths"
 	"github.com/packnest/packnest/internal/shim"
 	"github.com/packnest/packnest/internal/store"
+	"github.com/packnest/packnest/internal/testkit"
 )
 
 // exec 跑一次 CLI，返回退出码、stdout、stderr。
@@ -308,11 +309,9 @@ func TestStubs(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"install"}, "M1"},
-		{[]string{"install", "node@22"}, "M1"},
-		{[]string{"uninstall", "node@22.22.2"}, "M4"},
 		{[]string{"use", "node@22"}, "M4"},
 		{[]string{"gc", "--dry-run"}, "M4"},
+		{[]string{"install", "--frozen"}, "M4"},
 	}
 	for _, c := range cases {
 		code, _, errOut := execCLI(t, append([]string{"--root", root}, c.args...)...)
@@ -322,6 +321,12 @@ func TestStubs(t *testing.T) {
 	}
 	if code, _, _ := execCLI(t, "--root", root, "uninstall"); code != 2 {
 		t.Errorf("uninstall 缺参数应退出 2，得到 %d", code)
+	}
+	if code, _, errOut := execCLI(t, "--root", root, "uninstall", "node@22.22.2"); code != 1 || !strings.Contains(errOut, "不在台账里") {
+		t.Errorf("卸载不在台账里的版本应退出 1: %d %q", code, errOut)
+	}
+	if code, _, errOut := execCLI(t, "--root", root, "install"); code != 2 || !strings.Contains(errOut, "没有 pk.toml") {
+		t.Errorf("无参数且无 pk.toml 应退出 2: %d %q", code, errOut)
 	}
 	if code, _, _ := execCLI(t, "--root", root, "use"); code != 2 {
 		t.Errorf("use 缺参数应退出 2，得到 %d", code)
@@ -337,5 +342,193 @@ func TestGlobalFlagPositions(t *testing.T) {
 	// `--` 之后的参数原样传递。
 	if code, _, _ := execCLI(t, "--root", root, "which", "--", "-weird"); code != 1 {
 		t.Fatalf("`--` 后参数应原样传给子命令，得到 %d", code)
+	}
+}
+
+// setupFakeMirror 用 PK_MIRROR_* 把 CLI 指向假镜像（方案 §6.5 的内网覆盖机制）。
+func setupFakeMirror(t *testing.T) *testkit.FakeNode {
+	t.Helper()
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.99.99", NPMVersion: "11.20.0"}},
+		NPM: map[string]string{
+			"11.20.0": "^20.17.0 || >=22.9.0",
+			"12.2.2":  "^22.22.2 || ^24.15.0 || >=26.0.0",
+		},
+	})
+	t.Setenv("PK_MIRROR_NODE_INDEX", fm.Server.URL+"/node/index.json")
+	t.Setenv("PK_MIRROR_NODE_ARTIFACT", fm.Server.URL+"/node/v{version}/node-v{version}-{platform}.{ext}")
+	t.Setenv("PK_MIRROR_NODE_CHECKSUM", fm.Server.URL+"/node/v{version}/SHASUMS256.txt")
+	t.Setenv("PK_MIRROR_NPM_INDEX", fm.Server.URL+"/npm")
+	t.Setenv("PK_MIRROR_NPM_ARTIFACT", fm.Server.URL+"/npm/-/npm-{version}.tgz")
+	return fm
+}
+
+func TestCLIInstallAndUninstall(t *testing.T) {
+	fm := setupFakeMirror(t)
+	root := t.TempDir()
+
+	code, out, errOut := execCLI(t, "--root", root, "install", "node@22.99.99")
+	if code != 0 {
+		t.Fatalf("install 退出码 %d\nstdout: %s\nstderr: %s", code, out, errOut)
+	}
+	if !strings.Contains(out, "装好 node@22.99.99") || !strings.Contains(out, "npm 12.2.2") {
+		t.Fatalf("install 输出异常:\n%s", out)
+	}
+
+	code, out, _ = execCLI(t, "--root", root, "--json", "list")
+	if code != 0 || !strings.Contains(out, `"version": "22.99.99"`) || !strings.Contains(out, `"replaced": "11.20.0"`) {
+		t.Fatalf("list 应显示伴生 npm: %d\n%s", code, out)
+	}
+
+	// 再装一次：幂等
+	code, out, _ = execCLI(t, "--root", root, "install", "node@22.99.99")
+	if code != 0 || !strings.Contains(out, "已是最新") {
+		t.Fatalf("重复安装应幂等: %d %q", code, out)
+	}
+
+	// which 能解析到真实二进制
+	code, out, _ = execCLI(t, "--root", root, "which", "node")
+	if code != 0 || !strings.Contains(out, "tools/node/22.99.99") {
+		t.Fatalf("which node 异常: %d %q", code, out)
+	}
+	// 双名 shim 也被补齐
+	code, out, _ = execCLI(t, "--root", root, "which", "pk")
+	if code != 0 || !strings.Contains(strings.TrimSpace(out), "pk") {
+		t.Fatalf("install 后应补齐 pk shim: %d %q", code, out)
+	}
+
+	code, out, _ = execCLI(t, "--root", root, "uninstall", "node@22.99.99")
+	if code != 0 || !strings.Contains(out, "已卸载") {
+		t.Fatalf("uninstall: %d %q", code, out)
+	}
+	if code, _, _ := execCLI(t, "--root", root, "which", "node"); code != 1 {
+		t.Fatalf("卸载后 which 应失败，得到 %d", code)
+	}
+	_ = fm
+}
+
+func TestCLIInstallByProjectFile(t *testing.T) {
+	setupFakeMirror(t)
+	root := t.TempDir()
+	cwd := t.TempDir()
+	if err := os.WriteFile(filepath.Join(cwd, "pk.toml"), []byte("[tools]\nnode = \"22\"\nnpm = \"auto\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PK_CWD", cwd)
+	code, out, errOut := execCLI(t, "--root", root, "install")
+	if code != 0 {
+		t.Fatalf("按 pk.toml 安装失败: %d\n%s\n%s", code, out, errOut)
+	}
+	if !strings.Contains(out, "node@22.99.99") {
+		t.Fatalf("应按 pk.toml 装 node 22.x:\n%s", out)
+	}
+}
+
+func TestCLIInstallJSONEvents(t *testing.T) {
+	setupFakeMirror(t)
+	root := t.TempDir()
+	code, out, _ := execCLI(t, "--root", root, "--json", "install", "node@22.99.99")
+	if code != 0 {
+		t.Fatalf("--json install 退出码 %d", code)
+	}
+	wantEvents := []string{`"ev":"resolve"`, `"ev":"download"`, `"ev":"verify"`, `"ev":"companion"`, `"ev":"done"`}
+	for _, w := range wantEvents {
+		if !strings.Contains(out, w) {
+			t.Errorf("NDJSON 缺少 %s:\n%s", w, out)
+		}
+	}
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		var ev map[string]any
+		if err := json.Unmarshal([]byte(line), &ev); err != nil {
+			t.Fatalf("NDJSON 行不是合法 JSON: %v (%q)", err, line)
+		}
+		if ev["ev"] == nil {
+			t.Fatalf("事件缺少 ev 字段: %q", line)
+		}
+	}
+}
+
+func TestCLIInstallNetworkFailure(t *testing.T) {
+	// 校验和/产物都不可达 → 退出码 3（网络类）。
+	t.Setenv("PK_MIRROR_NODE_INDEX", "http://127.0.0.1:1/node/index.json")
+	root := t.TempDir()
+	code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99")
+	if code != 3 {
+		t.Fatalf("网络失败应退出 3，得到 %d（%s）", code, errOut)
+	}
+}
+
+func TestCLIInstallChecksumFailure(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions:  []testkit.NodeSpec{{Version: "22.99.99"}},
+		NPM:       map[string]string{"11.20.0": "^20.17.0 || >=22.9.0"},
+		Behaviors: []testkit.Option{testkit.Corrupt()},
+	})
+	t.Setenv("PK_MIRROR_NODE_INDEX", fm.Server.URL+"/node/index.json")
+	t.Setenv("PK_MIRROR_NODE_ARTIFACT", fm.Server.URL+"/node/v{version}/node-v{version}-{platform}.{ext}")
+	t.Setenv("PK_MIRROR_NODE_CHECKSUM", fm.Server.URL+"/node/v{version}/SHASUMS256.txt")
+	root := t.TempDir()
+	code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99")
+	if code != 4 {
+		t.Fatalf("校验失败应退出 4，得到 %d（%s）", code, errOut)
+	}
+}
+
+func TestCLIInstallBadSpec(t *testing.T) {
+	root := t.TempDir()
+	if code, _, _ := execCLI(t, "--root", root, "install", "node@bogus"); code != 1 {
+		t.Fatalf("非法版本说明符应退出 1，得到 %d", code)
+	}
+	if code, _, _ := execCLI(t, "--root", root, "install", "rust@1"); code != 1 {
+		t.Fatalf("未知工具应退出 1，得到 %d", code)
+	}
+	if code, _, _ := execCLI(t, "--root", root, "uninstall", "node"); code != 2 {
+		t.Fatalf("uninstall 需要精确版本，应退出 2，得到 %d", code)
+	}
+}
+
+func TestCLILockBusy(t *testing.T) {
+	root := t.TempDir()
+	p, _ := paths.New(root)
+	unlock, err := store.Lock(p.Lock())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer unlock()
+	code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99")
+	if code != 5 || !strings.Contains(errOut, "另一个 pk 正在运行") {
+		t.Fatalf("锁被占用应退出 5: %d %q", code, errOut)
+	}
+	if code, _, _ := execCLI(t, "--root", root, "uninstall", "node@22.99.99"); code != 5 {
+		t.Fatalf("uninstall 也应受全局锁保护，得到 %d", code)
+	}
+}
+
+func TestSplitToolVersion(t *testing.T) {
+	tool, ver, err := splitToolVersion("node@22.22.2")
+	if err != nil || tool != "node" || ver != "22.22.2" {
+		t.Fatalf("splitToolVersion = %q/%q/%v", tool, ver, err)
+	}
+	for _, bad := range []string{"node", "@22", "node@"} {
+		if _, _, err := splitToolVersion(bad); err == nil {
+			t.Errorf("%q 应报错", bad)
+		}
+	}
+}
+
+func TestInstallTargets(t *testing.T) {
+	targets, err := installTargets([]string{"node@22", "bun"}, nil)
+	if err != nil || len(targets) != 2 || targets[0].spec != "22" || targets[1].tool != "bun" {
+		t.Fatalf("targets = %+v/%v", targets, err)
+	}
+	if _, err := installTargets([]string{""}, nil); err == nil {
+		t.Fatal("空目标应报错")
+	}
+	targets, err = installTargets(nil, map[string]string{"node": "22", "npm": "auto", "pnpm": "10"})
+	if err != nil || len(targets) != 2 {
+		t.Fatalf("pk.toml 目标应跳过 npm: %+v/%v", targets, err)
+	}
+	if _, err := installTargets(nil, map[string]string{"npm": "auto"}); err == nil {
+		t.Fatal("只有 npm 时应报错")
 	}
 }

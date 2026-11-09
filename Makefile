@@ -16,8 +16,8 @@ BUILD := build
 COVER_INTERNAL_MIN := 85
 COVER_CMD_MIN := 70
 
-# fuzz 目标（M1 补 FuzzSHASUMS / FuzzArchivePath）。
-FUZZ_TARGETS := FuzzSpec
+# fuzz 目标（M2 补 FuzzArchivePath）。
+FUZZ_TARGETS := FuzzSpec FuzzSHASUMS
 FUZZ_TIME := 30s
 
 # 有 tag 时用 tag（去掉前导 v），否则用默认开发版本号。

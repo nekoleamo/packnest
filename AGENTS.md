@@ -25,7 +25,8 @@
 
 ## 代码约定
 
-- **包职责按方案 §4.3 预算表**：`internal/{spec,provider,mirror,fetch,archive,verify,store,companion,shim,env,jsonout,toolchain,testkit}` + `cmd/pk`。新增包先改预算表。
+- **包职责按方案 §4.3 预算表**：`internal/{spec,provider,mirror,fetch,archive,verify,store,companion,shim,env,jsonout,toolchain,testkit}` + `cmd/pk`。
+  `internal/install`（编排层）是从 `cmd/pk` 预算里划出来的：`cmd/pk` 只管参数与输出，编排要能被 GUI 复用，总量不变。新增包先改预算表。
 - **依赖方向单向**：`cmd/pk → internal/*`；`internal` 之间只许 `上层 → 下层`，禁止环。GUI（未来 `cmd/pk-desktop`）只许 import `internal/core` 的公开函数，`core` 永不得出现 Wails 符号。M5 前 Wails 不进主 `go.mod`。
 - **可测性从第一行代码开始**：`PK_ROOT` 取代硬编码路径 · `fetch` 的 `http.Client` 走接口注入（不是包级变量）· 时钟可注入（TTL/ETag 过期不用 `time.Sleep`）· 平台分支走 `GOOS` 参数 + 单测替身。
 - **原子落盘**：下载 → `.part` → 校验 → 解压到 `tools/<tool>/<ver>.tmp.<rand>` → `rename` → 写台账（先 `.bak`）。任一步失败删 tmp，**不留半成品目录**。Windows `os.Rename` 不能覆盖目录 → `.old` 改名三步法。
@@ -43,7 +44,7 @@
 
 ## 里程碑口径
 
-M0 骨架 → M1 node+npm（伴生 npm、fetch/shim/TOFU）→ M2 pnpm/bun/deno → M3 go+python → M4 台账/锁/GC/全局包 → M5 CLI 收口冻结 `--json` → **CLI-DONE 10 条全绿才动 GUI**。当前进度写在 `docs/progress.md`（每完成一个里程碑更新一行）。
+M0 骨架 ✅ → M1 node+npm（伴生 npm、archive/verify/companion、真卸载）✅→ M2 pnpm/bun/deno → M3 go+python → M4 台账/锁/GC/全局包 → M5 CLI 收口冻结 `--json` → **CLI-DONE 10 条全绿才动 GUI**。当前进度写在 `docs/progress.md`（每完成一个里程碑更新一行）。
 
 ## 两个必须写进测试的坑（别重犯）
 
