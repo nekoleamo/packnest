@@ -1,0 +1,37 @@
+# pnpm —— JS 包，必须靠 node 跑（方案 §18.1：requires）
+id = "pnpm"
+display = "pnpm"
+kind = "registry"
+requires = ["node"]
+
+[index]
+kind = "registry"
+[index.urls]
+default = "https://registry.npmjs.org/pnpm"
+cn      = "https://registry.npmmirror.com/pnpm"
+
+[artifact]
+[artifact.urls]
+default = "{registry}/pnpm/-/pnpm-{version}.tgz"
+[artifact.ext]
+darwin  = "tgz"
+linux   = "tgz"
+windows = "tgz"
+[artifact.platform]
+darwin-amd64  = "any"
+darwin-arm64  = "any"
+linux-amd64   = "any"
+linux-arm64   = "any"
+windows-amd64 = "any"
+windows-arm64 = "any"
+
+[checksum]
+format = "registry-integrity"
+mode   = "tofu-then-verify"
+
+[layout]
+strip = 1
+bins  = ["pnpm", "pnpx"]
+[layout.bin_targets]
+pnpm = "bin/pnpm.cjs"
+pnpx = "bin/pnpx.cjs"

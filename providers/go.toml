@@ -1,0 +1,40 @@
+# Go —— 装完必须写 GOTOOLCHAIN=local，否则 go 自己会再去下一套工具链（方案 §4.0 / §6.6）
+id = "go"
+display = "Go"
+kind = "binary"
+
+[index]
+kind = "json"
+[index.urls]
+# 官方 dl 页的 JSON 自带 sha256（省一次校验和请求）。M3 会补国内索引源；
+# 拿不到时走 stale 缓存，不阻塞安装（方案 §6.2）。
+default = "https://go.dev/dl/?mode=json"
+
+[artifact]
+[artifact.urls]
+default = "https://go.dev/dl/go{version}.{platform}.{ext}"
+aliyun  = "https://mirrors.aliyun.com/golang/go{version}.{platform}.{ext}"
+[artifact.ext]
+windows = "zip"
+darwin  = "tar.gz"
+linux   = "tar.gz"
+[artifact.platform]
+darwin-amd64  = "darwin-amd64"
+darwin-arm64  = "darwin-arm64"
+linux-amd64   = "linux-amd64"
+linux-arm64   = "linux-arm64"
+windows-amd64 = "windows-amd64"
+windows-arm64 = "windows-arm64"
+
+[checksum]
+format = "gnu-sums"
+mode   = "tofu-then-verify"
+[checksum.urls]
+default = "https://go.dev/dl/?mode=json"
+
+[layout]
+strip = 1
+bins  = ["go", "gofmt"]
+
+[toolchain.env]
+GOTOOLCHAIN = "local"

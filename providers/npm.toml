@@ -1,0 +1,39 @@
+# npm —— 不是独立工具，是 node 的伴生包（方案 §7 / §18.2）
+# 单独列出来只为让"索引来源"可声明：伴侣反查要用它的 versions + engines.node。
+id = "npm"
+display = "npm"
+kind = "registry"
+
+[index]
+kind = "registry"
+[index.urls]
+default = "https://registry.npmjs.org/npm"
+cn      = "https://registry.npmmirror.com/npm"
+
+[artifact]
+[artifact.urls]
+default = "{registry}/npm/-/npm-{version}.tgz"
+[artifact.ext]
+darwin  = "tgz"
+linux   = "tgz"
+windows = "tgz"
+[artifact.platform]
+darwin-amd64  = "any"
+darwin-arm64  = "any"
+linux-amd64   = "any"
+linux-arm64   = "any"
+windows-amd64 = "any"
+windows-arm64 = "any"
+
+[checksum]
+# registry 元数据里自带 dist.integrity / dist.shasum，不用额外请求
+format = "registry-integrity"
+mode   = "tofu-then-verify"
+
+[layout]
+# npm tarball 内部是 package/... → 剥 1 层
+strip = 1
+bins  = ["npm", "npx"]
+[layout.bin_targets]
+npm = "bin/npm-cli.js"
+npx = "bin/npx-cli.js"

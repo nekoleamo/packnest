@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "ok": false,
+  "issues": [
+    {
+      "code": "GLOBAL_ENGINES_UNMET",
+      "severity": "warn",
+      "message": "全局包引擎要求不满足",
+      "detail": {
+        "have": "22.22.2",
+        "needs": "^24",
+        "pkg": "vite"
+      }
+    },
+    {
+      "code": "PATH_ORDER",
+      "severity": "error",
+      "message": "bin 目录不在 PATH 最前"
+    }
+  ]
+}

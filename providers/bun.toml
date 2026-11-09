@@ -1,0 +1,40 @@
+# Bun —— 自带运行时，单二进制 zip（实测内部 bun-darwin-aarch64/bun，strip=1）
+id = "bun"
+display = "Bun"
+kind = "binary"
+
+[index]
+# bun 没有 index.json：版本清单来自目录列举（npmmirror / GitHub releases）
+kind = "dirlist"
+[index.urls]
+default = "https://github.com/oven-sh/bun/releases"
+cn      = "https://registry.npmmirror.com/-/binary/bun/"
+
+[artifact]
+[artifact.urls]
+default = "https://github.com/oven-sh/bun/releases/download/bun-v{version}/bun-{platform}.zip"
+cn      = "https://registry.npmmirror.com/-/binary/bun/v{version}/bun-{platform}.zip"
+[artifact.ext]
+windows = "zip"
+darwin  = "zip"
+linux   = "zip"
+[artifact.platform]
+darwin-amd64  = "darwin-x64"
+darwin-arm64  = "darwin-aarch64"
+linux-amd64   = "linux-x64"
+linux-arm64   = "linux-aarch64"
+windows-amd64 = "windows-x64"
+
+[checksum]
+# bun 的校验和随 release 一起发（SHASUMS256.txt）
+format = "gnu-sums"
+mode   = "tofu-then-verify"
+[checksum.urls]
+default = "https://github.com/oven-sh/bun/releases/download/bun-v{version}/SHASUMS256.txt"
+
+[layout]
+strip = 1
+bins  = ["bun", "bunx"]
+[layout.bin_targets]
+bun  = "bun"
+bunx = "bunx"

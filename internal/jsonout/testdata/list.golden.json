@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "tools": [
+    {
+      "name": "node",
+      "version": "26.13.0",
+      "active": true,
+      "path": "/Users/u/.packnest/tools/node/26.13.0",
+      "npm": {
+        "version": "12.2.2",
+        "replaced": "11.20.0"
+      },
+      "requires": []
+    },
+    {
+      "name": "pnpm",
+      "version": "10.4.1",
+      "active": false,
+      "requires": [
+        "node"
+      ]
+    }
+  ]
+}

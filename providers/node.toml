@@ -1,0 +1,48 @@
+# Node.js —— 自带 npm，触发伴生逻辑（方案 §7）
+id = "node"
+display = "Node.js"
+kind = "binary"
+
+[index]
+kind = "json"
+path = "versions"
+[index.urls]
+default = "https://nodejs.org/dist/index.json"
+cn      = "https://registry.npmmirror.com/-/binary/node/index.json"
+
+[artifact]
+# 只取 tar.gz / zip：实测四平台都有，省掉 xz 与 7z 两个依赖（方案 §4.2）
+[artifact.urls]
+default = "https://nodejs.org/dist/v{version}/node-v{version}-{platform}.{ext}"
+cn      = "https://registry.npmmirror.com/-/binary/node/v{version}/node-v{version}-{platform}.{ext}"
+[artifact.ext]
+windows = "zip"
+darwin  = "tar.gz"
+linux   = "tar.gz"
+[artifact.platform]
+darwin-amd64  = "darwin-x64"
+darwin-arm64  = "darwin-arm64"
+linux-amd64   = "linux-x64"
+linux-arm64   = "linux-arm64"
+windows-amd64 = "win-x64"
+windows-arm64 = "win-arm64"
+
+[checksum]
+format = "gnu-sums"
+mode   = "tofu-then-verify"
+# ⚠️ npmmirror 的 node 目录没有 SHASUMS256.txt（实测 404），所以校验源单独列，
+#    且只列实测 200 的三家（方案 §6.4 / §16）。
+[checksum.urls]
+default = "https://nodejs.org/dist/v{version}/SHASUMS256.txt"
+tuna    = "https://mirrors.tuna.tsinghua.edu.cn/nodejs-release/v{version}/SHASUMS256.txt"
+aliyun  = "https://mirrors.aliyun.com/nodejs-release/v{version}/SHASUMS256.txt"
+ustc    = "https://mirrors.ustc.edu.cn/nodejs-release/v{version}/SHASUMS256.txt"
+
+[layout]
+strip = 1
+bins  = ["node", "npm", "npx"]
+
+[companions.npm]
+mode     = "latest-compatible"
+registry = "npm"
+target   = "lib/node_modules/npm"

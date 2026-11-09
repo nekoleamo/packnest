@@ -1,0 +1,38 @@
+# Deno —— 单文件产物（实测 zip 内就是 deno 一个文件，strip 不适用，方案 §18.7）
+id = "deno"
+display = "Deno"
+kind = "binary"
+
+[index]
+# 目录列举式：npmmirror 的 /deno/ 下按 v{version}/ 分目录
+kind = "dirlist"
+[index.urls]
+default = "https://github.com/denoland/deno/releases"
+cn      = "https://registry.npmmirror.com/-/binary/deno/"
+
+[artifact]
+[artifact.urls]
+default = "https://dl.deno.land/release/v{version}/deno-{platform}.zip"
+cn      = "https://registry.npmmirror.com/-/binary/deno/v{version}/deno-{platform}.zip"
+[artifact.ext]
+windows = "zip"
+darwin  = "zip"
+linux   = "zip"
+[artifact.platform]
+darwin-amd64  = "x86_64-apple-darwin"
+darwin-arm64  = "aarch64-apple-darwin"
+linux-amd64   = "x86_64-unknown-linux-gnu"
+linux-arm64   = "aarch64-unknown-linux-gnu"
+windows-amd64 = "x86_64-pc-windows-msvc"
+
+[checksum]
+# deno 每个产物旁有 .sha256sum 文件
+format = "per-artifact"
+mode   = "tofu-then-verify"
+[checksum.urls]
+default = "https://dl.deno.land/release/v{version}/deno-{platform}.zip.sha256sum"
+cn      = "https://registry.npmmirror.com/-/binary/deno/v{version}/deno-{platform}.zip.sha256sum"
+
+[layout]
+single = "bin/deno"
+bins   = ["deno"]
