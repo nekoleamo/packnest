@@ -55,6 +55,8 @@ type Options struct {
 	Events func(jsonout.Event)
 	// Project 是 pk.toml 里的工具声明（含 npm 显式 pin）。
 	Project map[string]string
+	// DryRun 为 true 时只解析并打印计划，不下载不落盘。
+	DryRun bool
 	// Frozen 为 true 时不解析版本，直接按 Lock 装（CI 用）。
 	Frozen bool
 	// Lock 是 pk.lock 的内容（--frozen 必需）。
@@ -73,6 +75,11 @@ type Result struct {
 	NPMVersion       string
 	NPMReplaced      string
 	AlreadyInstalled bool
+	// Planned 表示这是 --dry-run 的解析结果（什么都没下）。
+	Planned      bool
+	PlanURL      string
+	PlanFormat   string
+	PlanChecksum string
 }
 
 // Installer 持有台账与校验表，Install 后需调用 Finalize 落盘。
@@ -170,6 +177,7 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		lockedSHA = sha
 		resolved = provider.Version{Version: version}
 	} else {
+		i.resolveAutoProfile(ctx, p)
 		resolved, idx, err = i.resolveVersion(ctx, p, specStr)
 		if err != nil {
 			return Result{}, err
@@ -188,6 +196,17 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 	}
 
 	res := Result{Tool: tool, Version: version, Path: target}
+
+	if i.opt.DryRun {
+		urls, err := p.ArtifactURLsFor(resolved, i.opt.GOOS, i.opt.GOARCH, i.opt.Profile)
+		if err != nil {
+			return Result{}, err
+		}
+		res.Planned, res.PlanURL, res.PlanFormat = true, urls[0], extOrDefault(p, i.opt.GOOS)
+		res.PlanChecksum = fmt.Sprintf("%s(%s)", p.Checksum.Format, p.Checksum.Mode)
+		i.emit(jsonout.Event{Ev: "plan", Tool: tool, Version: version, Source: res.PlanURL, Mode: res.PlanChecksum})
+		return res, nil
+	}
 
 	archivePath, artifactURL, fromCache, err := i.fetchArtifact(ctx, p, resolved, idx)
 	if err != nil {
@@ -352,6 +371,24 @@ func (i *Installer) installedVersions(tool string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// resolveAutoProfile：档位是 auto 时先判定环境（国外 → 官方源，国内 → 镜像），
+// 判定结果同时写进探测缓存，后续命令 6h 内不再探。
+func (i *Installer) resolveAutoProfile(ctx context.Context, p *provider.Provider) {
+	if i.opt.Profile != mirror.AutoProfile && i.opt.Profile != "" {
+		return
+	}
+	official, domestic := p.Index.URLs["default"], p.Index.URLs["cn"]
+	prober := &mirror.Prober{Client: i.opt.Client, Path: i.opt.Paths.Probe(), TTL: mirror.DefaultTTL}
+	profile, res, err := mirror.Detect(ctx, prober, official, domestic)
+	if err != nil || profile == "" {
+		i.opt.Profile = "cn" // 探测不出结论时按国内档（国内是主要受众）
+		return
+	}
+	i.opt.Profile = profile
+	i.emit(jsonout.Event{Ev: "mirror", Tool: p.ID, Source: profile,
+		Msg: fmt.Sprintf("%s (%dms)", profile, res.LatencyMS)})
 }
 
 func (i *Installer) resolveVersion(ctx context.Context, p *provider.Provider, specStr string) (provider.Version, *provider.Index, error) {

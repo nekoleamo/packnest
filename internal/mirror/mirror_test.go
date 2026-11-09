@@ -268,3 +268,73 @@ func (e errString) Error() string { return string(e) }
 func writeFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0o644)
 }
+
+func TestDetectAbroadPrefersOfficial(t *testing.T) {
+	official := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer official.Close()
+	var cnHits int32
+	cn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&cnHits, 1)
+	}))
+	defer cn.Close()
+
+	p := &Prober{Client: fetch.New()}
+	profile, _, err := Detect(context.Background(), p, official.URL, cn.URL)
+	if err != nil || profile != "default" {
+		t.Fatalf("官方源可用时应选 default: %q %v", profile, err)
+	}
+	if atomic.LoadInt32(&cnHits) != 0 {
+		t.Fatalf("官方源可用时不该再探国内源（多花一次请求）: %d", cnHits)
+	}
+}
+
+func TestDetectChinaFallsBackToCN(t *testing.T) {
+	dead := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "blocked", http.StatusServiceUnavailable)
+	}))
+	defer dead.Close()
+	cn := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	defer cn.Close()
+
+	profile, res, err := Detect(context.Background(), &Prober{Client: fetch.New()}, dead.URL, cn.URL)
+	if err != nil || profile != "cn" || !res.OK {
+		t.Fatalf("官方源挂了应回落到 cn: %q %+v %v", profile, res, err)
+	}
+}
+
+func TestDetectBothDown(t *testing.T) {
+	dead := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "x", http.StatusServiceUnavailable)
+	}))
+	defer dead.Close()
+	_, _, err := Detect(context.Background(), &Prober{Client: fetch.New()}, dead.URL, dead.URL)
+	if err == nil || !strings.Contains(err.Error(), "PK_MIRROR") {
+		t.Fatalf("全挂应报错并给内网源建议: %v", err)
+	}
+	if _, _, err := Detect(context.Background(), &Prober{Client: fetch.New()}, "", ""); err == nil {
+		t.Fatal("没有候选应报错")
+	}
+}
+
+func TestCachedProfile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "probe.json")
+	now := time.Now()
+	p := &Prober{Client: fetch.New(), Path: path, Now: func() time.Time { return now }}
+	ok := p.ProbeOne(context.Background(), "http://127.0.0.1:1/cn")
+	cache := p.Load()
+	cache.Results["http://127.0.0.1:1/cn"] = Result{URL: "http://127.0.0.1:1/cn", OK: true, CheckedAt: now}
+	cache.Results["x"] = ok
+	_ = p.Save(cache)
+
+	if got := CachedProfile(&Prober{Path: path, Now: func() time.Time { return now }}, "http://official", "http://127.0.0.1:1/cn", now, time.Hour); got != "cn" {
+		t.Fatalf("缓存里 cn 可用时应返回 cn，得到 %q", got)
+	}
+	// 过期就不认
+	later := now.Add(48 * time.Hour)
+	if got := CachedProfile(&Prober{Path: path, Now: func() time.Time { return later }}, "http://official", "http://127.0.0.1:1/cn", later, time.Hour); got != "" {
+		t.Fatalf("过期缓存不该被采用，得到 %q", got)
+	}
+	if ProfileOf(AutoProfile) != "" || ProfileOf("") != "" || ProfileOf("cn") != "cn" {
+		t.Fatal("ProfileOf 归一化错误")
+	}
+}

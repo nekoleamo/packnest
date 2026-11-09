@@ -62,6 +62,16 @@ func (a *app) mirrorList() int {
 		fmt.Fprintf(a.out, "  %s %-8s %-16s %s\n      %s\n", mark, p.Name, p.Display, p.Registry, p.Note)
 	}
 	fmt.Fprintln(a.out, "  (auto 表示自动探测：普通命令只探首选 + 上轮最优，结果缓存 6h)")
+	if current == mirror.AutoProfile {
+		if p, err := provider.Get("node"); err == nil {
+			prober := &mirror.Prober{Client: a.client, Path: a.paths.Probe()}
+			if resolved := mirror.CachedProfile(prober, p.Index.URLs["default"], p.Index.URLs["cn"], a.now(), mirror.DefaultTTL); resolved != "" {
+				fmt.Fprintf(a.out, "  auto 当前判定: %s（来自探测缓存；国外环境会判 default）\n", resolved)
+			} else {
+				fmt.Fprintln(a.out, "  auto 当前判定: 未探测（第一次 install 时会探，并把结果缓存）")
+			}
+		}
+	}
 	return jsonout.ExitOK
 }
 

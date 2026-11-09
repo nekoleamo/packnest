@@ -24,6 +24,103 @@ import (
 	"github.com/packnest/packnest/internal/testkit"
 )
 
+// TestAcceptance_M5_AutoDetect：档位 auto 要按网络环境选源（国外走官方、国内走镜像）。
+func TestAcceptance_M5_AutoDetect(t *testing.T) {
+	alive := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.22.2", NPMVersion: "11.20.0"}},
+		NPM:      npmMatrixAcceptance(),
+	})
+	dead := testkit.Mirror(t, map[string][]byte{}, testkit.Status(503))
+
+	nodeP := func(officialURL, cnURL string) *provider.Provider {
+		toml := fmt.Sprintf(`id = "node"
+display = "Node.js"
+kind = "binary"
+[index]
+kind = "json"
+[index.urls]
+default = %q
+cn = %q
+[artifact]
+[artifact.urls]
+default = "%[3]s/node/v{version}/node-v{version}-{platform}.{ext}"
+cn = "%[4]s/node/v{version}/node-v{version}-{platform}.{ext}"
+[artifact.ext]
+windows = "zip"
+darwin = "tar.gz"
+linux = "tar.gz"
+[artifact.platform]
+darwin-arm64 = "darwin-arm64"
+linux-amd64 = "linux-x64"
+windows-amd64 = "win-x64"
+[checksum]
+format = "gnu-sums"
+mode = "tofu-then-verify"
+[checksum.urls]
+default = "%[3]s/node/v{version}/SHASUMS256.txt"
+cn = "%[4]s/node/v{version}/SHASUMS256.txt"
+[layout]
+strip = 1
+bins = ["node", "npm", "npx"]
+[companions.npm]
+mode = "latest-compatible"
+registry = "npm"
+target = "lib/node_modules/npm"
+`, officialURL+"/node/index.json", cnURL+"/node/index.json", officialURL, cnURL)
+		p, err := provider.Parse([]byte(toml))
+		if err != nil {
+			t.Fatalf("清单非法: %v", err)
+		}
+		return p
+	}
+
+	run := func(officialURL, cnURL string) (*install.Result, error) {
+		p, err := paths.New(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		inst, err := install.New(install.Options{
+			Paths: p, Client: fetch.New(), Cfg: store.DefaultConfig(), Profile: "auto",
+			GOOS: "darwin", GOARCH: "arm64",
+			LookupProvider: func(id string) (*provider.Provider, error) {
+				switch id {
+				case "node":
+					return nodeP(officialURL, cnURL), nil
+				case "npm":
+					return alive.NPMProvider, nil
+				}
+				return nil, errors.New("未知工具 " + id)
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := inst.Install(context.Background(), "node", "22.22.2")
+		return &res, err
+	}
+
+	// 国外：官方源可用、国内档挂 → auto 应判 default 并装成功
+	res, err := run(alive.Server.URL, dead.URL)
+	if err != nil {
+		t.Fatalf("官方源可达时应装成功（auto→default）: %v", err)
+	}
+	if res.Version != "22.22.2" {
+		t.Fatalf("版本异常: %+v", res)
+	}
+	// 国内：官方源挂、镜像可用 → auto 应判 cn 并装成功
+	res, err = run(dead.URL, alive.Server.URL)
+	if err != nil {
+		t.Fatalf("官方源不可达时应回落到镜像（auto→cn）: %v", err)
+	}
+	if res.Version != "22.22.2" {
+		t.Fatalf("版本异常: %+v", res)
+	}
+	// 两边都挂 → 明确报错，不静默降级
+	if _, err := run(dead.URL, dead.URL); err == nil {
+		t.Fatal("两边都不可达应报错")
+	}
+}
+
 // TestAcceptance_M5_CompanionMatrix7：方案 §7 的 7 行矩阵逐行验证。
 func TestAcceptance_M5_CompanionMatrix7(t *testing.T) {
 	nodes := []testkit.NodeSpec{

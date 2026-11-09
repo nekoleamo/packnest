@@ -45,6 +45,7 @@ func (a *app) cmdInstall(args []string) int {
 	jobs := fs.Int("jobs", 1, "并发下载数（M4；默认 1，国内 CDN 分片常更慢）")
 	force := fs.Bool("force", false, "重装已存在的版本")
 	quiet := fs.Bool("quiet", false, "只报错，不打印进度")
+	dryRun := fs.Bool("dry-run", false, "只解析并打印计划（版本/URL/校验方式），不下载")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -100,6 +101,7 @@ func (a *app) cmdInstall(args []string) int {
 		GOARCH:         runtime.GOARCH,
 		Project:        project,
 		Frozen:         *frozen,
+		DryRun:         *dryRun,
 		Lock:           lockFile,
 		Events:         a.eventWriterFor(*quiet),
 		LookupProvider: nil,
@@ -307,11 +309,19 @@ func (a *app) eventWriterFor(quiet bool) func(jsonout.Event) {
 			fmt.Fprintf(a.out, "校验通过 %s@%s（%s）\n", ev.Tool, ev.Version, ev.Mode)
 		case "companion":
 			fmt.Fprintf(a.out, "伴生包 %s@%s（%s）\n", ev.Tool, ev.Version, ev.Msg)
+		case "mirror":
+			fmt.Fprintf(a.out, "镜像判定 %s: %s\n", ev.Tool, ev.Msg)
+		case "plan":
+			fmt.Fprintf(a.out, "  产物 %s\n  校验 %s\n", ev.Source, ev.Mode)
 		}
 	}
 }
 
 func (a *app) printInstallResult(res install.Result) {
+	if res.Planned {
+		fmt.Fprintf(a.out, "计划：%s@%s（%s）\n", res.Tool, res.Version, res.PlanFormat)
+		return
+	}
 	if res.AlreadyInstalled {
 		fmt.Fprintf(a.out, "已是最新：%s@%s\n", res.Tool, res.Version)
 		return

@@ -233,6 +233,21 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 结论：**端外安装可以零成本**（npm 免费 + npmmirror 免费镜像 / gitee 免费 release / 自己有机器当静态源），不需要买 OSS/CDN
 - 顺手加：`pk env` 缺省跟随 `$SHELL`、`--rc <路径>`（避免测试或自定义布局去猜 rc 位置）、安装失败给下一步建议
 
+### 开源协议与网络自适应（2026-11-10 追加）
+
+- **协议：MIT**（`LICENSE` 已加，`packaging/npm/package.json` 已是 `"license": "MIT"`）。
+  理由：单二进制 CLI、要最大化采用率；Apache-2.0 的专利条款/NOTICE 义务对小工具是纯负担，
+  Go 生态（cobra/viper/urfave）基本都是 MIT；我们只有 2 个依赖（semver、toml，均 MIT）。
+- **网络自适应**：档位 `auto` 现在有真实语义 —— 装第一个工具时先探官方索引（500ms HEAD），
+  可用即走官方（**国外环境不多花一次请求**），不可用回落到国内档；结果写进 `state/probe.json`。
+  `pk mirror list` 会显示 auto 的当前判定；`pk install --dry-run` 也能直接看到判定与产物 URL。
+  验收：`TestAcceptance_M5_AutoDetect`（官方可用→default 且不探 cn；官方挂→cn；两边挂→报错）。
+
+### 打磨（2026-11-10 追加）
+
+- `pk install --dry-run`：只解析并打印"版本 / 产物 URL / 校验方式"，不下载（CI 里做预检很方便）
+- 安装失败追加"下一步"建议（mirror probe / doctor / --insecure）
+
 ## 已知缺口（按计划补齐，不是遗漏）
 
 - go 的国内索引源：npmmirror 没有 go 的产物/索引（实测），所以索引只声明官方 `?mode=json&include=all`，
