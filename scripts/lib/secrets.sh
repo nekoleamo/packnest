@@ -46,3 +46,20 @@ secret_diagnose() {
     echo "提示：文件含 CRLF 行尾（Windows 编辑器保存过），旧版解析会读不到 —— 当前版本已兼容"
   fi
 }
+
+# totp_code SECRET —— RFC 6238 TOTP（6 位/30s），用 python3 算，不引第三方工具。
+# 用途：账号是 auth-and-writes 且 token 没勾 Bypass 2FA 时，发布仍可全自动。
+totp_code() {
+  [ -n "$1" ] || return 0
+  python3 - "$1" <<'PY' 2>/dev/null
+import base64, hashlib, hmac, struct, sys, time
+secret = sys.argv[1].strip().replace(' ', '')
+pad = '=' * (-len(secret) % 8)
+key = base64.b32decode(secret.upper() + pad)
+counter = int(time.time()) // 30
+digest = hmac.new(key, struct.pack('>Q', counter), hashlib.sha1).digest()
+offset = digest[-1] & 0x0F
+code = struct.unpack('>I', digest[offset:offset + 4])[0] & 0x7FFFFFFF
+print('%06d' % (code % 1000000))
+PY
+}

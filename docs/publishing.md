@@ -87,6 +87,27 @@ read -rs T && printf 'NPM_TOKEN=%s\n' "$T" >> ~/.pi/agent/local/secrets.env && c
   真正发布时看输出里的 `凭据：/…/secrets.env（值不显示）`；
 - 本机有"凭据围栏"：AI 直接读该文件会被拒绝（实测 grep 已被拦），这是预期行为。
 
+### 怎么做到真正无人值守（不再弹浏览器）
+
+npm 的 2FA 有两种模式，决定自动化难度：
+
+| 账号模式 | 现象 | 自动化方案 |
+|---|---|---|
+| `auth-and-writes` + token **没**勾 Bypass 2FA | 发几个包后弹 `npmjs.com/auth/cli/...` 链接 | ① 重建 token 勾 **Bypass 2FA**（推荐）② 或让脚本用本地 TOTP 自动出码 ③ 或把账号改成 `auth-only` |
+| `auth-and-writes` + token **勾了** Bypass | 完全非交互 | 直接用 `make publish` |
+| `auth-only` | 只在登录时要求 | 直接用 `make publish` |
+
+**方案②的做法**：在同一个凭据文件里加一行 base32 的 2FA 密钥（就是你配 Authenticator 时的那串）：
+
+```sh
+NPM_TOTP_SECRET=JBSWY3DPEHPK3PXP
+```
+
+`release-npm.sh` 检测到它就用 python3 按 RFC 6238 算 6 位码，自动 `--otp`（不打印、过 30 秒即失效）。
+仍想手动指定：`sh scripts/release-npm.sh --publish --otp 123456`。
+
+发布失败时脚本会直接把这三条处置打出来，不用去猜。
+
 轮换：npmjs.com 删旧 token → `sh scripts/set-npm-token.sh` 重录 → 重新发版。
 
 ## 二、发布流程（本项目）

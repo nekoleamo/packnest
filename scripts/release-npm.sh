@@ -155,6 +155,13 @@ echo "已生成 npm 包："
 find "$OUT" -name package.json -maxdepth 3 | sed 's|^|  |'
 
 # 凭据：从环境变量或 600 权限的凭据文件取，只在子进程里 export，绝不打印。
+# 账号开了 auth-and-writes 2FA、token 又没勾 Bypass 时，可以用本地 TOTP 密钥自动出码。
+auto_otp() {
+  if [ -n "${OTP:-}" ]; then printf '%s' "$OTP"; return 0; fi
+  secret="${NPM_TOTP_SECRET:-$(secret_from_file "$TOKEN_FILE" NPM_TOTP_SECRET)}"
+  if [ -n "$secret" ]; then totp_code "$secret"; fi
+}
+
 load_token() {
   if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
     echo "凭据：环境变量 NODE_AUTH_TOKEN"
@@ -218,12 +225,22 @@ if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ]; then
     esac
   fi
   [ -n "$TAG" ] && PUBLISH_ARGS="$PUBLISH_ARGS --tag $TAG"
-  [ -n "$OTP" ] && PUBLISH_ARGS="$PUBLISH_ARGS --otp $OTP"
+  otp_value=$(auto_otp)
+  [ -n "$otp_value" ] && PUBLISH_ARGS="$PUBLISH_ARGS --otp $otp_value"
   [ "$DRY_RUN" -eq 1 ] && PUBLISH_ARGS="$PUBLISH_ARGS --dry-run"
   for p in "$OUT"/@*/*/ "$OUT"/packnest/; do
     echo "== 发布 ${SCOPE}/$(basename "$p")"
     # shellcheck disable=SC2086
-    ( cd "$p" && npm publish $PUBLISH_ARGS ) || exit 1
+    out=$( cd "$p" && npm publish $PUBLISH_ARGS 2>&1 ) || {
+      echo "$out" | grep -vE '^npm (notice|warn)' | tail -6
+      echo "" >&2
+      echo "发布被拒。最常见原因与处置（三选一，都在本机配一次即可全自动）：" >&2
+      echo "  1) npmjs → Access Tokens 重建 Granular token 并**勾上 Bypass 2FA**（推荐，之后无需 OTP）" >&2
+      echo "  2) 在凭据文件里加 NPM_TOTP_SECRET=<base32 2FA 密钥> —— 脚本会自动算 OTP 传 --otp" >&2
+      echo "  3) 账号 Settings → Two-Factor Authentication 改成 auth-only（只在登录时要求 2FA）" >&2
+      exit 1
+    }
+    echo "$out" | grep -vE '^npm (notice|warn)' | tail -1
   done
   if [ "$DRY_RUN" -eq 1 ]; then
     echo "dry-run 完成（没有真的发布；这 7 个包都已打包好并校验过 manifest）"
