@@ -8,13 +8,14 @@
 # 文件里只加/更新一行 NPM_TOKEN=...，其他行原样保留。
 set -eu
 
+. "$(dirname "$0")/lib/secrets.sh"
+
 SECRETS="${PK_SECRETS_FILE:-$HOME/.pi/agent/local/secrets.env}"
 KEY="${PK_NPM_TOKEN_KEY:-NPM_TOKEN}"
 
 # 已有别名键（NPM_ACCESS_TOKEN 等）就沿用，避免同一个文件里出现两个键
-for candidate in NPM_ACCESS_TOKEN NPM_TOKEN NODE_AUTH_TOKEN NPM_AUTH_TOKEN; do
-  if grep -qE "^${candidate}=" "$SECRETS" 2>/dev/null; then KEY="$candidate"; break; fi
-done
+existing=$(secret_keys "$SECRETS" | grep -E '^(NPM_ACCESS_TOKEN|NPM_TOKEN|NODE_AUTH_TOKEN|NPM_AUTH_TOKEN)$' | head -1)
+[ -n "$existing" ] && KEY="$existing"
 
 mkdir -p "$(dirname "$SECRETS")"
 printf 'npm access token（输入不回显，粘贴后回车）: '
@@ -33,7 +34,8 @@ umask 077
 touch "$SECRETS"
 chmod 600 "$SECRETS"
 tmp="$SECRETS.tmp.$$"
-grep -v "^${KEY}=" "$SECRETS" > "$tmp" 2>/dev/null || true
+awk -v k="$KEY" '{ line=$0; sub(/\r$/,"",line); sub(/^[ \t]*export[ \t]+/,"",line)
+  if (line ~ "^[ \t]*" k "[ \t]*=") next; print }' "$SECRETS" > "$tmp" 2>/dev/null || true
 printf '%s=%s\n' "$KEY" "$TOKEN" >> "$tmp"
 mv "$tmp" "$SECRETS"
 chmod 600 "$SECRETS"

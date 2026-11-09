@@ -21,6 +21,8 @@
 #   不需要对象存储、不需要 CDN 备案、不需要 GitHub。
 set -eu
 
+. "$(dirname "$0")/lib/secrets.sh"
+
 DIST="${DIST:-dist}"
 OUT="$DIST/npm"
 PUBLISH=0
@@ -42,6 +44,32 @@ while [ $# -gt 0 ]; do
     *) echo "未知参数: $1" >&2; exit 2 ;;
   esac
 done
+
+# --check-auth：只验证凭据可用（npm whoami），不打包、不发布。
+if [ "$CHECK_AUTH" -eq 1 ]; then
+  source_token() {
+    value=$(secret_from_file "$TOKEN_FILE" NPM_ACCESS_TOKEN NPM_TOKEN NODE_AUTH_TOKEN NPM_AUTH_TOKEN)
+    if [ -n "$value" ]; then NODE_AUTH_TOKEN="$value"; export NODE_AUTH_TOKEN; echo "凭据：${TOKEN_FILE}（值不显示）"; return 0; fi
+    if [ -n "${NODE_AUTH_TOKEN:-}" ]; then echo "凭据：环境变量 NODE_AUTH_TOKEN"; return 0; fi
+    return 1
+  }
+  source_token || {
+    echo "没找到凭据。" >&2
+    secret_diagnose "$TOKEN_FILE" >&2
+    echo "可选键名：NPM_ACCESS_TOKEN / NPM_TOKEN / NODE_AUTH_TOKEN / NPM_AUTH_TOKEN" >&2
+    echo "本会话临时给：export NODE_AUTH_TOKEN=npm_xxx" >&2
+    exit 3
+  }
+  whoami=$(npm whoami --registry "$REGISTRY" 2>&1) || {
+    echo "凭据已读到，但 registry 不认（回答：401/需登录）。常见原因：" >&2
+    echo "  · token 过期/被删  · scope 没勾 read-write  · 2FA 账号没勾 Bypass 2FA" >&2
+    echo "  · 粘错（少了前缀）  · 用的是 npmjs 的 token 但 registry 指到了别处" >&2
+    echo "  原文：$(printf '%s' "$whoami" | head -3 | tr '\n' ' ')" >&2
+    exit 3
+  }
+  echo "凭据有效：npm 账号 $whoami（registry $REGISTRY）"
+  exit 0
+fi
 
 [ -d "$DIST" ] || { echo "先跑 make release（没有 $DIST/）" >&2; exit 1; }
 VERSION=$(cat "$DIST/latest")
@@ -105,28 +133,6 @@ NODE
 echo "已生成 npm 包："
 find "$OUT" -name package.json -maxdepth 3 | sed 's|^|  |'
 
-# --check-auth：只验证凭据可用（npm whoami），不打包、不发布。
-if [ "$CHECK_AUTH" -eq 1 ]; then
-  source_token() {
-    for key in NPM_ACCESS_TOKEN NPM_TOKEN NODE_AUTH_TOKEN NPM_AUTH_TOKEN; do
-      value=$(grep -E "^${key}=" "$TOKEN_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
-      if [ -n "$value" ]; then NODE_AUTH_TOKEN="$value"; export NODE_AUTH_TOKEN; echo "凭据：${TOKEN_FILE} 的 ${key}（值不显示）"; return 0; fi
-    done
-    if [ -n "${NODE_AUTH_TOKEN:-}" ]; then echo "凭据：环境变量 NODE_AUTH_TOKEN"; return 0; fi
-    return 1
-  }
-  source_token || { echo "没找到凭据（${TOKEN_FILE} 里没有 NPM_ACCESS_TOKEN/NPM_TOKEN）" >&2; exit 3; }
-  whoami=$(npm whoami --registry "$REGISTRY" 2>&1) || {
-    echo "凭据已读到，但 registry 不认（回答：401/需登录）。常见原因：" >&2
-    echo "  · token 过期/被删  · scope 没勾 read-write  · 2FA 账号没勾 Bypass 2FA" >&2
-    echo "  · 粘错（少了前缀）  · 用的是 npmjs 的 token 但 registry 指到了别处" >&2
-    echo "  原文：$(printf '%s' "$whoami" | head -3 | tr '\n' ' ')" >&2
-    exit 3
-  }
-  echo "凭据有效：npm 账号 $whoami（registry $REGISTRY）"
-  exit 0
-fi
-
 # 凭据：从环境变量或 600 权限的凭据文件取，只在子进程里 export，绝不打印。
 load_token() {
   if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
@@ -141,21 +147,21 @@ load_token() {
       *) echo "警告：${TOKEN_FILE} 权限是 ${perm}，建议 chmod 600" >&2 ;;
     esac
     # 兼容常见键名：NPM_ACCESS_TOKEN / NPM_TOKEN / NODE_AUTH_TOKEN / NPM_AUTH_TOKEN
-    for key in NPM_ACCESS_TOKEN NPM_TOKEN NODE_AUTH_TOKEN NPM_AUTH_TOKEN; do
-      value=$(grep -E "^${key}=" "$TOKEN_FILE" | head -1 | cut -d= -f2-)
-      if [ -n "$value" ]; then
-        NODE_AUTH_TOKEN="$value"
-        export NODE_AUTH_TOKEN
-        echo "凭据：${TOKEN_FILE} 的 ${key}（值不显示）"
-        return 0
-      fi
-    done
+    value=$(secret_from_file "$TOKEN_FILE" NPM_ACCESS_TOKEN NPM_TOKEN NODE_AUTH_TOKEN NPM_AUTH_TOKEN)
+    if [ -n "$value" ]; then
+      NODE_AUTH_TOKEN="$value"
+      export NODE_AUTH_TOKEN
+      echo "凭据：${TOKEN_FILE}（值不显示）"
+      return 0
+    fi
   fi
   if [ -f "$HOME/.npmrc" ] && grep -q '_authToken' "$HOME/.npmrc" 2>/dev/null; then
     echo "凭据：~/.npmrc（npm login）"
     return 0
   fi
-  echo "没有 npm 凭据。三选一：" >&2
+  echo "没有 npm 凭据。" >&2
+  secret_diagnose "$TOKEN_FILE" >&2
+  echo "三选一：" >&2
   echo "  1) sh scripts/set-npm-token.sh      # 交互输入，存到 600 权限的凭据文件" >&2
   echo "  2) export NODE_AUTH_TOKEN=npm_xxx   # CI secret 注入" >&2
   echo "  3) npm login                        # 本地交互" >&2
