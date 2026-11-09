@@ -29,6 +29,8 @@ PUBLISH=0
 DRY_RUN=0
 OTP=""
 TAG=""
+# 平台包作用域：默认 @packnest；没有该组织时可改成自己的用户名作用域，如 @your-name
+SCOPE="${PK_NPM_SCOPE:-@packnest}"
 TOKEN_FILE="${PK_NPM_TOKEN_FILE:-$HOME/.pi/agent/local/secrets.env}"
 CHECK_AUTH=0
 REGISTRY="${NPM_REGISTRY:-https://registry.npmjs.org}"
@@ -109,7 +111,8 @@ for f in "$VER_DIR"/packnest_"$VERSION"_*; do
     *) continue ;;
   esac
   os=${rest%_*}; arch=${rest#*_}
-  pkg="$OUT/@packnest/$os-$arch"
+  scopeName=${SCOPE#@}
+  pkg="$OUT/@$scopeName/$os-$arch"
   mkdir -p "$pkg/bin"
   tmp="$OUT/.tmp-$os-$arch"; mkdir -p "$tmp"
   abs=$(cd "$(dirname "$f")" && pwd)/$(basename "$f")
@@ -122,7 +125,7 @@ for f in "$VER_DIR"/packnest_"$VERSION"_*; do
   chmod +x "$pkg/bin/$exe"
   cat > "$pkg/package.json" <<JSON
 {
-  "name": "@packnest/$os-$arch",
+  "name": "$SCOPE/$os-$arch",
   "version": "$VERSION",
   "description": "packnest 的 $os-$arch 二进制（由主包 packnest 依赖）",
   "os": ["$os"], "cpu": ["$arch"],
@@ -136,14 +139,15 @@ done
 # 主包：JS 入口 + optionalDependencies 指向平台包
 mkdir -p "$OUT/packnest"
 cp -R packaging/npm/bin packaging/npm/scripts "$OUT/packnest/"
-node - "$OUT/packnest/package.json" "$VERSION" <<'NODE'
+node - "$OUT/packnest/package.json" "$VERSION" "$SCOPE" <<'NODE'
 const fs = require('fs');
-const [, , out, version] = process.argv;
+const [, , out, version, scope] = process.argv;
 const template = JSON.parse(fs.readFileSync('packaging/npm/package.json', 'utf8'));
 template.version = version;
-for (const name of Object.keys(template.optionalDependencies || {})) {
-  template.optionalDependencies[name] = version;
-}
+// 用实际作用域重建 optionalDependencies（平台包名必须与发布出去的一致）
+const platforms = ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'win32-arm64', 'win32-x64'];
+template.optionalDependencies = {};
+for (const p of platforms) template.optionalDependencies[scope + '/' + p] = version;
 fs.writeFileSync(out, JSON.stringify(template, null, 2) + '\n');
 NODE
 
@@ -204,8 +208,8 @@ if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ]; then
   [ -n "$TAG" ] && PUBLISH_ARGS="$PUBLISH_ARGS --tag $TAG"
   [ -n "$OTP" ] && PUBLISH_ARGS="$PUBLISH_ARGS --otp $OTP"
   [ "$DRY_RUN" -eq 1 ] && PUBLISH_ARGS="$PUBLISH_ARGS --dry-run"
-  for p in "$OUT"/@packnest/*/ "$OUT"/packnest/; do
-    echo "== 发布 $(basename "$(dirname "$p")")/$(basename "$p")"
+  for p in "$OUT"/@*/*/ "$OUT"/packnest/; do
+    echo "== 发布 ${SCOPE}/$(basename "$p")"
     # shellcheck disable=SC2086
     ( cd "$p" && npm publish $PUBLISH_ARGS ) || exit 1
   done
