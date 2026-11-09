@@ -54,6 +54,36 @@ CI 侧有两种"零云端凭据"的用法：
 
 只有第三种（云端 GitHub 托管 runner + Secret）才需要把 token 放到云上，本仓库模板默认不这么做。
 
+### 这个文件到底怎么写
+
+路径：`~/.pi/agent/local/secrets.env`（目录不存在就 `mkdir -p ~/.pi/agent/local`）。格式是**纯 `KEY=value`，一行一个**：
+
+```sh
+NPM_TOKEN=npm_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+三种写法，任选（推荐第一种，值不进 shell history）：
+
+```sh
+# 1) 交互输入，不回显，自动 chmod 600（推荐）
+sh scripts/set-npm-token.sh
+
+# 2) 手工写：先建空文件并设权限，再用编辑器粘贴（不要 echo 到命令行，会进 history）
+mkdir -p ~/.pi/agent/local && install -m 600 /dev/null ~/.pi/agent/local/secrets.env
+${EDITOR:-vim} ~/.pi/agent/local/secrets.env
+
+# 3) 从别处一次性导入（管道，不落 history）
+read -rs T && printf 'NPM_TOKEN=%s\n' "$T" >> ~/.pi/agent/local/secrets.env && chmod 600 ~/.pi/agent/local/secrets.env
+```
+
+要点：
+- **不要加引号、不要 `export`**（脚本按 `KEY=value` 直接解析）；
+- 文件里已有的其他键（比如 gitee 的）**不用动**，`set-npm-token.sh` 只增改 `NPM_TOKEN=` 这一行；
+- 仓库里有模板 `packaging/secrets.env.example`，照抄键名即可，真值永远不进仓库；
+- 验证是否生效（不显示值）：`PK_NPM_TOKEN_FILE=~/.pi/agent/local/secrets.env sh scripts/release-npm.sh --dry-run` 不会读它，
+  真正发布时看输出里的 `凭据：/…/secrets.env（值不显示）`；
+- 本机有"凭据围栏"：AI 直接读该文件会被拒绝（实测 grep 已被拦），这是预期行为。
+
 轮换：npmjs.com 删旧 token → `sh scripts/set-npm-token.sh` 重录 → 重新发版。
 
 ## 二、发布流程（本项目）
