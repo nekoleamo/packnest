@@ -22,6 +22,7 @@ MIRROR="default"
 BASE="${PK_INSTALL_BASE:-}"
 FROM=""
 REGISTRY="${PK_NPM_REGISTRY:-https://registry.npmmirror.com}"
+SCOPE="${PK_NPM_SCOPE:-@packnest}"
 VERSION=""
 DIR="${HOME}/.local/bin"
 DRY_RUN=0
@@ -32,6 +33,7 @@ while [ $# -gt 0 ]; do
     --base) BASE="$2"; shift 2 ;;
     --from) FROM="$2"; shift 2 ;;
     --registry) REGISTRY="$2"; shift 2 ;;
+    --scope) SCOPE="$2"; shift 2 ;;
     --version) VERSION="$2"; shift 2 ;;
     --dir) DIR="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -59,7 +61,7 @@ fi
 
 if [ "$FROM" = "npm" ]; then
   # 从 npm registry 取平台包（免费通道：发布一次，npmmirror 自动镜像）
-  pkg="@packnest/${os}-${arch}"
+  pkg="${SCOPE}/${os}-${arch}"
   encoded=$(printf '%s' "$pkg" | sed 's|/|%2F|')
   meta=$(curl -fsSL --max-time 30 "$REGISTRY/$encoded") || {
     echo "从 $REGISTRY 取不到 ${pkg}（可能还没发布）" >&2; exit 3; }
