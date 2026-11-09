@@ -25,7 +25,7 @@ VERSION ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null | sed -
 LDFLAGS := -s -w -X main.Version=$(VERSION)
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
-.PHONY: help build test race check fmt vet cover cross fuzz bench golden accept clean dist list-providers release checksums npm-packages npm-dry publish
+.PHONY: help build test race check fmt vet cover cross fuzz bench golden accept clean dist list-providers release checksums npm-packages npm-dry publish publish-stage stage-list promote
 
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
@@ -37,7 +37,9 @@ help:
 	@echo "make bench     只看性能预算"
 	@echo "make release   6 平台发布包 + checksums.txt 到 dist/"
 	@echo "make npm-dry   只打包 npm 包并校验 manifest（不发、不需要凭据）"
-	@echo "make publish   本机一条命令发布到 npm（凭据只在本机凭据文件里）"
+	@echo "make publish   stage + promote（推荐，兼容 2027 新规）"
+	@echo "make publish-stage  只 stage（无需 2FA，CI 可跑）"
+	@echo "make publish-direct 直接发布（2027-01 前有效，已弃用）"
 	@echo "make clean     清理产物"
 
 build:
@@ -140,9 +142,21 @@ npm-packages:
 npm-dry:
 	@sh scripts/release-npm.sh --dry-run
 
-# 本地一条命令发布：产物 + npm 包 + 发布（**凭据只在本机**：~/.pi/agent/local/secrets.env）
-# 建议先 `make check`；CI 不需要任何凭据。
-publish: release
+# 发布正式版本（stage + 立刻 promote）——推荐路径。
+# npm 从 2027-01 起不允许 granular token 直接发布新版本，只允许 stage；
+# 所以 --stage 才是长期方案，promote 需要 2FA（本地 NPM_TOTP_SECRET 可自动出码）。
+publish: publish-stage promote
+
+# 只 stage（不需要 2FA，CI 里也可跑）
+publish-stage: release
+	@sh scripts/release-npm.sh --stage
+
+# 提升 staged 版本（需要 2FA：本地 TOTP 或 --otp）
+promote:
+	@sh scripts/release-npm.sh --promote --list
+
+# 仍然保留"直接发布"（在 2027-01 之前有效）
+publish-direct: release
 	@sh scripts/release-npm.sh --publish
 
 clean:

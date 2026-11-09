@@ -87,6 +87,19 @@ read -rs T && printf 'NPM_TOKEN=%s\n' "$T" >> ~/.pi/agent/local/secrets.env && c
   真正发布时看输出里的 `凭据：/…/secrets.env（值不显示）`；
 - 本机有"凭据围栏"：AI 直接读该文件会被拒绝（实测 grep 已被拦），这是预期行为。
 
+### ⏳ 时间表：npm 正在取消"直接发布"
+
+npm 官方提示：**Bypass-2FA + direct-publish 的 granular token 正在被弃用，2027 年 1 月起不再允许用 granular token 直接发布新版本**，
+只能 `npm stage publish` 再由带 2FA 的维护者 promote。所以本项目的**长期正确路径**是两步：
+
+```bash
+make publish-stage     # 7 个包全部 stage（stage-only token 即可，CI 里能跑，无需 2FA）
+make promote           # 列 stage id
+sh scripts/release-npm.sh --promote <stage-id>   # 逐包提升；需要 2FA（本机 NPM_TOTP_SECRET 自动出码）
+```
+
+在 2027-01 之前 `make publish-direct`（旧的直接发布）仍然可用，但别把流程建在它上面。
+
 ### 两种 token：普通 read-write vs stage-only（**踩过坑**）
 
 npm 新增了 **staged publishing**：可以签发"stage-only"的 token，它**只能把版本 stage 起来**，
