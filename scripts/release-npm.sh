@@ -28,12 +28,14 @@ DRY_RUN=0
 OTP=""
 TAG=""
 TOKEN_FILE="${PK_NPM_TOKEN_FILE:-$HOME/.pi/agent/local/secrets.env}"
+CHECK_AUTH=0
 REGISTRY="${NPM_REGISTRY:-https://registry.npmjs.org}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --publish) PUBLISH=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --check-auth) CHECK_AUTH=1; shift ;;
     --otp) OTP="$2"; shift 2 ;;
     --tag) TAG="$2"; shift 2 ;;
     --registry) REGISTRY="$2"; shift 2 ;;
@@ -103,6 +105,28 @@ NODE
 echo "已生成 npm 包："
 find "$OUT" -name package.json -maxdepth 3 | sed 's|^|  |'
 
+# --check-auth：只验证凭据可用（npm whoami），不打包、不发布。
+if [ "$CHECK_AUTH" -eq 1 ]; then
+  source_token() {
+    for key in NPM_ACCESS_TOKEN NPM_TOKEN NODE_AUTH_TOKEN NPM_AUTH_TOKEN; do
+      value=$(grep -E "^${key}=" "$TOKEN_FILE" 2>/dev/null | head -1 | cut -d= -f2-)
+      if [ -n "$value" ]; then NODE_AUTH_TOKEN="$value"; export NODE_AUTH_TOKEN; echo "凭据：${TOKEN_FILE} 的 ${key}（值不显示）"; return 0; fi
+    done
+    if [ -n "${NODE_AUTH_TOKEN:-}" ]; then echo "凭据：环境变量 NODE_AUTH_TOKEN"; return 0; fi
+    return 1
+  }
+  source_token || { echo "没找到凭据（${TOKEN_FILE} 里没有 NPM_ACCESS_TOKEN/NPM_TOKEN）" >&2; exit 3; }
+  whoami=$(npm whoami --registry "$REGISTRY" 2>&1) || {
+    echo "凭据已读到，但 registry 不认（回答：401/需登录）。常见原因：" >&2
+    echo "  · token 过期/被删  · scope 没勾 read-write  · 2FA 账号没勾 Bypass 2FA" >&2
+    echo "  · 粘错（少了前缀）  · 用的是 npmjs 的 token 但 registry 指到了别处" >&2
+    echo "  原文：$(printf '%s' "$whoami" | head -3 | tr '\n' ' ')" >&2
+    exit 3
+  }
+  echo "凭据有效：npm 账号 $whoami（registry $REGISTRY）"
+  exit 0
+fi
+
 # 凭据：从环境变量或 600 权限的凭据文件取，只在子进程里 export，绝不打印。
 load_token() {
   if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
@@ -116,12 +140,16 @@ load_token() {
         ;;
       *) echo "警告：${TOKEN_FILE} 权限是 ${perm}，建议 chmod 600" >&2 ;;
     esac
-    NODE_AUTH_TOKEN=$(grep -E '^NPM_TOKEN=' "$TOKEN_FILE" | head -1 | cut -d= -f2-)
-    if [ -n "$NODE_AUTH_TOKEN" ]; then
-      export NODE_AUTH_TOKEN
-      echo "凭据：${TOKEN_FILE}（值不显示）"
-      return 0
-    fi
+    # 兼容常见键名：NPM_ACCESS_TOKEN / NPM_TOKEN / NODE_AUTH_TOKEN / NPM_AUTH_TOKEN
+    for key in NPM_ACCESS_TOKEN NPM_TOKEN NODE_AUTH_TOKEN NPM_AUTH_TOKEN; do
+      value=$(grep -E "^${key}=" "$TOKEN_FILE" | head -1 | cut -d= -f2-)
+      if [ -n "$value" ]; then
+        NODE_AUTH_TOKEN="$value"
+        export NODE_AUTH_TOKEN
+        echo "凭据：${TOKEN_FILE} 的 ${key}（值不显示）"
+        return 0
+      fi
+    done
   fi
   if [ -f "$HOME/.npmrc" ] && grep -q '_authToken' "$HOME/.npmrc" 2>/dev/null; then
     echo "凭据：~/.npmrc（npm login）"

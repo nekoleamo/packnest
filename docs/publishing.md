@@ -59,8 +59,11 @@ CI 侧有两种"零云端凭据"的用法：
 路径：`~/.pi/agent/local/secrets.env`（目录不存在就 `mkdir -p ~/.pi/agent/local`）。格式是**纯 `KEY=value`，一行一个**：
 
 ```sh
-NPM_TOKEN=npm_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+NPM_ACCESS_TOKEN=npm_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
+
+键名兼容（脚本按顺序找，命中即用）：`NPM_ACCESS_TOKEN` → `NPM_TOKEN` → `NODE_AUTH_TOKEN` → `NPM_AUTH_TOKEN`。
+所以叫 `NPM_ACCESS_TOKEN` 也行，不用改名。
 
 三种写法，任选（推荐第一种，值不进 shell history）：
 

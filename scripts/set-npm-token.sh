@@ -9,7 +9,12 @@
 set -eu
 
 SECRETS="${PK_SECRETS_FILE:-$HOME/.pi/agent/local/secrets.env}"
-KEY="NPM_TOKEN"
+KEY="${PK_NPM_TOKEN_KEY:-NPM_TOKEN}"
+
+# 已有别名键（NPM_ACCESS_TOKEN 等）就沿用，避免同一个文件里出现两个键
+for candidate in NPM_ACCESS_TOKEN NPM_TOKEN NODE_AUTH_TOKEN NPM_AUTH_TOKEN; do
+  if grep -qE "^${candidate}=" "$SECRETS" 2>/dev/null; then KEY="$candidate"; break; fi
+done
 
 mkdir -p "$(dirname "$SECRETS")"
 printf 'npm access token（输入不回显，粘贴后回车）: '
