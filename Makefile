@@ -25,7 +25,7 @@ VERSION ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null | sed -
 LDFLAGS := -s -w -X main.Version=$(VERSION)
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
-.PHONY: help build test race check fmt vet cover cross fuzz bench golden accept clean dist list-providers release checksums
+.PHONY: help build test race check fmt vet cover cross fuzz bench golden accept clean dist list-providers release checksums npm-packages npm-dry publish
 
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
@@ -36,6 +36,8 @@ help:
 	@echo "make cover     只看覆盖率明细"
 	@echo "make bench     只看性能预算"
 	@echo "make release   6 平台发布包 + checksums.txt 到 dist/"
+	@echo "make npm-dry   只打包 npm 包并校验 manifest（不发、不需要凭据）"
+	@echo "make publish   本机一条命令发布到 npm（凭据只在本机凭据文件里）"
 	@echo "make clean     清理产物"
 
 build:
@@ -129,6 +131,19 @@ checksums:
 	@cd $(DIST)/v$(VERSION) && { sha256sum packnest_*.tar.gz packnest_*.zip 2>/dev/null || shasum -a 256 packnest_*.tar.gz packnest_*.zip; } > checksums.txt
 	@cp $(DIST)/v$(VERSION)/checksums.txt $(DIST)/checksums.txt
 	@echo "已生成 checksums.txt：" && cat $(DIST)/checksums.txt
+
+# npm 包（本地打包，不发）
+npm-packages:
+	@sh scripts/release-npm.sh
+
+# 只打包 + 校验 manifest，不发布（凭据也不需要）
+npm-dry:
+	@sh scripts/release-npm.sh --dry-run
+
+# 本地一条命令发布：产物 + npm 包 + 发布（**凭据只在本机**：~/.pi/agent/local/secrets.env）
+# 建议先 `make check`；CI 不需要任何凭据。
+publish: release
+	@sh scripts/release-npm.sh --publish
 
 clean:
 	rm -rf $(BUILD) $(DIST) $(BIN) coverage.out

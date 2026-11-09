@@ -1,6 +1,12 @@
-# GitHub Actions：发版时自动发布到 npm（免费额度足够）。
-# 凭据走仓库 Secret，**不落盘、不进日志**：Settings → Secrets and variables → Actions → NPM_TOKEN。
-# 对应 gitee Go 流水线同理：把 token 配成"私密变量"，用 ${NPM_TOKEN} 注入即可。
+# CI 模板：默认**只构建不发布**（凭据只放本机，见下）。
+#
+# 三种用法：
+#  A) 只构建（默认，零凭据）：tag 打上后 CI 跑门禁 + 出产物，发布在本机 `make publish`。
+#  B) 自托管 runner（仍然"只放本地"）：在你自己机器的 runner 上跑这个 job 的 publish 步骤，
+#     token 留在那台机器的 ~/.pi/agent/local/secrets.env，不进任何云端 Secret。
+#  C) 云端 Secret：把 publish 步骤取消注释，并在 Settings → Secrets 配 NPM_TOKEN。
+#
+# 对应 gitee Go 流水线同理（私密变量 / 自托管 runner / 只构建）。
 name: npm-publish
 
 on:
@@ -28,7 +34,14 @@ jobs:
           make release VERSION="${GITHUB_REF_NAME#v}"
           sh scripts/release-npm.sh
 
-      - name: 发布（先子包后主包）
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: sh scripts/release-npm.sh --publish
+      # —— 下面是"发布"步骤：默认注释掉（A 方案）。要用 B/C 方案再取消注释。 ——
+      # - name: 发布（先子包后主包）
+      #   env:
+      #     NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}   # B 方案可删掉这行，靠本机凭据文件
+      #   run: sh scripts/release-npm.sh --publish
+
+      - name: 产物归档（A 方案：本机下载后 make publish）
+        uses: actions/upload-artifact@v4
+        with:
+          name: packnest-release
+          path: dist/

@@ -36,7 +36,25 @@
 `registry` 和 `access=public` 这类非机密配置。
 实测：把假 token 放进临时凭据文件跑 `--dry-run`，输出里对 token 的命中数为 **0**。
 
-轮换：npmjs.com 删旧 token → `sh scripts/set-npm-token.sh` 重录 → 重新发版；CI 里改 Secret 即可。
+### 只放本地（推荐，不上任何云端 Secret）
+
+完全可以。凭据只存在于这台机器的 `~/.pi/agent/local/secrets.env`（600），发布也在本机跑：
+
+```bash
+make check                 # 门禁（可选但推荐）
+make publish               # = make release + scripts/release-npm.sh --publish
+```
+
+CI 侧有两种"零云端凭据"的用法：
+
+| 方案 | 做法 | 代价 |
+|---|---|---|
+| **A. CI 只构建** | 默认的 `packaging/ci/npm-publish.yml`（发布步骤已注释），tag 触发后只出产物；你下载产物后在本机 `make publish` | 发布要手动点一下 |
+| **B. 自托管 runner** | 把同一个 job 挂到自己机器的 runner，publish 步骤取消注释但不配 Secret——token 由**那台机器**的凭据文件提供 | 机器要常在线 |
+
+只有第三种（云端 GitHub 托管 runner + Secret）才需要把 token 放到云上，本仓库模板默认不这么做。
+
+轮换：npmjs.com 删旧 token → `sh scripts/set-npm-token.sh` 重录 → 重新发版。
 
 ## 二、发布流程（本项目）
 
