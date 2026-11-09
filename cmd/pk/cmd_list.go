@@ -16,7 +16,7 @@ func (a *app) cmdList(args []string) int {
 	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
 	available := fs.Bool("available", false, "同时列出内嵌 provider 目录")
-	if err := fs.Parse(args); err != nil {
+	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
 
@@ -121,7 +121,7 @@ func requiresOf(p *provider.Provider) []string {
 func (a *app) cmdWhich(args []string) int {
 	fs := flag.NewFlagSet("which", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
-	if err := fs.Parse(args); err != nil {
+	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
 	if fs.NArg() != 1 {

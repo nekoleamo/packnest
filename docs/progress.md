@@ -8,8 +8,8 @@
 |---|---|---|---|
 | **M0** | 骨架：module、9 命令、provider 加载、镜像探测、testkit 假镜像、L1 单测 | ✅ 完成（2026-11-10） | `M0_ProviderLoad` ✅ · `M0_MirrorProbe` ✅ · `M0_DoctorNoPanic` ✅ · `M0_DualNameConsistent` ✅ |
 | **M1** | node + 伴生 npm：解压层 · 校验+TOFU · 版本索引 · 伴生反查 · 安装编排 · 真卸载 | ✅ 完成（2026-11-10，含真网实测） | `M1_NpmCompanion` ✅ · `_NpmPinConflict` ✅ · `_PatchLevelBoundary` ✅ · `_OfflineFromCache` ✅ · `_ShimLatency` ✅ · `_UninstallClean` ✅ · `_WindowsAtomicReplace` ✅ · `_WindowsZipNoSymlink` ✅ · `_FailureMatrix`（90 格）✅ |
-| **M2** | pnpm / bun / deno | ⏳ 下一步 | `M2_PnpmRequiresNode` / `_SingleFileLayout` / `_ThreePlatformSmoke` |
-| M3 | go + python（`GOTOOLCHAIN=local`、目录列举式索引） | 未开始 | `M3_GoNoDoubleDownload` / `_PythonNoCompile` / `_PbsDirectoryIndex` |
+| **M2** | pnpm / bun / deno | ✅ 完成（2026-11-10，含真网实测） | `M2_PnpmRequiresNode` ✅ · `_SingleFileLayout` ✅ · `_ThreePlatformSmoke` ✅ · `_OfficialUnreachable`（5 工具）✅ |
+| **M3** | go + python（`GOTOOLCHAIN=local`、pbs 文件名模板） | ⏳ 下一步 | `M3_GoNoDoubleDownload` / `_PythonNoCompile` / `_PbsDirectoryIndex` |
 | M4 | 台账/锁/GC/全局包 | 未开始 | `M4_GcZeroRef` / `_LedgerRecover` / `_FrozenMismatchExitCode` / `_CtrlCNoPartial` / `_GlobalSurvivesNodeSwitch` / `_GlobalBinNoReshim` / `_NativeGlobalDetect` / `_StartupSweep` |
 | M5 | CLI 收口（doctor 全量、错误码定型、`--json` 冻结、6 平台产物、分发） | 未开始 | §12.2 的 10 条 CLI-DONE |
 | G0–G2 | Wails v3.1.0 桌面端 | 未开始（CLI 冻结后才动） | — |
@@ -82,9 +82,40 @@ uninstall → 离线重装：缓存命中 47.7MB / 0 网络 / 校验走 TOFU
 2. registry 模板 `{registry}` 只按当前档渲染一次 → 国内档 tarball 挂了**不会退到官方 registry**；改成按回退链逐档渲染
 3. npm 的 `dist.shasum` 是 **sha1**（不是 sha256），`dist.integrity` 是 sha512 SRI → 校验层支持三算法，优先 integrity
 
+## M2 交付清单（2026-11-10）
+
+**新增能力**
+
+- `provider` 索引形态补齐：`dirlist`（npmmirror 的 `/-/binary/<tool>/` JSON 目录列举）与 `github-releases`（Releases API 的 `tag_name`）——bun/deno 官方侧没有 index.json，靠这两者
+- bun provider 修正（真网实测）：npmmirror 的版本目录是 `bun-v{version}/`（带 `bun-` 前缀，原来少了）；校验和取同目录 `SHASUMS256.txt`；`bunx` 与 `bun` 是同一个可执行文件（argv[0] 分派）
+- deno provider：单文件布局 `bin/deno`（0755）+ per-artifact `.zip.sha256sum`
+- pnpm provider：registry tarball，`requires = ["node"]`（不隐式装运行时），`bin_targets` 指向 `bin/pnpm.cjs`
+
+**CLI 修的一个通用 bug**：开关只能写在目标前（`pk install --insecure deno`），因为标准库 `flag` 遇到第一个非开关就停。新增 `parseFlexible`：开关可出现在任意位置（`pk install deno --insecure`）。
+
+**真网实测（2026-11-10，镜像档 cn）**
+
+```
+pk install bun   → 1.4.4（38.5 MB，npmmirror 目录列举 + SHASUMS256）→ bun --version 1.4.4
+pk install deno  → 2.9.8（37.0 MB）→ 校验和源冲突 → --insecure 通过 → deno --version 2.9.8
+pk install pnpm  → 12.18.0（1.1 MB）→ pnpm --version 12.18.0
+```
+
+**真网又暴露并修掉 2 个 bug + 1 个上游事实**
+
+1. **npm/pnpm 的 `engines` 里可能有对象**（pnpm 11 的 `engines.runtime` 是对象）→ 索引解析改为先收 `json.RawMessage` 再挑字符串字段
+2. **开关位置**（上面 CLI 那条），否则 `--insecure` 会被当成第二个工具名
+3. **deno v2.9.8 被上游重新发布过**：npmmirror 与 dl.deno.land 的同名产物 sha256 不同（38,770,795 vs 38,771,689 字节），两边各自与自己那份 `.sha256sum` 一致 → 按 §18.6 判定「源之间不一致」硬失败，报错写明「产物与哪个源一致」并提示 `--insecure`。`--insecure` 也能放行这种冲突（标记 unverified，且**不写进 TOFU 表**，避免把可疑摘要固化）。
+
+**门禁**：覆盖率 internal 85.3–100% / cmd 86.4%；fuzz 三个目标（`FuzzSpec` / `FuzzSHASUMS` / `FuzzArchivePath`）；6 平台交叉编译（7.0–7.8 MB）；验收 17 条全绿。
+
 ## 已知缺口（按计划补齐，不是遗漏）
 
-- `internal/toolchain` 尚未创建（M3 的 go `GOTOOLCHAIN` / python 目录列举式索引）。
+- `internal/toolchain` 尚未创建（M3 的 go `GOTOOLCHAIN` / python 的 pbs 文件名模板）。
+- pnpm 12 的 tarball 只是启动器，首次运行会自己再下平台二进制（pnpm 上游行为）。方案原本假设
+  「npm registry tarball 即产物」，实际多了第 4 个下载面；M5 收口时决定是否改用 pnpm 自带二进制地址
+  （npmmirror 有 `/-/binary/pnpm/`）。
+- deno 这类「上游重新发布」的版本目前只能 `--insecure`；自动化需要「同源配对校验」（官方产物 + 官方校验和成对验证、标记 weak），属 v1.1。
 - 缓存目前按 `cache/archives/<tool>-<version>-<platform>.<ext>` 命名（校验每次重算 sha256），
   未做方案里的"内容寻址 `<sha256>`"去重；功能等价（跨版本不重下），去重留到 M4 与 GC 一起做。
 - npm/pnpm 的 `layout.bin_targets`（`bin/pnpm.cjs` 等）已在清单里声明，落地逻辑随 M1/M2 的解压层实现。

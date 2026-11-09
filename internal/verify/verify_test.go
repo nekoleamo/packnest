@@ -177,8 +177,18 @@ func TestVerifySourcesDisagree(t *testing.T) {
 		Digest: sum, Format: "gnu-sums",
 		SumsURLs: []string{"https://a/SHASUMS256.txt", "https://b/SHASUMS256.txt"},
 	})
-	if !errors.Is(err, ErrChecksum) || !strings.Contains(err.Error(), "投毒") {
-		t.Fatalf("源之间不一致应硬失败: %v", err)
+	if !errors.Is(err, ErrChecksum) || !strings.Contains(err.Error(), "--insecure") {
+		t.Fatalf("源之间不一致应硬失败并给出处置: %v", err)
+	}
+	// --insecure 可以放行，但必须标记 unverified
+	res, err := v.Verify(context.Background(), Request{
+		Tool: "node", Version: "2.0.0", Platform: "linux-amd64", Artifact: "node.tar.gz",
+		Digest: sum, Algo: AlgoSHA256, Format: "gnu-sums",
+		SumsURLs: []string{"https://a/SHASUMS256.txt", "https://b/SHASUMS256.txt"},
+		Insecure: true,
+	})
+	if err != nil || res.Verified != VerifiedUnverified || res.Mode != "insecure" {
+		t.Fatalf("--insecure 应放行并标记 unverified: %+v %v", res, err)
 	}
 }
 

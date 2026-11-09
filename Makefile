@@ -16,12 +16,12 @@ BUILD := build
 COVER_INTERNAL_MIN := 85
 COVER_CMD_MIN := 70
 
-# fuzz 目标（M2 补 FuzzArchivePath）。
-FUZZ_TARGETS := FuzzSpec FuzzSHASUMS
+# fuzz 目标（每个都是 parser/路径类红线）。
+FUZZ_TARGETS := FuzzSpec FuzzSHASUMS FuzzArchivePath
 FUZZ_TIME := 30s
 
 # 有 tag 时用 tag（去掉前导 v），否则用默认开发版本号。
-VERSION ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null | sed -n 's/^v\?\([0-9].*\)/\1/p'); echo "$${v:-0.2.0-M1}")
+VERSION ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null | sed -n 's/^v\?\([0-9].*\)/\1/p'); echo "$${v:-0.3.0-M2}")
 LDFLAGS := -s -w -X main.Version=$(VERSION)
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 

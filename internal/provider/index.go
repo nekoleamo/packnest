@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -192,9 +193,9 @@ func parseIndex(kind string, data []byte) ([]Version, error) {
 	case IndexRegistry:
 		return parseRegistryIndex(data)
 	case IndexDirList:
-		// shortcut: 目录列举式索引（python-build-standalone）留到 M3；
-		// 现在明确报错而不是猜格式。升级路径 = M3 解析 HTML/JSON 目录列表。
-		return nil, fmt.Errorf("目录列举式索引将在 M3 支持")
+		return parseDirList(data)
+	case IndexGitHub:
+		return parseGitHubReleases(data)
 	}
 	return nil, fmt.Errorf("未知索引形态 %q", kind)
 }
@@ -269,12 +270,110 @@ func parseLTS(raw json.RawMessage) string {
 	return ""
 }
 
+// versionPattern 从目录名/标签里抠出语义化版本（"bun-v1.4.4/" → 1.4.4）。
+//
+// shortcut: 预发布后缀只认常见前缀（rc/beta/alpha/pre/next/canary/dev）。
+// 全面按 semver 解析会把 "node-v22.22.2-darwin-arm64.tar.gz" 的 "-darwin-arm64.tar.gz"
+// 当成预发布；升级路径 = 由 provider 声明文件名字段名再解析（M3 做 go/python 时是否需要）。
+var versionPattern = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)(?:-((?:rc|beta|alpha|pre|preview|next|canary|dev)(?:\.[0-9A-Za-z]+)*))?`)
+
+// extractVersion 从任意名字里取第一个版本号（取不到返回空串）。
+func extractVersion(name string) string {
+	m := versionPattern.FindStringSubmatch(name)
+	if m == nil {
+		return ""
+	}
+	v := m[1] + "." + m[2] + "." + m[3]
+	if m[4] != "" {
+		v += "-" + m[4]
+	}
+	return v
+}
+
+// parseDirList 解析 npmmirror 的目录列举 JSON：
+// [{"name":"bun-v1.4.4/","type":"dir","url":"…"}, …]（只取目录条目）。
+func parseDirList(data []byte) ([]Version, error) {
+	var entries []struct {
+		Name string `json:"name"`
+		Type string `json:"type"`
+		Date string `json:"date"`
+	}
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil, fmt.Errorf("目录列举不是 JSON 数组（%v）", err)
+	}
+	out := make([]Version, 0, len(entries))
+	seen := map[string]bool{}
+	for _, e := range entries {
+		if e.Type != "" && e.Type != "dir" {
+			continue
+		}
+		if e.Type == "" && !strings.HasSuffix(e.Name, "/") {
+			continue
+		}
+		version := extractVersion(e.Name)
+		if version == "" || seen[version] {
+			continue
+		}
+		seen[version] = true
+		out = append(out, Version{Version: version, Date: e.Date})
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("目录列举里没有版本目录")
+	}
+	return out, nil
+}
+
+// parseGitHubReleases 解析 GitHub Releases API 的数组（只看 tag_name）。
+func parseGitHubReleases(data []byte) ([]Version, error) {
+	var releases []struct {
+		TagName     string `json:"tag_name"`
+		PublishedAt string `json:"published_at"`
+		Prerelease  bool   `json:"prerelease"`
+	}
+	if err := json.Unmarshal(data, &releases); err != nil {
+		return nil, fmt.Errorf("GitHub releases 不是 JSON 数组（%v）", err)
+	}
+	out := make([]Version, 0, len(releases))
+	seen := map[string]bool{}
+	for _, r := range releases {
+		version := extractVersion(r.TagName)
+		if version == "" || seen[version] {
+			continue
+		}
+		seen[version] = true
+		out = append(out, Version{Version: version, Date: r.PublishedAt})
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("GitHub releases 里没有可用版本")
+	}
+	return out, nil
+}
+
+// nodeEngines 从 engines 里只取 node 一项（别的字段可能是复杂对象）。
+func nodeEngines(engines map[string]json.RawMessage) map[string]string {
+	if len(engines) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for k, raw := range engines {
+		var s string
+		if err := json.Unmarshal(raw, &s); err == nil && s != "" {
+			out[k] = s
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // parseRegistryIndex 解析 npm registry 元数据（versions + engines + dist）。
 func parseRegistryIndex(data []byte) ([]Version, error) {
 	var doc struct {
 		Versions map[string]struct {
-			Version string            `json:"version"`
-			Engines map[string]string `json:"engines"`
+			Version string `json:"version"`
+			// engines 里不只有字符串：pnpm 11 的 engines.runtime 是对象，所以先收原样再挑 node。
+			Engines map[string]json.RawMessage `json:"engines"`
 			Dist    struct {
 				Shasum    string `json:"shasum"`
 				Integrity string `json:"integrity"`
@@ -295,7 +394,7 @@ func parseRegistryIndex(data []byte) ([]Version, error) {
 		}
 		out = append(out, Version{
 			Version:   strings.TrimPrefix(version, "v"),
-			Engines:   meta.Engines,
+			Engines:   nodeEngines(meta.Engines),
 			Shasum:    meta.Dist.Shasum,
 			Integrity: meta.Dist.Integrity,
 		})

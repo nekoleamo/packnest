@@ -4,11 +4,11 @@ display = "Deno"
 kind = "binary"
 
 [index]
-# 目录列举式：npmmirror 的 /deno/ 下按 v{version}/ 分目录
+# 国内：npmmirror 目录列举（目录名 v2.9.8/）；官方：GitHub Releases API。
 kind = "dirlist"
 [index.urls]
-default = "https://github.com/denoland/deno/releases"
 cn      = "https://registry.npmmirror.com/-/binary/deno/"
+default = "https://api.github.com/repos/denoland/deno/releases?per_page=100"
 
 [artifact]
 [artifact.urls]
@@ -26,12 +26,12 @@ linux-arm64   = "aarch64-unknown-linux-gnu"
 windows-amd64 = "x86_64-pc-windows-msvc"
 
 [checksum]
-# deno 每个产物旁有 .sha256sum 文件
+# deno 每个产物旁有 .zip.sha256sum（实测 npmmirror 上存在，302 到 CDN）
 format = "per-artifact"
 mode   = "tofu-then-verify"
 [checksum.urls]
-default = "https://dl.deno.land/release/v{version}/deno-{platform}.zip.sha256sum"
 cn      = "https://registry.npmmirror.com/-/binary/deno/v{version}/deno-{platform}.zip.sha256sum"
+default = "https://dl.deno.land/release/v{version}/deno-{platform}.zip.sha256sum"
 
 [layout]
 single = "bin/deno"

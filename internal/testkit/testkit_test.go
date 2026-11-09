@@ -198,3 +198,63 @@ func TestMirrorStaleIndex(t *testing.T) {
 		t.Fatalf("应返回过期索引: %q", body)
 	}
 }
+
+func TestNewFakeToolBun(t *testing.T) {
+	ft := NewFakeTool(t, FakeToolOptions{
+		Tool:         "bun",
+		Versions:     []string{"1.4.4"},
+		ProviderTOML: BunProviderTOML,
+		MakeArtifact: func(platform, ext string) []byte { return MakeFakeBunZip(platform) },
+		Platforms: []FakePlatform{
+			{"darwin", "arm64", "zip", "darwin-aarch64"},
+			{"linux", "amd64", "zip", "linux-x64"},
+		},
+		ChecksumPath:   "SHASUMS256.txt",
+		ChecksumFormat: "gnu-sums",
+		VersionDir:     "bun-v%s/",
+	})
+	if ft.Artifact == nil {
+		t.Fatal("应生成 darwin-arm64 产物")
+	}
+	// 目录列举能被 provider 索引解析
+	idx, err := (&providerLoader{ft.Server.URL}).load(t, ft.Provider)
+	if err != nil {
+		t.Fatalf("索引加载失败: %v", err)
+	}
+	if len(idx.Versions) != 1 || idx.Versions[0].Version != "1.4.4" {
+		t.Fatalf("版本解析错误: %+v", idx.Versions)
+	}
+	urls, err := ft.Provider.ArtifactURLs("1.4.4", "darwin", "arm64", "default")
+	if err != nil || len(urls) == 0 {
+		t.Fatalf("产物 URL 渲染失败: %v %v", urls, err)
+	}
+}
+
+func TestNewFakeToolDeno(t *testing.T) {
+	ft := NewFakeTool(t, FakeToolOptions{
+		Tool:         "deno",
+		Versions:     []string{"2.9.8"},
+		ProviderTOML: DenoProviderTOML,
+		MakeArtifact: func(platform, ext string) []byte { return MakeFakeDenoZip() },
+		Platforms: []FakePlatform{
+			{"darwin", "arm64", "zip", "aarch64-apple-darwin"},
+			{"linux", "amd64", "zip", "x86_64-unknown-linux-gnu"},
+		},
+		ChecksumPath:   "deno-%s.zip.sha256sum",
+		ChecksumFormat: "per-artifact",
+	})
+	if ft.Artifact == nil {
+		t.Fatal("应生成产物")
+	}
+	sums, err := ft.Provider.ChecksumURLs("2.9.8", "darwin", "arm64", "default")
+	if err != nil || len(sums) == 0 {
+		t.Fatalf("校验和 URL 渲染失败: %v %v", sums, err)
+	}
+}
+
+func TestNewFakePnpm(t *testing.T) {
+	fp := NewFakePnpm(t, map[string]string{"10.4.1": ">=18.12"})
+	if _, ok := fp.Files["/pnpm/-/pnpm-10.4.1.tgz"]; !ok {
+		t.Fatalf("应有 pnpm tarball: %v", fp.Files)
+	}
+}

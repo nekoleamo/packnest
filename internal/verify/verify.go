@@ -287,7 +287,20 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 		return Result{}, fmt.Errorf("%w: 拿不到 %s 的校验和（所有源都不可用）；确认风险后可加 --insecure", ErrChecksum, key)
 	}
 	if len(expected) > 1 {
-		return Result{}, fmt.Errorf("%w: 校验和源之间不一致（可能是镜像投毒）：%s", ErrChecksum, describeMismatch(expected))
+		// 源之间不一致有两种可能：镜像被投毒，或上游重新发布过同一版本（实测 deno 出现过）。
+		// 按方案 §18.6 一律硬失败，但把"产物与哪个源一致"写清楚，让用户能判断该不该 --insecure。
+		matched := "与任何源都不一致"
+		for sum := range expected {
+			if strings.EqualFold(sum, req.Digest) {
+				matched = "产物与其中 " + sum[:12] + "… 一致"
+			}
+		}
+		if !req.Insecure {
+			return Result{}, fmt.Errorf("%w: %s 的校验和源之间不一致（%s；%s）——可能是镜像被污染，也可能是上游重新发布了产物；确认来源可信后可加 --insecure",
+				ErrChecksum, key, describeMismatch(expected), matched)
+		}
+		// --insecure：放行但标记未校验，且不写进 TOFU 表（否则会把可疑摘要固化下来）。
+		return Result{Mode: "insecure", Verified: VerifiedUnverified, Digest: req.Digest, Algo: algo, Sources: sources}, nil
 	}
 	want := ""
 	for _, sum := range expected {

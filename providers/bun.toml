@@ -4,16 +4,18 @@ display = "Bun"
 kind = "binary"
 
 [index]
-# bun 没有 index.json：版本清单来自目录列举（npmmirror / GitHub releases）
+# 国内走 npmmirror 的目录列举（实测 JSON 数组，目录名形如 bun-v1.4.4/）；
+# 官方没有 index.json，用 GitHub Releases API 兜底。
 kind = "dirlist"
 [index.urls]
-default = "https://github.com/oven-sh/bun/releases"
 cn      = "https://registry.npmmirror.com/-/binary/bun/"
+default = "https://api.github.com/repos/oven-sh/bun/releases?per_page=100"
 
 [artifact]
+# ⚠️ npmmirror 的版本目录名带 bun- 前缀（/bun/bun-v1.4.4/），GitHub release tag 也是 bun-v*
 [artifact.urls]
 default = "https://github.com/oven-sh/bun/releases/download/bun-v{version}/bun-{platform}.zip"
-cn      = "https://registry.npmmirror.com/-/binary/bun/v{version}/bun-{platform}.zip"
+cn      = "https://registry.npmmirror.com/-/binary/bun/bun-v{version}/bun-{platform}.zip"
 [artifact.ext]
 windows = "zip"
 darwin  = "zip"
@@ -26,15 +28,16 @@ linux-arm64   = "linux-aarch64"
 windows-amd64 = "windows-x64"
 
 [checksum]
-# bun 的校验和随 release 一起发（SHASUMS256.txt）
 format = "gnu-sums"
 mode   = "tofu-then-verify"
 [checksum.urls]
+cn      = "https://registry.npmmirror.com/-/binary/bun/bun-v{version}/SHASUMS256.txt"
 default = "https://github.com/oven-sh/bun/releases/download/bun-v{version}/SHASUMS256.txt"
 
 [layout]
 strip = 1
 bins  = ["bun", "bunx"]
+# bun 的 zip 里只有一个 bun 可执行文件；bunx 是 argv[0] 分派
 [layout.bin_targets]
 bun  = "bun"
-bunx = "bunx"
+bunx = "bun"

@@ -42,7 +42,7 @@ func (a *app) cmdInstall(args []string) int {
 	insecure := fs.Bool("insecure", false, "允许无校验安装（标记 unverified）")
 	jobs := fs.Int("jobs", 1, "并发下载数（M4；默认 1，国内 CDN 分片常更慢）")
 	force := fs.Bool("force", false, "重装已存在的版本")
-	if err := fs.Parse(args); err != nil {
+	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
 	if *frozen {
@@ -122,7 +122,7 @@ func (a *app) cmdUninstall(args []string) int {
 	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
 	force := fs.Bool("force", false, "仍被引用也删除")
-	if err := fs.Parse(args); err != nil {
+	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
 	if fs.NArg() != 1 {

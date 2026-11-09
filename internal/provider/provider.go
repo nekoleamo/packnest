@@ -30,7 +30,9 @@ const (
 const (
 	IndexJSON     = "json"     // 一次性 JSON（node index.json、npm registry 元数据）
 	IndexRegistry = "registry" // npm registry 元数据（versions/engines/dist）
-	IndexDirList  = "dirlist"  // 目录列举式（python-build-standalone）
+	IndexDirList  = "dirlist"  // 目录列举式 JSON（npmmirror 的 /-/binary/<tool>/）
+	// IndexGitHub 是 GitHub Releases API（bun/deno 的"官方源"）。
+	IndexGitHub = "github-releases"
 )
 
 // 校验和形态。
@@ -202,9 +204,9 @@ func (p *Provider) Validate() error {
 		return fmt.Errorf("%s: 缺少 display", p.ID)
 	}
 	switch p.Index.Kind {
-	case IndexJSON, IndexRegistry, IndexDirList:
+	case IndexJSON, IndexRegistry, IndexDirList, IndexGitHub:
 	default:
-		return fmt.Errorf("%s: index.kind = %q 非法（json/registry/dirlist）", p.ID, p.Index.Kind)
+		return fmt.Errorf("%s: index.kind = %q 非法（json/registry/dirlist/github-releases）", p.ID, p.Index.Kind)
 	}
 	if len(p.Index.URLs) == 0 {
 		return fmt.Errorf("%s: 缺少 index.urls", p.ID)

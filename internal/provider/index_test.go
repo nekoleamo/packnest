@@ -107,12 +107,75 @@ func TestParseRegistryIndex(t *testing.T) {
 	}
 }
 
-func TestParseDirListNotYet(t *testing.T) {
+func TestParseDirList(t *testing.T) {
+	// 真实形状（npmmirror /-/binary/bun/）：
+	data := []byte(`[
+	  {"name":"bun-v0.0.19/","type":"dir","date":"2021-09-17T23:16:44Z"},
+	  {"name":"bun-v1.4.4/","type":"dir","date":"2026-10-22T08:58:37Z"},
+	  {"name":"canary/","type":"dir"},
+	  {"name":"SHASUMS256.txt","type":"file"}
+	]`)
+	vs, err := parseIndex(IndexDirList, data)
+	if err != nil {
+		t.Fatalf("parseDirList: %v", err)
+	}
+	if len(vs) != 2 {
+		t.Fatalf("应只取版本目录，得到 %+v", vs)
+	}
+	if vs[0].Version != "0.0.19" || vs[1].Version != "1.4.4" {
+		t.Fatalf("版本提取错误: %+v", vs)
+	}
+	if vs[1].Date == "" {
+		t.Fatal("日期应保留")
+	}
 	if _, err := parseIndex(IndexDirList, []byte("x")); err == nil {
-		t.Fatal("目录列举式索引应在 M3 前明确报错")
+		t.Fatal("非 JSON 应报错")
+	}
+	if _, err := parseIndex(IndexDirList, []byte(`[{"name":"canary/","type":"dir"}]`)); err == nil {
+		t.Fatal("没有版本目录时应报错")
+	}
+	// 没有 type 字段时按结尾斜杠判断
+	vs, err = parseIndex(IndexDirList, []byte(`[{"name":"v2.9.8/"},{"name":"not-a-version"}]`))
+	if err != nil || len(vs) != 1 || vs[0].Version != "2.9.8" {
+		t.Fatalf("无 type 的目录列举解析失败: %+v %v", vs, err)
+	}
+}
+
+func TestParseGitHubReleases(t *testing.T) {
+	data := []byte(`[
+	  {"tag_name":"bun-v1.4.4","published_at":"2026-10-22T08:00:00Z"},
+	  {"tag_name":"bun-v1.4.3","prerelease":false},
+	  {"tag_name":"canary","prerelease":true},
+	  {"tag_name":"bun-v1.4.3"}
+	]`)
+	vs, err := parseIndex(IndexGitHub, data)
+	if err != nil {
+		t.Fatalf("parseGitHubReleases: %v", err)
+	}
+	if len(vs) != 2 || vs[0].Version != "1.4.4" || vs[1].Version != "1.4.3" {
+		t.Fatalf("tag_name 解析/去重错误: %+v", vs)
+	}
+	if _, err := parseIndex(IndexGitHub, []byte(`{}`)); err == nil {
+		t.Fatal("非数组应报错")
 	}
 	if _, err := parseIndex("soap", nil); err == nil {
 		t.Fatal("未知形态应报错")
+	}
+}
+
+func TestExtractVersion(t *testing.T) {
+	cases := map[string]string{
+		"bun-v1.4.4/":                       "1.4.4",
+		"v2.9.8/":                           "2.9.8",
+		"node-v22.22.2-darwin-arm64.tar.gz": "22.22.2",
+		"v2.9.8-rc.1/":                      "2.9.8-rc.1",
+		"canary/":                           "",
+		"":                                  "",
+	}
+	for in, want := range cases {
+		if got := extractVersion(in); got != want {
+			t.Errorf("extractVersion(%q) = %q，期望 %q", in, got, want)
+		}
 	}
 }
 
@@ -293,5 +356,28 @@ func TestParseJSONIndexFilesShapes(t *testing.T) {
 	}
 	if got := parseFiles(nil); got != nil {
 		t.Fatalf("空 files 应返回 nil: %+v", got)
+	}
+}
+
+func TestParseRegistryIndexEngineObjects(t *testing.T) {
+	// pnpm 11 的 engines.runtime 是对象，不能因此整份索引解析失败。
+	data := []byte(`{"versions":{
+	  "11.0.0-alpha.0":{"version":"11.0.0-alpha.0","engines":{"node":">=20","runtime":{"foo":"bar"}}},
+	  "10.4.1":{"version":"10.4.1","engines":{"node":">=18.12"}}
+	}}`)
+	vs, err := parseIndex(IndexRegistry, data)
+	if err != nil {
+		t.Fatalf("对象型 engines 不该让索引失败: %v", err)
+	}
+	if len(vs) != 2 {
+		t.Fatalf("版本数 = %d", len(vs))
+	}
+	for _, v := range vs {
+		if v.Engines["node"] == "" {
+			t.Fatalf("node engines 应被保留: %+v", v)
+		}
+		if _, ok := v.Engines["runtime"]; ok {
+			t.Fatalf("对象型字段应被丢弃: %+v", v.Engines)
+		}
 	}
 }

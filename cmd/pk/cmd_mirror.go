@@ -67,7 +67,7 @@ func (a *app) mirrorProbe(args []string) int {
 	fs := flag.NewFlagSet("mirror probe", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
 	only := fs.String("tool", "", "只探测某个工具的索引源")
-	if err := fs.Parse(args); err != nil {
+	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
 

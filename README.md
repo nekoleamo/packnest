@@ -19,11 +19,14 @@
 
 ## 状态
 
-**M1 已完成**（详见 `docs/progress.md`）：`pk install node@22` 在真网跑通 —— node 从 npmmirror 下载并
+**M2 已完成**（详见 `docs/progress.md`）：node / npm / pnpm / bun / deno 五个工具在真网全部装得通
+（实测 bun 1.4.4 / deno 2.9.8 / pnpm 12.18.0 可运行）。
+
+**M1 已完成**：`pk install node@22` 在真网跑通 —— node 从 npmmirror 下载并
 多源校验、npm 按 `engines.node` 反查后替换进 node prefix（npmmirror tarball 返回 500 时自动退回
 registry.npmjs.org）、卸载后离线重装 0 网络走 TOFU。90 格故障矩阵、8 条 M1 验收用例、`make check` 7 项门禁全绿。
 
-`pnpm` / `bun` / `deno`（M2）、`go` / `python`（M3）、`use` / `gc`（M4）尚未实现，命令会**明确报出里程碑**并以 1 退出。
+`go` / `python`（M3）、`use` / `gc` / 引用计数（M4）尚未实现，命令会**明确报出里程碑**并以 1 退出。
 
 ## 快速开始
 

@@ -27,7 +27,7 @@ func (a *app) cmdGC(args []string) int {
 	fs.SetOutput(a.errOut)
 	_ = fs.Bool("dry-run", false, "只报告不删除")
 	_ = fs.String("cache-max", "", "覆盖产物缓存上限（如 20G）")
-	if err := fs.Parse(args); err != nil {
+	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
 	return a.notImplemented("gc", "M4")

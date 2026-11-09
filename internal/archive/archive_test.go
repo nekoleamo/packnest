@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/packnest/packnest/internal/paths"
 	"github.com/packnest/packnest/internal/testkit"
 )
 
@@ -558,4 +559,32 @@ func TestReplaceRenameOldFailure(t *testing.T) {
 			t.Fatal("失败时旧版本必须保留")
 		}
 	}
+}
+
+// FuzzArchivePath 守的是"解压时不越界"这条红线（zip-slip）。
+func FuzzArchivePath(f *testing.F) {
+	f.Add("a/b/c", 0)
+	f.Add("../../etc/passwd", 1)
+	f.Add("/abs/path", 0)
+	f.Add(`C:\windows\x`, 1)
+	f.Add("node-v22/bin/node", 1)
+	f.Fuzz(func(t *testing.T, name string, strip int) {
+		if strip < 0 || strip > 8 {
+			return
+		}
+		rel, ok, err := stripPath(name, strip)
+		if err != nil {
+			return
+		}
+		if !ok {
+			return
+		}
+		joined, err := paths.SafeJoin("/base", rel)
+		if err != nil {
+			return
+		}
+		if !strings.HasPrefix(joined, "/base/") {
+			t.Fatalf("解压路径越界: name=%q strip=%d → %q", name, strip, joined)
+		}
+	})
 }
