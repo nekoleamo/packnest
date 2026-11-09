@@ -217,6 +217,14 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 超出部分全部来自 M5 收口项：`pk help` 详细帮助（90 行）、`env --write` 托管块（90 行）、`mirror write`（55 行）、
 `doctor --probe`（20 行）、golden 契约用例附带的 schema 结构（~40 行）。规模仍在"一个人一个下午读得完"的量级。
 
+## CLI 体验补强（2026-11-10，M5 后）
+
+- 下载进度条：TTY `\r` 刷新（已下/总量/百分比/速度），非 TTY 每 25% 一行，`--quiet` 静默；Ctrl-C 打印"已取消（缓存已保留）"并不留半成品
+- `pk list`：加占用空间列；`--available` 真拉索引（24h 缓存、离线可读）列出 latest/lts/近 5 个版本，失败只影响该工具
+- `pk env --completion bash|zsh|powershell`：补全脚本（命令面仍是 9 个，挂在 env 下）
+- 自托管安装：`install.sh --base <url>` / `install.ps1 -Base` / `PK_INSTALL_BASE`；`make release` 产出的 `dist/`
+  含 `latest`、`v<版本>/`、`checksums.txt`、`install.sh`，**整目录丢到任意静态 host 即可**（本机 HTTP server 实测装成功并跑起来）
+
 ## 已知缺口（按计划补齐，不是遗漏）
 
 - go 的国内索引源：npmmirror 没有 go 的产物/索引（实测），所以索引只声明官方 `?mode=json&include=all`，

@@ -10,6 +10,8 @@ packnest 安装脚本（Windows，不访问 GitHub）
 #>
 param(
   [ValidateSet('cn', 'default')][string]$Mirror = 'default',
+  # 任意静态源基地址（自己托管的 OSS/CDN/内网），优先级最高
+  [string]$Base = $env:PK_INSTALL_BASE,
   [string]$Version = '',
   [string]$Dir = (Join-Path $env:LOCALAPPDATA 'packnest\bin'),
   [switch]$DryRun
@@ -23,6 +25,10 @@ $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
   default { throw "不支持的架构: $env:PROCESSOR_ARCHITECTURE" }
 }
 
+if (-not $Version -and $Base) {
+  $Version = (Invoke-WebRequest -Uri "$($Base.TrimEnd('/'))/latest" -TimeoutSec 15 -UseBasicParsing).Content.Trim().TrimStart('v')
+}
+
 if (-not $Version) {
   $release = Invoke-RestMethod -Uri 'https://gitee.com/api/v5/repos/packnest/packnest/releases/latest' -TimeoutSec 15
   $Version = $release.tag_name.TrimStart('v')
@@ -30,7 +36,9 @@ if (-not $Version) {
 if (-not $Version) { throw '拿不到最新版本，请用 -Version 指定' }
 
 $name = "packnest_${Version}_windows_${arch}"
-$url = if ($Mirror -eq 'cn') {
+$url = if ($Base) {
+  "$($Base.TrimEnd('/'))/v${Version}/${name}.zip"
+} elseif ($Mirror -eq 'cn') {
   "https://registry.npmmirror.com/-/binary/packnest/v${Version}/${name}.zip"
 } else {
   "https://gitee.com/packnest/packnest/releases/download/v${Version}/${name}.zip"

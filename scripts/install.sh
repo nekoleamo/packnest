@@ -5,12 +5,18 @@
 #
 # 选项：
 #   --mirror cn|default   产物来源档位（cn 从 npmmirror 取，default 从 gitee）
+#   --base URL            任意静态源基地址（自己托管的 OSS/CDN/内网），优先级最高
+#                         例：--base https://static.example.com/packnest
 #   --version vX.Y.Z      指定版本（默认最新）
 #   --dir DIR             安装目录（默认 ~/.local/bin，无需 sudo）
 #   --dry-run             只打印将要做什么
+#
+# 只要能 GET 到 <base>/v<版本>/packnest_<版本>_<os>_<arch>.tar.gz，就能装：
+# 你不需要把东西放到 gitee 或 npmmirror 上。
 set -eu
 
 MIRROR="default"
+BASE="${PK_INSTALL_BASE:-}"
 VERSION=""
 DIR="${HOME}/.local/bin"
 DRY_RUN=0
@@ -18,6 +24,7 @@ DRY_RUN=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --mirror) MIRROR="${2:-cn}"; shift 2 ;;
+    --base) BASE="$2"; shift 2 ;;
     --version) VERSION="$2"; shift 2 ;;
     --dir) DIR="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -38,6 +45,11 @@ case "$arch" in
   *) echo "不支持的架构: $arch" >&2; exit 2 ;;
 esac
 
+if [ -z "$VERSION" ] && [ -n "$BASE" ]; then
+  VERSION=$(curl -fsSL --max-time 15 "$BASE/latest" 2>/dev/null | tr -d ' \t\r\n' || true)
+  VERSION=${VERSION#v}
+fi
+
 if [ -z "$VERSION" ]; then
   VERSION=$(curl -fsSL --max-time 15 https://gitee.com/api/v5/repos/packnest/packnest/releases/latest 2>/dev/null \
     | sed -n 's/.*"tag_name":"\([^"]*\)".*/\1/p' || true)
@@ -46,12 +58,16 @@ if [ -z "$VERSION" ]; then
 fi
 
 name="packnest_${VERSION}_${os}_${arch}"
-case "$MIRROR" in
-  cn)
-    url="https://registry.npmmirror.com/-/binary/packnest/v${VERSION}/${name}.tar.gz" ;;
-  *)
-    url="https://gitee.com/packnest/packnest/releases/download/v${VERSION}/${name}.tar.gz" ;;
-esac
+if [ -n "$BASE" ]; then
+  url="${BASE%/}/v${VERSION}/${name}.tar.gz"
+else
+  case "$MIRROR" in
+    cn)
+      url="https://registry.npmmirror.com/-/binary/packnest/v${VERSION}/${name}.tar.gz" ;;
+    *)
+      url="https://gitee.com/packnest/packnest/releases/download/v${VERSION}/${name}.tar.gz" ;;
+  esac
+fi
 
 echo "将要安装 packnest ${VERSION}（${os}-${arch}）"
 echo "  来源: $url"

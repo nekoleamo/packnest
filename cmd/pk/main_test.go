@@ -750,3 +750,75 @@ func TestCLIUninstallRepoints(t *testing.T) {
 		t.Fatalf("卸载默认版本后应清掉配置: %+v", cfg.Tools)
 	}
 }
+
+func TestHumanBytes(t *testing.T) {
+	cases := map[int64]string{
+		0:            "0 B",
+		512:          "512 B",
+		1536:         "1.5 KB",
+		47 * 1 << 20: "47.0 MB",
+		5 << 30:      "5.0 GB",
+	}
+	for in, want := range cases {
+		if got := humanBytes(in); got != want {
+			t.Errorf("humanBytes(%d) = %q，期望 %q", in, got, want)
+		}
+	}
+}
+
+func TestWriteCompletion(t *testing.T) {
+	for _, shell := range []string{"bash", "zsh", "powershell"} {
+		var buf bytes.Buffer
+		if err := writeCompletion(&buf, shell); err != nil {
+			t.Fatalf("%s 补全脚本生成失败: %v", shell, err)
+		}
+		if !strings.Contains(buf.String(), "install") {
+			t.Fatalf("%s 补全里应包含命令名:\n%s", shell, buf.String())
+		}
+	}
+	if err := writeCompletion(&bytes.Buffer{}, "fish"); err == nil {
+		t.Fatal("不支持的 shell 应报错")
+	}
+
+	var out bytes.Buffer
+	code := run([]string{"env", "--completion", "bash"}, &out, &bytes.Buffer{})
+	if code != 0 || !strings.Contains(out.String(), "complete -F _packnest pk") {
+		t.Fatalf("pk env --completion bash = %d\n%s", code, out.String())
+	}
+}
+
+func TestListAvailable(t *testing.T) {
+	fm := setupFakeMirror(t)
+	root := t.TempDir()
+	// list --available 走索引（这里用 PK_MIRROR_NODE_INDEX 指向假镜像）
+	t.Setenv("PK_MIRROR_NODE_INDEX", fm.Server.URL+"/node/index.json")
+	t.Setenv("PK_MIRROR_NPM_INDEX", fm.Server.URL+"/npm")
+	t.Setenv("PK_MIRROR_PNPM_INDEX", fm.Server.URL+"/npm")
+	code, out, errOut := execCLI(t, "--root", root, "--json", "list", "--available")
+	if code != 0 {
+		t.Fatalf("list --available 退出码 %d: %s", code, errOut)
+	}
+	if !strings.Contains(out, `"name": "node"`) || !strings.Contains(out, `"latest": "22.99.99"`) {
+		t.Fatalf("应给出 node 的最新可用版本:\n%s", out)
+	}
+	// 非 JSON：人类可读列表
+	code, out, _ = execCLI(t, "--root", root, "list", "--available")
+	if code != 0 || !strings.Contains(out, "可装版本") {
+		t.Fatalf("文本输出异常: %d %q", code, out)
+	}
+}
+
+func TestInstallQuiet(t *testing.T) {
+	setupFakeMirror(t)
+	root := t.TempDir()
+	code, out, errOut := execCLI(t, "--root", root, "install", "node@22.99.99", "--quiet")
+	if code != 0 {
+		t.Fatalf("--quiet 安装失败: %d %s", code, errOut)
+	}
+	if strings.TrimSpace(out) != "" {
+		t.Fatalf("--quiet 时不该有标准输出: %q", out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "tools", "node", "22.99.99")); err != nil {
+		t.Fatal("安静模式也要真装上")
+	}
+}

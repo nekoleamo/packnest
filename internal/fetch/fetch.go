@@ -58,6 +58,9 @@ type Client struct {
 	UserAgent string
 	// Offline 为 true 时任何请求立即返回 ErrOffline。
 	Offline bool
+	// Progress 在下载过程中被调用（done 已下载字节，total 总字节；未知时 total=0）。
+	// 传 nil 就不回调（默认）。
+	Progress func(done, total int64)
 	// Now 可注入，用于 TTL 判断（测试不 sleep）。
 	Now func() time.Time
 }
@@ -372,7 +375,11 @@ func (c *Client) downloadOnce(ctx context.Context, url, partPath, metaPath strin
 	if err != nil {
 		return 0, fmt.Errorf("打开临时文件失败: %w", err)
 	}
-	n, copyErr := io.Copy(f, resp.Body)
+	var reader io.Reader = resp.Body
+	if c.Progress != nil {
+		reader = &progressReader{r: resp.Body, total: pm.Size, base: offset, fn: c.Progress}
+	}
+	n, copyErr := io.Copy(f, reader)
 	closeErr := f.Close()
 	if err := writePartMeta(metaPath, pm); err != nil {
 		return 0, err
@@ -388,6 +395,24 @@ func (c *Client) downloadOnce(ctx context.Context, url, partPath, metaPath strin
 		return total, fmt.Errorf("产物大小不符：期望 %d 字节，实得 %d", pm.Size, total)
 	}
 	return total, nil
+}
+
+// progressReader 边读边回调（节流由调用方决定，这里每次 Read 都报）。
+type progressReader struct {
+	r     io.Reader
+	total int64
+	base  int64
+	done  int64
+	fn    func(done, total int64)
+}
+
+func (p *progressReader) Read(b []byte) (int, error) {
+	n, err := p.r.Read(b)
+	if n > 0 {
+		p.done += int64(n)
+		p.fn(p.base+p.done, p.total)
+	}
+	return n, err
 }
 
 func parseContentRangeTotal(v string) (int64, bool) {

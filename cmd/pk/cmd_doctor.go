@@ -192,8 +192,15 @@ func (a *app) cmdEnv(args []string) int {
 	shellName := fs.String("shell", "bash", "shell 方言: bash|zsh|sh|powershell")
 	write := fs.Bool("write", false, "把托管块写进 shell rc（幂等，只改自己那一段）")
 	unset := fs.Bool("unset", false, "删掉 rc 里的托管块")
+	completion := fs.String("completion", "", "输出 shell 补全脚本: bash|zsh|powershell")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
+	}
+	if *completion != "" {
+		if err := writeCompletion(a.out, *completion); err != nil {
+			return a.failUsage(err)
+		}
+		return jsonout.ExitOK
 	}
 	sh, err := env.ParseShell(*shellName)
 	if err != nil {

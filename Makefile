@@ -101,28 +101,34 @@ check: fmt vet race cover cross fuzz bench golden
 list-providers:
 	@go run ./cmd/pk mirror list
 
-# 发布产物（方案 §13.3）：包名固定 packnest_<version>_<os>_<arch>.{tar.gz,zip} + checksums.txt
+# 发布产物（方案 §13.3）：dist/v<version>/packnest_<version>_<os>_<arch>.{tar.gz,zip} + checksums.txt
+# 目录结构故意与 gitee release 的 /download/v<version>/<file> 对齐，
+# 这样把 dist/ 整个丢到任意静态 host，install.sh --base <url> 就能直接装（不走 gitee/GitHub）。
 release:
 	@rm -rf $(DIST)
-	@mkdir -p $(DIST)
+	@mkdir -p $(DIST)/v$(VERSION)
 	@for p in $(PLATFORMS); do \
 		os=$${p%/*}; arch=$${p#*/}; \
 		stage="$(CURDIR)/$(BUILD)/pkg/$${os}_$${arch}"; \
 		rm -rf $$stage; mkdir -p $$stage; \
+		out="$(CURDIR)/$(DIST)/v$(VERSION)"; \
 		if [ "$$os" = "windows" ]; then \
 			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$stage/packnest.exe ./cmd/pk || exit 1; \
-			(cd $$stage && zip -q -X "$(CURDIR)/$(DIST)/packnest_$(VERSION)_$${os}_$${arch}.zip" packnest.exe); \
+			(cd $$stage && zip -q -X "$$out/packnest_$(VERSION)_$${os}_$${arch}.zip" packnest.exe); \
 		else \
 			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$stage/packnest ./cmd/pk || exit 1; \
-			tar -czf $(DIST)/packnest_$(VERSION)_$${os}_$${arch}.tar.gz -C $$stage packnest; \
+			tar -czf "$$out/packnest_$(VERSION)_$${os}_$${arch}.tar.gz" -C $$stage packnest; \
 		fi; \
 	done
 	@$(MAKE) --no-print-directory checksums
-	@echo "产物在 $(DIST)/（命名符合方案 §13.3）"
+	@printf '%s\n' "$(VERSION)" > $(DIST)/latest
+	@cp scripts/install.sh $(DIST)/install.sh
+	@echo "自托管基地址就绪：把 $(DIST)/ 整个目录丢到任意静态 host，即可 --base <url>"
 
 checksums:
-	@cd $(DIST) && { sha256sum packnest_*.tar.gz packnest_*.zip 2>/dev/null || shasum -a 256 packnest_*.tar.gz packnest_*.zip; } > checksums.txt
-	@echo "已生成 $(DIST)/checksums.txt：" && cat $(DIST)/checksums.txt
+	@cd $(DIST)/v$(VERSION) && { sha256sum packnest_*.tar.gz packnest_*.zip 2>/dev/null || shasum -a 256 packnest_*.tar.gz packnest_*.zip; } > checksums.txt
+	@cp $(DIST)/v$(VERSION)/checksums.txt $(DIST)/checksums.txt
+	@echo "已生成 checksums.txt：" && cat $(DIST)/checksums.txt
 
 clean:
 	rm -rf $(BUILD) $(DIST) $(BIN) coverage.out

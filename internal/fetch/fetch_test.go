@@ -460,3 +460,41 @@ func TestGetIndexBodyWriteError(t *testing.T) {
 		t.Fatal("缓存目录无法创建时应报错")
 	}
 }
+
+func TestDownloadProgressCallback(t *testing.T) {
+	payload := []byte("0123456789abcdef")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(w, r, "x", time.Now(), bytes.NewReader(payload))
+	}))
+	defer srv.Close()
+
+	var calls int
+	var lastDone int64
+	c := New()
+	c.Progress = func(done, total int64) {
+		calls++
+		lastDone = done
+	}
+	dir := t.TempDir()
+	if _, err := c.Download(context.Background(), srv.URL, filepath.Join(dir, "x.bin")); err != nil {
+		t.Fatalf("Download: %v", err)
+	}
+	if calls == 0 {
+		t.Fatal("应回调进度")
+	}
+	if lastDone != int64(len(payload)) {
+		t.Fatalf("最后一次进度应是总字节 %d，得到 %d", len(payload), lastDone)
+	}
+}
+
+func TestDownloadProgressNilSafe(t *testing.T) {
+	// 没设 Progress 时不该 panic（progressReader 只在设置了才启用）
+	payload := []byte("abc")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(payload)
+	}))
+	defer srv.Close()
+	if _, err := New().Download(context.Background(), srv.URL, filepath.Join(t.TempDir(), "x")); err != nil {
+		t.Fatalf("Download: %v", err)
+	}
+}

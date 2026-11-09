@@ -15,7 +15,8 @@
 
 | 命令 | 形状 | 稳定字段 |
 |---|---|---|
-| `pk list --json` | `list.golden.json` | `tools[].{name,version,active,path,npm{version,replaced},requires,verified}` |
+| `pk list --json` | `list.golden.json` | `tools[].{name,version,active,path,npm{version,replaced},requires,verified,size_bytes}` |
+| `pk list --available --json` | 内联结构 | `mirror`、`available[].{name,latest,lts,recent,requires,stale,error}`（与 `tools` 同时给） |
 | `pk doctor --json` | `doctor.golden.json` | `ok`、`issues[].{code,severity,message,detail}`；`severity ∈ info/warn/error` |
 | `pk version --json` | `version.golden.json` | `name,version,go,os,arch` |
 | `pk which --json` | `which.golden.json` | `name,path,shim` |

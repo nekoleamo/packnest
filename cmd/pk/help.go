@@ -9,7 +9,7 @@ import (
 
 // commandHelp 是 9 个命令的 `--help` 文本（方案 §12.2 第 10 条：命令要能自解释）。
 var commandHelp = map[string]string{
-	"install": `pk install [工具[@版本]]... [--frozen] [--insecure] [--force] [--jobs N]
+	"install": `pk install [工具[@版本]]... [--frozen] [--insecure] [--force] [--quiet] [--jobs N]
 
   装工具。不带参数时按当前目录的 pk.toml 全装。
   语义（方案 §18.9）：
@@ -21,6 +21,7 @@ var commandHelp = map[string]string{
     --insecure  允许无校验安装（标记 unverified；校验和源互相矛盾时也靠它放行）
     --force     重装已存在的版本
     --jobs N    并发下载数（默认 1：国内 CDN 分片常更慢）
+    --quiet     只报错，不打印进度与结果
   退出码：0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用`,
 
 	"uninstall": `pk uninstall <工具>@<版本> [--force]
@@ -35,7 +36,8 @@ var commandHelp = map[string]string{
 
 	"list": `pk list [--available] [--json]
 
-  列出已装工具（* 表示当前全局默认）。--available 附带内嵌 provider 目录。`,
+  列出已装工具（* 表示当前全局默认），带各版本占用空间。
+  --available 额外列各工具最新可用版本与最近几个版本（索引 24h 缓存，离线可读缓存）。`,
 
 	"which": `pk which <命令> [--json]
 
@@ -61,10 +63,11 @@ var commandHelp = map[string]string{
     FOREIGN_MANAGER                   检测到 proto/nvm/mise 等其他管理器
   退出码：有 error 级问题时为 1。`,
 
-	"env": `pk env [--shell bash|zsh|sh|powershell] [--write] [--unset] [--json]
+	"env": `pk env [--shell bash|zsh|sh|powershell] [--write] [--unset] [--completion SHELL] [--json]
 
   输出 shell 片段（PATH 三段 + registry/共享前缀变量）。
-  默认只打印不落盘；--write 才写进 rc 的托管块（幂等，块外内容不动）。`,
+  默认只打印不落盘；--write 才写进 rc 的托管块（幂等，块外内容不动）。
+  --completion bash|zsh|powershell 输出补全脚本：eval "$(pk env --completion zsh)"`,
 
 	"gc": `pk gc [--dry-run] [--cache-max 5GB] [--json]
 

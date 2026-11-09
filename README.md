@@ -49,7 +49,22 @@ iwr https://gitee.com/packnest/packnest/raw/master/scripts/install.ps1 -UseB | i
 
 # macOS/Linux 有代理时
 brew install packnest        # 自有 tap；命令名是 pk（brew 允许 formula≠bin）
+
+# 自己托管（OSS/COS/内网静态服务器都行，不需要 gitee 或 npmmirror）
+curl -fsSL https://你的域名/install.sh | sh -s -- --base https://你的域名/packnest
+# PowerShell:
+iwr https://你的域名/install.ps1 | iex   # 先 $env:PK_INSTALL_BASE='https://你的域名/packnest'
 ```
+
+`make release` 产出的 `dist/` 目录结构（`latest` + `v<版本>/packnest_<版本>_<os>_<arch>.{tar.gz,zip}` + `checksums.txt` + `install.sh`）
+就是一份可自托管的镜像根：把整个目录丢到任意静态 host，`--base <url>` 即可，全程不碰 GitHub。
+
+## CLI 体验
+
+- `pk install`：TTY 下 `\r` 刷新的进度条（已下载/总量/百分比/速度），非 TTY 每 25% 一行，`--quiet` 静默
+- `pk list`：显示各版本占用空间；`--available` 列出各工具最新可用版本与最近几个版本（索引 24h 缓存，离线可读）
+- `pk env --completion bash|zsh|powershell`：输出补全脚本（不额外占一个命令）
+- 安装中途 Ctrl-C：打印"已取消（缓存已保留，下次会续传/复用）"，不留半成品
 
 ## 快速开始
 

@@ -4,11 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/shim"
+	"github.com/packnest/packnest/internal/spec"
 	"github.com/packnest/packnest/internal/store"
+	"github.com/packnest/packnest/internal/toolchain"
 )
 
 // cmdList 列出已装工具（--available 时附带内嵌 provider 目录）。
@@ -16,7 +19,7 @@ func (a *app) cmdList(args []string) int {
 	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
 	a.usageFor(fs, "list")
-	available := fs.Bool("available", false, "同时列出内嵌 provider 目录")
+	available := fs.Bool("available", false, "列出各工具的最新可用版本（需索引，可离线读缓存）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -44,6 +47,9 @@ func (a *app) cmdList(args []string) int {
 		if in.Tool == "node" {
 			entry.NPM = &jsonout.ToolNPM{Version: in.NpmVersion, Replaced: in.NpmBundled}
 		}
+		if in.Path != "" {
+			entry.SizeBytes = store.DirSize(in.Path)
+		}
 		entries = append(entries, entry)
 	}
 	sort.Slice(entries, func(i, j int) bool {
@@ -54,6 +60,15 @@ func (a *app) cmdList(args []string) int {
 	})
 
 	if a.json {
+		if *available {
+			rows := a.availableRows()
+			return a.emit(struct {
+				Schema    int                 `json:"schema"`
+				Mirror    string              `json:"mirror"`
+				Tools     []jsonout.ToolEntry `json:"tools"`
+				Available []availableEntry    `json:"available"`
+			}{jsonout.SchemaVersion, a.cfg.Mirror, entries, rows})
+		}
 		return a.emit(jsonout.NewList(entries))
 	}
 
@@ -66,7 +81,7 @@ func (a *app) cmdList(args []string) int {
 			if e.Active {
 				mark = "*"
 			}
-			line := fmt.Sprintf("  %s %-6s %s", mark, e.Name, e.Version)
+			line := fmt.Sprintf("  %s %-6s %-10s %8s", mark, e.Name, e.Version, humanBytes(e.SizeBytes))
 			if e.NPM != nil && e.NPM.Version != "" {
 				line += fmt.Sprintf(" (npm %s", e.NPM.Version)
 				if e.NPM.Replaced != "" && e.NPM.Replaced != e.NPM.Version {
@@ -82,16 +97,98 @@ func (a *app) cmdList(args []string) int {
 	}
 
 	if *available {
-		all, err := provider.All()
-		if err != nil {
-			return a.fail(err)
-		}
-		fmt.Fprintln(a.out, "\n可装工具（内嵌 provider，版本清单需联网/缓存）:")
-		for _, p := range all {
-			fmt.Fprintf(a.out, "  %-7s %-16s requires=%v\n", p.ID, p.Display, p.Requires)
-		}
+		return a.printAvailable()
 	}
 	return jsonout.ExitOK
+}
+
+// availableEntry 是 `list --available` 的一项。
+type availableEntry struct {
+	Name     string   `json:"name"`
+	Latest   string   `json:"latest,omitempty"`
+	LTS      string   `json:"lts,omitempty"`
+	Recent   []string `json:"recent,omitempty"`
+	Requires []string `json:"requires"`
+	Stale    bool     `json:"stale,omitempty"`
+	Err      string   `json:"error,omitempty"`
+}
+
+// printAvailable 打印各工具的最新可装版本（索引走缓存；离线时读 24h 内缓存）。
+func (a *app) printAvailable() int {
+	rows := a.availableRows()
+	if a.json {
+		return a.emit(struct {
+			Schema int              `json:"schema"`
+			Mirror string           `json:"mirror"`
+			Tools  []availableEntry `json:"tools"`
+		}{jsonout.SchemaVersion, a.cfg.Mirror, rows})
+	}
+	fmt.Fprintf(a.out, "可装版本（档位 %s；缓存 24h，离线读缓存）:\n", a.cfg.Mirror)
+	for _, row := range rows {
+		if row.Err != "" {
+			fmt.Fprintf(a.out, "  %-7s 取不到索引: %s\n", row.Name, firstLine(row.Err))
+			continue
+		}
+		extra := ""
+		if row.LTS != "" {
+			extra = " (lts " + row.LTS + ")"
+		}
+		if row.Stale {
+			extra += " [索引来自过期缓存]"
+		}
+		fmt.Fprintf(a.out, "  %-7s %-10s%s  近几个: %s\n",
+			row.Name, row.Latest, extra, strings.Join(row.Recent, ", "))
+	}
+	return jsonout.ExitOK
+}
+
+// availableRows 拉取各工具的可用版本（失败只记录，不影响其他工具）。
+func (a *app) availableRows() []availableEntry {
+	all, err := provider.All()
+	if err != nil {
+		return []availableEntry{{Name: "-", Err: err.Error()}}
+	}
+	loader := &provider.IndexLoader{
+		Client:   a.client,
+		CacheDir: a.paths.CacheMeta(),
+		TTL:      provider.DefaultIndexTTL,
+		Custom:   toolchain.LoadPBSIndex,
+	}
+	rows := make([]availableEntry, 0, len(all))
+	for _, p := range all {
+		row := availableEntry{Name: p.ID, Requires: requiresOf(p)}
+		idx, err := loader.Load(a.context(), p, a.cfg.Mirror)
+		if err != nil {
+			row.Err = err.Error()
+			rows = append(rows, row)
+			continue
+		}
+		row.Stale = idx.Stale
+		if latest, ok := idx.Latest(); ok {
+			row.Latest = latest.Version
+		}
+		if lts, ok := idx.Resolve(mustAlias("lts")); ok == nil {
+			row.LTS = lts.Version
+		}
+		sorted := spec.SortDesc(idx.VersionList())
+		if len(sorted) > 5 {
+			sorted = sorted[:5]
+		}
+		row.Recent = sorted
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+// mustAlias 把 "lts" 包成 spec（别名由索引层解析）。
+func mustAlias(name string) spec.Spec { return spec.MustParse(name) }
+
+// firstLine 取多行错误的第一行（列表里不刷屏）。
+func firstLine(s string) string {
+	if idx := strings.IndexByte(s, '\n'); idx > 0 {
+		return s[:idx]
+	}
+	return s
 }
 
 // activeVersions 汇总"当前生效版本"：config 的全局默认优先，台账引用兜底。

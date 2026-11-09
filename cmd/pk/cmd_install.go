@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -43,6 +44,7 @@ func (a *app) cmdInstall(args []string) int {
 	insecure := fs.Bool("insecure", false, "允许无校验安装（标记 unverified）")
 	jobs := fs.Int("jobs", 1, "并发下载数（M4；默认 1，国内 CDN 分片常更慢）")
 	force := fs.Bool("force", false, "重装已存在的版本")
+	quiet := fs.Bool("quiet", false, "只报错，不打印进度")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -69,6 +71,13 @@ func (a *app) cmdInstall(args []string) int {
 		}
 	}
 
+	// 进度条：TTY 用 \r 刷新，非 TTY 每 25% 一行；--quiet 或 --json 时不画。
+	var bar *progressBar
+	if !*quiet && !a.json {
+		bar = newProgress(a.out, "下载")
+		a.client.Progress = bar.Update
+	}
+
 	unlock, err := store.Lock(a.paths.Lock())
 	if err != nil {
 		if errors.Is(err, store.ErrLocked) {
@@ -92,7 +101,7 @@ func (a *app) cmdInstall(args []string) int {
 		Project:        project,
 		Frozen:         *frozen,
 		Lock:           lockFile,
-		Events:         a.eventWriter(),
+		Events:         a.eventWriterFor(*quiet),
 		LookupProvider: nil,
 	})
 	if err != nil {
@@ -107,6 +116,14 @@ func (a *app) cmdInstall(args []string) int {
 	for _, t := range targets {
 		res, err := inst.Install(a.context(), t.tool, t.spec)
 		if err != nil {
+			if bar != nil {
+				bar.Done()
+			}
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				fmt.Fprintln(a.errOut, "pk: 已取消（缓存已保留，下次会续传/复用）")
+				_ = inst.Finalize()
+				return jsonout.ExitFail
+			}
 			fmt.Fprintf(a.errOut, "pk: %s@%s 安装失败: %v\n", t.tool, t.spec, err)
 			failed = true
 			code := exitCodeFor(err)
@@ -117,7 +134,10 @@ func (a *app) cmdInstall(args []string) int {
 			}
 			continue
 		}
-		if !a.json {
+		if bar != nil {
+			bar.Done()
+		}
+		if !a.json && !*quiet {
 			a.printInstallResult(res)
 		}
 	}
@@ -261,8 +281,14 @@ func (a *app) cwd() string {
 	return dir
 }
 
-// eventWriter 返回事件输出函数：--json 时写 NDJSON，否则写人类可读进度。
-func (a *app) eventWriter() func(jsonout.Event) {
+// eventWriter 返回事件输出函数（默认人类可读）。
+func (a *app) eventWriter() func(jsonout.Event) { return a.eventWriterFor(false) }
+
+// eventWriterFor 返回事件输出函数：--json 时写 NDJSON，--quiet 时静默，否则写人类可读进度。
+func (a *app) eventWriterFor(quiet bool) func(jsonout.Event) {
+	if quiet && !a.json {
+		return func(jsonout.Event) {}
+	}
 	if a.json {
 		return func(ev jsonout.Event) { _ = jsonout.WriteEvent(a.out, ev) }
 	}

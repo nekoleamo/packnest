@@ -47,6 +47,8 @@ type ToolEntry struct {
 	NPM      *ToolNPM `json:"npm,omitempty"`
 	Requires []string `json:"requires"`
 	Verified string   `json:"verified,omitempty"`
+	// SizeBytes 是安装目录占用（人类可读的--json 也带，方便 GUI 画磁盘条）。
+	SizeBytes int64 `json:"size_bytes,omitempty"`
 }
 
 // ListOutput 是 `pk list --json` 的输出。
