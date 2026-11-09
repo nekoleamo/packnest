@@ -135,7 +135,11 @@ load_token() {
 }
 
 if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ]; then
-  load_token || exit 3
+  if [ "$PUBLISH" -eq 1 ]; then
+    load_token || exit 3
+  else
+    echo "dry-run：只打包并校验 manifest，不需要凭据"
+  fi
   # 顺序很重要：先发 6 个平台子包，再发主包（主包的 optionalDependencies 指向它们）。
   # 反过来也能装上，但用户在执行 npm i 的瞬间子包不存在会报错。
   PUBLISH_ARGS="--access public --registry $REGISTRY"
