@@ -189,10 +189,11 @@ func (a *app) cmdEnv(args []string) int {
 	fs := flag.NewFlagSet("env", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
 	a.usageFor(fs, "env")
-	shellName := fs.String("shell", "bash", "shell 方言: bash|zsh|sh|powershell")
+	shellName := fs.String("shell", "", "shell 方言: bash|zsh|sh|powershell（默认看 $SHELL）")
 	write := fs.Bool("write", false, "把托管块写进 shell rc（幂等，只改自己那一段）")
 	unset := fs.Bool("unset", false, "删掉 rc 里的托管块")
 	completion := fs.String("completion", "", "输出 shell 补全脚本: bash|zsh|powershell")
+	rcFile := fs.String("rc", "", "写哪个 rc 文件（默认按 $SHELL 猜，如 ~/.zshrc）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -202,7 +203,11 @@ func (a *app) cmdEnv(args []string) int {
 		}
 		return jsonout.ExitOK
 	}
-	sh, err := env.ParseShell(*shellName)
+	dialect := *shellName
+	if dialect == "" {
+		dialect = detectShell()
+	}
+	sh, err := env.ParseShell(dialect)
 	if err != nil {
 		return a.failUsage(err)
 	}
@@ -218,7 +223,10 @@ func (a *app) cmdEnv(args []string) int {
 		if err != nil {
 			return a.fail(err)
 		}
-		rc := env.RCFileFor(sh, goos(), home, os.Getenv("SHELL"))
+		rc := *rcFile
+		if rc == "" {
+			rc = env.RCFileFor(sh, goos(), home, os.Getenv("SHELL"))
+		}
 		if *unset {
 			if err := env.RemoveManagedBlock(rc); err != nil {
 				return a.fail(err)
@@ -288,6 +296,15 @@ func mergeVars(vars []env.KV) []env.KV {
 		out = append(out, kv)
 	}
 	return out
+}
+
+// detectShell 从 $SHELL 猜方言（PowerShell 由 --shell 显式给）。
+func detectShell() string {
+	switch base := filepath.Base(os.Getenv("SHELL")); base {
+	case "zsh", "bash", "sh", "dash", "ksh":
+		return base
+	}
+	return "bash"
 }
 
 // projectBins 读取项目 node_modules/.bin 的命令名 → 所属包（L3 命令遮蔽检测）。

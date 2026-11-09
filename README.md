@@ -56,6 +56,19 @@ curl -fsSL https://你的域名/install.sh | sh -s -- --base https://你的域�
 iwr https://你的域名/install.ps1 | iex   # 先 $env:PK_INSTALL_BASE='https://你的域名/packnest'
 ```
 
+**零成本分发链路**（不需要买 OSS/CDN、不需要备案）：
+
+| 通道 | 成本 | 命令 |
+|---|---|---|
+| npm（免费发布）+ npmmirror 自动镜像 | 0 | `npm i -g packnest` |
+| npm 通道 + curl 一行 | 0 | `curl -fsSL …/install.sh \| sh -s -- --from npm` |
+| gitee release（免费） | 0 | `curl -fsSL …/install.sh \| sh -s -- --mirror cn` |
+| 自托管任意静态 host | 0（自己有机器就行） | `--base https://你的域名/packnest` |
+| GitHub release | 0（国内慢） | 备源 |
+
+`sh scripts/release-npm.sh` 会把 `dist/` 打成 6 个平台包 + 主包到 `dist/npm/`（`--publish` 直接发 npm）。
+`install.sh --from npm` 从 registry 取平台包（默认 npmmirror），**全程不需要 gitee 或自建存储**；本机用模拟 registry 实测装成功。
+
 `make release` 产出的 `dist/` 目录结构（`latest` + `v<版本>/packnest_<版本>_<os>_<arch>.{tar.gz,zip}` + `checksums.txt` + `install.sh`）
 就是一份可自托管的镜像根：把整个目录丢到任意静态 host，`--base <url>` 即可，全程不碰 GitHub。
 
@@ -64,6 +77,8 @@ iwr https://你的域名/install.ps1 | iex   # 先 $env:PK_INSTALL_BASE='https:/
 - `pk install`：TTY 下 `\r` 刷新的进度条（已下载/总量/百分比/速度），非 TTY 每 25% 一行，`--quiet` 静默
 - `pk list`：显示各版本占用空间；`--available` 列出各工具最新可用版本与最近几个版本（索引 24h 缓存，离线可读）
 - `pk env --completion bash|zsh|powershell`：输出补全脚本（不额外占一个命令）
+- `pk env` 不写 `--shell` 时按 `$SHELL` 自动判断；`--rc <路径>` 可指定写入哪个 rc（测试与自定义布局用）
+- 安装失败时直接给下一步：`pk mirror probe` / `pk doctor` / `--insecure`
 - 安装中途 Ctrl-C：打印"已取消（缓存已保留，下次会续传/复用）"，不留半成品
 
 ## 快速开始

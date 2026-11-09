@@ -67,7 +67,8 @@ var commandHelp = map[string]string{
 
   输出 shell 片段（PATH 三段 + registry/共享前缀变量）。
   默认只打印不落盘；--write 才写进 rc 的托管块（幂等，块外内容不动）。
-  --completion bash|zsh|powershell 输出补全脚本：eval "$(pk env --completion zsh)"`,
+  --completion bash|zsh|powershell 输出补全脚本：eval "$(pk env --completion zsh)"
+  --rc PATH   指定写入的 rc 文件（默认按 $SHELL 猜）`,
 
 	"gc": `pk gc [--dry-run] [--cache-max 5GB] [--json]
 

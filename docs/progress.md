@@ -225,6 +225,14 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 自托管安装：`install.sh --base <url>` / `install.ps1 -Base` / `PK_INSTALL_BASE`；`make release` 产出的 `dist/`
   含 `latest`、`v<版本>/`、`checksums.txt`、`install.sh`，**整目录丢到任意静态 host 即可**（本机 HTTP server 实测装成功并跑起来）
 
+### 零成本端外分发（2026-11-10 追加）
+
+- `scripts/release-npm.sh`：`dist/` → `dist/npm/`（`@packnest/<os>-<arch>` ×6 + 主包 packnest，共 ~45MB），`--publish` 直接发 npm
+- `install.sh --from npm [--registry URL]`：从 registry 取平台包解出二进制（默认 npmmirror）——**不需要 gitee、不需要对象存储**
+- 本机用模拟 registry（Python 小服务 + 真实打包产物）端到端验证：下载平台包 → 装到 `--dir` → `pk --version` 正常，`pk`/`packnest` 双入口都在
+- 结论：**端外安装可以零成本**（npm 免费 + npmmirror 免费镜像 / gitee 免费 release / 自己有机器当静态源），不需要买 OSS/CDN
+- 顺手加：`pk env` 缺省跟随 `$SHELL`、`--rc <路径>`（避免测试或自定义布局去猜 rc 位置）、安装失败给下一步建议
+
 ## 已知缺口（按计划补齐，不是遗漏）
 
 - go 的国内索引源：npmmirror 没有 go 的产物/索引（实测），所以索引只声明官方 `?mode=json&include=all`，

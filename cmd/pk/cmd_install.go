@@ -125,6 +125,9 @@ func (a *app) cmdInstall(args []string) int {
 				return jsonout.ExitFail
 			}
 			fmt.Fprintf(a.errOut, "pk: %s@%s 安装失败: %v\n", t.tool, t.spec, err)
+			if !a.json {
+				fmt.Fprintln(a.errOut, "下一步：pk mirror probe（看哪个源通）· pk doctor（看环境）· pk install <工具> --insecure（确认产物可信后）")
+			}
 			failed = true
 			code := exitCodeFor(err)
 			if code != jsonout.ExitFail {

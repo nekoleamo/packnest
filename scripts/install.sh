@@ -5,6 +5,9 @@
 #
 # 选项：
 #   --mirror cn|default   产物来源档位（cn 从 npmmirror 取，default 从 gitee）
+#   --from npm|gitee|base 分发通道（默认：给了 --base 就 base，否则 gitee）
+#     npm  = 从 npm registry 取平台包（免费，国内走 npmmirror 镜像，不需要任何自建存储）
+#   --registry URL        --from npm 时的 registry（默认 https://registry.npmmirror.com）
 #   --base URL            任意静态源基地址（自己托管的 OSS/CDN/内网），优先级最高
 #                         例：--base https://static.example.com/packnest
 #   --version vX.Y.Z      指定版本（默认最新）
@@ -17,6 +20,8 @@ set -eu
 
 MIRROR="default"
 BASE="${PK_INSTALL_BASE:-}"
+FROM=""
+REGISTRY="${PK_NPM_REGISTRY:-https://registry.npmmirror.com}"
 VERSION=""
 DIR="${HOME}/.local/bin"
 DRY_RUN=0
@@ -25,6 +30,8 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --mirror) MIRROR="${2:-cn}"; shift 2 ;;
     --base) BASE="$2"; shift 2 ;;
+    --from) FROM="$2"; shift 2 ;;
+    --registry) REGISTRY="$2"; shift 2 ;;
     --version) VERSION="$2"; shift 2 ;;
     --dir) DIR="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -44,6 +51,42 @@ case "$arch" in
   x86_64|amd64) arch=amd64 ;;
   *) echo "不支持的架构: $arch" >&2; exit 2 ;;
 esac
+
+# 通道决定：显式 --from > 给了 --base 就 base > 默认 gitee
+if [ -z "$FROM" ]; then
+  if [ -n "$BASE" ]; then FROM=base; else FROM=gitee; fi
+fi
+
+if [ "$FROM" = "npm" ]; then
+  # 从 npm registry 取平台包（免费通道：发布一次，npmmirror 自动镜像）
+  pkg="@packnest/${os}-${arch}"
+  encoded=$(printf '%s' "$pkg" | sed 's|/|%2F|')
+  meta=$(curl -fsSL --max-time 30 "$REGISTRY/$encoded") || {
+    echo "从 $REGISTRY 取不到 ${pkg}（可能还没发布）" >&2; exit 3; }
+  if [ -z "$VERSION" ]; then
+    VERSION=$(printf '%s' "$meta" | sed -n 's/.*"latest":[ ]*"\([^"]*\)".*/\1/p') || true
+  fi
+  tarball=$(printf '%s' "$meta" | sed -n 's/.*"tarball":[ ]*"\([^"]*\)".*/\1/p' | tail -1)
+  [ -n "$tarball" ] || { echo "${pkg} 元数据里没有 tarball 地址" >&2; exit 3; }
+  # 有些 registry 的 tarball 给的是站内绝对路径，补上 host
+  case "$tarball" in /*) tarball="${REGISTRY%/}${tarball}" ;; esac
+  echo "将要安装 packnest ${VERSION:-latest}（${os}-${arch}）"
+  echo "  来源: ${tarball}（npm 平台包）"
+  echo "  目录: $DIR"
+  [ "$DRY_RUN" -eq 1 ] && exit 0
+  tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
+  curl -fsSL --max-time 300 -o "$tmp/pkg.tgz" "$tarball"
+  tar -xzf "$tmp/pkg.tgz" -C "$tmp"
+  mkdir -p "$DIR"
+  install -m 0755 "$tmp/package/bin/packnest" "$DIR/packnest"
+  ln -sf "$DIR/packnest" "$DIR/pk"
+  echo "装好了：$DIR/pk（$("$DIR/pk" --version)）"
+  case ":$PATH:" in
+    *":$DIR:"*) ;;
+    *) echo "把 $DIR 加进 PATH：export PATH=\"$DIR:\$PATH\"" ;;
+  esac
+  exit 0
+fi
 
 if [ -z "$VERSION" ] && [ -n "$BASE" ]; then
   VERSION=$(curl -fsSL --max-time 15 "$BASE/latest" 2>/dev/null | tr -d ' \t\r\n' || true)

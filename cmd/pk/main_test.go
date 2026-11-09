@@ -300,27 +300,25 @@ func TestEnv(t *testing.T) {
 		t.Fatalf("未知 shell 应退出 2，得到 %d", code)
 	}
 	// env --write：写 rc 的托管块（幂等），--unset 删掉
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("SHELL", "/bin/bash")
-	code, out, _ = execCLI(t, "--root", root, "env", "--write")
+	rcPath := filepath.Join(t.TempDir(), "rc-file")
+	code, out, _ = execCLI(t, "--root", root, "env", "--write", "--rc", rcPath)
 	if code != 0 || !strings.Contains(out, "托管块") {
 		t.Fatalf("env --write 应可用: %d %q", code, out)
 	}
-	rc := filepath.Join(home, ".bashrc")
+	rc := rcPath
 	data, err := os.ReadFile(rc)
 	if err != nil || !strings.Contains(string(data), ">>> packnest >>>") {
 		t.Fatalf("rc 应写入托管块: %v %q", err, data)
 	}
 	// 幂等：再写一次不重复
-	if code, _, _ = execCLI(t, "--root", root, "env", "--write"); code != 0 {
+	if code, _, _ = execCLI(t, "--root", root, "env", "--write", "--rc", rcPath); code != 0 {
 		t.Fatal("重复写应成功")
 	}
 	data2, _ := os.ReadFile(rc)
 	if strings.Count(string(data2), ">>> packnest >>>") != 1 {
 		t.Fatalf("托管块应只有一段:\n%s", data2)
 	}
-	if code, out, _ = execCLI(t, "--root", root, "env", "--unset"); code != 0 || !strings.Contains(out, "已删掉") {
+	if code, out, _ = execCLI(t, "--root", root, "env", "--unset", "--rc", rcPath); code != 0 || !strings.Contains(out, "已删掉") {
 		t.Fatalf("env --unset 应可用: %d %q", code, out)
 	}
 	data3, _ := os.ReadFile(rc)
