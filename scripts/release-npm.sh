@@ -33,6 +33,8 @@ TAG=""
 SCOPE="${PK_NPM_SCOPE:-@packnest}"
 TOKEN_FILE="${PK_NPM_TOKEN_FILE:-$HOME/.pi/agent/local/secrets.env}"
 CHECK_AUTH=0
+STAGE=0
+PROMOTE=""
 REGISTRY="${NPM_REGISTRY:-https://registry.npmjs.org}"
 
 while [ $# -gt 0 ]; do
@@ -40,6 +42,8 @@ while [ $# -gt 0 ]; do
     --publish) PUBLISH=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --check-auth) CHECK_AUTH=1; shift ;;
+    --stage) STAGE=1; shift ;;
+    --promote) PROMOTE="$2"; shift 2 ;;
     --otp) OTP="$2"; shift 2 ;;
     --tag) TAG="$2"; shift 2 ;;
     --registry) REGISTRY="$2"; shift 2 ;;
@@ -62,6 +66,21 @@ make_auth_config() {
   export NPM_CONFIG_USERCONFIG="$AUTH_RC"
   trap 'rm -f "$AUTH_RC"' EXIT INT TERM
 }
+
+# --promote <stage-id|--list>：把 staged 版本提升为正式版本。
+# 注意：npm 规定"提升"必须由带 2FA 的维护者确认；stage-only token 只能 stage 不能 promote。
+if [ -n "$PROMOTE" ]; then
+  if [ "$PROMOTE" = "--list" ]; then
+    npm stage list --registry "$REGISTRY"
+    exit $?
+  fi
+  otp_value=$(auto_otp)
+  args=""
+  [ -n "$otp_value" ] && args="--otp $otp_value"
+  # shellcheck disable=SC2086
+  npm stage approve "$PROMOTE" $args --registry "$REGISTRY"
+  exit $?
+fi
 
 # --check-auth：只验证凭据可用（npm whoami），不打包、不发布。
 if [ "$CHECK_AUTH" -eq 1 ]; then
@@ -217,7 +236,11 @@ if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ]; then
   fi
   # 顺序很重要：先发 6 个平台子包，再发主包（主包的 optionalDependencies 指向它们）。
   # 反过来也能装上，但用户在执行 npm i 的瞬间子包不存在会报错。
-  PUBLISH_ARGS="--access public --registry $REGISTRY"
+  if [ "$STAGE" -eq 1 ]; then
+    PUBLISH_ARGS="stage publish --access public --registry $REGISTRY"
+  else
+    PUBLISH_ARGS="publish --access public --registry $REGISTRY"
+  fi
   # 预发布版本（如 0.6.0-M5）npm 强制要求 --tag，否则报 "must specify a tag"
   if [ -z "$TAG" ]; then
     case "$VERSION" in
@@ -238,6 +261,12 @@ if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ]; then
       echo "  1) npmjs → Access Tokens 重建 Granular token 并**勾上 Bypass 2FA**（推荐，之后无需 OTP）" >&2
       echo "  2) 在凭据文件里加 NPM_TOTP_SECRET=<base32 2FA 密钥> —— 脚本会自动算 OTP 传 --otp" >&2
       echo "  3) 账号 Settings → Two-Factor Authentication 改成 auth-only（只在登录时要求 2FA）" >&2
+      if echo "$out" | grep -qiE 'stage-only|must be staged|stage publish'; then
+        echo "" >&2
+        echo "检测到这是 **stage-only token**：它只能 stage，不能直接发布。两种走法：" >&2
+        echo "  a) sh scripts/release-npm.sh --stage   # 全部 stage，再由维护者在网页/命令里 promote（需 2FA）" >&2
+        echo "  b) 换一个普通 read-write 的 Granular token（不勾 stage-only 权限），然后直接 --publish" >&2
+      fi
       exit 1
     }
     echo "$out" | grep -vE '^npm (notice|warn)' | tail -1

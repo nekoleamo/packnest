@@ -87,6 +87,24 @@ read -rs T && printf 'NPM_TOKEN=%s\n' "$T" >> ~/.pi/agent/local/secrets.env && c
   真正发布时看输出里的 `凭据：/…/secrets.env（值不显示）`；
 - 本机有"凭据围栏"：AI 直接读该文件会被拒绝（实测 grep 已被拦），这是预期行为。
 
+### 两种 token：普通 read-write vs stage-only（**踩过坑**）
+
+npm 新增了 **staged publishing**：可以签发"stage-only"的 token，它**只能把版本 stage 起来**，
+必须由带 2FA 的维护者 **promote** 才真正上线。症状：
+
+- `npm publish` 打印 `+ packnest@0.6.1`，但 `npm view packnest versions` 里没有它（`latest` 还是旧版本）；
+- 直接重发会弹 `npmjs.com/auth/cli/...`（那是让你去 promote）；
+- npm 原话：`Stage-only tokens cannot publish new package versions directly … Versions must be staged with 'npm stage publish' and then promoted by a maintainer with two-factor authentication (2FA)`。
+
+两条路：
+
+| 目标 | 做法 |
+|---|---|
+| **要全自动发布（推荐）** | 重建 token，权限选 **read-write（Publish）** 且**不要**勾 stage-only；需要 Bypass 2FA 或配 `NPM_TOTP_SECRET` |
+| **保留 stage-only token** | `sh scripts/release-npm.sh --stage`（7 个包全部 stage）→ `sh scripts/release-npm.sh --promote --list` 看 stage id → `--promote <id>`（这一步必须有 2FA，脚本支持 `--otp`/`NPM_TOTP_SECRET`） |
+
+所以"0.6.0 装得上、0.6.1 发布成功却没有"的原因不是网络，而是 **0.6.1 停在 staged 状态没 promote**。
+
 ### 怎么做到真正无人值守（不再弹浏览器）
 
 npm 的 2FA 有两种模式，决定自动化难度：
