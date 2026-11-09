@@ -45,6 +45,22 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# npm CLI **不会**自动使用 NODE_AUTH_TOKEN —— 它只读 .npmrc 里的 _authToken。
+# 所以这里生成一个临时 userconfig（600，只含 ${NODE_AUTH_TOKEN} 占位与 registry 键），
+# 值仍然只在环境变量里，磁盘上没有明文 token。
+make_auth_config() {
+  host=$(printf '%s' "$REGISTRY" | sed -e 's|^[a-z]*://||' -e 's|/*$||')
+  AUTH_RC=$(mktemp "${TMPDIR:-/tmp}/pk-npmrc.XXXXXX")
+  chmod 600 "$AUTH_RC"
+  {
+    printf 'registry=%s\n' "$REGISTRY"
+    printf '//%s/:_authToken=${NODE_AUTH_TOKEN}\n' "$host"
+    printf 'always-auth=true\n'
+  } > "$AUTH_RC"
+  export NPM_CONFIG_USERCONFIG="$AUTH_RC"
+  trap 'rm -f "$AUTH_RC"' EXIT INT TERM
+}
+
 # --check-auth：只验证凭据可用（npm whoami），不打包、不发布。
 if [ "$CHECK_AUTH" -eq 1 ]; then
   source_token() {
@@ -60,14 +76,15 @@ if [ "$CHECK_AUTH" -eq 1 ]; then
     echo "本会话临时给：export NODE_AUTH_TOKEN=npm_xxx" >&2
     exit 3
   }
-  whoami=$(npm whoami --registry "$REGISTRY" 2>&1) || {
+  make_auth_config
+  npm_user=$(npm whoami --registry "$REGISTRY" 2>&1) || {
     echo "凭据已读到，但 registry 不认（回答：401/需登录）。常见原因：" >&2
     echo "  · token 过期/被删  · scope 没勾 read-write  · 2FA 账号没勾 Bypass 2FA" >&2
     echo "  · 粘错（少了前缀）  · 用的是 npmjs 的 token 但 registry 指到了别处" >&2
-    echo "  原文：$(printf '%s' "$whoami" | head -3 | tr '\n' ' ')" >&2
+    echo "  原文：$(printf '%s' "$npm_user" | head -3 | tr '\n' ' ')" >&2
     exit 3
   }
-  echo "凭据有效：npm 账号 $whoami（registry $REGISTRY）"
+  echo "凭据有效：npm 账号 ${npm_user}（registry ${REGISTRY}）"
   exit 0
 fi
 
@@ -171,6 +188,7 @@ load_token() {
 if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ]; then
   if [ "$PUBLISH" -eq 1 ]; then
     load_token || exit 3
+    make_auth_config
   else
     echo "dry-run：只打包并校验 manifest，不需要凭据"
   fi
