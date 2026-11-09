@@ -21,7 +21,7 @@ FUZZ_TARGETS := FuzzSpec
 FUZZ_TIME := 30s
 
 # 有 tag 时用 tag（去掉前导 v），否则用默认开发版本号。
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null | grep -E '^v?[0-9]' | sed 's/^v//' || echo 0.1.0-M0)
+VERSION ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null | sed -n 's/^v\?\([0-9].*\)/\1/p'); echo "$${v:-0.1.0-M0}")
 LDFLAGS := -s -w -X main.Version=$(VERSION)
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
