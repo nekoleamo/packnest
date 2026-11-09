@@ -25,7 +25,7 @@ VERSION ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null | sed -
 LDFLAGS := -s -w -X main.Version=$(VERSION)
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
-.PHONY: help build test race check fmt vet cover cross fuzz bench golden accept clean dist list-providers release checksums npm-packages npm-dry publish publish-stage stage-list promote
+.PHONY: gitee-release help build test race check fmt vet cover cross fuzz bench golden accept clean dist list-providers release checksums npm-packages npm-dry publish publish-stage stage-list promote
 
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
@@ -40,6 +40,7 @@ help:
 	@echo "make publish   stage + promote（推荐，兼容 2027 新规）"
 	@echo "make publish-stage  只 stage（无需 2FA，CI 可跑）"
 	@echo "make publish-direct 直接发布（2027-01 前有效，已弃用）"
+	@echo "make gitee-release  上传产物到 gitee release（二进制主源）"
 	@echo "make clean     清理产物"
 
 build:
@@ -158,6 +159,10 @@ promote:
 # 仍然保留"直接发布"（在 2027-01 之前有效）
 publish-direct: release
 	@sh scripts/release-npm.sh --publish
+
+# 上传到 gitee release（凭据走 ~/.pi/agent/local/secrets.env 的 GITEE_TOKEN）
+gitee-release: release
+	@sh scripts/release-gitee.sh
 
 clean:
 	rm -rf $(BUILD) $(DIST) $(BIN) coverage.out

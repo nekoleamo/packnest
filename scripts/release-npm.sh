@@ -227,8 +227,8 @@ case "$REGISTRY" in
     echo "提示：$REGISTRY 是只读镜像，dry-run 不受影响；真正发布时必须换成 registry.npmjs.org" >&2 ;;
 esac
 
-if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ]; then
-  if [ "$PUBLISH" -eq 1 ]; then
+if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ] || [ "$STAGE" -eq 1 ]; then
+  if [ "$PUBLISH" -eq 1 ] || [ "$STAGE" -eq 1 ]; then
     load_token || exit 3
     make_auth_config
   else
@@ -271,7 +271,11 @@ if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ]; then
     }
     echo "$out" | grep -vE '^npm (notice|warn)' | tail -1
   done
-  if [ "$DRY_RUN" -eq 1 ]; then
+  if [ "$STAGE" -eq 1 ]; then
+    echo "已全部 stage。下一步（需要 2FA，本机配了 NPM_TOTP_SECRET 就全自动）："
+    echo "  sh scripts/release-npm.sh --promote --list"
+    echo "  sh scripts/release-npm.sh --promote <stage-id>"
+  elif [ "$DRY_RUN" -eq 1 ]; then
     echo "dry-run 完成（没有真的发布；这 7 个包都已打包好并校验过 manifest）"
   else
     echo "已发布到 $REGISTRY"
