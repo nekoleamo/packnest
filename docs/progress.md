@@ -11,7 +11,7 @@
 | **M2** | pnpm / bun / deno | ✅ 完成（2026-11-10，含真网实测） | `M2_PnpmRequiresNode` ✅ · `_SingleFileLayout` ✅ · `_ThreePlatformSmoke` ✅ · `_OfficialUnreachable`（5 工具）✅ |
 | **M3** | go + python | ✅ 完成（2026-11-10，含真网实测） | `M3_GoNoDoubleDownload` ✅ · `_PythonNoCompile` ✅ · `_PbsDirectoryIndex` ✅ |
 | **M4** | 台账/引用计数/GC/全局包/启动清扫 | ✅ 完成（2026-11-10，含真网实测） | `M4_GcZeroRef` ✅ · `_LedgerRecover` ✅ · `_FrozenMismatchExitCode` ✅ · `_CtrlCNoPartial` ✅ · `_GlobalSurvivesNodeSwitch` ✅ · `_GlobalBinNoReshim` ✅ · `_NativeGlobalDetect` ✅ · `_StartupSweep` ✅ · `_CacheMax` ✅ | `M4_GcZeroRef` / `_LedgerRecover` / `_FrozenMismatchExitCode` / `_CtrlCNoPartial` / `_GlobalSurvivesNodeSwitch` / `_GlobalBinNoReshim` / `_NativeGlobalDetect` / `_StartupSweep` |
-| **M5** | CLI 收口（doctor 全量、`--json` 冻结、6 平台产物、分发） | ⏳ 下一步 | §12.2 的 10 条 CLI-DONE |
+| **M5** | CLI 收口（doctor 全量、`--json` 冻结、6 平台产物、分发） | ✅ 完成（2026-11-10） | 见下方 CLI-DONE 10 条 | §12.2 的 10 条 CLI-DONE |
 | G0–G2 | Wails v3.1.0 桌面端 | 未开始（CLI 冻结后才动） | — |
 
 ## M0 交付清单（2026-11-10）
@@ -181,9 +181,39 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 
 **门禁**：覆盖率 internal 86.7–100%（store 87.0 / install 86.7 / env 92.1）/ cmd 83.7%；验收 29 条全绿。
 
-⚠️ **代码预算告警**：实现（不含测试）已 **8477 行**，上限 8500 行只剩 23 行余量。
-M5 收口必须以"等量交换"方式做（新增 doctor 检查/分发脚本前先删等价代码），或按方案 §17 的流程
-显式修订预算表 —— 不允许悄悄超。
+代码预算：M4 结束时 8477 行；M5 前做了精简（-40 行），M5 新增 ~78 行，最终 **8515 行**
+（超出 8500 上限 15 行，用户已明确允许）。
+
+## M5 交付清单（2026-11-10）
+
+**CLI-DONE 10 条（方案 §12.2）逐条状态**
+
+| # | 门禁 | 状态 | 证据 |
+|---|---|---|---|
+| 1 | 6 工具在"官方源全不可达"下装成功 | ✅ | `TestAcceptance_M5_AllSevenOfficialUnreachable`（做了 7 个：node/npm/pnpm/bun/deno/go/python） |
+| 2 | node↔npm 伴生矩阵 7 版本全对 | ✅ | `TestAcceptance_M5_CompanionMatrix7`（含预发布排除、22.21/22.22、24.14/24.15 分界） |
+| 3 | 全局包 shared prefix 四用例 | ✅ | `_M4_GlobalSurvivesNodeSwitch` · `_GlobalBinNoReshim` · `_NativeGlobalDetect` · `per-version` 由 `env.SharedVarsFor` 提供 |
+| 4 | 故障矩阵 ≥72 格 | ✅ | `TestAcceptance_M1_FailureMatrix`（90 格） |
+| 5 | 台账/GC/frozen/Ctrl-C/清扫 | ✅ | M4 的 5 条验收 |
+| 6 | `make check` 7 项 + core ≥85% | ✅ | 覆盖率 internal 86.4–100% |
+| 7 | 6 平台二进制可下 + npm 一条命令装 | ⚠️ 本地就绪 | `make release`（tar.gz/zip + checksums.txt，命名按 §13.3）· `scripts/install.sh` / `install.ps1` / `packaging/npm` 分包骨架 · `packaging/brew/packnest.rb`。**真正"可下"取决于发布**（gitee/npm 上传需要账号），脚手架已验证 |
+| 8 | `--json` schema 冻结为 v1 并锁住 | ✅ | 6 个 golden（list/doctor/version/which/gc/events）+ `docs/json-schema.md` |
+| 9 | doctor 对 4 类坏环境给建议 | ✅ | `PATH_ORDER` · `MIRROR_UNREACHABLE`(`--probe`) · `GLOBAL_NATIVE_ABI` · `LEDGER_BROKEN`/`LEDGER_RECOVERED` |
+| 10 | 文档齐 | ✅ | `README.md` · `pk help <命令>`（9 个）· `docs/troubleshooting.md`（含与 proto/nvm/mise 共存）· `docs/json-schema.md` |
+
+**本轮新增能力**
+
+- `pk help <命令>` + 每个子命令的 `--help`（`flag.ErrHelp` 视为成功退出）
+- `pk env --write/--unset`：rc 里只碰 `# >>> packnest >>>` 托管块（幂等；写前 `.pk.bak`；rc 文件跟随 `$SHELL`）
+- `pk mirror write [--file]`：写 `~/.npmrc`（先备份、只改 `registry=` 一行、绝不删别的配置）
+- `doctor --probe`：并行 HEAD 探测各工具索引源 → `MIRROR_UNREACHABLE` + 换档建议
+- `make release`：6 平台 tar.gz/zip + `checksums.txt`；`scripts/install.sh`/`install.ps1`（`--mirror cn`）；npm 分包与 brew formula 骨架
+
+**精简（用户要求先查）**：删掉死常量（`fetch.DefaultMinThroughput`/`DefaultChunkTimeout`/未用的 `MinThroughput` 字段）、
+重复实现（`install.dirSize` → 改用 `store.DirSize`）、测试里的 `var _ =` 占位与 `NPMBundledIfAny` 假方法，
+共回收约 40 行。**结构上没有能再砍的大块**：导出函数零死代码、包职责没有交叠。
+
+**预算现状**：实现（不含测试）**8515 行**，超出 8500 上限 15 行（用户 2026-11-10 明确允许"不行的话可以超"）。
 
 ## 已知缺口（按计划补齐，不是遗漏）
 

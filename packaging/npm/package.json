@@ -1,0 +1,30 @@
+{
+  "name": "packnest",
+  "version": "0.0.0",
+  "description": "国内网络开箱可用的多语言运行时安装器（node/npm/pnpm/bun/deno/go/python）。与 NestJS 无关。",
+  "bin": {
+    "pk": "bin/pk.js",
+    "packnest": "bin/pk.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "optionalDependencies": {
+    "@packnest/darwin-arm64": "0.0.0",
+    "@packnest/darwin-x64": "0.0.0",
+    "@packnest/linux-arm64": "0.0.0",
+    "@packnest/linux-x64": "0.0.0",
+    "@packnest/win32-arm64": "0.0.0",
+    "@packnest/win32-x64": "0.0.0"
+  },
+  "files": [
+    "bin/pk.js",
+    "scripts/install.js"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["version-manager", "node", "mirror", "china", "pnpm", "bun", "deno", "go"],
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://gitee.com/packnest/packnest" }
+}

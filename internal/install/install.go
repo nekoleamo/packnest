@@ -143,19 +143,6 @@ func (i *Installer) now() time.Time {
 	return time.Now()
 }
 
-// dirSize 递归算目录大小。
-func dirSize(path string) int64 {
-	var total int64
-	_ = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
-		if err != nil || info == nil || info.IsDir() {
-			return nil
-		}
-		total += info.Size()
-		return nil
-	})
-	return total
-}
-
 func (i *Installer) emit(ev jsonout.Event) {
 	if i.opt.Events != nil {
 		i.opt.Events(ev)
@@ -386,7 +373,7 @@ func (i *Installer) resolveVersion(ctx context.Context, p *provider.Provider, sp
 		// registry 型（npm/pnpm）的校验和来自元数据、index-inline 型的校验和也在索引里，
 		// 所以即便钉了精确版本也要读索引；读不到不算失败（会走 --insecure 或报缺校验和）。
 		if p.Index.Kind == provider.IndexRegistry || p.Checksum.Format == provider.ChecksumIndexInline ||
-			strings.Contains(strings.Join(mapValues(p.Artifact.URLs), " "), "{filename}") {
+			artifactNeedsFilename(p) {
 			if idx, err := i.loadIndex(ctx, p); err == nil {
 				if v, ok := idx.Find(version); ok {
 					return v, idx, nil
@@ -407,12 +394,14 @@ func (i *Installer) resolveVersion(ctx context.Context, p *provider.Provider, sp
 	return v, idx, nil
 }
 
-func mapValues(m map[string]string) []string {
-	out := make([]string, 0, len(m))
-	for _, v := range m {
-		out = append(out, v)
+// artifactNeedsFilename 判断产物 URL 模板里是否用了 {filename}（go/python 需要索引元数据）。
+func artifactNeedsFilename(p *provider.Provider) bool {
+	for _, tmpl := range p.Artifact.URLs {
+		if strings.Contains(tmpl, "{filename}") {
+			return true
+		}
 	}
-	return out
+	return false
 }
 
 func (i *Installer) loadIndex(ctx context.Context, p *provider.Provider) (*provider.Index, error) {

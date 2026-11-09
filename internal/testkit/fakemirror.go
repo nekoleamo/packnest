@@ -154,6 +154,7 @@ format = "gnu-sums"
 mode = "tofu-then-verify"
 [checksum.urls]
 default = "%[1]s/node/v{version}/SHASUMS256.txt"
+cn = "%[1]s/node/v{version}/SHASUMS256.txt"
 
 [layout]
 strip = 1

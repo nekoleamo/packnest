@@ -88,9 +88,6 @@ func TestInstallNodeWithNpmCompanion(t *testing.T) {
 	if res.Version != "26.13.0" || res.AlreadyInstalled {
 		t.Fatalf("结果异常: %+v", res)
 	}
-	if res.NPMBundledIfAny() != "" {
-		t.Fatal("不应有该字段")
-	}
 	if res.NPMReplaced != "11.20.0" || res.NPMVersion != "12.2.2" {
 		t.Fatalf("伴生 npm 应为 12.2.2（自带 11.20.0），得到 %q/%q", res.NPMVersion, res.NPMReplaced)
 	}
@@ -663,11 +660,6 @@ func TestLedgerAccessor(t *testing.T) {
 		t.Fatal("Now 注入失效")
 	}
 }
-
-// NPMBundledIfAny 是给编译期占位用的（防止手滑写错字段名）。
-func (r Result) NPMBundledIfAny() string { return "" }
-
-var _ = json.Marshal
 
 func TestNewDefaults(t *testing.T) {
 	root := t.TempDir()

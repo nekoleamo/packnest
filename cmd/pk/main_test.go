@@ -209,8 +209,8 @@ func TestMirrorListAndUse(t *testing.T) {
 	if code, _, _ := execCLI(t, "--root", root, "mirror", "use"); code != 2 {
 		t.Fatalf("缺参数应退出 2，得到 %d", code)
 	}
-	if code, _, errOut := execCLI(t, "--root", root, "mirror", "write"); code != 1 || !strings.Contains(errOut, "M5") {
-		t.Fatalf("mirror write 应报 M5: %d %q", code, errOut)
+	if code, out, _ := execCLI(t, "--root", root, "mirror", "write", "--file", filepath.Join(t.TempDir(), "npmrc")); code != 0 || !strings.Contains(out, "registry=") {
+		t.Fatalf("mirror write 应可用: %d %q", code, out)
 	}
 	if code, _, _ := execCLI(t, "--root", root, "mirror"); code != 2 {
 		t.Fatalf("缺子命令应退出 2，得到 %d", code)
@@ -299,8 +299,33 @@ func TestEnv(t *testing.T) {
 	if code, _, _ := execCLI(t, "--root", root, "env", "--shell", "fish"); code != 2 {
 		t.Fatalf("未知 shell 应退出 2，得到 %d", code)
 	}
-	if code, _, errOut := execCLI(t, "--root", root, "env", "--write"); code != 1 || !strings.Contains(errOut, "M5") {
-		t.Fatalf("env --write 应报 M5: %d %q", code, errOut)
+	// env --write：写 rc 的托管块（幂等），--unset 删掉
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("SHELL", "/bin/bash")
+	code, out, _ = execCLI(t, "--root", root, "env", "--write")
+	if code != 0 || !strings.Contains(out, "托管块") {
+		t.Fatalf("env --write 应可用: %d %q", code, out)
+	}
+	rc := filepath.Join(home, ".bashrc")
+	data, err := os.ReadFile(rc)
+	if err != nil || !strings.Contains(string(data), ">>> packnest >>>") {
+		t.Fatalf("rc 应写入托管块: %v %q", err, data)
+	}
+	// 幂等：再写一次不重复
+	if code, _, _ = execCLI(t, "--root", root, "env", "--write"); code != 0 {
+		t.Fatal("重复写应成功")
+	}
+	data2, _ := os.ReadFile(rc)
+	if strings.Count(string(data2), ">>> packnest >>>") != 1 {
+		t.Fatalf("托管块应只有一段:\n%s", data2)
+	}
+	if code, out, _ = execCLI(t, "--root", root, "env", "--unset"); code != 0 || !strings.Contains(out, "已删掉") {
+		t.Fatalf("env --unset 应可用: %d %q", code, out)
+	}
+	data3, _ := os.ReadFile(rc)
+	if strings.Contains(string(data3), ">>> packnest >>>") {
+		t.Fatalf("托管块应被删掉:\n%s", data3)
 	}
 }
 
@@ -311,7 +336,6 @@ func TestStubs(t *testing.T) {
 		want string
 	}{
 		{[]string{"use", "node@22"}, "还没装"},
-		{[]string{"mirror", "write"}, "M5"},
 	}
 	for _, c := range cases {
 		code, _, errOut := execCLI(t, append([]string{"--root", root}, c.args...)...)

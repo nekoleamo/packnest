@@ -9,10 +9,10 @@ package acceptance
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -357,24 +357,83 @@ func TestAcceptance_M2_OfficialUnreachable(t *testing.T) {
 	}
 }
 
-// deadOfficial 把清单里的 default 档指向死地址，原地址降级到 cn 档。
+// deadOfficial 把清单里每个 URLs 段的 default 档指向死地址，可用地址降级为 cn 档。
 //
-// 这样"官方源全不可达"就是真的不可达（连 500 都不是，直接连接被拒）。
+// 目的：让"官方源全不可达"成为真的不可达（连接被拒，而不是慢或 404）。
 func deadOfficial(toml, deadURL, pathPrefix string) string {
+	deadURL = strings.TrimRight(deadURL, "/") + pathPrefix + "/dead"
 	var out []string
+	section := ""
+	type kv struct{ key, url string }
+	var pending []kv
+	flush := func() {
+		if len(pending) == 0 {
+			return
+		}
+		hasCN := false
+		var firstURL, defaultURL string
+		for _, item := range pending {
+			switch item.key {
+			case "cn":
+				hasCN = true
+			case "default":
+				defaultURL = item.url
+			default:
+				if firstURL == "" {
+					firstURL = item.url
+				}
+			}
+		}
+		if firstURL == "" {
+			firstURL = defaultURL // 只有 default 一段时，把它降级成 cn
+		}
+		out = append(out, "default = "+strconv.Quote(deadURL))
+		if !hasCN && firstURL != "" {
+			out = append(out, "cn = "+strconv.Quote(firstURL))
+		}
+		for _, item := range pending {
+			if item.key == "default" || item.key == "cn" {
+				continue
+			}
+			out = append(out, item.key+" = "+strconv.Quote(item.url))
+		}
+		if hasCN {
+			for _, item := range pending {
+				if item.key == "cn" {
+					out = append(out, "cn = "+strconv.Quote(item.url))
+				}
+			}
+		}
+		pending = pending[:0]
+	}
+
+	isURLSection := func(name string) bool {
+		return strings.HasSuffix(name, ".urls]") || strings.HasSuffix(name, "urls]")
+	}
 	for _, line := range strings.Split(toml, "\n") {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "default = ") {
-			// default 保留（指向死地址），另起一行把原 URL 变成 cn 档。
-			value := strings.TrimSpace(strings.TrimPrefix(trimmed, "default = "))
-			out = append(out, "default = "+fmt.Sprintf("%q", deadURL+pathPrefix+"/dead"))
-			out = append(out, "cn = "+value)
+		if strings.HasPrefix(trimmed, "[") {
+			if isURLSection(section) {
+				flush()
+			}
+			section = trimmed
+			out = append(out, line)
 			continue
 		}
-		if strings.HasPrefix(trimmed, "cn = ") {
-			continue // cn 由上面那行接管，避免重复键
+		if isURLSection(section) {
+			if idx := strings.Index(trimmed, " = "); idx > 0 && strings.Count(trimmed, "=") == 1 {
+				key := strings.TrimSpace(trimmed[:idx])
+				value := strings.TrimSpace(trimmed[idx+3:])
+				if unquoted, err := strconv.Unquote(value); err == nil {
+					pending = append(pending, kv{key, unquoted})
+					continue
+				}
+			}
 		}
 		out = append(out, line)
+	}
+	if isURLSection(section) {
+		flush()
 	}
 	return strings.Join(out, "\n")
 }

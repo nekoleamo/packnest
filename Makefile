@@ -21,11 +21,11 @@ FUZZ_TARGETS := FuzzSpec FuzzSHASUMS FuzzArchivePath
 FUZZ_TIME := 30s
 
 # 有 tag 时用 tag（去掉前导 v），否则用默认开发版本号。
-VERSION ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null | sed -n 's/^v\?\([0-9].*\)/\1/p'); echo "$${v:-0.5.0-M4}")
+VERSION ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null | sed -n 's/^v\?\([0-9].*\)/\1/p'); echo "$${v:-0.6.0-M5}")
 LDFLAGS := -s -w -X main.Version=$(VERSION)
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
-.PHONY: help build test race check fmt vet cover cross fuzz bench golden accept clean dist list-providers
+.PHONY: help build test race check fmt vet cover cross fuzz bench golden accept clean dist list-providers release checksums
 
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
@@ -35,6 +35,7 @@ help:
 	@echo "make cross     6 平台交叉编译到 $(DIST)/"
 	@echo "make cover     只看覆盖率明细"
 	@echo "make bench     只看性能预算"
+	@echo "make release   6 平台发布包 + checksums.txt 到 dist/"
 	@echo "make clean     清理产物"
 
 build:
@@ -99,6 +100,28 @@ check: fmt vet race cover cross fuzz bench golden
 
 list-providers:
 	@go run ./cmd/pk mirror list
+
+# 发布产物（方案 §13.3）：包名固定 packnest_<version>_<os>_<arch>.{tar.gz,zip} + checksums.txt
+release:
+	@mkdir -p $(DIST)
+	@for p in $(PLATFORMS); do \
+		os=$${p%/*}; arch=$${p#*/}; \
+		stage="$(CURDIR)/$(BUILD)/pkg/$${os}_$${arch}"; \
+		rm -rf $$stage; mkdir -p $$stage; \
+		if [ "$$os" = "windows" ]; then \
+			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$stage/packnest.exe ./cmd/pk || exit 1; \
+			(cd $$stage && zip -q -X "$(CURDIR)/$(DIST)/packnest_$(VERSION)_$${os}_$${arch}.zip" packnest.exe); \
+		else \
+			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$stage/packnest ./cmd/pk || exit 1; \
+			tar -czf $(DIST)/packnest_$(VERSION)_$${os}_$${arch}.tar.gz -C $$stage packnest; \
+		fi; \
+	done
+	@$(MAKE) --no-print-directory checksums
+	@echo "产物在 $(DIST)/（命名符合方案 §13.3）"
+
+checksums:
+	@cd $(DIST) && sha256sum packnest_* > checksums.txt 2>/dev/null || shasum -a 256 packnest_* > checksums.txt
+	@echo "已生成 $(DIST)/checksums.txt：" && cat $(DIST)/checksums.txt
 
 clean:
 	rm -rf $(BUILD) $(DIST) $(BIN) coverage.out

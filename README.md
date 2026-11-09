@@ -19,7 +19,10 @@
 
 ## 状态
 
-**M4 已完成**（详见 `docs/progress.md`）：台账引用计数、`pk use` 切版本、`pk gc`（零引用 + 缓存 LRU）、
+**M5 已完成**（详见 `docs/progress.md`）：CLI-DONE 10 条里 9 条自动化达标（第 7 条"6 平台可下 + npm 一条命令装"
+的脚手架与产物已就绪，真正上架取决于账号）。
+
+**M4 已完成**：台账引用计数、`pk use` 切版本、`pk gc`（零引用 + 缓存 LRU）、
 `pk.lock` + `--frozen`（CI 用）、启动清扫、全局包 L1/L2/L3 体检，全部真网验证过。
 
 **M3 已完成**：7 个工具在真网全部装得通并跑得起来 ——
@@ -31,7 +34,22 @@ node 22.23.4 / npm 12.2.2（伴生）/ pnpm 12.18.0 / bun 1.4.4 / deno 2.9.8 / g
 多源校验、npm 按 `engines.node` 反查后替换进 node prefix（npmmirror tarball 返回 500 时自动退回
 registry.npmjs.org）、卸载后离线重装 0 网络走 TOFU。90 格故障矩阵、8 条 M1 验收用例、`make check` 7 项门禁全绿。
 
-CLI-DONE 的 10 条（M5：`--json` 冻结、错误码定型、6 平台产物、npm/brew/gitee 分发）尚未收口，命令会**明确报出里程碑**并以 1 退出。
+CLI 已收口（`--json` v1 冻结、错误码定型、6 平台产物、分发脚手架齐全）；GUI（Wails v3.1.0）按方案在 CLI 冻结后才开工，命令会**明确报出里程碑**并以 1 退出。
+
+## 安装
+
+```bash
+# 国内首选：npm 分包（走 npmmirror）
+npm i -g packnest
+
+# 不想用 npm：install 脚本（内置 --mirror cn，不访问 GitHub）
+curl -fsSL https://gitee.com/packnest/packnest/raw/master/scripts/install.sh | sh -s -- --mirror cn
+# Windows:
+iwr https://gitee.com/packnest/packnest/raw/master/scripts/install.ps1 -UseB | iex
+
+# macOS/Linux 有代理时
+brew install packnest        # 自有 tap；命令名是 pk（brew 允许 formula≠bin）
+```
 
 ## 快速开始
 
@@ -54,8 +72,12 @@ eval "$(./bin/pk env --shell bash)"   # 把 bin/ 与 registry 环境塞进当前
 make test     # 零外网单测（默认 go test ./... 也零外网）
 make accept   # 只跑验收用例 TestAcceptance_*
 make check    # 7 项门禁：gofmt+vet → race → 覆盖率 → 6 平台交叉编译 → fuzz → 性能 → --json golden
-make cross    # 6 平台产物到 dist/
+make cross    # 6 平台裸二进制到 dist/
+make release  # 6 平台发布包（tar.gz/zip）+ checksums.txt
 ```
+
+发布与渠道（npm 分包 / brew formula / install 脚本）的脚手架在 `packaging/` 与 `scripts/`；
+`--json` 契约在 `docs/json-schema.md`；故障排查在 `docs/troubleshooting.md`。
 
 约定与硬约束（依赖预算 2 个、代码 ≤8500 行、9 命令、CGO=0、零外网测试……）见 `AGENTS.md`。
 

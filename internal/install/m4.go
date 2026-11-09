@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/packnest/packnest/internal/archive"
 	"github.com/packnest/packnest/internal/spec"
 	"github.com/packnest/packnest/internal/store"
 	"github.com/packnest/packnest/internal/verify"
@@ -85,7 +84,7 @@ func (i *Installer) GC(ctx context.Context, cacheMax int64, dryRun, force bool) 
 			continue
 		}
 		res.Removed = append(res.Removed, in.Tool+"@"+in.Version)
-		res.FreedBytes += dirSize(in.Path)
+		res.FreedBytes += store.DirSize(in.Path)
 		if dryRun {
 			keep = append(keep, in)
 			continue
@@ -198,5 +197,3 @@ func verifyLockedSHA(archivePath, want string) error {
 	}
 	return nil
 }
-
-var _ = archive.FindBin

@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "name": "packnest",
+  "version": "1.2.3",
+  "go": "go1.27.3",
+  "os": "darwin",
+  "arch": "arm64"
+}

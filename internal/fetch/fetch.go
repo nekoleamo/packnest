@@ -28,9 +28,7 @@ var ErrOffline = errors.New("离线模式下禁止访问网络")
 const (
 	DefaultConnectTimeout = 5 * time.Second
 	DefaultHeaderTimeout  = 8 * time.Second
-	DefaultMinThroughput  = 1 << 20 // 1MB/s，用于按体积估算整体超时
 	DefaultRetries        = 2
-	DefaultChunkTimeout   = 10 * time.Minute
 )
 
 // StatusError 表示 HTTP 状态非 2xx（可据此判定网络类失败，退出码 3）。
@@ -55,10 +53,9 @@ func (e *StatusError) Permanent() bool {
 
 // Client 是可注入的下载客户端。
 type Client struct {
-	HTTP          *http.Client
-	Retries       int
-	MinThroughput int64
-	UserAgent     string
+	HTTP      *http.Client
+	Retries   int
+	UserAgent string
 	// Offline 为 true 时任何请求立即返回 ErrOffline。
 	Offline bool
 	// Now 可注入，用于 TTL 判断（测试不 sleep）。
@@ -81,11 +78,10 @@ func New() *Client {
 		ForceAttemptHTTP2:     true,
 	}
 	return &Client{
-		HTTP:          &http.Client{Transport: transport},
-		Retries:       DefaultRetries,
-		MinThroughput: DefaultMinThroughput,
-		UserAgent:     "packnest/1 (cli)",
-		Now:           time.Now,
+		HTTP:      &http.Client{Transport: transport},
+		Retries:   DefaultRetries,
+		UserAgent: "packnest/1 (cli)",
+		Now:       time.Now,
 	}
 }
 

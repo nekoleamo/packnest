@@ -16,7 +16,3 @@ func (p *providerLoader) load(t *testing.T, prov *provider.Provider) (*provider.
 	loader := &provider.IndexLoader{Client: fetch.New(), CacheDir: t.TempDir()}
 	return loader.Load(context.Background(), prov, "default")
 }
-
-// 保证导入被使用（testkit 内部测试需要 fetch/provider）。
-var _ = fetch.New
-var _ = provider.Get

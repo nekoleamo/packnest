@@ -15,6 +15,7 @@ import (
 func (a *app) cmdUse(args []string) int {
 	fs := flag.NewFlagSet("use", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
+	a.usageFor(fs, "use")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -70,6 +71,7 @@ func (a *app) cmdUse(args []string) int {
 func (a *app) cmdGC(args []string) int {
 	fs := flag.NewFlagSet("gc", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
+	a.usageFor(fs, "gc")
 	dryRun := fs.Bool("dry-run", false, "只报告不删除")
 	cacheMax := fs.String("cache-max", "", "覆盖产物缓存上限（如 20G）")
 	if err := parseFlexible(fs, args); err != nil {

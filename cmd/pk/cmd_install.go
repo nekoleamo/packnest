@@ -38,6 +38,7 @@ func exitCodeFor(err error) int {
 func (a *app) cmdInstall(args []string) int {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
+	a.usageFor(fs, "install")
 	frozen := fs.Bool("frozen", false, "严格按 pk.lock，不做解析（M4）")
 	insecure := fs.Bool("insecure", false, "允许无校验安装（标记 unverified）")
 	jobs := fs.Int("jobs", 1, "并发下载数（M4；默认 1，国内 CDN 分片常更慢）")
@@ -153,6 +154,7 @@ func (a *app) cmdInstall(args []string) int {
 func (a *app) cmdUninstall(args []string) int {
 	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
+	a.usageFor(fs, "uninstall")
 	force := fs.Bool("force", false, "仍被引用也删除")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)

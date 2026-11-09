@@ -3,6 +3,7 @@ package env
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/packnest/packnest/internal/paths"
@@ -134,5 +135,93 @@ func TestSharedVarsForPerVersion(t *testing.T) {
 	fallback := kvs(SharedVarsFor("per-version", p, "/home/u/.npm", ""))
 	if fallback["npm_config_prefix"] != "/root/global" {
 		t.Fatalf("缺版本应退回 shared: %q", fallback["npm_config_prefix"])
+	}
+}
+
+func TestRCFileFor(t *testing.T) {
+	cases := []struct {
+		shell                Shell
+		goos, envShell, want string
+	}{
+		{ShellPOSIX, "darwin", "/bin/zsh", "/home/u/.zshrc"},
+		{ShellPOSIX, "darwin", "/bin/bash", "/home/u/.bashrc"},
+		{ShellPOSIX, "linux", "", "/home/u/.bashrc"},
+		{ShellPowerShell, "windows", "", "/home/u/Documents/PowerShell/Microsoft.PowerShell_profile.ps1"},
+		{ShellPowerShell, "darwin", "/bin/zsh", "/home/u/.config/powershell/Microsoft.PowerShell_profile.ps1"},
+	}
+	for _, c := range cases {
+		if got := RCFileFor(c.shell, c.goos, "/home/u", c.envShell); got != filepath.FromSlash(c.want) {
+			t.Errorf("RCFileFor(%v,%s,%q) = %q，期望 %q", c.shell, c.goos, c.envShell, got, c.want)
+		}
+	}
+}
+
+func TestWriteManagedBlock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".bashrc")
+	if err := os.WriteFile(path, []byte("export FOO=1\nalias ll='ls -l'\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteManagedBlock(path, "export PATH=/x:$PATH\n"); err != nil {
+		t.Fatalf("WriteManagedBlock: %v", err)
+	}
+	data, _ := os.ReadFile(path)
+	text := string(data)
+	if !strings.Contains(text, "export FOO=1") || !strings.Contains(text, ManagedBegin) || !strings.Contains(text, "/x") {
+		t.Fatalf("托管块应追加且不动原有内容:\n%s", text)
+	}
+	if _, err := os.Stat(path + ".pk.bak"); err != nil {
+		t.Fatalf("应留备份: %v", err)
+	}
+
+	// 幂等：再写一次仍只有一段块
+	if err := WriteManagedBlock(path, "export PATH=/y:$PATH\n"); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = os.ReadFile(path)
+	text = string(data)
+	if strings.Count(text, ManagedBegin) != 1 || strings.Contains(text, "/x") {
+		t.Fatalf("应替换旧块:\n%s", text)
+	}
+	block := ReadManagedBlock(path)
+	if !strings.Contains(block, "/y") {
+		t.Fatalf("ReadManagedBlock = %q", block)
+	}
+
+	// 残缺块（只有开始标记）也要能修好
+	if err := os.WriteFile(path, []byte("keep\n"+ManagedBegin+"\nno end\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteManagedBlock(path, "export A=1\n"); err != nil {
+		t.Fatal(err)
+	}
+	data, _ = os.ReadFile(path)
+	if !strings.Contains(string(data), ManagedEnd) || !strings.Contains(string(data), "keep") {
+		t.Fatalf("残缺块应被整段重写:\n%s", data)
+	}
+
+	// 删除
+	if err := RemoveManagedBlock(path); err != nil {
+		t.Fatalf("RemoveManagedBlock: %v", err)
+	}
+	data, _ = os.ReadFile(path)
+	if strings.Contains(string(data), ManagedBegin) {
+		t.Fatalf("托管块应被删掉:\n%s", data)
+	}
+	if !strings.Contains(string(data), "keep") {
+		t.Fatal("块外内容不该动")
+	}
+	// 删除不存在的文件 / 没有块的文件的文件都应是 no-op
+	if err := RemoveManagedBlock(filepath.Join(t.TempDir(), "nope")); err != nil {
+		t.Fatalf("缺文件应 no-op: %v", err)
+	}
+	plain := filepath.Join(t.TempDir(), "plain")
+	if err := os.WriteFile(plain, []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := RemoveManagedBlock(plain); err != nil {
+		t.Fatalf("没有块应 no-op: %v", err)
+	}
+	if ReadManagedBlock(plain) != "" {
+		t.Fatal("没有块时应返回空")
 	}
 }

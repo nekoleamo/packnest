@@ -20,8 +20,10 @@ import (
 func (a *app) cmdDoctor(args []string) int {
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
-	globals := fs.Bool("globals", false, "检查全局包（M4 实现）")
-	foreign := fs.Bool("foreign", false, "检测其他管理器（M4 实现）")
+	a.usageFor(fs, "doctor")
+	globals := fs.Bool("globals", false, "检查全局包（engines / 原生 ABI / 命令遮蔽）")
+	foreign := fs.Bool("foreign", false, "检测其他管理器（M5 后续）")
+	probe := fs.Bool("probe", false, "探测镜像索引是否可达（会发 HEAD 请求）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -96,6 +98,27 @@ func (a *app) cmdDoctor(args []string) int {
 		}
 	}
 
+	// 6a. 镜像可达性（--probe 才探网，默认零网络）
+	if *probe {
+		loader := &mirror.Prober{Client: a.client, Path: a.paths.Probe(), TTL: mirror.DefaultTTL}
+		all, err := provider.All()
+		if err == nil {
+			for _, p := range all {
+				urls := p.IndexURLs(a.cfg.Mirror)
+				if len(urls) == 0 {
+					continue
+				}
+				res := loader.ProbeOne(a.context(), urls[0])
+				if !res.OK {
+					add(jsonout.SeverityErr, "MIRROR_UNREACHABLE",
+						fmt.Sprintf("%s 的索引源不可达：%s", p.ID, urls[0]),
+						map[string]any{"tool": p.ID, "url": urls[0], "err": res.Err,
+							"advice": "用 `pk mirror use cn` 换档，或用 PK_MIRROR 指向内网源"})
+				}
+			}
+		}
+	}
+
 	// 6b. go 的 GOTOOLCHAIN（方案 §6.6：不是 local 就多一个下载面）
 	if ledger != nil && len(installedTools(ledger, "go")) > 0 {
 		if msg := toolchain.CheckGoEnv(os.Getenv); msg != "" {
@@ -165,13 +188,12 @@ func (a *app) cmdDoctor(args []string) int {
 func (a *app) cmdEnv(args []string) int {
 	fs := flag.NewFlagSet("env", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
+	a.usageFor(fs, "env")
 	shellName := fs.String("shell", "bash", "shell 方言: bash|zsh|sh|powershell")
-	write := fs.Bool("write", false, "写入 shell rc（M5 实现）")
+	write := fs.Bool("write", false, "把托管块写进 shell rc（幂等，只改自己那一段）")
+	unset := fs.Bool("unset", false, "删掉 rc 里的托管块")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
-	}
-	if *write {
-		return a.notImplemented("env --write", "M5")
 	}
 	sh, err := env.ParseShell(*shellName)
 	if err != nil {
@@ -183,6 +205,37 @@ func (a *app) cmdEnv(args []string) int {
 		vars = append(vars, env.ToolchainVars(p.Toolchain.Env)...)
 	}
 	vars = mergeVars(vars)
+
+	if *write || *unset {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return a.fail(err)
+		}
+		rc := env.RCFileFor(sh, goos(), home, os.Getenv("SHELL"))
+		if *unset {
+			if err := env.RemoveManagedBlock(rc); err != nil {
+				return a.fail(err)
+			}
+			if !a.json {
+				fmt.Fprintf(a.out, "已删掉 %s 里的 packnest 托管块\n", rc)
+			}
+			return jsonout.ExitOK
+		}
+		block := env.ExportScript(vars, a.paths.PathSegments(), sh)
+		if err := env.WriteManagedBlock(rc, block); err != nil {
+			return a.fail(err)
+		}
+		if a.json {
+			return a.emit(struct {
+				Schema int    `json:"schema"`
+				RC     string `json:"rc"`
+				Block  string `json:"block"`
+			}{jsonout.SchemaVersion, rc, block})
+		}
+		fmt.Fprintf(a.out, "已写入 %s 的托管块（块外内容未改动；备份在 %s.pk.bak）\n", rc, rc)
+		fmt.Fprintln(a.out, "新开一个 shell，或 `source "+rc+"` 生效")
+		return jsonout.ExitOK
+	}
 
 	if a.json {
 		return a.emit(struct {

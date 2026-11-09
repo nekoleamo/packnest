@@ -8,7 +8,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -20,7 +19,6 @@ import (
 	"github.com/packnest/packnest/internal/shim"
 	"github.com/packnest/packnest/internal/store"
 	"github.com/packnest/packnest/internal/testkit"
-	"github.com/packnest/packnest/internal/verify"
 )
 
 // npmMatrixAcceptance 是方案 §7 的实测矩阵（含预发布陷阱）。
@@ -336,9 +334,3 @@ func TestAcceptance_M1_WindowsZipNoSymlink(t *testing.T) {
 		t.Fatal("Windows 不该有 unix 风格 shim")
 	}
 }
-
-// 编译期断言：M1 的校验强度标记不许改名（台账与 list 都依赖它）。
-var _ = []string{verify.VerifiedStrong, verify.VerifiedWeak, verify.VerifiedUnverified}
-
-// 保证未使用的 runtime 引入有意义（Windows 用例在 mac 上跑时仍需要 GOOS 常量语义）。
-var _ = runtime.GOOS

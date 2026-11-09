@@ -6,6 +6,7 @@ package env
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -150,4 +151,109 @@ func shellQuote(s string) string {
 
 func escapeSingle(s string) string {
 	return strings.ReplaceAll(s, "'", `'\''`)
+}
+
+// 托管块标记（`pk env --write` 与 `pk mirror write` 共用）。
+const (
+	ManagedBegin = "# >>> packnest >>>"
+	ManagedEnd   = "# <<< packnest <<<"
+)
+
+// RCFileFor 决定 rc 文件：powershell 走 profile，posix 跟随 $SHELL（zsh → ~/.zshrc）。
+//
+// `--shell` 只决定**片段语法**；写哪个文件由用户实际的 $SHELL 决定（否则 zsh 用户
+// 会被人往 .bashrc 里写东西，永远不生效）。
+func RCFileFor(shell Shell, goos, home, envShell string) string {
+	if shell == ShellPowerShell {
+		if goos == "windows" {
+			return filepath.Join(home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1")
+		}
+		return filepath.Join(home, ".config", "powershell", "Microsoft.PowerShell_profile.ps1")
+	}
+	if strings.Contains(filepath.Base(envShell), "zsh") {
+		return filepath.Join(home, ".zshrc")
+	}
+	return filepath.Join(home, ".bashrc")
+}
+
+// WriteManagedBlock 把内容写进 rc 文件的托管块（幂等：已有块就替换）。
+//
+// 只碰自己那一段：块外内容一个字节不改（方案 §8.2 第 1 条）。
+func WriteManagedBlock(path, content string) error {
+	block := ManagedBegin + "\n" + strings.TrimRight(content, "\n") + "\n" + ManagedEnd + "\n"
+
+	existing, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("读取 %q 失败: %w", path, err)
+	}
+	if len(existing) > 0 {
+		// 先备份（只留一份，反复写不堆垃圾）
+		if err := os.WriteFile(path+".pk.bak", existing, 0o644); err != nil {
+			return fmt.Errorf("备份 %q 失败: %w", path, err)
+		}
+	}
+
+	text := string(existing)
+	if start := strings.Index(text, ManagedBegin); start >= 0 {
+		if end := strings.Index(text[start:], ManagedEnd); end >= 0 {
+			text = text[:start] + block + text[start+end+len(ManagedEnd):]
+		} else {
+			text = text[:start] + block // 残缺块：整段重写
+		}
+	} else {
+		if text != "" && !strings.HasSuffix(text, "\n") {
+			text += "\n"
+		}
+		text += block
+	}
+
+	if dir := filepath.Dir(path); dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("创建目录 %q 失败: %w", dir, err)
+		}
+	}
+	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+		return fmt.Errorf("写入 %q 失败: %w", path, err)
+	}
+	return nil
+}
+
+// ReadManagedBlock 返回托管块内容（没有则空串），用于 doctor 自检。
+func ReadManagedBlock(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	text := string(data)
+	start := strings.Index(text, ManagedBegin)
+	if start < 0 {
+		return ""
+	}
+	end := strings.Index(text[start:], ManagedEnd)
+	if end < 0 {
+		return ""
+	}
+	return text[start : start+end+len(ManagedEnd)]
+}
+
+// RemoveManagedBlock 删掉托管块（`pk env --write --unset` 用）。
+func RemoveManagedBlock(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	text := string(data)
+	start := strings.Index(text, ManagedBegin)
+	if start < 0 {
+		return nil
+	}
+	end := strings.Index(text[start:], ManagedEnd)
+	if end < 0 {
+		return nil
+	}
+	cleaned := text[:start] + text[start+end+len(ManagedEnd):]
+	return os.WriteFile(path, []byte(cleaned), 0o644)
 }

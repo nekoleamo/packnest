@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "Removed": [
+    "node@20.18.1"
+  ],
+  "CacheRemoved": [
+    "/u/.packnest/cache/archives/bun-1.0.0.tar.gz"
+  ],
+  "KeptRef": [],
+  "FreedBytes": 1048576,
+  "DryRun": false,
+  "cache_max_bytes": 5368709120
+}

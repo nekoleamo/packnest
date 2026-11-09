@@ -1,0 +1,39 @@
+[
+  {
+    "ev": "resolve",
+    "tool": "node",
+    "version": "22.22.2"
+  },
+  {
+    "ev": "cache",
+    "tool": "node",
+    "version": "22.22.2",
+    "bytes": 47238101
+  },
+  {
+    "ev": "download",
+    "tool": "node",
+    "version": "22.22.2",
+    "bytes": 47238101,
+    "source": "https://registry.npmmirror.com/x.tar.gz"
+  },
+  {
+    "ev": "verify",
+    "tool": "node",
+    "version": "22.22.2",
+    "mode": "network",
+    "ok": true
+  },
+  {
+    "ev": "companion",
+    "tool": "npm",
+    "version": "12.2.2",
+    "msg": "replaced 11.20.0"
+  },
+  {
+    "ev": "done",
+    "tool": "node",
+    "version": "22.22.2",
+    "path": "/u/.packnest/tools/node/22.22.2"
+  }
+]

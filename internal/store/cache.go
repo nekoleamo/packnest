@@ -143,7 +143,7 @@ func SweepStale(p paths.Paths, now time.Time, maxAge time.Duration) (SweepResult
 			if err != nil || now.Sub(st.ModTime()) < maxAge {
 				continue
 			}
-			size := dirSize(match)
+			size := DirSize(match)
 			if err := os.RemoveAll(match); err != nil {
 				continue
 			}
@@ -236,8 +236,8 @@ func PruneCache(p paths.Paths, limit int64, now time.Time, dryRun bool) (SweepRe
 	return res, nil
 }
 
-// dirSize 递归算目录大小。
-func dirSize(path string) int64 {
+// DirSize 递归算目录大小。
+func DirSize(path string) int64 {
 	var total int64
 	_ = filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
 		if err != nil || info == nil || info.IsDir() {

@@ -7,6 +7,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -23,7 +25,7 @@ import (
 )
 
 // Version 是 CLI 版本（渠道发布号由构建注入）。
-var Version = "0.5.0-M4"
+var Version = "0.6.0-M5"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -93,7 +95,11 @@ func run(args []string, out, errOut io.Writer) int {
 	}
 	switch cmd {
 	case "help", "-h", "--help":
+		if len(cmdArgs) > 0 && printCommandHelp(out, cmdArgs[0]) {
+			return jsonout.ExitOK
+		}
 		printUsage(out)
+		helpSummary(out)
 		return jsonout.ExitOK
 	case "version", "--version":
 		return a.cmdVersion()
@@ -144,7 +150,7 @@ func (a *app) parseGlobals(args []string) ([]string, error) {
 			a.root = strings.TrimPrefix(arg, "--root=")
 		case arg == "--version" || arg == "-v":
 			rest = append(rest, "version")
-		case arg == "--help" || arg == "-h":
+		case (arg == "--help" || arg == "-h") && len(rest) == 0:
 			rest = append(rest, "help")
 		default:
 			rest = append(rest, arg)
@@ -174,7 +180,19 @@ func (a *app) fail(err error) int {
 	return jsonout.ExitFail
 }
 
+// usageFor 给子命令设 Usage（`pk install --help` 输出详细说明）。
+func (a *app) usageFor(fs *flag.FlagSet, name string) {
+	fs.Usage = func() {
+		if !printCommandHelp(a.errOut, name) {
+			fmt.Fprintf(a.errOut, "用法见 `pk help %s`\n", name)
+		}
+	}
+}
+
 func (a *app) failUsage(err error) int {
+	if errors.Is(err, flag.ErrHelp) {
+		return jsonout.ExitOK // 子命令的 --help 是正常请求
+	}
 	fmt.Fprintf(a.errOut, "pk: %v\n", err)
 	fmt.Fprintln(a.errOut, "运行 `pk help` 查看用法")
 	return jsonout.ExitUsage
