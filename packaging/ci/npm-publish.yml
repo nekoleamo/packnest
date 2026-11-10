@@ -75,3 +75,41 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           make release VERSION="$VERSION"
           sh scripts/release-gitee.sh --tag "v$VERSION"
+
+  # ── 可选 2：brew / scoop 清单跟随新版本 ──
+  # 开关：仓库 Variable PUBLISH_TAPS=true；Secret TAP_TOKEN = 有 homebrew-packnest 与 scoop-bucket
+  # 写权限的 GitHub PAT（Actions 自带的 GITHUB_TOKEN 只能写当前仓库）。
+  taps:
+    if: vars.PUBLISH_TAPS == 'true'
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - name: 生成清单并推送到 tap / bucket
+        env:
+          GH_TOKEN: ${{ secrets.TAP_TOKEN }}
+          PK_GH_OWNER: nekoleamo
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          make release VERSION="$VERSION"
+          sh scripts/gen-manifests.sh
+          sh scripts/release-taps.sh --owner nekoleamo
+
+  # ── 可选 3：把代码镜像推到 gitee ──
+  # 开关：仓库 Variable SYNC_GITEE=true；Secret GITEE_TOKEN 需 projects 权限。
+  gitee-mirror:
+    if: vars.SYNC_GITEE == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: push 到 gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          PK_GITEE_REPO: nekoleamo/packnest
+        run: |
+          git push "https://oauth2:${GITEE_TOKEN}@gitee.com/${PK_GITEE_REPO}.git" HEAD:main --tags --force

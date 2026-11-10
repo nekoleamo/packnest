@@ -49,8 +49,12 @@ push_dir() { # $1=repo名 $2=本地待推目录
     git -c user.name="packnest release" -c user.email="release@packnest.invalid" \
       commit -q -m "packnest ${VER}" || echo "无改动，跳过提交"
     git branch -M main
-    git remote get-url origin >/dev/null 2>&1 || \
-      git remote add origin "https://github.com/${OWNER}/$1.git"
+    if [ -n "${GH_TOKEN:-}" ]; then
+      git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${OWNER}/$1.git"
+    else
+      git remote get-url origin >/dev/null 2>&1 || \
+        git remote add origin "https://github.com/${OWNER}/$1.git"
+    fi
     git push -q -u origin main )
   rm -rf "$work"
   echo "已推送 ${OWNER}/$1"
