@@ -40,8 +40,10 @@ npm i -g packnest --registry=https://registry.npmmirror.com   # 强制走 npmmir
 curl -fsSL https://你的域名/install.sh | sh -s -- --base https://你的域名/packnest
 ```
 
-安装脚本开关：`--mirror cn|default` · `--from npm|gitee|base` · `--base URL` · `--scope` · `--version` · `--dir` · `--dry-run`
-（PowerShell 同名）。
+安装脚本开关：`--mirror cn|default` · `--from npm|gitee|base` · `--base URL` · `--scope` · `--version` ·
+`--dir` · `--skip-verify` · `--dry-run`。下载后**校验 sha256**（gitee/自托管对 `checksums.txt`，npm 通道对
+registry 的 `dist.shasum`），对不上退出码 4。PowerShell 版参数名换成 `-Mirror` / `-Base` / `-Version` /
+`-Dir` / `-SkipVerify` / `-DryRun`（`-Mirror cn` 走 npmmirror 的 npm 平台包）。
 
 ## 快速开始
 

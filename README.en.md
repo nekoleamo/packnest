@@ -40,7 +40,10 @@ curl -fsSL https://your-host/install.sh | sh -s -- --base https://your-host/pack
 ```
 
 Installer switches: `--mirror cn|default` · `--from npm|gitee|base` · `--base URL` · `--scope` ·
-`--version` · `--dir` · `--dry-run` (the PowerShell script takes the same ones).
+`--version` · `--dir` · `--skip-verify` · `--dry-run`. The download is **verified with sha256** (gitee and
+self-hosted channels against `checksums.txt`, the npm channel against the registry `dist.shasum`); a
+mismatch exits with code 4. The PowerShell script uses `-Mirror` / `-Base` / `-Version` / `-Dir` /
+`-SkipVerify` / `-DryRun` (`-Mirror cn` pulls the npm platform package from npmmirror).
 
 ## Quick start
 

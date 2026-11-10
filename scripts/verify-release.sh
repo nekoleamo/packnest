@@ -23,7 +23,7 @@ while [ $# -gt 0 ]; do
 done
 
 SUMS="$DIST/v$VER/checksums.txt"
-[ -f "$SUMS" ] || { echo "找不到 $SUMS（先跑 make release，或用 --version 指定）" >&2; exit 1; }
+[ -f "$SUMS" ] || { echo "找不到 ${SUMS}（先跑 make release，或用 --version 指定）" >&2; exit 1; }
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT

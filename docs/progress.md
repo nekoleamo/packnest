@@ -283,6 +283,30 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
   现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
 
+## 渠道审计（2026-11-10，0.7.0 发布后）
+
+用户 `brew install` 报 `reports different checksum` 触发的一轮全面检查：
+
+| 渠道 | 发现问题 | 处置 |
+|---|---|---|
+| Homebrew tap | formula 的 sha256 来自**另一次构建**（tar/gzip 写入 mtime，同版本重建就变），与 gitee 上的产物对不上 | 从 `dist/checksums.txt`（已与线上产物逐条核对）重推 tap；`brew install` 实测通过，装出的二进制与发布产物 sha256 一致 |
+| Scoop bucket | 同样问题，两个架构的 hash 都不对；另外 `autoupdate` 的 URL 把 `v0.7.0` 钉死了（升版本后会 404） | 重推 manifest（hash 已对）；`gen-manifests.sh` 模板改成 `v$version` |
+| winget | 清单 hash 与线上 zip 一致 | 无需改（仍是草稿，等提交到 winget-pkgs） |
+| npm（官方 + npmmirror） | 7 个包的 `dist.integrity`/`dist.shasum` 两侧完全一致；`npm i -g` 两个源各实测一次 | 无需改 |
+| curl 一行（gitee） | **完全不校验哈希**就装 | 安装前拉 `checksums.txt` 对 sha256，不符退出码 4；`--skip-verify` 才能放行 |
+| `--from npm` / `--mirror cn` | 同样不校验 | 对 registry 的 `dist.shasum` 校验 sha1 |
+| 自托管 `--base` | 同样不校验 | 对 `<base>/v<ver>/checksums.txt` 校验 sha256 |
+| install.ps1 | ① 版本探测写死 `gitee.com/api/v5/repos/packnest/packnest`（404，且匿名 401）→ 默认通道直接装不上；② `-Mirror cn` 指向 `npmmirror /-/binary/packnest/...`（该路径不存在，404）；③ 不校验哈希 | 版本改为 npm registry 优先；`-Mirror cn` 改走 npm 平台包（`@packnest/win32-<arch>` + registry shasum 校验）；gitee/base 通道校验 `checksums.txt` sha256；新增 `-SkipVerify` |
+
+根因与硬化（防止再犯）：
+- `make release` 现在**可重复**：打包前 `touch -t $(SOURCE_DATE)`，tar 走 `tar -cf - | gzip -n`，zip 用 `-X`；
+  连跑两次构建 checksums 完全一致（已验证）。重发同版本不会再让清单与产物错位。
+- `scripts/verify-release.sh` + `make verify-release`：把已发布产物拉回来逐条对 `checksums.txt`。
+- `make publish-manifests` = `verify-release` → `gen-manifests.sh` → `release-taps.sh`，
+  "清单不能指向没验证过的 sha256" 变成 make 的依赖关系。
+- 顺手修了安装脚本里 `$VAR` 紧贴中文的写法（C locale 下 bash 会把多字节字符当成变量名的一部分，
+  报 `unbound variable`），全部改成 `${VAR}`；安装脚本已在 `LC_ALL=C` 下实测。
+
 ## 行数预算现状
 
 `cmd/` + `internal/`（不含 `*_test.go`、不含 `internal/testkit` 夹具）**8465 / 8500 行**，余量 35 行。

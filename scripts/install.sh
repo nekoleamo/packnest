@@ -12,6 +12,7 @@
 #                         例：--base https://static.example.com/packnest
 #   --version vX.Y.Z      指定版本（默认最新）
 #   --dir DIR             安装目录（默认 ~/.local/bin，无需 sudo）
+#   --skip-verify         跳过 sha256/sha1 校验（不推荐；只在拿不到校验和时用）
 #   --dry-run             只打印将要做什么
 #
 # 只要能 GET 到 <base>/v<版本>/packnest_<版本>_<os>_<arch>.tar.gz，就能装：
@@ -27,6 +28,19 @@ SCOPE="${PK_NPM_SCOPE:-@packnest}"
 VERSION=""
 DIR="${HOME}/.local/bin"
 DRY_RUN=0
+SKIP_VERIFY="${PK_SKIP_VERIFY:-0}"
+
+# 哈希：macOS 自带 shasum，Linux 一般是 sha256sum/sha1sum
+sha256_of() {
+  if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d' ' -f1
+  elif command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1
+  fi
+}
+sha1_of() {
+  if command -v shasum >/dev/null 2>&1; then shasum -a 1 "$1" | cut -d' ' -f1
+  elif command -v sha1sum >/dev/null 2>&1; then sha1sum "$1" | cut -d' ' -f1
+  fi
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -38,6 +52,7 @@ while [ $# -gt 0 ]; do
     --repo) GITEE_REPO="$2"; shift 2 ;;
     --version) VERSION="$2"; shift 2 ;;
     --dir) DIR="$2"; shift 2 ;;
+    --skip-verify) SKIP_VERIFY=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
     *) echo "未知参数: $1" >&2; exit 2 ;;
@@ -47,7 +62,7 @@ done
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$os" in
   darwin|linux) ;;
-  *) echo "不支持的 OS: $os（Windows 请用 install.ps1）" >&2; exit 2 ;;
+  *) echo "不支持的 OS: ${os}（Windows 请用 install.ps1）" >&2; exit 2 ;;
 esac
 arch=$(uname -m)
 case "$arch" in
@@ -74,12 +89,15 @@ if [ "$FROM" = "npm" ]; then
 import sys, json
 d = json.load(sys.stdin)
 ver = d["dist-tags"]["latest"]
+dist = d["versions"][ver]["dist"]
 print(ver)
-print(d["versions"][ver]["dist"]["tarball"])
+print(dist["tarball"])
+print(dist.get("shasum", ""))
 ' 2>/dev/null)
   if [ -n "$parsed" ]; then
     META_VER=$(printf '%s' "$parsed" | sed -n '1p')
     tarball=$(printf '%s' "$parsed" | sed -n '2p')
+    META_SHA1=$(printf '%s' "$parsed" | sed -n '3p')
     [ -z "$VERSION" ] && VERSION="$META_VER"
   else
     tarball=$(printf '%s' "$meta" | sed -n 's/.*"tarball":[ ]*"\([^"]*\)".*/\1/p' | tail -1)
@@ -92,6 +110,16 @@ print(d["versions"][ver]["dist"]["tarball"])
   [ "$DRY_RUN" -eq 1 ] && exit 0
   tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
   curl -fsSL --max-time 300 -o "$tmp/pkg.tgz" "$tarball"
+  if [ "$SKIP_VERIFY" -eq 0 ]; then
+    got=$(sha1_of "$tmp/pkg.tgz")
+    if [ -n "${META_SHA1:-}" ] && [ -n "$got" ]; then
+      [ "$got" = "$META_SHA1" ] || {
+        echo "sha1 校验失败（registry 声明 ${META_SHA1}，实际 ${got}）；确认来源可信后可加 --skip-verify" >&2; exit 4; }
+      echo "  校验：sha1 OK（registry dist.shasum）"
+    else
+      echo "  警告：拿不到 registry 的 shasum，跳过校验（不推荐）" >&2
+    fi
+  fi
   tar -xzf "$tmp/pkg.tgz" -C "$tmp"
   mkdir -p "$DIR"
   install -m 0755 "$tmp/package/bin/packnest" "$DIR/packnest"
@@ -138,6 +166,13 @@ else
   esac
 fi
 
+sums_url=""
+if [ -n "$BASE" ]; then
+  sums_url="${BASE%/}/v${VERSION}/checksums.txt"
+else
+  sums_url="https://gitee.com/${GITEE_REPO}/releases/download/v${VERSION}/checksums.txt"
+fi
+
 echo "将要安装 packnest ${VERSION}（${os}-${arch}）"
 echo "  来源: $url"
 echo "  目录: $DIR"
@@ -146,6 +181,18 @@ echo "  目录: $DIR"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 curl -fsSL --max-time 300 -o "$tmp/pk.tar.gz" "$url"
+if [ "$SKIP_VERIFY" -eq 0 ]; then
+  sums=$(curl -fsSL --max-time 60 "$sums_url" 2>/dev/null || true)
+  want=$(printf '%s\n' "$sums" | awk -v f="${name}.tar.gz" '$2==f {print $1; exit}')
+  got=$(sha256_of "$tmp/pk.tar.gz")
+  if [ -z "$want" ] || [ -z "$got" ]; then
+    echo "拿不到 ${name}.tar.gz 的 sha256（${sums_url}）；确认来源可信后可加 --skip-verify" >&2
+    exit 4
+  fi
+  [ "$want" = "$got" ] || {
+    echo "sha256 校验失败：期望 ${want}，实际 ${got}（产物可能被篡改或损坏）" >&2; exit 4; }
+  echo "  校验：sha256 OK（checksums.txt）"
+fi
 tar -xzf "$tmp/pk.tar.gz" -C "$tmp"
 mkdir -p "$DIR"
 install -m 0755 "$tmp/packnest" "$DIR/packnest"

@@ -75,8 +75,8 @@ cat > packaging/scoop/packnest.json <<JSON
   "checkver": { "url": "https://gitee.com/$REPO/releases", "regex": "v([\\\\d.]+)" },
   "autoupdate": {
     "architecture": {
-      "64bit": { "url": "$BASE/packnest_\$version_windows_amd64.zip" },
-      "arm64": { "url": "$BASE/packnest_\$version_windows_arm64.zip" }
+      "64bit": { "url": "https://gitee.com/$REPO/releases/download/v\$version/packnest_\$version_windows_amd64.zip" },
+      "arm64": { "url": "https://gitee.com/$REPO/releases/download/v\$version/packnest_\$version_windows_arm64.zip" }
     }
   }
 }
