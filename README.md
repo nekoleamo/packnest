@@ -47,6 +47,7 @@ pk list                     # 已装工具（* 是当前全局默认，带占用
 pk list --available         # 各工具最新可装版本（索引 24h 缓存，离线可读；--refresh 强制回源）
 pk which node               # shim 指到哪个真实二进制
 pk use node@22.23.4         # 切换全局默认版本
+pk use node@22.22.2 --project   # 固定到当前项目（写 pk.toml + pk.lock，不动全局）
 pk env --shell zsh          # 输出 PATH/registry 片段；--write 写进 rc 托管块
 pk doctor                   # 环境体检（PATH / 台账 / 镜像 / 全局包 / 其他管理器）
 pk gc --dry-run             # 零引用版本与超限缓存的回收预演
@@ -80,16 +81,19 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式，不�
 
 ## 全局 vs 项目级
 
-**没有 `--global` / `--project` 开关**，作用域由当前目录决定：
+`install` 的**作用域由当前目录决定**；`use` 用开关显式指定作用域：
 
-| 场景 | 行为 |
+| 动作 | 行为 |
 |---|---|
-| 当前目录**没有** `pk.toml` | 装进共享目录 `~/.packnest/tools/<tool>/<ver>`；该工具还没有全局默认时**自动设为默认** |
-| 当前目录**有** `pk.toml` | 按声明安装，并生成/更新 `pk.lock`（项目级锁定） |
-| `pk use node@X` | 显式改全局默认（配置 + 台账引用 + 重指 shim 三处同步） |
+| `pk install`（目录**没有** `pk.toml`） | 装进共享目录 `~/.packnest/tools/<tool>/<ver>`；该工具还没有全局默认时**自动设为默认** |
+| `pk install`（目录**有** `pk.toml`） | 按声明安装，并生成/更新 `pk.lock`（项目级锁定） |
+| `pk use node@22.22.2` | 固定**全局**默认（config.toml + 台账引用 + 重指 shim 三处同步） |
+| `pk use node@22.22.2 --project` | 固定**项目**：写当前目录 `pk.toml` + 重新生成 `pk.lock`，不动全局默认 |
+| `pk use --lock` | 只按现有 `pk.toml` 刷新 `pk.lock`（不切版本、不装东西；用 `latest`/`lts` 后用它对冲别名漂移） |
 | `pk env --project` | 在项目内把锁定版本前置到 PATH（配合 direnv，实现"项目级覆盖全局默认"） |
 
 磁盘上永远只有一份，项目级只体现「锁定 + PATH 顺序」，不复制副本。
+`pk.toml` 的写入是**文本级合并**：保留你手写的注释、分段与顺序。
 
 ## 工程约束（写死为门禁）
 
@@ -130,7 +134,8 @@ npm  = "auto"
 ```
 
 `pk install` 会生成 `pk.lock`（只写 version/sha256/source，不写 URL → 换镜像不影响锁）。
-CI 里 `pk install --frozen` 严格按锁安装，清单与锁不一致即非 0 退出。
+日常改版本用 `pk use node@X --project`（一条命令同时改清单和锁），只改锁用 `pk use --lock`。
+CI 里 `pk install --frozen` 严格按锁安装，清单与锁不一致即非 0 退出（别名也会被拒，必须先钉住）。
 
 ## 开发
 
