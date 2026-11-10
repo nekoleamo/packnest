@@ -154,6 +154,12 @@ func (a *app) cmdInstall(args []string) int {
 	if err := a.ensureSelfShims(); err != nil {
 		return a.fail(err)
 	}
+	// 装完第一件要告诉用户的事：bin 目录在不在 PATH（否则 node/npm 这些命令还用不了）
+	if !a.json && !*quiet && !inPath(a.paths.Bin()) {
+		fmt.Fprintf(a.out, "\n提示：%s 不在 PATH，node/npm 等命令还不能直接用。\n", a.paths.Bin())
+		fmt.Fprintln(a.out, "      运行一次 `pk env --write` 即可（写进 rc 的托管块，块外内容不动），或临时：")
+		fmt.Fprintf(a.out, "      eval \"$(pk env --shell %s)\"\n", detectShell())
+	}
 	if failed {
 		return jsonout.ExitFail
 	}
@@ -274,6 +280,16 @@ func splitToolVersion(arg string) (string, string, error) {
 		return "", "", fmt.Errorf("需要精确版本: pk uninstall <工具>@<版本>（得到 %q）", arg)
 	}
 	return arg[:idx], arg[idx+1:], nil
+}
+
+// inPath 判断目录是否已在 PATH 里。
+func inPath(dir string) bool {
+	for _, seg := range splitPath(os.Getenv("PATH")) {
+		if seg == dir {
+			return true
+		}
+	}
+	return false
 }
 
 // cwd 返回当前目录（调试/测试可用 PK_CWD 覆盖）。

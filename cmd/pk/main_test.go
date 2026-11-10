@@ -855,3 +855,14 @@ func TestScanForeignManagersEmpty(t *testing.T) {
 		t.Fatalf("空 PATH 应返回空: %+v", got)
 	}
 }
+
+func TestInPath(t *testing.T) {
+	t.Setenv("PATH", "/a"+string(os.PathListSeparator)+"/b")
+	if !inPath("/a") || inPath("/c") {
+		t.Fatalf("inPath 判断错误")
+	}
+	t.Setenv("PATH", "")
+	if inPath("/a") {
+		t.Fatal("空 PATH 应返回 false")
+	}
+}
