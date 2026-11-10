@@ -70,7 +70,9 @@ var commandHelp = map[string]string{
   输出 shell 片段（PATH 三段 + registry/共享前缀变量）。
   默认只打印不落盘；--write 才写进 rc 的托管块（幂等，块外内容不动）。
   --completion bash|zsh|powershell 输出补全脚本：eval "$(pk env --completion zsh)"
-  --rc PATH   指定写入的 rc 文件（默认按 $SHELL 猜）`,
+  --rc PATH   指定写入的 rc 文件（默认按 $SHELL 猜）
+  --project   把 pk.toml/pk.lock 锁定的版本前置到 PATH（项目级覆盖全局默认）：
+              echo 'eval "$(pk env --project)"' > .envrc && direnv allow`,
 
 	"gc": `pk gc [--dry-run] [--cache-max 5GB] [--json]
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/packnest/packnest/internal/env"
+	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/mirror"
 	"github.com/packnest/packnest/internal/provider"
@@ -211,6 +212,7 @@ func (a *app) cmdEnv(args []string) int {
 	unset := fs.Bool("unset", false, "删掉 rc 里的托管块")
 	completion := fs.String("completion", "", "输出 shell 补全脚本: bash|zsh|powershell")
 	rcFile := fs.String("rc", "", "写哪个 rc 文件（默认按 $SHELL 猜，如 ~/.zshrc）")
+	projectScope := fs.Bool("project", false, "输出项目级环境：把 pk.toml/pk.lock 锁定的版本目录前置到 PATH（配合 direnv 用）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -235,6 +237,18 @@ func (a *app) cmdEnv(args []string) int {
 	}
 	vars = mergeVars(vars)
 
+	pathSegs := a.paths.PathSegments()
+	if *projectScope {
+		projectSegs, err := a.projectPathSegments()
+		if err != nil {
+			return a.fail(err)
+		}
+		if len(projectSegs) == 0 {
+			fmt.Fprintln(a.errOut, "pk: 当前目录没有 pk.toml，或锁定的工具还没安装")
+		}
+		pathSegs = append(projectSegs, pathSegs...)
+	}
+
 	if *write || *unset {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -253,7 +267,7 @@ func (a *app) cmdEnv(args []string) int {
 			}
 			return jsonout.ExitOK
 		}
-		block := env.ExportScript(vars, a.paths.PathSegments(), sh)
+		block := env.ExportScript(vars, pathSegs, sh)
 		if err := env.WriteManagedBlock(rc, block); err != nil {
 			return a.fail(err)
 		}
@@ -284,7 +298,7 @@ func (a *app) cmdEnv(args []string) int {
 			ScriptHint: "eval \"$(pk env --shell " + string(sh) + ")\"",
 		})
 	}
-	fmt.Fprint(a.out, env.ExportScript(vars, a.paths.PathSegments(), sh))
+	fmt.Fprint(a.out, env.ExportScript(vars, pathSegs, sh))
 	return jsonout.ExitOK
 }
 
@@ -379,4 +393,45 @@ func contains2(list []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// projectPathSegments 读取当前目录的 pk.toml / pk.lock，返回项目锁定版本的 bin 目录。
+//
+// 用法：项目里 `.envrc` 写 `eval "$(pk env --project)"`，direnv 会在 cd 进来时把该项目的
+// node/pnpm 等前置到 PATH —— 这就是"项目级覆盖全局默认"的落地方式，不必把 shim 改成
+// 每次调用都跑一遍解析的壳脚本（那会给每个 node 调用加几毫秒）。
+func (a *app) projectPathSegments() ([]string, error) {
+	project, err := install.LoadProject(a.cwd())
+	if err != nil || len(project) == 0 {
+		return nil, err
+	}
+	lock, err := install.LoadLock(a.cwd())
+	if err != nil {
+		return nil, err
+	}
+	ledger, err := store.LoadLedger(a.paths.Ledger())
+	if err != nil {
+		return nil, err
+	}
+	var segs []string
+	for tool := range project {
+		if tool == "npm" {
+			continue // npm 跟着 node 的 prefix 走
+		}
+		version := ""
+		if entry, ok := lock.Find(tool); ok {
+			version = entry.Version
+		} else if v := a.cfg.Tools[tool]; v != "" {
+			version = v
+		}
+		if version == "" {
+			continue
+		}
+		in := ledger.Find(tool, version)
+		if in == nil {
+			continue // 锁了但还没装：跳过，不阻断其余工具
+		}
+		segs = append(segs, filepath.Join(in.Path, "bin"))
+	}
+	return segs, nil
 }

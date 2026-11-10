@@ -866,3 +866,37 @@ func TestInPath(t *testing.T) {
 		t.Fatal("空 PATH 应返回 false")
 	}
 }
+
+func TestEnvProject(t *testing.T) {
+	fm := setupFakeMirror(t)
+	root := t.TempDir()
+	proj := t.TempDir()
+	// 项目里锁定 node 22
+	if err := os.WriteFile(filepath.Join(proj, "pk.toml"), []byte("[tools]\nnode = \"22.99.99\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PK_CWD", proj)
+	if code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99"); code != 0 {
+		t.Fatalf("安装失败: %d %s", code, errOut)
+	}
+	_ = fm
+
+	code, out, _ := execCLI(t, "--root", root, "env", "--project")
+	if code != 0 {
+		t.Fatalf("env --project 退出码 %d", code)
+	}
+	if !strings.Contains(out, "tools/node/22.99.99/bin") {
+		t.Fatalf("项目 bin 应前置到 PATH:\n%s", out)
+	}
+	// 项目 bin 必须在最前
+	first := strings.SplitN(out, "\n", 2)[0]
+	if !strings.Contains(first, "tools/node/22.99.99/bin") {
+		t.Fatalf("项目路径应在 PATH 最前，实际第一行: %q", first)
+	}
+	// 没有 pk.toml 的目录：给提示且不报错
+	t.Setenv("PK_CWD", t.TempDir())
+	code, _, errOut := execCLI(t, "--root", root, "env", "--project")
+	if code != 0 || !strings.Contains(errOut, "没有 pk.toml") {
+		t.Fatalf("无项目时应提示: %d %q", code, errOut)
+	}
+}
