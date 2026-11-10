@@ -117,7 +117,7 @@ func (p Paths) GlobalPnpmBin() string { return p.join("global", "pnpm") }
 // GlobalBunBin 是 BUN_INSTALL 对应的 bin 目录。
 func (p Paths) GlobalBunBin() string { return p.join("global", "bun", "bin") }
 
-// PathSegments 返回固定顺序的三段 PATH（方案 §6.7，doctor 会断言顺序）。
+// PathSegments 返回固定顺序的四段 PATH（方案 §6.7，doctor 会断言顺序）。
 func (p Paths) PathSegments() []string {
 	return []string{p.Bin(), p.GlobalBin(), p.GlobalPnpmBin(), p.GlobalBunBin()}
 }

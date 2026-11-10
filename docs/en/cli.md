@@ -111,6 +111,7 @@ $ pk install --frozen
 | Flag | Effect |
 |---|---|
 | `--insecure` | allow an install whose checksums cannot be cross-verified; marked `unverified` and **not** written to the TOFU table |
+| `--force-rehash` | ignore the local TOFU record, re-evaluate against the checksum sources and overwrite that entry |
 | `--force` | reinstall a version that already exists |
 | `--force-rehash` | ignore the local TOFU record, re-evaluate against the checksum sources and overwrite that entry (use when upstream re-published an artifact, or the table went stale) |
 | `--quiet` | errors only, no progress |
@@ -271,6 +272,8 @@ pk env [--shell bash|zsh|sh|powershell] [--write] [--unset] [--completion SHELL]
 ```bash
 $ pk env --shell zsh               # print only, nothing on disk
 $ pk env --write                   # write the managed block into your rc (idempotent)
+                                   # Windows: PATH goes to the user Path registry value (immune to
+                                   # ExecutionPolicy); the other vars go to the PowerShell profile
 $ pk env --unset                   # remove that block again
 $ pk env --completion zsh          # shell completion: eval "$(pk env --completion zsh)"
 $ pk env --project                 # put the locked project versions first on PATH (direnv)
@@ -293,7 +296,7 @@ the disk.
 ## 10. version / help
 
 ```bash
-$ pk version          # packnest v0.7.0 (go1.27.3, darwin/arm64)
+$ pk version          # packnest v0.7.x (go1.27.3, darwin/arm64)
 $ pk version --json   # {schema, name, version, go, os, arch}
 $ pk help install     # per-command help
 ```

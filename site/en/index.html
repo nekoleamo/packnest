@@ -105,7 +105,7 @@
     <dt>Checksums</dt>
     <dd>The first install requires <b>at least two sources to agree on the digest</b> and records it in a TOFU table; every later install of that version verifies fully offline. If sources disagree it fails hard and tells you which source the artifact actually matches.</dd>
     <dt>Uninstall</dt>
-    <dd>The ledger is the only source of truth: only directories it recorded are removed, version switches are atomic shim re-points, and uninstalls leave zero residue.</dd>
+    <dd>The ledger is the only source of truth: only directories it recorded are removed, version switches are atomic shim re-points, and uninstalls leave zero residue. <b><code>pk uninstall --all --self</code> removes pk itself too</b> (delayed delete on Windows).</dd>
     <dt>Footprint</dt>
     <dd>One Go binary with <code>CGO_ENABLED=0</code>, built for six targets, depending on exactly two third-party libraries (semver, toml).</dd>
   </dl>
@@ -133,13 +133,13 @@
     <thead><tr><th>command</th><th>what it does</th></tr></thead>
     <tbody>
       <tr><td>install</td><td>installs a tool; with no argument installs everything in the local <code>pk.toml</code> and refreshes <code>pk.lock</code></td></tr>
-      <tr><td>uninstall</td><td>ledger-driven uninstall (referenced versions need <code>--force</code>)</td></tr>
+      <tr><td>uninstall</td><td><code>tool@version</code> one; <code>tool</code> every version (lists them, then asks); <code>--all</code> everything (<code>--purge</code> the root, <code>--self</code> the binary)</td></tr>
       <tr><td>use</td><td>switches the global default; <code>--project</code> pins it for the current project</td></tr>
-      <tr><td>list</td><td>installed tools with disk usage; <code>--available</code> lists the latest installable version per tool</td></tr>
+      <tr><td>list</td><td>installed tools with disk usage; <code>pk list node</code> browses every installable version (<code>--major 22</code> / <code>--all</code>)</td></tr>
       <tr><td>which</td><td>resolves a shim back to the real binary path</td></tr>
       <tr><td>mirror</td><td>four subcommands — <code>list</code> / <code>probe</code> / <code>use</code> / <code>write</code> — manage mirror profiles</td></tr>
       <tr><td>doctor</td><td>checks PATH, ledger, mirrors, global packages and other version managers</td></tr>
-      <tr><td>env</td><td>prints a shell snippet; only <code>--write</code> touches the managed block in your rc</td></tr>
+      <tr><td>env</td><td>prints a shell snippet; <code>--write</code> updates the managed block (on Windows the user Path registry value, immune to ExecutionPolicy)</td></tr>
       <tr><td>gc</td><td>reclaims unreferenced versions and over-limit cache</td></tr>
     </tbody>
   </table>

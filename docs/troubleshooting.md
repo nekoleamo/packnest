@@ -96,7 +96,7 @@ pk env --shell powershell | Invoke-Expression
 pk which node          # shim 指到哪个真实二进制
 pk list                # * 是当前全局默认
 pk use node@22.22.2    # 切默认（只会切到已安装的）
-pk env --shell bash    # 看 PATH 三段与 registry 变量
+pk env --shell bash    # 看 PATH 四段与 registry 变量
 ```
 
 - `PATH_ORDER`：`~/.packnest/bin` 必须**在 PATH 最前**，否则会被系统/其他管理器的 node 抢。

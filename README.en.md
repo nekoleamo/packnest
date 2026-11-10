@@ -50,7 +50,8 @@ mismatch exits with code 4. The PowerShell script uses `-Mirror` / `-Base` / `-V
 ```bash
 pk install node@22          # install Node and swap in the newest compatible npm
 pk list                     # installed tools (* = global default, with disk usage)
-pk list node                # one tool: installed + installable versions (one per line, newest last)
+pk list node                # one tool: installed + installable versions (grouped grid when long)
+pk list node --major 22     # every 22.x; --all for the whole list
 pk list --available         # newest installable version per tool (24h cache, offline-readable)
 pk which node               # which real binary a shim resolves to
 pk use node@22.23.4         # switch the global default
@@ -60,9 +61,9 @@ pk doctor                   # health check (PATH / ledger / mirrors / global pac
 pk gc --dry-run             # dry-run the reclamation of unreferenced versions and cache
 ```
 
-Nine fixed commands: `install` · `uninstall` · `use` · `list` · `which` · `mirror`
-(list/probe/use/write) · `doctor` · `env` · `gc`, plus `version` / `help`
-(`pk help install` documents each one).
+Nine fixed commands: `install` · `uninstall` (`<tool>[@<version>]` / `--all`) · `use` ·
+`list` (`[tool]` / `--available`) · `which` · `mirror` (list/probe/use/write) · `doctor` · `env` · `gc`,
+plus `version` / `help` (`pk help install` documents each one).
 
 Global flags: `--json` (the only contract for GUIs and scripts) · `--offline` · `--yes` ·
 `--root` (debug). Fixed exit codes: `0` ok / `1` generic / `2` usage / `3` network / `4` checksum /

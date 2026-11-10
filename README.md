@@ -50,7 +50,8 @@ registry 的 `dist.shasum`），对不上退出码 4。PowerShell 版参数名�
 ```bash
 pk install node@22          # 装 node，并自动替换成最新兼容的 npm
 pk list                     # 已装工具（* 是当前全局默认，带占用空间）
-pk list node                # 只看 node：已装 + 可装版本（一版一行，最新在最下面）
+pk list node                # 只看 node：已装 + 可装版本（版本多时自动按大版本分组网格）
+pk list node --major 22     # 只看 22.x 的全部版本；--all 不截断
 pk list --available         # 各工具最新可装版本（索引 24h 缓存，离线可读；--refresh 强制回源）
 pk which node               # shim 指到哪个真实二进制
 pk use node@22.23.4         # 切换全局默认版本
@@ -60,8 +61,9 @@ pk doctor                   # 环境体检（PATH / 台账 / 镜像 / 全局包 
 pk gc --dry-run             # 零引用版本与超限缓存的回收预演
 ```
 
-命令面固定 9 个：`install` · `uninstall` · `use` · `list` · `which` · `mirror`（list/probe/use/write）·
-`doctor` · `env` · `gc`，另加 `version` / `help`（`pk help install` 有逐命令详解）。
+命令面固定 9 个：`install` · `uninstall`（`<工具>[@<版本>]` / `--all`）· `use` · `list`（`[工具]` / `--available`）·
+`which` · `mirror`（list/probe/use/write）· `doctor` · `env` · `gc`，另加 `version` / `help`
+（`pk help install` 有逐命令详解）。
 
 全局开关：`--json`（GUI 与脚本的唯一契约）· `--offline` · `--yes` · `--root`（调试）。
 退出码固定：`0` 成功 / `1` 通用 / `2` 用法 / `3` 网络 / `4` 校验 / `5` 锁被占用。

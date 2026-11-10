@@ -108,7 +108,7 @@ func ParseShell(name string) (Shell, error) {
 	return "", fmt.Errorf("不支持的 shell %q（支持 bash/zsh/sh/powershell）", name)
 }
 
-// ExportScript 生成可 eval 的片段：先 prepend PATH 三段，再 export 变量。
+// ExportScript 生成可 eval 的片段：先 prepend PATH 四段，再 export 变量。
 func ExportScript(vars []KV, pathSegs []string, shell Shell) string {
 	var b strings.Builder
 	switch shell {

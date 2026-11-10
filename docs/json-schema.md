@@ -10,6 +10,8 @@
 3. 数组字段永远输出 `[]` 而不是 `null`（脚本不需要判空）。
 4. 空值字段用 `omitempty` 省略（如 `bytes`、`source`）。
 5. 退出码固定：`0` 成功 / `1` 通用失败 / `2` 用法 / `3` 网络 / `4` 校验 / `5` 锁被占用。
+6. **破坏性命令在 `--json` 下不做交互确认**（`uninstall <工具>`、`uninstall --all`）：
+   没有 `--yes` 就退出 1，绝不因为"没人按 y"而卡住脚本。
 
 ## 文档型输出（单个 JSON）
 
@@ -25,7 +27,11 @@
 | `pk mirror list --json` | 内联结构 | `current`、`mirrors[].{name,display,registry,current}` |
 | `pk mirror probe --json` | 内联结构 | `results[].{url,ok,status,latency_ms,checked_at,err}` |
 | `pk env --json` | 内联结构 | `shell,path[],env[].{key,value},script_hint` |
-| `pk env --write --json` | 内联结构 | `rc,block` |
+| `pk list <工具> --json` | 内联结构 | `tool,latest,lts,total,installed[].{version,active},available[].{version,lts,installed},stale` |
+| `pk uninstall <工具> --json`（不带版本 = 删全部） | 内联结构 | `tool,removed[]`，失败时带 `error` |
+| `pk uninstall --all --json` | 内联结构 | `removed[],purged,root,channel,self_hint,failures[]`（`channel ∈ brew/npm/scoop/winget/script/script-posix/script-windows/manual`） |
+| `pk env --write --json` | 内联结构 | `rc`（首个）、`rcs[]`（全部；Windows 上 5.1 与 7 两份都写）、`block` |
+| `pk env --unset --json` | 无输出 | 只返回退出码（清理是幂等的） |
 
 ## 事件流（NDJSON，`pk install --json`）
 

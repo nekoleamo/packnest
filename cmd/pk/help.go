@@ -30,7 +30,7 @@ var commandHelp = map[string]string{
     --quiet     只报错，不打印进度与结果
   退出码：0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用`,
 
-	"uninstall": `pk uninstall <工具>@<版本> [--force]
+	"uninstall": `pk uninstall <工具>[@<版本>] [--force]
 pk uninstall --all [--purge] [--keep-cache] [--yes]
 
   单个：台账驱动卸载，只删台账里记录过的目录（不在台账里的只提示不删）；
@@ -89,7 +89,7 @@ pk use --lock
 
 	"env": `pk env [--shell bash|zsh|sh|powershell] [--write] [--unset] [--completion SHELL] [--json]
 
-  输出 shell 片段（PATH 三段 + registry/共享前缀变量）。
+  输出 shell 片段（PATH 四段 + registry/共享前缀变量）。
   默认只打印不落盘；--write 才写进 rc 的托管块（幂等，块外内容不动）。
   --completion bash|zsh|powershell 输出补全脚本：eval "$(pk env --completion zsh)"
   --rc PATH   指定写入的 rc 文件（默认按 $SHELL 猜）

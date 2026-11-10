@@ -104,7 +104,7 @@
     <dt>校验</dt>
     <dd>首次安装要求<b>至少两个源给出相同摘要</b>并写进 TOFU 表，之后同一版本完全离线可验证；源之间矛盾时硬失败，并告诉你产物与哪个源一致。</dd>
     <dt>卸载</dt>
-    <dd>台账是唯一事实源：只删自己记录过的目录，切版本靠 shim 原子重指，卸载回到零残留。</dd>
+    <dd>台账是唯一事实源：只删自己记录过的目录，切版本靠 shim 原子重指，卸载回到零残留；<b><code>pk uninstall --all --self</code> 连 pk 自己一起清</b>（Windows 上延时删除）。</dd>
     <dt>体积</dt>
     <dd>单个 Go 二进制，<code>CGO_ENABLED=0</code>，六平台构建，只依赖两个第三方库（semver、toml）。</dd>
   </dl>
@@ -132,13 +132,13 @@
     <thead><tr><th>命令</th><th>做什么</th></tr></thead>
     <tbody>
       <tr><td>install</td><td>装工具；无参数时按当前目录的 <code>pk.toml</code> 全装并刷新 <code>pk.lock</code></td></tr>
-      <tr><td>uninstall</td><td>台账驱动卸载（被引用的版本需要 <code>--force</code>）</td></tr>
+      <tr><td>uninstall</td><td><code>工具@版本</code> 删一个；<code>工具</code> 删该工具全部版本（先列版本再确认）；<code>--all</code> 清掉一切（<code>--purge</code> 连根删、<code>--self</code> 连自己）</td></tr>
       <tr><td>use</td><td>切换全局默认版本；<code>--project</code> 固定到当前项目</td></tr>
-      <tr><td>list</td><td>已装工具与占用空间；<code>--available</code> 列各工具最新可装版本</td></tr>
+      <tr><td>list</td><td>已装工具与占用空间；<code>pk list node</code> 看单个工具的全部可装版本（<code>--major 22</code> / <code>--all</code>）</td></tr>
       <tr><td>which</td><td>把 shim 解析回真实二进制路径</td></tr>
       <tr><td>mirror</td><td><code>list</code> / <code>probe</code> / <code>use</code> / <code>write</code> 四个子命令管理镜像档</td></tr>
       <tr><td>doctor</td><td>体检 PATH、台账、镜像、全局包、其他版本管理器</td></tr>
-      <tr><td>env</td><td>输出 shell 片段；<code>--write</code> 才写进 rc 的托管块</td></tr>
+      <tr><td>env</td><td>输出 shell 片段；<code>--write</code> 写进托管块（Windows 走注册表用户 Path，不受执行策略限制）</td></tr>
       <tr><td>gc</td><td>回收零引用版本与超限缓存</td></tr>
     </tbody>
   </table>
@@ -147,7 +147,7 @@
 
 <section class="en" lang="en">
   <h2>In English</h2>
-  <p>packnest (command <code>pk</code>) installs Node/npm/pnpm/bun/deno/Go/Python as a single zero-CGO Go binary for six platforms, with only two third-party dependencies. It ships China mirror presets plus real reachability probing, pairs the newest npm compatible with the exact Node version being installed, verifies artifacts against multiple checksum sources (TOFU, offline-verifiable afterwards), and uninstalls back to zero residue.
+  <p>packnest (command <code>pk</code>) installs Node/npm/pnpm/bun/deno/Go/Python as a single zero-CGO Go binary for six platforms, with only two third-party dependencies. It ships China mirror presets plus real reachability probing, pairs the newest npm compatible with the exact Node version being installed, verifies artifacts against multiple checksum sources (TOFU, offline-verifiable afterwards), and uninstalls back to zero residue — <code>pk uninstall --all --self</code> even removes pk itself.
   <br>Install: <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh</code> (Windows: <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex</code>) — or via npm: <code>npm i -g packnest</code>.</p>
 </section>
 

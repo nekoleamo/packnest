@@ -86,7 +86,7 @@ func TestExportScriptPOSIX(t *testing.T) {
 			t.Errorf("片段缺少 %q:\n%s", want, script)
 		}
 	}
-	// PATH 三段顺序固定：bin 在最前。
+	// PATH 四段顺序固定：bin 在最前。
 	first := strings.Index(script, "export PATH=")
 	if first < 0 || !strings.Contains(script[first:first+60], "/root dir/bin") {
 		t.Errorf("bin 必须在 PATH 最前:\n%s", script)

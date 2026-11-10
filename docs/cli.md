@@ -55,7 +55,7 @@ v22.23.4
 ## 1. install — 安装运行时
 
 ```bash
-pk install [工具[@版本]]... [--dry-run] [--frozen] [--insecure] [--force] [--quiet]
+pk install [工具[@版本]]... [--dry-run] [--frozen] [--insecure] [--force] [--force-rehash] [--quiet]
 ```
 
 ### 1.1 版本写法
@@ -138,6 +138,7 @@ pk: 清单与 pk.lock 不一致（--frozen 不做解析）：
 pk install node@22 --force      # 重装已存在的版本
 pk install node@22 --quiet      # 只报错，不打印进度
 pk install node@22 --insecure   # 允许无校验安装（标 unverified，不写 TOFU 表）
+pk install node@22 --force-rehash   # 忽略本地 TOFU 记录，重新向校验源求值并覆盖（上游重发过时用）
 pk install node@22 --json       # NDJSON 事件流（GUI/脚本用）
 ```
 
@@ -445,13 +446,13 @@ $ pk gc --json
 
 ```bash
 $ pk --version
-packnest v0.7.0 (go1.27.3, darwin/arm64)
+packnest v0.7.x (go1.27.3, darwin/arm64)
 
 $ pk --json version
 {
   "schema": 1,
   "name": "packnest",
-  "version": "0.7.0",
+  "version": "0.7.9",
   "go": "go1.27.3",
   "os": "darwin",
   "arch": "arm64"
