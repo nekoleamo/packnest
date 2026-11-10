@@ -283,6 +283,19 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
   现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
 
+## 0.7.9（2026-11-10）
+
+Windows `--self` 仍然删不掉（0.7.8 实测 `where.exe pk` 还在）。根因是 **Go 给 cmd.exe 拼参数**：
+把 `ping … & del "路径" & rd "路径"` 整串当一个参数传给 `exec.Command("cmd.exe", "/c", …)`，
+Go 按 Windows 规则加引号并把内部引号转义成 `\"…\"`，而 cmd.exe 不认反斜杠转义 —— 命令行被拼坏，
+cmd.exe 什么也没执行（错误还被 `>nul` 吞掉）。
+
+- 改为把要执行的命令写进 `%TEMP%\packnest-self-remove-*.cmd`，只把**文件路径**交给 cmd.exe
+- 脚本内容抽成纯函数 `selfRemoveScript`（可在任意平台单测）：只 `del` 自己的两个 exe，
+  再 `rd`（不带 /s）尝试删空目录，最后自删脚本，并往
+  `%TEMP%\packnest-self-remove.log` 写一行 REMOVED/FAILED 便于事后核对
+- 用 `CREATE_NO_WINDOW` 起子进程（比 DETACHED_PROCESS 更稳，cmd.exe 需要控制台）
+
 ## 0.7.8（2026-11-10）
 
 Windows 实测 `pk uninstall --all --yes --purge --self` 之后的两个残留：

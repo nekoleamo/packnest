@@ -3,17 +3,24 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 )
 
-// removeSelf 在 Windows 上没法直接删正在运行的 exe，改为**分离一个延时进程**来删。
+// removeSelf 在 Windows 上没法直接删正在运行的 exe，改为**安排一个延时删除**。
 //
-// 做法：起一个 DETACHED 的 cmd.exe，先躲过当前进程退出（ping 空转约 3 秒），
-// 再 rd /s /q 整个安装目录。当前进程随后立即 exit，文件句柄就释放了。
-// 这是无管理员权限下最稳的办法（MoveFileEx+DELAY_UNTIL_REBOOT 需要管理员）。
+// 走过的弯路（0.7.8 实测仍然失败）：直接把
+// `ping … & del "a b" & rd "c"` 整串交给 `exec.Command("cmd.exe", "/c", cmdLine)`。
+// Go 会按 Windows 规则给带空格的参数加引号并转义内部引号（`\"…\"`），而 cmd.exe 不认识
+// 反斜杠转义 —— 命令行被拼坏，cmd.exe 什么也没干（错误还被 >nul 吞了）。
+//
+// 现在的做法：把要执行的命令写成 %TEMP% 下的一个 .cmd 文件，只把**文件路径**交给 cmd.exe。
+// 路径里没有引号可拼错，脚本内部自己引用路径；脚本还会写一行日志到
+// %TEMP%\packnest-self-remove.log，方便"到底删没删"有据可查。
 func removeSelf(exe, goos string) (bool, string) {
 	if exe == "" {
 		return false, "拿不到自身路径"
@@ -22,19 +29,22 @@ func removeSelf(exe, goos string) (bool, string) {
 	if _, err := os.Stat(dir); err != nil {
 		return false, "安装目录不存在：" + dir
 	}
-	// 只删自己的两个 exe，然后尝试删**空**目录：
-	// 用户可能用 -Dir 指到共享目录（C:\Tools\bin），绝不能 rd /s 把别人的东西带走。
-	// /d 关掉 AutoRun；>nul 压掉 ping 的输出。
-	cmdLine := `ping -n 4 127.0.0.1 >nul & del /f /q "` + filepath.Join(dir, "pk.exe") + `" "` +
-		filepath.Join(dir, "packnest.exe") + `" >nul 2>&1 & rd "` + dir + `" >nul 2>&1`
-	c := exec.Command("cmd.exe", "/d", "/c", cmdLine)
+
+	bat := filepath.Join(os.TempDir(), fmt.Sprintf("packnest-self-remove-%d.cmd", time.Now().UnixNano()))
+	if err := os.WriteFile(bat, []byte(selfRemoveScript(dir, bat)), 0o600); err != nil {
+		return false, "写临时删除脚本失败: " + err.Error()
+	}
+
+	c := exec.Command("cmd.exe", "/d", "/c", bat)
 	c.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
-		CreationFlags: 0x00000008, // DETACHED_PROCESS：不跟着本进程退出
+		CreationFlags: 0x08000000, // CREATE_NO_WINDOW：无窗口，且不随父进程退出
 	}
 	if err := c.Start(); err != nil {
+		_ = os.Remove(bat)
 		return false, "启动延时删除进程失败: " + err.Error()
 	}
 	_ = c.Process.Release()
-	return true, "已安排延时删除 " + dir + "（当前窗口关掉后约 3 秒生效）"
+	return true, "已安排延时删除 " + filepath.Join(dir, "pk.exe") +
+		"（约 3 秒后生效；结果记在 %TEMP%\\packnest-self-remove.log）"
 }

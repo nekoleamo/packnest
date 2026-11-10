@@ -141,6 +141,13 @@ released), deletes `pk.exe` / `packnest.exe` in the install directory, and remov
 ends up empty. It deletes **only those two files — never `rd /s` the whole directory**, because you may
 have installed with `-Dir` into a shared folder.
 
+**Why 0.7.8 still left it behind**: the old build handed the whole
+`ping … & del "path" & rd "path"` string to `cmd.exe /c`. Go quotes arguments that contain spaces
+and escapes embedded quotes as `\"…\"`, which cmd.exe does not understand — the command line was
+mangled and cmd.exe did nothing (with the error swallowed by `>nul`). Since 0.7.9 the commands are
+written to `%TEMP%\packnest-self-remove-*.cmd` and only the **file path** is passed to cmd.exe.
+Check `%TEMP%\packnest-self-remove.log` for a REMOVED/FAILED line.
+
 If it is still there after a few seconds (rare — something still holds the file):
 
 ```powershell

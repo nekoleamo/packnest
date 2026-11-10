@@ -146,6 +146,13 @@ Windows 不允许删正在运行的程序，所以 `--self` 不是"立刻删"，
 `pk.exe` / `packnest.exe`，目录空了再一并移除。**只删这两个文件，绝不 `rd /s` 整个目录**
 （你可能用 `-Dir` 指到了共享目录，比如 `C:\Tools\bin`）。
 
+**为什么 0.7.8 那次没删掉**：旧实现把 `ping … & del "路径" & rd "路径"` 整串交给
+`cmd.exe /c`，而 Go 会按 Windows 规则给带空格的参数加引号、把内部引号转义成 `\"…\"`，
+cmd.exe 不认识反斜杠转义 —— 命令行被拼坏，cmd.exe 什么都没做（错误还被 `>nul` 吞了）。
+0.7.9 起改成把命令写成 `%TEMP%\packnest-self-remove-*.cmd`，只把**文件路径**交给 cmd.exe。
+
+排查有没有真的执行：看 `%TEMP%\packnest-self-remove.log`（每次会写一行 REMOVED / FAILED）。
+
 如果 3 秒后还在（极少见，通常是某个进程仍占着文件）：
 
 ```powershell

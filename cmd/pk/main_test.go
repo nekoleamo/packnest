@@ -1433,3 +1433,27 @@ func TestUninstallAllSelf(t *testing.T) {
 		t.Fatalf("应给出 install.json 记录的目录:\n%s", out)
 	}
 }
+
+// Windows 自删脚本：只删自己的两个 exe + 尝试删空目录 + 写日志（不 rd /s 整目录）。
+func TestSelfRemoveScript(t *testing.T) {
+	dir := `C:\Users\me\AppData\Local\packnest\bin`
+	script := selfRemoveScript(dir, `C:\Temp\x.cmd`)
+	for _, want := range []string{
+		`set "DIR=` + dir + `"`,
+		`del /f /q "%DIR%\pk.exe"`,
+		`del /f /q "%DIR%\packnest.exe"`,
+		`rd "%DIR%"`,
+		`packnest-self-remove.log`,
+		`del /f /q "%~f0"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("脚本缺少 %q:\n%s", want, script)
+		}
+	}
+	if strings.Contains(script, "rd /s") {
+		t.Error("绝不能 rd /s：-Dir 可能指到共享目录")
+	}
+	if !strings.HasPrefix(script, "@echo off") {
+		t.Error("应该是可执行的 .cmd（@echo off 开头）")
+	}
+}
