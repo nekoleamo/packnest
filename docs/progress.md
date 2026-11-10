@@ -283,6 +283,20 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
   现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
 
+## 0.7.5（2026-11-10）
+
+`pk list <工具>` 版本多时的排版（用户："--all 列表仍不够美观"）：
+
+- **两种排版**：≤25 个版本仍然一版一行（右对齐 + `latest` / `lts: <代号>` / `已装` 标签，
+  且同一 LTS 代号只标一次）；更多时自动切换成**按大版本分组 + 多列网格**——
+  参考 `nvm ls-remote` / `pyenv install --list` 的"几百行没法看"困境，以及 `ls -C` /
+  `proto versions` 的分组表格思路
+- 网格列数按**终端宽度**算（`COLUMNS`，否则 ioctl `TIOCGWINSZ` / Windows
+  `GetConsoleScreenBufferInfo`），窄窗口 4 列、宽窗口 8 列自动适配
+- 网格里用单字符标记保持列对齐：`*` 最新 · `l` LTS · `+` 已装 · `@` 当前默认（带图例）
+- 新增 `--major N` 只看某个大版本（0.x 按 major.minor，如 `--major 0.10`），默认列该大版本全部；
+  Node 的 `0.1/0.10/0.12` 这种半代差异也分得开
+
 ## 0.7.4（2026-11-10）
 
 Windows 上第三个连环坑：`Restricted` 执行策略拒绝加载未签名 profile → 每个新窗口都报

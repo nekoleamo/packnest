@@ -23,6 +23,7 @@ func (a *app) cmdList(args []string) int {
 	refresh := fs.Bool("refresh", false, "忽略索引缓存，强制重新拉取（配合 --available / 工具名）")
 	all := fs.Bool("all", false, "配合工具名：列出全部可装版本（等于 --limit 0）")
 	limit := fs.Int("limit", 20, "配合工具名：只列最近 N 个版本（0 = 全部）")
+	major := fs.String("major", "", "配合工具名：只看某个大版本（如 --major 22；0.x 可写 0.10）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -31,13 +32,13 @@ func (a *app) cmdList(args []string) int {
 	}
 	if tool := fs.Arg(0); tool != "" {
 		n := *limit
-		if *all {
+		if *all || *major != "" {
 			n = 0
 		}
 		if n < 0 {
 			return a.failUsage(fmt.Errorf("--limit 不能为负数"))
 		}
-		return a.listToolVersions(tool, *refresh, n)
+		return a.listToolVersions(tool, *refresh, n, strings.TrimPrefix(*major, "v"))
 	}
 
 	ledger, recovered, err := store.LoadLedgerWithRecovery(a.paths.Ledger())
@@ -207,7 +208,7 @@ func (a *app) availableRows() []availableEntry {
 //
 // 单工具视图和 `--available` 的"每个工具一行"是两件事：这里要能看见完整版本集，
 // 而不是只有最新版和"近几个"。
-func (a *app) listToolVersions(name string, refresh bool, limit int) int {
+func (a *app) listToolVersions(name string, refresh bool, limit int, major string) int {
 	p, err := provider.Get(name)
 	if err != nil {
 		return a.fail(err) // provider.Get 的报错里已经列了可用工具
@@ -249,6 +250,19 @@ func (a *app) listToolVersions(name string, refresh bool, limit int) int {
 		}
 	}
 	versions := spec.SortDesc(idx.VersionList()) // 降序、去预发布
+	if major != "" {
+		kept := make([]string, 0, len(versions))
+		for _, v := range versions {
+			if majorOf(v) == major {
+				kept = append(kept, v)
+			}
+		}
+		if len(kept) == 0 {
+			fmt.Fprintf(a.errOut, "pk: %s 没有 %s.x 的版本（pk list %s 看有哪些大版本）\n", name, major, name)
+			return jsonout.ExitFail
+		}
+		versions = kept
+	}
 	latest, hasLatest := idx.Latest()
 	ltsVer, hasLTS := idx.LatestLTS()
 	ltsLatest := ""
@@ -288,6 +302,9 @@ func (a *app) listToolVersions(name string, refresh bool, limit int) int {
 	}
 
 	head := name + "：可装 " + fmt.Sprint(len(versions)) + " 个版本"
+	if major != "" {
+		head = name + " " + major + ".x：" + fmt.Sprint(len(versions)) + " 个版本"
+	}
 	if hasLatest {
 		head += "（索引最新 " + latest.Version
 		if hasLTS && ltsLatest != "" {
@@ -329,42 +346,71 @@ func (a *app) listToolVersions(name string, refresh bool, limit int) int {
 		truncated = len(asc) - limit
 		shown = asc[truncated:]
 	}
-	// 一版一行，升序（最新在最下面），版本号右对齐后再放标签，扫读时列是齐的。
-	width := 0
-	for _, v := range shown {
-		if len(v) > width {
-			width = len(v)
-		}
-	}
 	if truncated > 0 {
 		fmt.Fprintf(a.out, "  可装   （显示最近 %d 个，旧 → 新，最新在最下面）\n", len(shown))
 	} else {
 		fmt.Fprintf(a.out, "  可装   （全部 %d 个，旧 → 新，最新在最下面）\n", len(shown))
 	}
-	for _, v := range shown {
-		tags := make([]string, 0, 3)
+
+	// 行多的时候改成"按大版本分组 + 多列网格"：877 行逐行铺开没法看（参考 nvm/pyenv 用户
+	// 都靠 grep 也是因为如此）。少量版本仍用一版一行 + 文字标签，读起来更清楚。
+	mark := func(v string) string {
+		m := ""
 		if v == latest.Version && hasLatest {
-			tags = append(tags, "latest")
+			m = "*"
 		}
 		if lts := ltsOf[v]; lts != "" {
-			if strings.EqualFold(lts, "lts") {
-				tags = append(tags, "lts")
-			} else {
-				tags = append(tags, "lts: "+lts)
+			if m == "" {
+				m = "l"
 			}
 		}
 		if containsStr(installed, v) {
 			if active[name] == v {
-				tags = append(tags, "已装 · 当前默认")
-			} else {
-				tags = append(tags, "已装")
+				m = "@"
+			} else if m == "" {
+				m = "+"
 			}
 		}
-		if len(tags) == 0 {
-			fmt.Fprintf(a.out, "         %*s\n", width, v)
-			continue
+		return m
+	}
+	if len(shown) > gridThreshold {
+		a.printVersionGrid(shown, ltsOf, mark)
+		fmt.Fprintln(a.out, "         图例：* 最新 · l 长期支持(LTS) · + 已装 · @ 当前默认")
+	} else {
+		width := 0
+		for _, v := range shown {
+			if len(v) > width {
+				width = len(v)
+			}
 		}
-		fmt.Fprintf(a.out, "         %*s  %s\n", width, v, strings.Join(tags, " · "))
+		lastLTS := ""
+		for _, v := range shown {
+			tags := make([]string, 0, 3)
+			if v == latest.Version && hasLatest {
+				tags = append(tags, "latest")
+			}
+			if lts := ltsOf[v]; lts != "" {
+				// 同一个代号连续出现时只标一次，否则整列都是 "lts: Jod"，噪声太大
+				if strings.EqualFold(lts, "lts") || strings.EqualFold(lts, lastLTS) {
+					tags = append(tags, "lts")
+				} else {
+					tags = append(tags, "lts: "+lts)
+					lastLTS = lts
+				}
+			}
+			if containsStr(installed, v) {
+				if active[name] == v {
+					tags = append(tags, "已装 · 当前默认")
+				} else {
+					tags = append(tags, "已装")
+				}
+			}
+			if len(tags) == 0 {
+				fmt.Fprintf(a.out, "         %*s\n", width, v)
+				continue
+			}
+			fmt.Fprintf(a.out, "         %*s  %s\n", width, v, strings.Join(tags, " · "))
+		}
 	}
 	if truncated > 0 {
 		fmt.Fprintf(a.out, "         …还有前面 %d 个更旧的版本（pk list %s --all 看全部，或 --limit N）\n", truncated, name)
@@ -449,4 +495,85 @@ func (a *app) cmdWhich(args []string) int {
 	}
 	fmt.Fprintln(a.out, path)
 	return jsonout.ExitOK
+}
+
+// gridThreshold 是"改用网格"的行数阈值：少量版本一版一行更好读，多了就得压缩。
+const gridThreshold = 25
+
+// majorOf 取版本的"大版本"分组键：常规是 major，0.x 用 major.minor（node 的 0.10/0.12 区别很大）。
+func majorOf(v string) string {
+	parts := strings.SplitN(strings.TrimPrefix(v, "v"), ".", 3)
+	if len(parts) < 2 {
+		return v
+	}
+	if parts[0] == "0" {
+		return parts[0] + "." + parts[1]
+	}
+	return parts[0]
+}
+
+// printVersionGrid 按大版本分组、组内升序、多列铺开（列数按终端宽度算）。
+//
+// 参考 nvm ls-remote / pyenv install --list：这类列表动辄几百上千行，逐行铺开无法扫读；
+// 分组 + 网格让人一眼看到"有哪些大版本、每个大版本有哪些补丁"。
+func (a *app) printVersionGrid(shown []string, ltsOf map[string]string, mark func(string) string) {
+	// 按 majorOf 分组，保持 shown 的顺序（升序），组也按首次出现顺序（旧 → 新）
+	order := make([]string, 0, 8)
+	groups := make(map[string][]string, 8)
+	for _, v := range shown {
+		k := majorOf(v)
+		if _, ok := groups[k]; !ok {
+			order = append(order, k)
+		}
+		groups[k] = append(groups[k], v)
+	}
+	// 单元格：版本号左对齐占 verWidth，标记前留一个空格，再留两格间隙
+	verWidth := 0
+	for _, v := range shown {
+		if len(v) > verWidth {
+			verWidth = len(v)
+		}
+	}
+	cell := verWidth + 4
+	labelWidth := 0
+	for _, k := range order {
+		if len(k)+2 > labelWidth { // "26.x"
+			labelWidth = len(k) + 2
+		}
+	}
+	const indent = 2
+	width := termWidth()
+	if width <= 0 {
+		width = 100
+	}
+	cols := (width - indent - labelWidth - 2) / cell
+	if cols < 1 {
+		cols = 1
+	}
+
+	for _, k := range order {
+		label := k + ".x"
+		vs := groups[k]
+		for row := 0; row*cols < len(vs); row++ {
+			head := strings.Repeat(" ", indent+labelWidth+2)
+			if row == 0 {
+				head = fmt.Sprintf("%*s  ", indent+labelWidth, label)
+			}
+			var b strings.Builder
+			b.WriteString(head)
+			for col := 0; col < cols; col++ {
+				idx := row*cols + col
+				if idx >= len(vs) {
+					break
+				}
+				v := vs[idx]
+				cellText := v + " "
+				if m := mark(v); m != "" {
+					cellText = v + " " + m
+				}
+				b.WriteString(fmt.Sprintf("%-*s", cell, cellText))
+			}
+			fmt.Fprintln(a.out, strings.TrimRight(b.String(), " "))
+		}
+	}
 }

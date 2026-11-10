@@ -140,8 +140,18 @@ node: 877 versions installable (index latest 26.13.0, lts 26.13.0)
              …872 older ones above (pk list node --all, or --limit N)
   install one: pk install node@<version>
 
-$ pk list node --all           # all 877
+$ pk list node --all           # all 877 → switches to the grouped grid
+node: 877 versions installable (index latest 26.13.0, lts 26.13.0)
+  installed  (nothing yet)
+  available  (all 877, oldest → newest, newest at the bottom)
+   22.x  22.0.0     22.1.0     …  22.11.0l  22.11.1l …
+   26.x  26.0.0     …         26.13.0 *
+         legend: * latest · l LTS · + installed · @ current default
+  install one: pk install node@<version>
+
 $ pk list node --limit 5       # just the newest 5
+$ pk list node --major 22      # every 22.x
+$ pk list node --major 0.10    # 0.x groups by major.minor
 
 $ pk list --available          # one line per tool: latest + 5 recent (24h cache, offline-readable)
 $ pk list --available --refresh  # ignore the cache and go to the network

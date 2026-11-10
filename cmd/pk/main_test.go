@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1176,5 +1177,39 @@ func TestEnvWriteTargets(t *testing.T) {
 	})
 	if len(got) != 1 || !strings.HasSuffix(got[0], ".zshrc") {
 		t.Fatalf("macOS zsh 应写 .zshrc，得到 %v", got)
+	}
+}
+
+// 版本多的时候要切到"按大版本分组 + 网格"，并给出图例；--major 只留一个组且默认不截断。
+func TestListGridMode(t *testing.T) {
+	specs := make([]testkit.NodeSpec, 0, 60)
+	for i := 0; i < 60; i++ {
+		specs = append(specs, testkit.NodeSpec{Version: fmt.Sprintf("22.99.%d", i)})
+	}
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: specs,
+		NPM:      map[string]string{"11.20.0": "^20.17.0 || >=22.9.0"},
+	})
+	t.Setenv("PK_MIRROR_NODE_INDEX", fm.Server.URL+"/node/index.json")
+	root := t.TempDir()
+
+	code, out, errOut := execCLI(t, "--root", root, "list", "node", "--all")
+	if code != 0 {
+		t.Fatalf("退出码 %d: %s", code, errOut)
+	}
+	if !strings.Contains(out, "22.x") || !strings.Contains(out, "图例：* 最新") {
+		t.Fatalf("多版本应切网格并给图例:\n%s", out)
+	}
+	if !strings.Contains(out, "22.99.59 *") && !strings.Contains(out, "22.99.59*") {
+		t.Fatalf("最新版应带 * 标记:\n%s", out)
+	}
+	// --major 过滤：只剩一个组，且默认不截断
+	code, out, _ = execCLI(t, "--root", root, "list", "node", "--major", "22")
+	if code != 0 || !strings.Contains(out, "22.x") {
+		t.Fatalf("--major 22 输出异常: %d\n%s", code, out)
+	}
+	// 不存在的大版本 → 退出 1
+	if code, _, errOut := execCLI(t, "--root", root, "list", "node", "--major", "99"); code != 1 || !strings.Contains(errOut, "99.x") {
+		t.Fatalf("不存在的大版本应退出 1: %d %s", code, errOut)
 	}
 }
