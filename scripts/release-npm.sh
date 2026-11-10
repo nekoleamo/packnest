@@ -41,6 +41,7 @@ SCOPE="${PK_NPM_SCOPE:-@packnest}"
 TOKEN_FILE="${PK_NPM_TOKEN_FILE:-$HOME/.pi/agent/local/secrets.env}"
 CHECK_AUTH=0
 TRUSTED=0
+USERCONFIG_FLAG=""
 REJECT=""
 STAGE=0
 PROMOTE=""
@@ -76,52 +77,65 @@ make_auth_config() {
     printf '//%s/:_authToken=${NODE_AUTH_TOKEN}\n' "$host"
     printf 'always-auth=true\n'
   } > "$AUTH_RC"
-  export NPM_CONFIG_USERCONFIG="$AUTH_RC"
+  # npm 只认小写 npm_config_* 环境变量（大写实测无效）
+  export npm_config_userconfig="$AUTH_RC"
+  USERCONFIG_FLAG="--userconfig=${AUTH_RC}"
   trap 'rm -f "$AUTH_RC"' EXIT INT TERM
+}
+
+# ensure_auth：promote / reject / stage list 都需要认证（与手工验证的命令完全等价）
+ensure_auth() {
+  : "${TOKEN_FILE:=$HOME/.pi/agent/local/secrets.env}"
+  : "${REGISTRY:=https://registry.npmjs.org}"
+  if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+    NODE_AUTH_TOKEN=$(secret_from_file "$TOKEN_FILE" NPM_ACCESS_TOKEN NPM_TOKEN NODE_AUTH_TOKEN NPM_AUTH_TOKEN)
+  fi
+  [ -n "${NODE_AUTH_TOKEN:-}" ] || return 0
+  export NODE_AUTH_TOKEN
+  make_auth_config >/dev/null 2>&1 || true
+  return 0
 }
 
 # --reject <stage-id|--all>：丢弃 staged 版本（发布成功后清理残留用）。
 if [ -n "$REJECT" ]; then
-  if [ -f "$TOKEN_FILE" ]; then
-    v=$(secret_from_file "$TOKEN_FILE" NPM_ACCESS_TOKEN NPM_TOKEN NODE_AUTH_TOKEN NPM_AUTH_TOKEN)
-    [ -n "$v" ] && { NODE_AUTH_TOKEN="$v"; export NODE_AUTH_TOKEN; make_auth_config; }
-  fi
+  ensure_auth
   if [ "$REJECT" = "--all" ]; then
-    ids=$(npm stage list --registry "$REGISTRY" 2>/dev/null | awk '/^id: /{print $2}')
+    ids=$(npm stage list $USERCONFIG_FLAG --registry "$REGISTRY" 2>/dev/null | awk '/^id: /{print $2}')
     [ -n "$ids" ] || { echo "没有 staged 版本"; exit 0; }
     for id in $ids; do
       echo "== reject $id"
-      npm stage reject "$id" --registry "$REGISTRY" || true
+      npm stage reject "$id" $USERCONFIG_FLAG --registry "$REGISTRY" || true
     done
     exit 0
   fi
-  npm stage reject "$REJECT" --registry "$REGISTRY"
+  npm stage reject "$REJECT" $USERCONFIG_FLAG --registry "$REGISTRY"
   exit $?
 fi
 
 # --promote <stage-id|--list>：把 staged 版本提升为正式版本。
 # 注意：npm 规定"提升"必须由带 2FA 的维护者确认；stage-only token 只能 stage 不能 promote。
 if [ -n "$PROMOTE" ]; then
+  ensure_auth
   if [ "$PROMOTE" = "--all" ]; then
-    ids=$(npm stage list --registry "$REGISTRY" 2>/dev/null | awk '/^id: /{print $2}')
+    ids=$(npm stage list $USERCONFIG_FLAG --registry "$REGISTRY" 2>/dev/null | awk '/^id: /{print $2}')
     [ -n "$ids" ] || { echo "没有 staged 版本"; exit 0; }
     for id in $ids; do
       echo "== approve $id"
       otp_value=$(auto_otp); args=""
       [ -n "$otp_value" ] && args="--otp $otp_value"
-      npm stage approve "$id" $args --registry "$REGISTRY" || echo "  （这个需要浏览器确认，批准后重跑）"
+      npm stage approve "$id" $args $USERCONFIG_FLAG --registry "$REGISTRY" || echo "  （这个需要浏览器确认，批准后重跑）"
     done
     exit 0
   fi
   if [ "$PROMOTE" = "--list" ]; then
-    npm stage list --registry "$REGISTRY"
+    npm stage list $USERCONFIG_FLAG --registry "$REGISTRY"
     exit $?
   fi
   otp_value=$(auto_otp)
   args=""
   [ -n "$otp_value" ] && args="--otp $otp_value"
   # shellcheck disable=SC2086
-  npm stage approve "$PROMOTE" $args --registry "$REGISTRY"
+  npm stage approve "$PROMOTE" $args $USERCONFIG_FLAG --registry "$REGISTRY"
   exit $?
 fi
 
@@ -314,7 +328,7 @@ if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ] || [ "$STAGE" -eq 1 ]; then
     fi
     echo "== 发布 ${SCOPE}/$(basename "$p")"
     # shellcheck disable=SC2086
-    out=$( cd "$p" && npm $PUBLISH_ARGS 2>&1 ) || {
+    out=$( cd "$p" && npm $PUBLISH_ARGS $USERCONFIG_FLAG 2>&1 ) || {
       FAILED="${FAILED:-} $(basename "$p")"
       # staging 是幂等的：同版本已 staged/已发布时跳过，不当作失败
       if echo "$out" | grep -qE 'Cannot stage previously published version|previously published versions'; then
