@@ -51,8 +51,9 @@ build:
 test:
 	CGO_ENABLED=0 go test ./...
 
+# -race 需要 cgo：单二进制承诺由 cross 目标（CGO_ENABLED=0）守，这里必须开 cgo
 race:
-	CGO_ENABLED=0 go test -race -count=1 ./...
+	CGO_ENABLED=1 go test -race -count=1 ./...
 
 fmt:
 	@out="$$(gofmt -l . | grep -v '^$$' || true)"; \

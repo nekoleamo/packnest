@@ -82,7 +82,7 @@ jobs:
       - name: 打产物并上传 gitee
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-          PK_GITEE_REPO: nekoleamo/packnest
+          PK_GITEE_REPO: null_593_5354/packnest
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           make release VERSION="$VERSION"
@@ -122,6 +122,6 @@ jobs:
       - name: push 到 gitee
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-          PK_GITEE_REPO: nekoleamo/packnest
+          PK_GITEE_REPO: null_593_5354/packnest
         run: |
           git push "https://oauth2:${GITEE_TOKEN}@gitee.com/${PK_GITEE_REPO}.git" HEAD:main --tags --force
