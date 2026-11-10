@@ -139,6 +139,27 @@ pk doctor | grep FOREIGN_MANAGER        # 会列出检测到的其他管理器
   这时删掉 `state/installs.json*` 重装（`tools/` 下的目录**不会**被自动删，确认后手工清理）。
 - `another pk is running`（退出码 5）：有另一个 pk 进程持锁，等它结束；确认没有残留进程时可以删 `state/lock`。
 
+### Windows：`pk uninstall --all --self` 之后 pk.exe 还在
+
+Windows 不允许删正在运行的程序，所以 `--self` 不是"立刻删"，而是**安排一个分离进程延时删**：
+起一个隐藏的 `cmd.exe`，等约 3 秒（此时 pk 已退出、文件句柄释放），再删掉安装目录里的
+`pk.exe` / `packnest.exe`，目录空了再一并移除。**只删这两个文件，绝不 `rd /s` 整个目录**
+（你可能用 `-Dir` 指到了共享目录，比如 `C:\Tools\bin`）。
+
+如果 3 秒后还在（极少见，通常是某个进程仍占着文件）：
+
+```powershell
+# 确认没人占用（关掉所有 PowerShell / Windows Terminal 窗口）
+Get-Process pk, packnest -ErrorAction SilentlyContinue
+# 手动删
+Remove-Item -Force "$env:LOCALAPPDATA\packnest\bin\pk.exe","$env:LOCALAPPDATA\packnest\bin\packnest.exe"
+Remove-Item "$env:LOCALAPPDATA\packnest\bin" -ErrorAction SilentlyContinue   # 目录空了才删
+```
+
+另外，`install.ps1` 会把**安装目录**写进用户 Path（和 `pk env --write` 写的四段 `~/.packnest`
+目录不是一回事）。0.7.7 起 `uninstall --all` 会把这两拨一起从注册表用户 Path 里摘掉，
+不会再留一个指向空目录的死项。
+
 ## 6. 想彻底回滚
 
 ```bash

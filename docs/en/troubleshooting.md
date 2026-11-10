@@ -133,6 +133,26 @@ Migrating global packages: check `pk doctor --globals` for engines/ABI first, th
 - `another pk is running` (exit code 5): another process holds the lock. Wait for it; once you are
   sure no stale process exists you may delete `state/lock`.
 
+### Windows: `pk.exe` is still there after `pk uninstall --all --self`
+
+Windows refuses to delete a running executable, so `--self` schedules the delete instead of doing it
+inline: a hidden detached `cmd.exe` waits ~3 seconds (pk has exited by then, the file handle is
+released), deletes `pk.exe` / `packnest.exe` in the install directory, and removes the directory if it
+ends up empty. It deletes **only those two files — never `rd /s` the whole directory**, because you may
+have installed with `-Dir` into a shared folder.
+
+If it is still there after a few seconds (rare — something still holds the file):
+
+```powershell
+Get-Process pk, packnest -ErrorAction SilentlyContinue
+Remove-Item -Force "$env:LOCALAPPDATA\packnest\bin\pk.exe","$env:LOCALAPPDATA\packnest\bin\packnest.exe"
+Remove-Item "$env:LOCALAPPDATA\packnest\bin" -ErrorAction SilentlyContinue
+```
+
+Note the installer script adds the **install directory** to the user Path, which is not the same thing as
+the four `~/.packnest` segments written by `pk env --write`. Since 0.7.7 `uninstall --all` removes both
+sets from the user Path registry value, so no dangling entry is left behind.
+
 ## 6. Full rollback
 
 ```bash

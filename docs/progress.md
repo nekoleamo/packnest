@@ -283,6 +283,19 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
   现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
 
+## 0.7.8（2026-11-10）
+
+Windows 实测 `pk uninstall --all --yes --purge --self` 之后的两个残留：
+
+1. **`pk.exe` 还在**：Windows 不允许删运行中的程序，旧实现的 `--self` 只是打印一句话（等于没删）。
+   现在改为**安排分离进程延时删除**：隐藏的 `cmd.exe` 等约 3 秒后删 `pk.exe` / `packnest.exe`，
+   目录空了再移除；**只删这两个文件，不 `rd /s` 整个目录**（`-Dir` 可能指到共享目录）。
+2. **用户 Path 里留死项**：`install.ps1` 加的是"安装目录"，而 `pk env --write` 加的是
+   `~/.packnest` 的四段目录，两者不是一回事；旧版 `--unset` 只清后者。现在 `uninstall --all`
+   会把 `state/install.json` 里记录的安装目录也一并从注册表用户 Path 摘掉。
+
+顺带修 `install.sh --from npm --version X` 一直装 latest 的老毛病（按版本取 tarball，取不到明确报错）。
+
 ## 0.7.7（2026-11-10）
 
 卸载体验补齐两件事：

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/packnest/packnest/internal/env"
 	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/provider"
@@ -137,16 +138,30 @@ func (a *app) uninstallAll(inst *install.Installer, purge, keepCache, self bool)
 		_ = os.Remove(p)
 	}
 
-	// PATH / rc 里的托管块：posix 的 rc、Windows 的 profile（两份）+ 注册表用户 Path
+	// PATH / rc 里的托管块：posix 的 rc、Windows 的 profile（两份）+ 注册表用户 Path 的四段
 	unset := a.cmdEnv([]string{"--unset"})
+	// install.ps1 另外把「安装目录」写进了用户 Path，这一段常被漏掉（删了目录还留个死 PATH 项）
+	if goos() == "windows" && info != nil && info.Dir != "" {
+		if changed, _, _, err := env.RemoveUserPath([]string{info.Dir}); err != nil {
+			failures = append(failures, fmt.Sprintf("从用户 Path 移除 %s 失败: %v", info.Dir, err))
+		} else if changed && !a.json {
+			fmt.Fprintf(a.out, "已从用户 Path 移除安装目录 %s\n", info.Dir)
+		}
+	}
 	if unset != jsonout.ExitOK && unset != jsonout.ExitFail {
 		failures = append(failures, fmt.Sprintf("清理 PATH/rc 托管块失败（退出码 %d）", unset))
 	}
 
+	selfHandled := false
 	if self {
 		if ok, msg := removeSelf(exe, goos()); ok {
+			selfHandled = true
 			if !a.json {
-				fmt.Fprintln(a.out, "已删除 pk 自己："+msg)
+				if goos() == "windows" {
+					fmt.Fprintln(a.out, "已安排删除 pk 自己："+msg)
+				} else {
+					fmt.Fprintln(a.out, "已删除 pk 自己："+msg)
+				}
 			}
 		} else if !a.json {
 			fmt.Fprintln(a.out, "pk 二进制没法自己删（"+msg+"），请执行：")
@@ -203,9 +218,12 @@ func (a *app) uninstallAll(inst *install.Installer, purge, keepCache, self bool)
 		fmt.Fprintln(a.out, "\n没有需要卸载的运行时。")
 	}
 	fmt.Fprintln(a.out, "已清理：shim 目录、shell rc 里的托管块、Windows 用户 Path 里的 packnest 目录")
-	selfDone := self && goos() != "windows"
-	if selfDone {
-		fmt.Fprintln(a.out, "\npk 二进制已经删掉了（同目录下的 pk / packnest 也一并清理）。")
+	if selfHandled {
+		if goos() == "windows" {
+			fmt.Fprintln(a.out, "\npk 已安排删除：关掉所有窗口后约 3 秒，安装目录里的 pk.exe / packnest.exe 会被删掉（目录空了再一并移除）。")
+		} else {
+			fmt.Fprintln(a.out, "\npk 二进制已经删掉了（同目录下的 pk / packnest 也一并清理）。")
+		}
 	} else {
 		fmt.Fprintf(a.out, "\n最后一步 —— 删掉 pk 自己（检测到 %s 渠道）：\n  %s\n", ch.Name, ch.Hint)
 	}
@@ -313,40 +331,4 @@ func (a *app) confirm(prompt string) bool {
 	}
 	fmt.Fprintln(a.out, "已取消。")
 	return false
-}
-
-// removeSelf 删掉正在运行的 pk 二进制（连同同目录的 packnest / pk 别名）。
-//
-// unix 上 unlink 一个正在运行的文件没问题；Windows 不允许删被占用的 exe，
-// 所以那边只返回 false + 原因，让用户照命令做。
-func removeSelf(exe, goos string) (bool, string) {
-	if exe == "" {
-		return false, "拿不到自身路径"
-	}
-	if goos == "windows" {
-		return false, "Windows 不允许删除正在运行的程序"
-	}
-	dir := filepath.Dir(exe)
-	removed := make([]string, 0, 2)
-	seen := map[string]bool{}
-	for _, name := range []string{filepath.Base(exe), "pk", "packnest"} {
-		p := filepath.Join(dir, name)
-		if seen[p] {
-			continue
-		}
-		seen[p] = true
-		if st, err := os.Lstat(p); err != nil || st.IsDir() {
-			continue
-		}
-		if err := os.Remove(p); err != nil {
-			return false, err.Error()
-		}
-		removed = append(removed, p)
-	}
-	if len(removed) == 0 {
-		return false, "同目录下没找到 pk/packnest 可执行文件"
-	}
-	// 目录空了就一并收掉（只删空目录，绝不递归）
-	_ = os.Remove(dir)
-	return true, strings.Join(removed, ", ")
 }
