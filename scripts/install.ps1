@@ -48,6 +48,60 @@ $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
 # Asking npm first bit us in the field: gitee had 0.7.6 published while npm's `latest`
 # was still 0.7.4 (0.7.5/0.7.6 were staged and not yet approved), so the one-liner
 # installed 0.7.4 and looked "broken".
+# Download-File fetches $url into $out, surviving flaky networks.
+#
+# Why this exists: on a real Windows box `Invoke-WebRequest` aborted with
+# "remote host forcibly closed the connection" while curl fetched the same 3.2 MB asset fine.
+# Two usual causes: Windows PowerShell 5.1 defaults to old TLS, and IWR goes through the
+# system proxy (which may reset long transfers to domestic hosts). So each attempt tries
+# WebClient-without-proxy first, then IWR, with a short backoff between rounds.
+function Download-File {
+  param([string]$url, [string]$out, [int]$rounds = 3)
+  try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 } catch { }
+  $last = $null
+  for ($i = 1; $i -le $rounds; $i++) {
+    foreach ($mode in @('webclient-noproxy', 'webclient', 'iwr')) {
+      try {
+        if (Test-Path $out) { Remove-Item $out -Force -ErrorAction SilentlyContinue }
+        switch ($mode) {
+          'webclient-noproxy' {
+            $wc = New-Object System.Net.WebClient
+            $wc.Proxy = $null
+            $wc.Headers.Add('User-Agent', 'packnest-installer')
+            $wc.DownloadFile($url, $out)
+          }
+          'webclient' {
+            $wc = New-Object System.Net.WebClient
+            $wc.Headers.Add('User-Agent', 'packnest-installer')
+            $wc.DownloadFile($url, $out)
+          }
+          default {
+            Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing -MaximumRedirection 10 -TimeoutSec 300
+          }
+        }
+        if ((Test-Path $out) -and ((Get-Item $out).Length -gt 0)) { return }
+        $last = "$mode produced an empty file"
+      } catch {
+        $last = "$mode : $($_.Exception.Message)"
+      }
+    }
+    if ($i -lt $rounds) {
+      Write-Host "  download failed ($last); retry $i/$rounds"
+      Start-Sleep -Seconds $i
+    }
+  }
+  throw "Download failed after $rounds attempts ($url). Last error: $last"
+}
+
+# tar 命令：Windows 10 1803+ 自带 tar.exe（bsdtar）；其它平台用 tar。
+function Get-TarCommand {
+  foreach ($c in @('tar.exe', 'tar')) {
+    $cmd = Get-Command $c -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+  }
+  throw 'tar not found: this Windows build cannot extract .tgz; use the gitee zip channel instead.'
+}
+
 function Get-LatestVersion {
   if ($Base) {
     try {
@@ -103,7 +157,7 @@ try {
     if ($DryRun) { return }
 
     $tgz = Join-Path $tmp.FullName 'pkg.tgz'
-    Invoke-WebRequest -Uri $dist.tarball -OutFile $tgz -TimeoutSec 300
+    Download-File -url $dist.tarball -out $tgz
 
     if (-not $SkipVerify) {
       $want = $dist.shasum
@@ -120,8 +174,8 @@ try {
 
     $extract = Join-Path $tmp.FullName 'npmpkg'
     New-Item -ItemType Directory -Path $extract -Force | Out-Null
-    & tar.exe -xzf $tgz -C $extract
-    if ($LASTEXITCODE -ne 0) { throw "Extraction failed (tar.exe exit code $LASTEXITCODE)" }
+    & (Get-TarCommand) -xzf $tgz -C $extract
+    if ($LASTEXITCODE -ne 0) { throw "Extraction failed (tar exit code $LASTEXITCODE)" }
     $final = Join-Path $extract 'package\bin\packnest.exe'
     if (-not (Test-Path $final)) { throw 'Platform package does not contain package/bin/packnest.exe' }
   } else {
@@ -143,11 +197,42 @@ try {
     if ($DryRun) { return }
 
     $zip = Join-Path $tmp.FullName 'pk.zip'
-    Invoke-WebRequest -Uri $url -OutFile $zip -TimeoutSec 300
+    try {
+      Download-File -url $url -out $zip
+    } catch {
+      # 国内直连 gitee 偶发被重置：自动退到 npmmirror 的 npm 平台包（另一个 host，通常更快）
+      Write-Warning "gitee 下载失败，改用 npmmirror 的 npm 平台包重试：$($_.Exception.Message)"
+      $Mirror = 'cn'
+      $from = 'npm'
+      $pkg = "$Scope/win32-$arch"
+      $encoded = $pkg -replace '/', '%2F'
+      $meta = Invoke-RestMethod -Uri "$($Registry.TrimEnd('/'))/$encoded" -TimeoutSec 30
+      $ver = $meta.'dist-tags'.latest
+      $dist = $meta.versions.$ver.dist
+      if (-not $dist) { throw "npm 平台包里没有 $ver" }
+      $tgz = Join-Path $tmp.FullName 'pkg.tgz'
+      Download-File -url $dist.tarball -out $tgz
+      if (-not $SkipVerify -and $dist.shasum) {
+        $got = (Get-FileHash -Path $tgz -Algorithm SHA1).Hash
+        if ($got -ne $dist.shasum.ToUpper()) { throw "SHA1 mismatch after fallback" }
+        Write-Host '  verify: sha1 OK (registry dist.shasum, fallback)'
+      }
+      $extract = Join-Path $tmp.FullName 'npmpkg'
+      New-Item -ItemType Directory -Path $extract -Force | Out-Null
+      & (Get-TarCommand) -xzf $tgz -C $extract
+      if ($LASTEXITCODE -ne 0) { throw "Extraction failed (tar exit code $LASTEXITCODE)" }
+      $final = Join-Path $extract 'package\bin\packnest.exe'
+      if (-not (Test-Path $final)) { throw 'Platform package does not contain package/bin/packnest.exe' }
+      $Version = $ver
+    }
 
+    # 走到这里 $final 还有值，说明刚才 gitee 下载成功、没走 npm 兜底
+    if (-not $final) {
     if (-not $SkipVerify) {
       $sums = try {
-        (Invoke-WebRequest -Uri $sumsUrl -TimeoutSec 60 -UseBasicParsing).Content
+        $sumsTmp = Join-Path $tmp.FullName 'checksums.txt'
+        Download-File -url $sumsUrl -out $sumsTmp -rounds 2
+        Get-Content -Raw $sumsTmp
       } catch { $null }
       if ($null -eq $sums) { $sums = '' }
       $want = $null
@@ -172,6 +257,7 @@ try {
     Expand-Archive -Path $zip -DestinationPath $extract -Force
     $final = Join-Path $extract 'packnest.exe'
     if (-not (Test-Path $final)) { throw 'The zip does not contain packnest.exe' }
+    }
   }
 
   New-Item -ItemType Directory -Path $Dir -Force | Out-Null

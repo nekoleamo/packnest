@@ -5,6 +5,30 @@
 先跑 `pk doctor`（加 `--json` 给脚本用，`--globals` 查全局包，`--probe` 会发 HEAD 探测镜像）。
 问题码的完整表在 [json-schema.md](json-schema.md)。
 
+### Windows：`iwr … | iex` 报"远程主机强迫关闭了一个现有的连接"
+
+下载 3MB 的 zip 时连接被重置。上层原因通常是 Windows PowerShell 5.1 的老 TLS 默认值，
+或者系统代理对国内长连接不友好。0.7.7 起安装脚本自己扛：
+
+- 显式 `SecurityProtocol = Tls12`
+- 每轮先试 **绕过系统代理的 WebClient**，再试系统代理，最后 IWR；失败重试 3 轮（1s/2s 退避）
+- 仍然失败 → **自动改走 npmmirror 的 npm 平台包**（另一个 host，国内通常更快，走 sha1 校验）
+- `.tgz` 解压用 `tar.exe`（Win10 1803+ 自带），找不到就退回 `tar`
+
+手动兜底（任选）：
+
+```powershell
+# 1) 直接走 npm 平台包
+iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB -OutFile pk.ps1
+.\pk.ps1 -Mirror cn                      # 或 & .\pk.ps1 -Mirror cn
+
+# 2) 自己下 zip 再用本地静态源装
+#    packnest_<版本>_windows_amd64.zip + checksums.txt 放同一目录，起个 http 服务后：
+.\pk.ps1 -Base http://127.0.0.1:8000
+
+# 3) 浏览器下载 zip 解压，把 packnest.exe 放进 %LOCALAPPDATA%\packnest\bin，改名 pk.exe
+```
+
 ## 1. 装不上 / 一直失败
 
 | 现象 | 判断 | 处置 |

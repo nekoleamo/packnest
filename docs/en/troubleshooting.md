@@ -6,6 +6,22 @@ Start with `pk doctor` (`--json` for scripts, `--globals` for global packages, `
 HEAD requests at the mirrors). The complete issue-code table lives in
 [json-schema.md](../json-schema.md).
 
+### Windows: `iwr … | iex` fails with "the remote host forcibly closed the connection"
+
+The ~3 MB zip download gets reset. The usual culprits are Windows PowerShell 5.1's old TLS default,
+or a system proxy that dislikes long-lived connections to domestic hosts. Since 0.7.7 the installer
+handles both:
+
+- forces `SecurityProtocol = Tls12`
+- each round tries **WebClient with the system proxy bypassed**, then WebClient with the proxy, then
+  IWR; three rounds with a 1s/2s backoff
+- if it still fails it **falls back to the npm platform package on npmmirror** (a different host,
+  usually faster in China, verified by sha1)
+- `.tgz` extraction uses `tar.exe` (bundled since Windows 10 1803) and falls back to `tar`
+
+Manual fallbacks: `-Mirror cn`, or host the zip + checksums.txt locally and use `-Base <url>`, or simply
+unzip the release asset into `%LOCALAPPDATA%\packnest\bin` as `packnest.exe` + `pk.exe`.
+
 ## 1. Installs keep failing
 
 | Symptom | Diagnosis | Fix |

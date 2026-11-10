@@ -84,16 +84,26 @@ if [ "$FROM" = "npm" ]; then
   encoded=$(printf '%s' "$pkg" | sed 's|/|%2F|')
   meta=$(curl -fsSL --max-time 30 "$REGISTRY/$encoded") || {
     echo "从 $REGISTRY 取不到 ${pkg}（可能还没发布）" >&2; exit 3; }
-  # 用 python3 精确取 dist-tags.latest 对应的 tarball（用 sed 取"最后一个 tarball"会拿到旧版本）
-  parsed=$(printf '%s' "$meta" | python3 -c '
-import sys, json
+  # 用 python3 精确取版本对应的 tarball：指定了 --version 就用它，否则用 dist-tags.latest
+  # （用 sed 取"最后一个 tarball"会拿到旧版本，这个坑踩过）
+  parsed=$(printf '%s' "$meta" | LAST_VERSION="${VERSION:-}" python3 -c '
+import os, sys, json
 d = json.load(sys.stdin)
-ver = d["dist-tags"]["latest"]
+want = os.environ.get("LAST_VERSION", "").lstrip("v")
+ver = want or d["dist-tags"]["latest"]
+if ver not in d["versions"]:
+    sys.stderr.write("registry 里没有 %s\n" % ver)
+    sys.exit(1)
 dist = d["versions"][ver]["dist"]
 print(ver)
 print(dist["tarball"])
 print(dist.get("shasum", ""))
-' 2>/dev/null)
+' 2>/dev/null) || true
+  if [ -z "$parsed" ]; then
+    echo "从 $REGISTRY 拿不到 ${pkg}@${VERSION:-latest}（可能还没发布，或 staged 未 approve）" >&2
+    echo "试一试：去掉 --version 装 npm 上的最新版，或改用 gitee 通道" >&2
+    exit 3
+  fi
   if [ -n "$parsed" ]; then
     META_VER=$(printf '%s' "$parsed" | sed -n '1p')
     tarball=$(printf '%s' "$parsed" | sed -n '2p')
@@ -109,7 +119,7 @@ print(dist.get("shasum", ""))
   echo "  目录: $DIR"
   [ "$DRY_RUN" -eq 1 ] && exit 0
   tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-  curl -fsSL --max-time 300 -o "$tmp/pkg.tgz" "$tarball"
+  curl -fsSL --retry 3 --retry-delay 1 --retry-connrefused --max-time 300 -o "$tmp/pkg.tgz" "$tarball"
   if [ "$SKIP_VERIFY" -eq 0 ]; then
     got=$(sha1_of "$tmp/pkg.tgz")
     if [ -n "${META_SHA1:-}" ] && [ -n "$got" ]; then
@@ -193,9 +203,17 @@ echo "  目录: $DIR"
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-curl -fsSL --max-time 300 -o "$tmp/pk.tar.gz" "$url"
+if ! curl -fsSL --retry 3 --retry-delay 1 --retry-connrefused --max-time 300 -o "$tmp/pk.tar.gz" "$url"; then
+  # 国内直连 gitee 偶发被重置：自动改走 npm 平台包（npmmirror，另一个 host）
+  echo "gitee 下载失败，改用 npmmirror 的 npm 平台包重试…" >&2
+  echo "（npm 上可能还没有 ${VERSION}，兜底会装 npm 上的最新版）" >&2
+  fallback="--from npm --dir $DIR"
+  [ "${SKIP_VERIFY:-0}" = "1" ] && fallback="$fallback --skip-verify"
+  # shellcheck disable=SC2086
+  exec sh "$0" $fallback
+fi
 if [ "$SKIP_VERIFY" -eq 0 ]; then
-  sums=$(curl -fsSL --max-time 60 "$sums_url" 2>/dev/null || true)
+  sums=$(curl -fsSL --retry 2 --retry-connrefused --max-time 60 "$sums_url" 2>/dev/null || true)
   want=$(printf '%s\n' "$sums" | awk -v f="${name}.tar.gz" '$2==f {print $1; exit}')
   got=$(sha256_of "$tmp/pk.tar.gz")
   if [ -z "$want" ] || [ -z "$got" ]; then
