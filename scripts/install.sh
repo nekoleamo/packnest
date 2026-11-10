@@ -69,12 +69,22 @@ if [ "$FROM" = "npm" ]; then
   encoded=$(printf '%s' "$pkg" | sed 's|/|%2F|')
   meta=$(curl -fsSL --max-time 30 "$REGISTRY/$encoded") || {
     echo "从 $REGISTRY 取不到 ${pkg}（可能还没发布）" >&2; exit 3; }
-  if [ -z "$VERSION" ]; then
-    VERSION=$(printf '%s' "$meta" | sed -n 's/.*"latest":[ ]*"\([^"]*\)".*/\1/p') || true
+  # 用 python3 精确取 dist-tags.latest 对应的 tarball（用 sed 取"最后一个 tarball"会拿到旧版本）
+  parsed=$(printf '%s' "$meta" | python3 -c '
+import sys, json
+d = json.load(sys.stdin)
+ver = d["dist-tags"]["latest"]
+print(ver)
+print(d["versions"][ver]["dist"]["tarball"])
+' 2>/dev/null)
+  if [ -n "$parsed" ]; then
+    META_VER=$(printf '%s' "$parsed" | sed -n '1p')
+    tarball=$(printf '%s' "$parsed" | sed -n '2p')
+    [ -z "$VERSION" ] && VERSION="$META_VER"
+  else
+    tarball=$(printf '%s' "$meta" | sed -n 's/.*"tarball":[ ]*"\([^"]*\)".*/\1/p' | tail -1)
   fi
-  tarball=$(printf '%s' "$meta" | sed -n 's/.*"tarball":[ ]*"\([^"]*\)".*/\1/p' | tail -1)
   [ -n "$tarball" ] || { echo "${pkg} 元数据里没有 tarball 地址" >&2; exit 3; }
-  # 有些 registry 的 tarball 给的是站内绝对路径，补上 host
   case "$tarball" in /*) tarball="${REGISTRY%/}${tarball}" ;; esac
   echo "将要安装 packnest ${VERSION:-latest}（${os}-${arch}）"
   echo "  来源: ${tarball}（npm 平台包）"
