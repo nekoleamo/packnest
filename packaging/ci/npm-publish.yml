@@ -54,3 +54,24 @@ jobs:
 
       - name: 发布（Trusted Publishing：先 6 个子包，再主包）
         run: sh scripts/release-npm.sh --publish --trusted
+
+  # 可选：同一个 tag 同时把 6 平台产物传到 gitee release（国内二进制主源）。
+  # 需要仓库里有 Secret GITEE_TOKEN，且变量 PUBLISH_GITEE=true；不想在云端存 token 就删掉这个 job，
+  # 改在本机跑 `make gitee-release`（凭据只在本机）。
+  gitee-release:
+    if: vars.PUBLISH_GITEE == 'true'
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - name: 打产物并上传 gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          PK_GITEE_REPO: nekoleamo/packnest
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          make release VERSION="$VERSION"
+          sh scripts/release-gitee.sh --tag "v$VERSION"

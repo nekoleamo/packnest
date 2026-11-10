@@ -41,6 +41,7 @@ SCOPE="${PK_NPM_SCOPE:-@packnest}"
 TOKEN_FILE="${PK_NPM_TOKEN_FILE:-$HOME/.pi/agent/local/secrets.env}"
 CHECK_AUTH=0
 TRUSTED=0
+REJECT=""
 STAGE=0
 PROMOTE=""
 REGISTRY="${NPM_REGISTRY:-https://registry.npmjs.org}"
@@ -53,6 +54,8 @@ while [ $# -gt 0 ]; do
     --stage) STAGE=1; shift ;;
     --promote) PROMOTE="$2"; shift 2 ;;
     --promote-all) PROMOTE="--all"; shift ;;
+    --reject) REJECT="$2"; shift 2 ;;
+    --reject-all) REJECT="--all"; shift ;;
     --trusted) TRUSTED=1; shift ;;
     --otp) OTP="$2"; shift 2 ;;
     --tag) TAG="$2"; shift 2 ;;
@@ -76,6 +79,25 @@ make_auth_config() {
   export NPM_CONFIG_USERCONFIG="$AUTH_RC"
   trap 'rm -f "$AUTH_RC"' EXIT INT TERM
 }
+
+# --reject <stage-id|--all>：丢弃 staged 版本（发布成功后清理残留用）。
+if [ -n "$REJECT" ]; then
+  if [ -f "$TOKEN_FILE" ]; then
+    v=$(secret_from_file "$TOKEN_FILE" NPM_ACCESS_TOKEN NPM_TOKEN NODE_AUTH_TOKEN NPM_AUTH_TOKEN)
+    [ -n "$v" ] && { NODE_AUTH_TOKEN="$v"; export NODE_AUTH_TOKEN; make_auth_config; }
+  fi
+  if [ "$REJECT" = "--all" ]; then
+    ids=$(npm stage list --registry "$REGISTRY" 2>/dev/null | awk '/^id: /{print $2}')
+    [ -n "$ids" ] || { echo "没有 staged 版本"; exit 0; }
+    for id in $ids; do
+      echo "== reject $id"
+      npm stage reject "$id" --registry "$REGISTRY" || true
+    done
+    exit 0
+  fi
+  npm stage reject "$REJECT" --registry "$REGISTRY"
+  exit $?
+fi
 
 # --promote <stage-id|--list>：把 staged 版本提升为正式版本。
 # 注意：npm 规定"提升"必须由带 2FA 的维护者确认；stage-only token 只能 stage 不能 promote。

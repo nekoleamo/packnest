@@ -136,6 +136,13 @@ git tag -a v0.6.3 -m "packnest 0.6.3" && git push origin v0.6.3
 CI 会跑门禁 → 打 6 平台产物 → `release-npm.sh` → `release-npm.sh --publish --trusted`（不需要 `NODE_AUTH_TOKEN`）。
 npm 会自动生成 provenance 并跳过 2FA。
 
+清理 staged 残留：
+
+```bash
+sh scripts/release-npm.sh --reject --all      # 丢弃全部 staged（发布成功后收尾用）
+sh scripts/release-npm.sh --reject <stage-id>
+```
+
 > 注意：Trusted Publishing 只对**公开仓库 + 公开包**生效；`--provenance` 要求仓库可见。
 
 ### 怎么做到真正无人值守（不再弹浏览器）
