@@ -345,6 +345,9 @@ func (a *app) printInstallResult(res install.Result) {
 		return
 	}
 	line := fmt.Sprintf("装好 %s@%s → %s", res.Tool, res.Version, res.Path)
+	if res.BecameDefault {
+		line += "  （已设为全局默认）"
+	}
 	if res.NPMVersion != "" {
 		line += fmt.Sprintf(" (npm %s", res.NPMVersion)
 		if res.NPMReplaced != "" && res.NPMReplaced != res.NPMVersion {

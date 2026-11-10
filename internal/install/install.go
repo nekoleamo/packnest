@@ -75,6 +75,8 @@ type Result struct {
 	NPMVersion       string
 	NPMReplaced      string
 	AlreadyInstalled bool
+	// BecameDefault 表示这次安装把它设成了全局默认版本。
+	BecameDefault bool
 	// Planned 表示这是 --dry-run 的解析结果（什么都没下）。
 	Planned      bool
 	PlanURL      string
@@ -288,6 +290,7 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		if err := i.Activate(tool, version); err != nil {
 			return Result{}, err
 		}
+		res.BecameDefault = true
 	} else if i.ActiveVersion(tool) == version {
 		if err := i.installShims(p, target); err != nil {
 			return Result{}, err

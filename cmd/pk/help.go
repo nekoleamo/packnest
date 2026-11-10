@@ -12,6 +12,11 @@ var commandHelp = map[string]string{
 	"install": `pk install [工具[@版本]]... [--frozen] [--insecure] [--force] [--quiet] [--jobs N]
 
   装工具。不带参数时按当前目录的 pk.toml 全装。
+  作用域：没有 --global/--project 开关，由当前目录决定：
+    当前目录有 pk.toml → 按项目声明装，并生成/更新 pk.lock（项目级）
+    没有 pk.toml        → 装进共享目录；若该工具还没有全局默认，则自动设为默认
+  磁盘上永远只有一份（~/.packnest/tools/<tool>/<ver>），项目级只体现"锁定 + PATH 顺序"，
+  不复制副本；项目内生效用 pk env --project（direnv 里跑）。
   语义（方案 §18.9）：
     pk install                 按 pk.toml 全装（没有 pk.toml 则报错）
     pk install node            装 pk.toml 里 pin 的 node；没有则最新稳定版
