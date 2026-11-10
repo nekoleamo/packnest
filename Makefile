@@ -23,9 +23,11 @@ FUZZ_TIME := 30s
 # 有 tag 时用 tag（去掉前导 v），否则用默认开发版本号。
 VERSION ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null | sed -n 's/^v\?\([0-9].*\)/\1/p'); echo "$${v:-0.7.0}")
 LDFLAGS := -s -w -X main.Version=$(VERSION)
+# 归档里所有文件的 mtime（可重复构建的前提；改它会改变所有产物的 sha256）
+SOURCE_DATE := 202001010000
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
-.PHONY: gitee-release help build test race check fmt vet cover cross fuzz bench golden accept clean dist list-providers release checksums npm-packages npm-dry publish publish-stage stage-list promote site
+.PHONY: gitee-release help build test race check fmt vet cover cross fuzz bench golden accept clean dist list-providers release checksums npm-packages npm-dry publish publish-stage stage-list promote site verify-release publish-manifests
 
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
@@ -42,6 +44,8 @@ help:
 	@echo "make publish-direct 直接发布（2027-01 前有效，已弃用）"
 	@echo "make gitee-release  上传产物到 gitee release（二进制主源）"
 	@echo "make site      渲染官网到 site/dist（只注入版本号，无前端工具链）"
+	@echo "make verify-release  核对已发布产物与 checksums.txt（发布后必跑）"
+	@echo "make publish-manifests  verify → 生成并推送 brew/scoop/winget 清单"
 	@echo "make clean     清理产物"
 
 build:
@@ -109,12 +113,25 @@ check: fmt vet race cover cross fuzz bench golden
 site:
 	@sh scripts/build-site.sh
 
+# 把已发布产物拉下来和 checksums.txt 对：清单与产物对不上时立刻红。
+verify-release:
+	@sh scripts/verify-release.sh
+
+# 渠道清单：必须先过 verify-release，否则会把错的 sha256 推进 tap/bucket。
+publish-manifests: verify-release
+	@sh scripts/gen-manifests.sh
+	@sh scripts/release-taps.sh
+
 list-providers:
 	@go run ./cmd/pk mirror list
 
 # 发布产物（方案 §13.3）：dist/v<version>/packnest_<version>_<os>_<arch>.{tar.gz,zip} + checksums.txt
 # 目录结构故意与 gitee release 的 /download/v<version>/<file> 对齐，
 # 这样把 dist/ 整个丢到任意静态 host，install.sh --base <url> 就能直接装（不走 gitee/GitHub）。
+# 归档必须可重复：同一版本重跑构建要得到同一个 sha256（否则重跑一次 release 就会让
+# 已发布的 tap/scoop 清单与产物对不上，0.7.0 就栽在这）。两条规则：
+#   1. 打包前把产物 mtime 钉死（SOURCE_DATE）；
+#   2. tar 走 `tar -cf - | gzip -n` 只此一种（gzip -n 不写文件名与时间戳），zip 用 -X。
 release:
 	@rm -rf $(DIST)
 	@mkdir -p $(DIST)/v$(VERSION)
@@ -125,10 +142,12 @@ release:
 		out="$(CURDIR)/$(DIST)/v$(VERSION)"; \
 		if [ "$$os" = "windows" ]; then \
 			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$stage/packnest.exe ./cmd/pk || exit 1; \
-			(cd $$stage && zip -q -X "$$out/packnest_$(VERSION)_$${os}_$${arch}.zip" packnest.exe); \
+			touch -t $(SOURCE_DATE) $$stage/packnest.exe; \
+			(cd $$stage && rm -f "$$out/packnest_$(VERSION)_$${os}_$${arch}.zip" && zip -q -X -o "$$out/packnest_$(VERSION)_$${os}_$${arch}.zip" packnest.exe); \
 		else \
 			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$stage/packnest ./cmd/pk || exit 1; \
-			tar -czf "$$out/packnest_$(VERSION)_$${os}_$${arch}.tar.gz" -C $$stage packnest; \
+			touch -t $(SOURCE_DATE) $$stage/packnest; \
+			(tar -cf - -C $$stage packnest | gzip -n > "$$out/packnest_$(VERSION)_$${os}_$${arch}.tar.gz"); \
 		fi; \
 	done
 	@$(MAKE) --no-print-directory checksums

@@ -197,6 +197,26 @@ curl -X PUT 'https://registry.npmmirror.com/-/package/%40packnest%2Fdarwin-arm64
 
 （npmmirror 是只读镜像，**不能**直接 publish 到它。）
 
+### ⚠️ 顺序与「产物必须可重复」这两件事（0.7.0 栽过一次）
+
+`make release` 现在产出的归档是**可重复的**（打包前用 `SOURCE_DATE` 钉死 mtime，tar 走
+`tar -cf - | gzip -n`，zip 用 `-X`）——同一版本重跑一次发行，sha256 不变，所以
+"重跑 release → 重新上传 → 清单没跟着变" 这类事故不会再发生。
+
+即便如此，发布顺序仍然不能乱，否则 tap/bucket 会指向旧的 sha256，`brew install` 直接报
+`reports different checksum`（0.7.0 就是这样挂的：tap 与 scoop bucket 是从**另一次构建**生成的）：
+
+```bash
+make release                # ① 产物（可重复）
+sh scripts/release-gitee.sh # ② 上传到 gitee release
+make verify-release         # ③ 把已发布产物拉回来对 checksums.txt（必跑）
+sh scripts/gen-manifests.sh # ④ 生成 brew/scoop/winget 清单
+sh scripts/release-taps.sh  # ⑤ 推 homebrew tap + scoop bucket
+```
+
+`make publish-manifests` 把 ③④⑤ 串起来，并且**依赖 verify-release**：产物与清单对不上时
+清单推不出去。
+
 ## 三、gitee（免费二进制主源）
 
 - 建仓库 → 创建 release（tag `v<版本>`）→ 上传 `dist/v<版本>/*.tar.gz|zip` 与 `checksums.txt`；
@@ -213,6 +233,8 @@ curl -X PUT 'https://registry.npmmirror.com/-/package/%40packnest%2Fdarwin-arm64
 ```bash
 make check                        # 7 项门禁
 make release && ls dist/v*/
+make verify-release               # 已发布产物 vs checksums.txt（发布后必跑）
 sh scripts/release-npm.sh --dry-run                # 7 个包 manifest 都过
 ./scripts/install.sh --dry-run --from npm          # 通道连通性
-```
+brew install nekoleamo/packnest/packnest           # 渠道实装一次（清缓存后再试：brew uninstall packnest）```
+
