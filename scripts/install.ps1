@@ -1,7 +1,7 @@
 <#
 packnest 安装脚本（Windows，不访问 GitHub）
 
-  iwr https://gitee.com/packnest/packnest/raw/master/scripts/install.ps1 -UseB | iex
+  iwr https://gitee.com/null_593_5354/packnest/raw/master/scripts/install.ps1 -UseB | iex
 
   -Mirror cn|default   产物来源（cn 从 npmmirror 取）
   -Version vX.Y.Z      指定版本
@@ -41,7 +41,7 @@ $url = if ($Base) {
 } elseif ($Mirror -eq 'cn') {
   "https://registry.npmmirror.com/-/binary/packnest/v${Version}/${name}.zip"
 } else {
-  "https://gitee.com/packnest/packnest/releases/download/v${Version}/${name}.zip"
+  "https://gitee.com/null_593_5354/packnest/releases/download/v${Version}/${name}.zip"
 }
 
 Write-Host "将要安装 packnest $Version（windows-$arch）"

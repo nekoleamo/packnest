@@ -1,7 +1,7 @@
 #!/bin/sh
 # packnest 安装脚本（不访问 GitHub）
 #
-#   curl -fsSL https://gitee.com/packnest/packnest/raw/master/scripts/install.sh | sh -s -- --mirror cn
+#   curl -fsSL https://gitee.com/${GITEE_REPO}/raw/master/scripts/install.sh | sh -s -- --mirror cn
 #
 # 选项：
 #   --mirror cn|default   产物来源档位（cn 从 npmmirror 取，default 从 gitee）
@@ -22,6 +22,7 @@ MIRROR="default"
 BASE="${PK_INSTALL_BASE:-}"
 FROM=""
 REGISTRY="${PK_NPM_REGISTRY:-https://registry.npmmirror.com}"
+GITEE_REPO="${PK_GITEE_REPO:-null_593_5354/packnest}"
 SCOPE="${PK_NPM_SCOPE:-@packnest}"
 VERSION=""
 DIR="${HOME}/.local/bin"
@@ -34,6 +35,7 @@ while [ $# -gt 0 ]; do
     --from) FROM="$2"; shift 2 ;;
     --registry) REGISTRY="$2"; shift 2 ;;
     --scope) SCOPE="$2"; shift 2 ;;
+    --repo) GITEE_REPO="$2"; shift 2 ;;
     --version) VERSION="$2"; shift 2 ;;
     --dir) DIR="$2"; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -110,7 +112,7 @@ else
     cn)
       url="https://registry.npmmirror.com/-/binary/packnest/v${VERSION}/${name}.tar.gz" ;;
     *)
-      url="https://gitee.com/packnest/packnest/releases/download/v${VERSION}/${name}.tar.gz" ;;
+      url="https://gitee.com/${GITEE_REPO}/releases/download/v${VERSION}/${name}.tar.gz" ;;
   esac
 fi
 
