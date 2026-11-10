@@ -147,6 +147,7 @@ make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 
 | 文档 | 内容 |
 |---|---|
+| [docs/cli.md](docs/cli.md) | **操作手册**：9 个命令全量示例（可直接用于网站发布） |
 | [docs/progress.md](docs/progress.md) | 里程碑进度、每轮交付与踩过的坑 |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | 故障排查（含与 proto/nvm/mise 共存） |
 | [docs/json-schema.md](docs/json-schema.md) | `--json` v1 契约（字段与问题码） |

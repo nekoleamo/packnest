@@ -376,3 +376,50 @@ func TestShimPolicyAcrossVersions(t *testing.T) {
 		t.Fatalf("Activate: %v", err)
 	}
 }
+
+func TestSaveProjectTool(t *testing.T) {
+	dir := t.TempDir()
+	// 全新文件
+	if err := SaveProjectTool(dir, "node", "22.22.2"); err != nil {
+		t.Fatalf("新建: %v", err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(dir, "pk.toml"))
+	if !strings.Contains(string(raw), "[tools]") || !strings.Contains(string(raw), `node = "22.22.2"`) {
+		t.Fatalf("内容异常:\n%s", raw)
+	}
+	// 已有 [tools] 且有注释与别的工具：只改一行，注释保留
+	existing := "# 项目运行时\n[tools]\nnode = \"20\"\npnpm = \"10\"\n\n[mirrors]\nprofile = \"cn\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "pk.toml"), []byte(existing), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveProjectTool(dir, "node", "22.22.2"); err != nil {
+		t.Fatalf("更新: %v", err)
+	}
+	raw, _ = os.ReadFile(filepath.Join(dir, "pk.toml"))
+	text := string(raw)
+	if !strings.Contains(text, "# 项目运行时") || !strings.Contains(text, `pnpm = "10"`) || !strings.Contains(text, `profile = "cn"`) {
+		t.Fatalf("不该动别的行:\n%s", text)
+	}
+	if strings.Count(text, "node = ") != 1 || !strings.Contains(text, `node = "22.22.2"`) {
+		t.Fatalf("node 行应被替换:\n%s", text)
+	}
+	// 追加新工具到 [tools] 段
+	if err := SaveProjectTool(dir, "bun", "1.4.4"); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = os.ReadFile(filepath.Join(dir, "pk.toml"))
+	if !strings.Contains(string(raw), `bun = "1.4.4"`) {
+		t.Fatalf("新工具未写入:\n%s", raw)
+	}
+	// 没有 [tools] 的文件：追加一个段
+	if err := os.WriteFile(filepath.Join(dir, "pk.toml"), []byte("[mirrors]\nprofile = \"cn\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveProjectTool(dir, "deno", "2.9.8"); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = os.ReadFile(filepath.Join(dir, "pk.toml"))
+	if !strings.Contains(string(raw), "[tools]") || !strings.Contains(string(raw), `deno = "2.9.8"`) {
+		t.Fatalf("[tools] 段未追加:\n%s", raw)
+	}
+}
