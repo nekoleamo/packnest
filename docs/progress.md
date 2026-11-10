@@ -283,6 +283,21 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
   现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
 
+## 0.7.4（2026-11-10）
+
+Windows 上第三个连环坑：`Restricted` 执行策略拒绝加载未签名 profile → 每个新窗口都报
+"无法加载文件 …Microsoft.PowerShell_profile.ps1，因为在此系统上禁止运行脚本"。
+
+- Windows 的 PATH 改走**注册表用户 Path**（`HKCU\Environment\Path`，用 `syscall` 直接读写注册表，
+  不引第三方库）：不受执行策略影响，cmd / PowerShell / Git Bash 都继承，`node` 立刻可用；
+  写前把旧值备份到 `<PK_ROOT>\state\user-path.bak.txt`，`--unset` 可撤销，改动后广播
+  `WM_SETTINGCHANGE` 让新窗口拿到新值
+- `pk env --write` 先看 `Get-ExecutionPolicy`：`Restricted`/`AllSigned` 时**不写 profile**
+  （写了只会每次启动报错），并清掉之前写进去的块；其余 registry/GOPROXY 等变量给出两条出路
+  （放开 CurrentUser 策略 / 每次会话 `pk env --shell powershell | Invoke-Expression`）
+- 新增 `internal/env/winpath_windows.go`（注册表读写，纯 `syscall`）与 `winpath.go`
+  （`splitPathList`/`samePath` 纯函数，跨平台可测）
+
 ## 0.7.3（2026-11-10）
 
 Windows 上「`pk env --write` 之后新开 shell 仍不认 node」的两个根因：

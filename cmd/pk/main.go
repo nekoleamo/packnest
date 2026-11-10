@@ -25,7 +25,7 @@ import (
 )
 
 // Version 是 CLI 版本（渠道发布号由构建注入）。
-var Version = "0.7.3"
+var Version = "0.7.4"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))

@@ -256,6 +256,52 @@ func (a *app) cmdEnv(args []string) int {
 		}
 		targets := envWriteTargets(*rcFile, sh, goos(), home, os.Getenv)
 
+		// Windows：PATH 走注册表里用户环境变量（不受 ExecutionPolicy 影响，cmd/PowerShell/Git Bash 都认）。
+		if goos() == "windows" && *rcFile == "" {
+			changed, before, after, perr := env.RemoveUserPath(pathSegs)
+			if !*unset {
+				changed, before, after, perr = env.AddUserPath(pathSegs)
+			}
+			if perr == nil && changed {
+				// 兜底：改用户 PATH 前留一份旧值，出问题能照着抄回去
+				bak := filepath.Join(a.paths.State(), "user-path.bak.txt")
+				_ = os.MkdirAll(filepath.Dir(bak), 0o755)
+				_ = os.WriteFile(bak, []byte(before+"\n"), 0o644)
+				if !a.json {
+					fmt.Fprintf(a.out, "旧 Path 已备份到 %s\n", bak)
+				}
+			}
+			_ = after
+			if perr != nil {
+				fmt.Fprintf(a.errOut, "pk: 更新用户 PATH 失败（可手动把 %s 加进「用户变量 Path」）: %v\n",
+					strings.Join(pathSegs, ";"), perr)
+			}
+			if !a.json {
+				if changed {
+					fmt.Fprintln(a.out, "已更新用户 Path（注册表用户环境变量，新开窗口生效）")
+				} else {
+					fmt.Fprintln(a.out, "用户 Path 里已经有这些目录（无需改动）")
+				}
+			}
+		}
+
+		// PowerShell 执行策略禁止加载脚本时，profile 写了只会让每个新窗口报错 —— 不写，并清掉旧块。
+		blocked := sh == env.ShellPowerShell && goos() == "windows" && env.PowerShellScriptsBlocked()
+		effective := make([]string, 0, len(targets))
+		for _, t := range targets {
+			if blocked && strings.Contains(strings.ToLower(t), "windowspowershell") {
+				if err := env.RemoveManagedBlock(t); err != nil {
+					return a.fail(err)
+				}
+				if !a.json {
+					fmt.Fprintf(a.out, "跳过 %s（执行策略禁止加载脚本；已清掉其中的 packnest 托管块）\n", t)
+				}
+				continue
+			}
+			effective = append(effective, t)
+		}
+		targets = effective
+
 		if *unset {
 			for _, rc := range targets {
 				if err := env.RemoveManagedBlock(rc); err != nil {
@@ -265,9 +311,19 @@ func (a *app) cmdEnv(args []string) int {
 					fmt.Fprintf(a.out, "已删掉 %s 里的 packnest 托管块\n", rc)
 				}
 			}
+			if blocked && !a.json {
+				fmt.Fprintln(a.out, "（PowerShell 执行策略禁止脚本，profile 里的块本来就不会生效）")
+			}
 			return jsonout.ExitOK
 		}
 		block := env.ExportScript(vars, pathSegs, sh)
+		if len(targets) == 0 && !a.json {
+			fmt.Fprintln(a.out, "没有可写的 profile；PATH 已经交给系统环境变量。")
+			fmt.Fprintln(a.out, "要让 registry/GOPROXY 这些变量也常驻，二选一：")
+			fmt.Fprintln(a.out, "  1) Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   然后重跑 pk env --write")
+			fmt.Fprintln(a.out, "  2) 每次会话：pk env --shell powershell | Invoke-Expression")
+			fmt.Fprintln(a.out, "（本次已生效的部分：用户 Path；改动只涉及 packnest 自己的目录）")
+		}
 		for _, rc := range targets {
 			if err := env.WriteManagedBlock(rc, block); err != nil {
 				return a.fail(err)

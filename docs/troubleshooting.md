@@ -37,6 +37,32 @@ $PROFILE                                  # 确认是哪一个 profile 在生效
 Test-Path $PROFILE                        # 以及文件是否真的存在
 ```
 
+### Windows：profile 存在但每个 shell 启动都报"禁止运行脚本"
+
+`PowerShellScriptsBlocked` 会先看执行策略。`Restricted` / `AllSigned` 会拒绝加载**未签名**的
+profile 脚本（我们写的正是这种），表现是每次开窗口都弹：
+
+```
+无法加载文件 …\Microsoft.PowerShell_profile.ps1，因为在此系统上禁止运行脚本。
+```
+
+0.7.4 起的行为：
+
+- `pk env --write` 先判断策略；**被禁时不写 profile**（写了只会每次报错），并清掉旧块；
+- PATH 改走**注册表里的用户 Path**（`HKCU\Environment`），不受执行策略影响，cmd / PowerShell /
+  Git Bash 都认——`node` 立刻可用；
+- 旧 Path 备份在 `<PK_ROOT>\state\user-path.bak.txt`，撤销用 `pk env --unset`。
+
+如果你还想让 `npm_config_registry` / `GOPROXY` 这些也常驻（它们只能放在 profile 里），二选一：
+
+```powershell
+# 1) 放开当前用户的脚本策略（不需要管理员；只允许本地脚本，下载来的仍需签名）
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
+# 2) 不改策略，每次会话手动接一次
+pk env --shell powershell | Invoke-Expression
+```
+
 旧版本手动处理（任选其一）：`pk env --write --shell powershell` 直到输出里出现 `Documents\WindowsPowerShell\…`；
 或者直接把 `%USERPROFILE%\.packnest\bin` 加进「系统属性 → 环境变量 → Path」。
 

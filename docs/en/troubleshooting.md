@@ -29,6 +29,26 @@ Two bugs, both fixed in 0.7.3 (workaround for older builds below):
    block into `~/.bashrc`, which nothing on Windows reads. Windows now defaults to PowerShell
    (Git Bash still reports `$SHELL`, so it keeps getting bash syntax).
 
+### Windows: profile exists, but every shell errors "running scripts is disabled"
+
+`Restricted` / `AllSigned` refuses to load an **unsigned** profile script (ours is unsigned), so
+each new window shows `… cannot be loaded because running scripts is disabled on this system`.
+
+Since 0.7.4:
+
+- `pk env --write` checks the policy first; when scripts are blocked it **does not write the
+  profile** (a file that can never load) and removes any old block;
+- PATH goes into the **user Path registry value** (`HKCU\Environment`) instead — unaffected by
+  ExecutionPolicy, honoured by cmd / PowerShell / Git Bash, so `node` works immediately;
+- the previous Path is backed up to `<PK_ROOT>\state\user-path.bak.txt`; `pk env --unset` reverts.
+
+Want `npm_config_registry` / `GOPROXY` persisted too (those can only live in a profile)? Either:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   # no admin; local scripts only
+pk env --shell powershell | Invoke-Expression         # or per session
+```
+
 Self-check:
 
 ```powershell
