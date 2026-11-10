@@ -176,6 +176,8 @@ for f in "$VER_DIR"/packnest_"$VERSION"_*; do
   scopeName=${SCOPE#@}
   pkg="$OUT/@$scopeName/$os-$arch"
   mkdir -p "$pkg/bin"
+  # 平台包也给个极简 README（npm 页面上不至于空白）
+  printf '# @%s/%s-%s\n\npacknest 的 %s-%s 预编译二进制，由主包 [packnest](https://www.npmjs.com/package/packnest) 依赖。\n\n不要直接安装；用 \140npm i -g packnest\140。\n' "$scopeName" "$os" "$arch" "$os" "$arch" > "$pkg/README.md"
   tmp="$OUT/.tmp-$os-$arch"; mkdir -p "$tmp"
   abs=$(cd "$(dirname "$f")" && pwd)/$(basename "$f")
   if [ "$archive" = "tar" ]; then
@@ -201,6 +203,10 @@ done
 # 主包：JS 入口 + optionalDependencies 指向平台包
 mkdir -p "$OUT/packnest"
 cp -R packaging/npm/bin packaging/npm/scripts "$OUT/packnest/"
+# npm 页面上的 README / LICENSE 取包目录里的文件，必须一起打包
+cp README.md "$OUT/packnest/README.md"
+cp LICENSE "$OUT/packnest/LICENSE" 2>/dev/null || true
+
 node - "$OUT/packnest/package.json" "$VERSION" "$SCOPE" <<'NODE'
 const fs = require('fs');
 const [, , out, version, scope] = process.argv;

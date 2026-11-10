@@ -6,9 +6,6 @@
     "pk": "bin/pk.js",
     "packnest": "bin/pk.js"
   },
-  "scripts": {
-    "postinstall": "node scripts/install.js"
-  },
   "optionalDependencies": {
     "@packnest/darwin-arm64": "0.0.0",
     "@packnest/darwin-x64": "0.0.0",
@@ -18,13 +15,27 @@
     "@packnest/win32-x64": "0.0.0"
   },
   "files": [
+    "LICENSE",
+    "README.md",
     "bin/pk.js",
     "scripts/install.js"
   ],
   "engines": {
     "node": ">=18"
   },
-  "keywords": ["version-manager", "node", "mirror", "china", "pnpm", "bun", "deno", "go"],
+  "keywords": [
+    "version-manager",
+    "node",
+    "mirror",
+    "china",
+    "pnpm",
+    "bun",
+    "deno",
+    "go"
+  ],
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://gitee.com/packnest/packnest" }
+  "repository": {
+    "type": "git",
+    "url": "https://gitee.com/packnest/packnest"
+  }
 }
