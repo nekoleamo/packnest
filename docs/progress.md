@@ -283,6 +283,18 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
   现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
 
+## 0.7.1（2026-11-10）
+
+Windows 实测反馈驱动的三条修复（详见下面「list 的三个问题」）：
+
+- `pk list --available` 在 Windows 上一直不返回：索引拉取没有总超时，而 npm/pnpm 的 registry
+  **完整元数据**是 25MB/16MB → 慢源上 `io.ReadAll` 挂死（Ctrl-C 后才吐出 `context canceled`）。
+  现在索引请求带 45s 总超时，registry 改用 **abbreviated 元数据**（同一份 2.3MB，字段齐全），
+  冷缓存实测 npm 1.2s、pnpm 0.35s、python 0.3s。
+- `list --available` 不再在有/无已装工具时都喊"还没装任何工具，pk install node@22 开始"或打印空的「已装:」。
+- 新增 `pk list <工具>`：已装版本 + 该工具**全部**可装版本（`✓` 已装、`*` 当前默认、括号里 LTS 代号、
+  默认列最近 20 个、`--all` 不截断、`--json` 结构化）。
+
 ## 渠道审计（2026-11-10，0.7.0 发布后）
 
 用户 `brew install` 报 `reports different checksum` 触发的一轮全面检查：
