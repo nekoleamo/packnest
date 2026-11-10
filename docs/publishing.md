@@ -122,6 +122,11 @@ npm 新增了 **staged publishing**：可以签发"stage-only"的 token，它**�
 
 npm 的 OIDC 方案：CI 用 GitHub 身份直接发布，**不存任何 npm token**。一次配置，永久自动化。
 
+> 找不到 Trusted Publisher 入口？它在**包的 Access 页**而不是 Settings 页：
+> `https://www.npmjs.com/package/<包名>/access` → 页面下方 "Trusted Publisher"。
+> 若仍然看不到（npm 分灰度）：改用 GitHub Secret `NPM_TOKEN` 那条路——工作流已经做了二选一判断，
+> 有 `NPM_TOKEN` 就走 token 模式，没有才走 OIDC。
+
 1. npmjs 上给 **7 个包**各配一条 Trusted Publisher
    （`packnest` + `@packnest/{darwin,linux,windows}-{amd64,arm64}`）：
    Settings → Trusted Publisher → **GitHub Actions** →
