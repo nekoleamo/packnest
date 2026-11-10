@@ -52,18 +52,20 @@ jobs:
           make release VERSION="$VERSION"
           sh scripts/release-npm.sh
 
-      # 两条路自动二选一：
-      #   · 配了 Secret NPM_TOKEN  → 用 token 发布（传统方式，需要能 bypass 2FA 或在 CI 里配 TOTP）
-      #   · 没配                     → 走 Trusted Publishing（OIDC，无 token）
-      - name: 发布（token 模式）
-        if: ${{ secrets.NPM_TOKEN != '' }}
+      # 两条路自动二选一（`secrets` 不能出现在 if 里，只能在 env 里，再在 shell 里判断）：
+      #   · 配了 Secret NPM_TOKEN → token 模式
+      #   · 没配                   → Trusted Publishing（OIDC，无 token）
+      - name: 发布（有 NPM_TOKEN 走 token，否则走 OIDC）
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: sh scripts/release-npm.sh --publish
-
-      - name: 发布（Trusted Publishing / OIDC）
-        if: ${{ secrets.NPM_TOKEN == '' }}
-        run: sh scripts/release-npm.sh --publish --trusted
+        run: |
+          if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "模式：token"
+            sh scripts/release-npm.sh --publish
+          else
+            echo "模式：Trusted Publishing（OIDC）"
+            sh scripts/release-npm.sh --publish --trusted
+          fi
 
   # 可选：同一个 tag 同时把 6 平台产物传到 gitee release（国内二进制主源）。
   # 需要仓库里有 Secret GITEE_TOKEN，且变量 PUBLISH_GITEE=true；不想在云端存 token 就删掉这个 job，
