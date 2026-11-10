@@ -16,6 +16,30 @@
 | `解压失败（产物可能被截断）` | 缓存里是半截文件 | 已自动删除缓存，重试即可；反复失败就 `pk gc --cache-max 1` 清空缓存 |
 | `--frozen` 报不一致 | `pk.toml` 与 `pk.lock` 漂移 | 本地跑一次 `pk install` 更新锁并提交；CI 不解析版本 |
 
+### Windows：`pk env --write` 之后新开 PowerShell 还是不认识 `node`
+
+两个坑，都已在 0.7.3 修掉（旧版本手动处理见下）：
+
+1. **写错了文件**：PowerShell 有两套互不相干的 profile——
+   `Documents\WindowsPowerShell\…`（系统自带的 5.1）和 `Documents\PowerShell\…`（pwsh 7）。
+   旧版只写 7 那一份，5.1 里永远不生效。现在按环境判断版本，判不出来就**两份都写**；
+   `Documents` 被 OneDrive 重定向时也写进 OneDrive 那份。
+2. **语法写错了**：Windows 上没有 `$SHELL`，旧版把 shell 判成 bash，于是把 `export PATH=…`
+   写进了 `~/.bashrc`——Windows 上没人会读这个文件。现在 Windows 默认按 PowerShell 处理
+   （Git Bash 里 `$SHELL` 有值，仍按 bash 写）。
+
+自查：
+
+```powershell
+pk env --shell powershell                 # 先看片段对不对（PATH 里应有 ~\.packnest\bin）
+pk env --write                            # 再写；输出会列出实际写入的每个 profile
+$PROFILE                                  # 确认是哪一个 profile 在生效
+Test-Path $PROFILE                        # 以及文件是否真的存在
+```
+
+旧版本手动处理（任选其一）：`pk env --write --shell powershell` 直到输出里出现 `Documents\WindowsPowerShell\…`；
+或者直接把 `%USERPROFILE%\.packnest\bin` 加进「系统属性 → 环境变量 → Path」。
+
 ## 2. 命令找不到 / 版本不对
 
 ```bash

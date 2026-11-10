@@ -17,6 +17,26 @@ HEAD requests at the mirrors). The complete issue-code table lives in
 | `解压失败（产物可能被截断）` | the cached artifact is truncated | the cache entry is deleted automatically, retry; if it repeats, `pk gc --cache-max 1` empties the cache |
 | `--frozen` reports a mismatch | `pk.toml` drifted from `pk.lock` | run `pk install` locally, commit the refreshed lock; CI never resolves versions |
 
+### Windows: `pk env --write` done, new PowerShell still cannot find `node`
+
+Two bugs, both fixed in 0.7.3 (workaround for older builds below):
+
+1. **Wrong file**: PowerShell has two unrelated profiles — `Documents\WindowsPowerShell\…` (the
+   built-in 5.1) and `Documents\PowerShell\…` (pwsh 7). Older builds only wrote the 7 one, so 5.1
+   users saw nothing. Now the version is detected from the environment and, when it cannot be
+   determined, **both are written**; a OneDrive-redirected `Documents` is handled too.
+2. **Wrong syntax**: Windows sets no `$SHELL`, so the old build decided "bash" and wrote a POSIX
+   block into `~/.bashrc`, which nothing on Windows reads. Windows now defaults to PowerShell
+   (Git Bash still reports `$SHELL`, so it keeps getting bash syntax).
+
+Self-check:
+
+```powershell
+pk env --shell powershell   # inspect the snippet first (PATH must contain ~\.packnest\bin)
+pk env --write              # then write; the output lists every profile it touched
+$PROFILE                    # which profile actually loads
+```
+
 ## 2. Command not found / wrong version
 
 ```bash

@@ -283,6 +283,23 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
   现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
 
+## 0.7.3（2026-11-10）
+
+Windows 上「`pk env --write` 之后新开 shell 仍不认 node」的两个根因：
+
+1. **写错了文件**：PowerShell 的 profile 有两套且互不相干 —— 系统自带的 5.1 读
+   `Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1`，pwsh 7 读 `Documents\PowerShell\…`。
+   旧代码只写 7 那一份（还写死 `Documents`，不认 OneDrive 重定向）。现在
+   `env.WindowsProfilePaths` 按 `POWERSHELL_DISTRIBUTION_CHANNEL` / `PSModulePath` 判断版本，
+   判不出来就**两份都写**，并在 OneDrive 重定向时写 OneDrive 那份。
+2. **写错了语法**：Windows 上没有 `$SHELL`，旧 `detectShell()` 一律回落 `bash`，于是把
+   `export PATH=…` 写进了 `~/.bashrc` —— Windows 上没有任何东西会读它。现在
+   `detectShellFor` 在 Windows 且无 `$SHELL` 时返回 powershell（Git Bash 有 `$SHELL`，仍按 bash）。
+
+`pk env --write` 现在会列出实际写入的每个 profile，并在 PowerShell 下提示用 `$PROFILE` 核对。
+用例：`TestWindowsProfilePaths`、`TestWindowsProfilePathsOneDrive`（`internal/env/env_profile_test.go`，
+注意不能叫 `*_windows_test.go` —— 那会被当成 GOOS 构建约束）与 `TestDetectShellFor`、`TestEnvWriteTargets`。
+
 ## 0.7.2（2026-11-10）
 
 版本文本列表改成可扫读的形态（用户反馈"全部版本展示凌乱"）：

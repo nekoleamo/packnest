@@ -254,32 +254,42 @@ func (a *app) cmdEnv(args []string) int {
 		if err != nil {
 			return a.fail(err)
 		}
-		rc := *rcFile
-		if rc == "" {
-			rc = env.RCFileFor(sh, goos(), home, os.Getenv("SHELL"))
-		}
+		targets := envWriteTargets(*rcFile, sh, goos(), home, os.Getenv)
+
 		if *unset {
-			if err := env.RemoveManagedBlock(rc); err != nil {
-				return a.fail(err)
-			}
-			if !a.json {
-				fmt.Fprintf(a.out, "已删掉 %s 里的 packnest 托管块\n", rc)
+			for _, rc := range targets {
+				if err := env.RemoveManagedBlock(rc); err != nil {
+					return a.fail(err)
+				}
+				if !a.json {
+					fmt.Fprintf(a.out, "已删掉 %s 里的 packnest 托管块\n", rc)
+				}
 			}
 			return jsonout.ExitOK
 		}
 		block := env.ExportScript(vars, pathSegs, sh)
-		if err := env.WriteManagedBlock(rc, block); err != nil {
-			return a.fail(err)
+		for _, rc := range targets {
+			if err := env.WriteManagedBlock(rc, block); err != nil {
+				return a.fail(err)
+			}
+			if !a.json {
+				fmt.Fprintf(a.out, "已写入 %s 的托管块（块外内容未改动；备份在 %s.pk.bak）\n", rc, rc)
+			}
 		}
 		if a.json {
 			return a.emit(struct {
-				Schema int    `json:"schema"`
-				RC     string `json:"rc"`
-				Block  string `json:"block"`
-			}{jsonout.SchemaVersion, rc, block})
+				Schema int      `json:"schema"`
+				RC     string   `json:"rc"`
+				RCs    []string `json:"rcs"`
+				Block  string   `json:"block"`
+			}{jsonout.SchemaVersion, targets[0], targets, block})
 		}
-		fmt.Fprintf(a.out, "已写入 %s 的托管块（块外内容未改动；备份在 %s.pk.bak）\n", rc, rc)
-		fmt.Fprintln(a.out, "新开一个 shell，或 `source "+rc+"` 生效")
+		if sh == env.ShellPowerShell {
+			fmt.Fprintln(a.out, "新开一个 PowerShell 窗口生效（当前窗口可先执行上面的片段，或用 `pk env --shell powershell | Invoke-Expression`）")
+			fmt.Fprintf(a.out, "确认写到哪个 profile：pwsh 里执行 `$PROFILE`；Windows PowerShell 5.1 是另一个路径（两块都已写）\n")
+		} else {
+			fmt.Fprintln(a.out, "新开一个 shell，或 `source "+targets[0]+"` 生效")
+		}
 		return jsonout.ExitOK
 	}
 
@@ -330,10 +340,40 @@ func mergeVars(vars []env.KV) []env.KV {
 }
 
 // detectShell 从 $SHELL 猜方言（PowerShell 由 --shell 显式给）。
+// envWriteTargets 决定 `pk env --write` 往哪几个文件写：
+// --rc 显式指定 > Windows 的 PowerShell profile（5.1 与 7 可能各一份）> 按 $SHELL 猜。
+//
+// 返回多条时要全写：Windows 上 5.1 与 7 互不读对方 profile，猜错一个等于没写。
+func envWriteTargets(rcFlag string, sh env.Shell, goosName, home string, getenv func(string) string) []string {
+	if rcFlag != "" {
+		return []string{rcFlag}
+	}
+	if sh == env.ShellPowerShell && goosName == "windows" {
+		return env.WindowsProfilePaths(home, getenv)
+	}
+	return []string{env.RCFileFor(sh, goosName, home, getenv("SHELL"))}
+}
+
 func detectShell() string {
-	switch base := filepath.Base(os.Getenv("SHELL")); base {
-	case "zsh", "bash", "sh", "dash", "ksh":
+	return detectShellFor(goos(), os.Getenv)
+}
+
+// detectShellFor 是 detectShell 的可测版本（goos / 环境变量注入）。
+//
+// Windows 上没有 $SHELL：PowerShell 不会设它。原来一律回落到 "bash"，于是
+// `pk env --write` 在 Windows 上把 POSIX 片段的托管块写进了 ~/.bashrc ——
+// 一个 Windows 上没人会读的文件，用户自然"写了还是不生效"。
+func detectShellFor(goos string, getenv func(string) string) string {
+	switch base := filepath.Base(getenv("SHELL")); base {
+	case "zsh", "bash", "sh", "dash", "ksh": // fish 不在支持列表里，仍回落 bash
 		return base
+	case "pwsh", "powershell":
+		return "powershell"
+	}
+	if goos == "windows" {
+		// PowerShell 会设 PSModulePath；cmd.exe 里也可能有（安装器写进了系统环境变量），
+		// 但那时写 PowerShell profile 仍是最有用的默认（Windows 11 的默认 shell 就是它）。
+		return "powershell"
 	}
 	return "bash"
 }

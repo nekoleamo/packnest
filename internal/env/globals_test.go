@@ -146,7 +146,9 @@ func TestRCFileFor(t *testing.T) {
 		{ShellPOSIX, "darwin", "/bin/zsh", "/home/u/.zshrc"},
 		{ShellPOSIX, "darwin", "/bin/bash", "/home/u/.bashrc"},
 		{ShellPOSIX, "linux", "", "/home/u/.bashrc"},
-		{ShellPowerShell, "windows", "", "/home/u/Documents/PowerShell/Microsoft.PowerShell_profile.ps1"},
+		// Windows 单值版本给首选：判不出 PowerShell 版本时 5.1（系统自带）优先；
+		// CLI 实际会写 WindowsProfilePaths 返回的全部路径（见 cmd 的 envWriteTargets 用例）。
+		{ShellPowerShell, "windows", "", "/home/u/Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1"},
 		{ShellPowerShell, "darwin", "/bin/zsh", "/home/u/.config/powershell/Microsoft.PowerShell_profile.ps1"},
 	}
 	for _, c := range cases {

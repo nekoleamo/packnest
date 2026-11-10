@@ -166,7 +166,8 @@ const (
 func RCFileFor(shell Shell, goos, home, envShell string) string {
 	if shell == ShellPowerShell {
 		if goos == "windows" {
-			return filepath.Join(home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1")
+			// 单值版本只给首选（cmd 侧会用 WindowsProfilePaths 拿到全部候选）
+			return WindowsProfilePaths(home, os.Getenv)[0]
 		}
 		return filepath.Join(home, ".config", "powershell", "Microsoft.PowerShell_profile.ps1")
 	}
@@ -174,6 +175,63 @@ func RCFileFor(shell Shell, goos, home, envShell string) string {
 		return filepath.Join(home, ".zshrc")
 	}
 	return filepath.Join(home, ".bashrc")
+}
+
+// windowsDocumentsDirs 返回 Documents 目录候选：OneDrive 重定向（Windows 默认）优先。
+func windowsDocumentsDirs(home string, getenv func(string) string) []string {
+	dirs := make([]string, 0, 2)
+	if od := strings.TrimSpace(getenv("OneDrive")); od != "" {
+		dirs = append(dirs, filepath.Join(od, "Documents"))
+	}
+	return append(dirs, filepath.Join(home, "Documents"))
+}
+
+// WindowsProfilePaths 返回该写的 PowerShell profile 路径。
+//
+// 为什么不写死一条：PowerShell 有两套互不相干的 profile
+//   - Windows PowerShell 5.1（系统自带）：Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
+//   - PowerShell 7（pwsh）：             Documents\PowerShell\Microsoft.PowerShell_profile.ps1
+//
+// 5.1 不会读 7 的 profile（反之亦然），所以只写一条就会出现"写了托管块、新开 shell 还是找不到 node"。
+// 另外 Documents 常被 OneDrive 重定向，两个候选都要看。
+//
+// 返回多条时调用方应全部写入：判定不出是哪个 shell 时（例如从 cmd.exe 里跑 pk），
+// 两个都写比"猜错一个"划算。
+func WindowsProfilePaths(home string, getenv func(string) string) []string {
+	// 统一分隔符再匹配：同一台机器上 PSModulePath 可能写成 \ 也可能写成 /
+	modPath := strings.ToLower(strings.ReplaceAll(getenv("PSModulePath"), `\`, "/"))
+	is7 := strings.TrimSpace(getenv("POWERSHELL_DISTRIBUTION_CHANNEL")) != "" ||
+		strings.Contains(modPath, "/powershell/7")
+	is5 := !is7 && strings.Contains(modPath, "windowspowershell")
+
+	folders := []string{"WindowsPowerShell", "PowerShell"} // 判不出来：两个都写
+	switch {
+	case is7:
+		folders = []string{"PowerShell"}
+	case is5:
+		folders = []string{"WindowsPowerShell"}
+	}
+
+	docs := windowsDocumentsDirs(home, getenv)
+	out := make([]string, 0, len(folders))
+	for _, folder := range folders {
+		// 优先选已经存在该版本 profile 目录的那个 Documents（OneDrive 与本地各一份时更要紧）
+		chosen := ""
+		for _, d := range docs {
+			if st, err := os.Stat(filepath.Join(d, folder)); err == nil && st.IsDir() {
+				chosen = d
+				break
+			}
+		}
+		if chosen == "" {
+			chosen = docs[0]
+			if _, err := os.Stat(chosen); err != nil && len(docs) > 1 {
+				chosen = docs[1]
+			}
+		}
+		out = append(out, filepath.Join(chosen, folder, "Microsoft.PowerShell_profile.ps1"))
+	}
+	return out
 }
 
 // WriteManagedBlock 把内容写进 rc 文件的托管块（幂等：已有块就替换）。
