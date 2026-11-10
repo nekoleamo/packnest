@@ -10,26 +10,14 @@ node 装完自动配对「最新兼容的 npm」，卸载可回滚到零残留�
 npm i -g packnest && pk install node@22
 ```
 
-> 完整设计见 `~/Documents/Plan/17-包管理器/pn-总体方案-20261109.md`；进度见 [docs/progress.md](docs/progress.md)。
-
-## 当前状态（v0.6.6）
-
-| 项 | 状态 |
-|---|---|
-| 7 个工具 | ✅ 真网全部装通并跑得起来（node 22.23.4 / npm 12.2.2 / pnpm 12.18 / bun 1.4.4 / deno 2.9.8 / go 1.27.3 / python 3.13.18） |
-| CLI-DONE（方案 §12.2 的 10 条） | ✅ 9/10 达标；第 7 条"渠道可下"已全部上线（见下） |
-| 分发渠道 | ✅ npm · gitee release · curl/iwr 脚本 · 自托管 `--base` · Homebrew tap · Scoop bucket（winget manifest 已备） |
-| 发版 | ✅ GitHub Actions + **Trusted Publishing（OIDC）**：`git tag` 即发版，无 token、无 2FA |
-| 门禁 | ✅ `make check` 7 项（gofmt/vet · race · 覆盖率 · 6 平台交叉编译 · fuzz · benchmark · `--json` golden） |
-| GUI（Wails v3.1.0） | ⏳ 未开工（按方案排在 CLI 冻结之后） |
+> 完整设计见 `~/Documents/Plan/17-包管理器/pn-总体方案-20261109.md`；进度与踩坑见 [docs/progress.md](docs/progress.md)。
 
 ## 安装
 
 ```bash
 # ① npm（国内自动走 npmmirror，秒装）
 npm i -g packnest
-# 国内想强制镜像：
-npm i -g packnest --registry=https://registry.npmmirror.com
+npm i -g packnest --registry=https://registry.npmmirror.com   # 强制镜像
 
 # ② curl 一行（gitee，不访问 GitHub）
 curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh -s -- --mirror cn
@@ -37,7 +25,7 @@ curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh 
 # ③ PowerShell 一行
 iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex
 
-# ④ Homebrew（自有 tap；命令名是 pk，formula 名是 packnest）
+# ④ Homebrew（自有 tap；formula 名 packnest，命令名 pk）
 brew install nekoleamo/packnest/packnest
 
 # ⑤ Scoop
@@ -56,7 +44,7 @@ curl -fsSL https://你的域名/install.sh | sh -s -- --base https://你的域�
 ```bash
 pk install node@22          # 装 node，并自动替换成最新兼容的 npm
 pk list                     # 已装工具（* 是当前全局默认，带占用空间）
-pk list --available         # 各工具最新可装版本（索引 24h 缓存，离线可读）
+pk list --available         # 各工具最新可装版本（索引 24h 缓存，离线可读；--refresh 强制回源）
 pk which node               # shim 指到哪个真实二进制
 pk use node@22.23.4         # 切换全局默认版本
 pk env --shell zsh          # 输出 PATH/registry 片段；--write 写进 rc 托管块
@@ -80,6 +68,29 @@ pk gc --dry-run             # 零引用版本与超限缓存的回收预演
 | 卸载靠删目录 | **台账驱动**：原子写 + `.bak` 自动恢复 + 引用计数 + GC + 只删自己记录的 |
 | 装完不管 registry | 按档位生成 npm/pnpm/bun/pip/go 的 registry 环境，默认**不动** `~/.npmrc` |
 
+## 安装具体版本
+
+```bash
+pk install node@22.22.2   # 精确版本（跳过索引解析，仍取校验和）
+pk install node@22        # 22.x 最新补丁
+pk install node@latest    # 最新稳定
+pk install node@lts       # 最新 LTS
+pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式，不下载
+```
+
+## 全局 vs 项目级
+
+**没有 `--global` / `--project` 开关**，作用域由当前目录决定：
+
+| 场景 | 行为 |
+|---|---|
+| 当前目录**没有** `pk.toml` | 装进共享目录 `~/.packnest/tools/<tool>/<ver>`；该工具还没有全局默认时**自动设为默认** |
+| 当前目录**有** `pk.toml` | 按声明安装，并生成/更新 `pk.lock`（项目级锁定） |
+| `pk use node@X` | 显式改全局默认（配置 + 台账引用 + 重指 shim 三处同步） |
+| `pk env --project` | 在项目内把锁定版本前置到 PATH（配合 direnv，实现"项目级覆盖全局默认"） |
+
+磁盘上永远只有一份，项目级只体现「锁定 + PATH 顺序」，不复制副本。
+
 ## 工程约束（写死为门禁）
 
 - 第三方依赖 **2 个**：`Masterminds/semver/v3`、`BurntSushi/toml`
@@ -92,15 +103,22 @@ pk gc --dry-run             # 零引用版本与超限缓存的回收预演
 
 - 下载：Range 续传（`.part` + `.part.meta`）、ETag/304、超时分档（连接 5s / 首字节 8s）、单源最多重试 2 次；**单连接默认**（国内 CDN 分片常更慢，`--jobs` 目前仅预留）
 - 校验：`SHASUMS256.txt` / 每产物 `.sha256sum` / registry integrity（sha1 或 sha512 SRI）/ go 索引内联 sha256
-- **TOFU + 多源交叉验证**：首次装要求 ≥2 个源给出相同摘要（否则 `weak`），写进 `state/known.json`；此后同版本**完全离线可验证**
+- **TOFU + 多源交叉验证**：首次装要求 ≥2 个源给出相同摘要（否则标 `weak`），写进 `state/known.json`；此后同版本**完全离线可验证**
 - 源之间矛盾 → 硬失败并说明"产物与哪个源一致"，`--insecure` 可放行（标 unverified，且不写入 TOFU 表）
 
 ## 全局包（`npm i -g`）与切版本
 
 - 共享前缀 `~/.packnest/global`（`npm_config_prefix`），`globalconfig` 也引出来 → **切 node 版本不丢全局包、不丢 `npm config set -g`**
 - 包缓存在 `~/.npm`（不迁移不复制）；`global/bin` 是固定目录 → 新装全局包**无需 reshim**
-- `pk doctor --globals` 做三级检测：`GLOBAL_ENGINES_UNMET`（engines 不满足）、`GLOBAL_NATIVE_ABI`（原生模块，N-API 预编译不告警）、`GLOBAL_SHADOWS_PROJECT`（命令遮蔽项目 bin）
+- `pk doctor --globals` 三级检测：`GLOBAL_ENGINES_UNMET`（engines 不满足）、`GLOBAL_NATIVE_ABI`（原生模块，N-API 预编译不告警）、`GLOBAL_SHADOWS_PROJECT`（命令遮蔽项目 bin）
 - 想回 nvm 式行为：`global_mode = "per-version"`
+
+## 与已有管理器共存
+
+`pk` 只写 `~/.packnest`，**绝不改别人的目录**。`pk doctor --foreign` 会只读列出 proto/nvm/volta/asdf/mise/fnm 的 node 版本，
+并在别人的 shim 抢在 `~/.packnest/bin` 前面时告警（`FOREIGN_SHIM_PRIORITY`）。
+
+推荐：先并存 → `pk install node@22 && pk which node` 验证 → 再决定是否从 rc 里删掉对方的初始化行（这一步由你手动做）。
 
 ## 项目锁与 CI
 
@@ -122,47 +140,8 @@ make test       # 零外网单测
 make accept     # 只跑验收用例 TestAcceptance_*
 make check      # 7 项门禁（提交前必跑）
 make release    # 6 平台发布包 + checksums.txt → dist/
-make gitee-release   # 传到 gitee release（凭据只在本机）
 make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 ```
-
-当前规模：实现约 **9.4k 行**（`cmd/` + `internal/`，不含测试），测试约 7.5k 行，17 个包。
-
-## 目录
-
-```
-cmd/pk/                CLI（9 命令 + version/help）
-internal/paths/        PK_ROOT 单根布局、归档路径防护
-internal/spec/         版本说明符、engines 匹配、预发布过滤
-internal/provider/     provider TOML 模型、URL 模板、版本索引加载
-internal/mirror/       镜像档、回退链、探测与 auto 判定
-internal/fetch/        可注入 HTTP 层（Range/ETag/进度回调）
-internal/archive/      tar.gz/zip 解压、strip、单文件布局、原子替换
-internal/verify/       SHASUMS/registry 校验 + TOFU 多源交叉验证
-internal/companion/    node↔npm 伴生反查
-internal/install/      安装编排、台账、锁文件、GC、use
-internal/store/        台账/配置/锁、缓存 LRU、启动清扫
-internal/shim/         shim 生成与解析（pk / packnest 双名同源）
-internal/env/          PATH/registry 片段、全局包扫描、rc 托管块
-internal/jsonout/      `--json` v1 契约（golden 锁住）
-internal/toolchain/    go 的 GOTOOLCHAIN、python 的 pbs 两级目录列举
-internal/testkit/      假镜像与合成发行包（测试专用）
-providers/*.toml       7 个内嵌 provider（//go:embed）
-.github/workflows/     发版流水线（OIDC 发布 + gitee + brew/scoop + 镜像）
-acceptance/            验收用例（TestAcceptance_*）
-```
-
-## 发布（维护者）
-
-```bash
-# 用户侧：npm / gitee / brew / scoop 见上文
-# 维护者：改版本 → 打 tag → CI 全自动
-gh variable set SKIP_NPM_PUBLISH -b false -R nekoleamo/packnest
-git tag -a v0.6.7 -m "packnest 0.6.7" && git push origin v0.6.7
-```
-
-CI 用 **Trusted Publishing（OIDC）** 发布 npm（无 token、无 2FA），随后上传 gitee release、
-刷新 brew/scoop 清单、同步 gitee 代码镜像。细节见 [docs/publishing.md](docs/publishing.md)。
 
 ## 文档
 
@@ -179,7 +158,8 @@ CI 用 **Trusted Publishing（OIDC）** 发布 npm（无 token、无 2FA），�
 - python 的索引只声明 npmmirror（官方 GitHub 无目录列举接口）；go 的索引只声明官方 `?mode=json&include=all`，拉不到时用 24h stale 缓存
 - pnpm 12 的 registry tarball 只是启动器，首次运行会自己再下平台二进制（pnpm 上游行为）
 - 缓存按 `<tool>-<version>-<platform>.<ext>` 命名（跨版本不重下，但未做内容寻址去重）
-- scheduler/GUI 未开始：`cmd/pk-desktop` 计划在 CLI 冻结后按方案 M6 接入
+- 项目内自动覆盖全局版本需要 direnv（`pk env --project`）；未装 direnv 时 `node` 仍解析到全局默认
+- GUI（Wails v3.1.0）未开工，按方案排在 CLI 冻结之后
 
 ## 许可证
 
