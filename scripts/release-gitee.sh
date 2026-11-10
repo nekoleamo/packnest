@@ -32,7 +32,7 @@ echo "将发布 ${REPO} ${TAG}（来自 ${VER_DIR}）"
 for f in "$VER_DIR"/packnest_* "$VER_DIR"/checksums.txt; do
   [ -f "$f" ] && printf '  %s (%s)\n' "$(basename "$f")" "$(du -h "$f" | cut -f1)"
 done
-[ "$DRY" -eq 1 ] && { echo "dry-run：没有上传"; exit 0; }
+if [ "$DRY" -eq 1 ]; then echo "dry-run：没有上传"; exit 0; fi
 
 TOKEN="${GITEE_TOKEN:-$(secret_from_file "$TOKEN_FILE" GITEE_TOKEN GITEE_ACCESS_TOKEN)}"
 [ -n "$TOKEN" ] || { echo "没有 GITEE_TOKEN（${TOKEN_FILE}），或用 GITEE_TOKEN=xxx 临时给" >&2; exit 3; }
