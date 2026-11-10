@@ -10,6 +10,8 @@ node 装完自动配对「最新兼容的 npm」，卸载可回滚到零残留�
 npm i -g packnest && pk install node@22
 ```
 
+> 官网（单页极简版）：<https://nekoleamo.github.io/packnest/> · 源码 [GitHub](https://github.com/nekoleamo/packnest) / 镜像 [gitee](https://gitee.com/null_593_5354/packnest)
+>
 > 完整设计见 `~/Documents/Plan/17-包管理器/pn-总体方案-20261109.md`；进度与踩坑见 [docs/progress.md](docs/progress.md)。
 
 ## 安装

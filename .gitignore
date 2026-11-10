@@ -2,6 +2,7 @@
 /dist/
 /build/
 coverage.out
+/site/dist/
 *.test
 *.out.tmp
 .DS_Store

@@ -110,8 +110,18 @@ if [ -z "$VERSION" ] && [ -n "$BASE" ]; then
 fi
 
 if [ -z "$VERSION" ]; then
-  VERSION=$(curl -fsSL --max-time 15 https://gitee.com/api/v5/repos/packnest/packnest/releases/latest 2>/dev/null \
-    | sed -n 's/.*"tag_name":"\([^"]*\)".*/\1/p' || true)
+  # 版本号来源：npm registry 的主包元数据（公开、不需凭据、国内走 npmmirror）。
+  # 注意：gitee 的 API 现在要 token（匿名 401），不能当主路。
+  VERSION=$(curl -fsSL --max-time 15 "https://registry.npmmirror.com/packnest/latest" 2>/dev/null \
+    | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' | head -1 || true)
+  if [ -z "$VERSION" ]; then
+    VERSION=$(curl -fsSL --max-time 15 "https://registry.npmjs.org/packnest/latest" 2>/dev/null \
+      | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' | head -1 || true)
+  fi
+  if [ -z "$VERSION" ]; then
+    VERSION=$(curl -fsSL --max-time 15 "https://gitee.com/api/v5/repos/${GITEE_REPO}/releases/latest" 2>/dev/null \
+      | sed -n 's/.*"tag_name":"\([^"]*\)".*/\1/p' || true)
+  fi
   VERSION=${VERSION#v}
   [ -n "$VERSION" ] || { echo "拿不到最新版本，请用 --version 指定" >&2; exit 3; }
 fi

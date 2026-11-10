@@ -25,7 +25,7 @@ VERSION ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null | sed -
 LDFLAGS := -s -w -X main.Version=$(VERSION)
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
-.PHONY: gitee-release help build test race check fmt vet cover cross fuzz bench golden accept clean dist list-providers release checksums npm-packages npm-dry publish publish-stage stage-list promote
+.PHONY: gitee-release help build test race check fmt vet cover cross fuzz bench golden accept clean dist list-providers release checksums npm-packages npm-dry publish publish-stage stage-list promote site
 
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
@@ -41,6 +41,7 @@ help:
 	@echo "make publish-stage  只 stage（无需 2FA，CI 可跑）"
 	@echo "make publish-direct 直接发布（2027-01 前有效，已弃用）"
 	@echo "make gitee-release  上传产物到 gitee release（二进制主源）"
+	@echo "make site      渲染官网到 site/dist（只注入版本号，无前端工具链）"
 	@echo "make clean     清理产物"
 
 build:
@@ -103,6 +104,10 @@ accept:
 # ⭐ 7 项门禁，顺序即"越便宜越先"。
 check: fmt vet race cover cross fuzz bench golden
 	@echo "===== make check 全部通过（7 项）====="
+
+# 官网：site/ → site/dist（版本号注入）。部署由 .github/workflows/pages.yml 负责。
+site:
+	@sh scripts/build-site.sh
 
 list-providers:
 	@go run ./cmd/pk mirror list

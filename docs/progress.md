@@ -271,6 +271,18 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 `env --write`/`--unset`、`list`、`list --available`、`which`、`use`、`gc --dry-run`、`uninstall`、
 `--frozen` 不一致退出码、`doctor --json`、`--json` 事件流全部按契约工作。
 
+## 官网（2026-11-10）
+
+- `site/` 是**零依赖单页**：一个 `index.html`（内联 CSS，无 JS、无外部字体/图片/统计）+ 一个 `favicon.svg`，成品 7.9KB。
+- `make site` → `site/dist/`（`scripts/build-site.sh` 只做一件事：把 `__PK_VERSION__` 换成 git tag，回退 `dist/latest`）——
+  版本号不写死在 HTML 里，发版后不会静默腐化。
+- 部署走 **GitHub Pages**（`.github/workflows/pages.yml`，官方 artifact 流程，不写 `gh-pages` 分支）；
+  前置只需在仓库 Settings → Pages 把 Source 选成 **GitHub Actions**。
+- 窄屏（≤34rem）表格自动拆成"标签 + 说明"，pre 里的长 URL 折行而不是横向裁切。
+- Gitee Pages 已于 2024 年停服（官方口径"维护调整，暂停提供"），国内第二站暂缓；真要国内秒开再谈 EdgeOne Pages 或 OSS + 备案。
+- 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
+  现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
+
 ## 行数预算现状
 
 `cmd/` + `internal/`（不含 `*_test.go`、不含 `internal/testkit` 夹具）**8465 / 8500 行**，余量 35 行。

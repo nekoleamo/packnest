@@ -1,0 +1,51 @@
+# GitHub Pages：把 site/ 渲染后发到 Pages（用官方 artifact 流程，不写 gh-pages 分支）。
+#
+# 前置（在仓库 Settings → Pages 做一次）：
+#   Build and deployment → Source 选 **GitHub Actions**
+# 这一条 workflow 里也会用 configure-pages(enablement: true) 自己开，开不了再手动选。
+# 之后每次改 site/ 推 main 就自动发布；也在 Actions 页手动 Run workflow 触发。
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'scripts/build-site.sh'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 版本号从 tag 取，所以要完整历史
+      - name: 渲染站点（注入版本号）
+        run: sh scripts/build-site.sh
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true # 仓库还没开 Pages 时顺手开（需要 pages: write）
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>packnest — 国内网络开箱可用的多语言运行时安装器</title>
+<meta name="description" content="Go 单二进制、零 CGO、6 平台。一条命令装 node/npm/pnpm/bun/deno/go/python，内置国内镜像与真实探测，node 装完自动配对最新兼容 npm。">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#fff; --fg:#111; --mut:#6b6b6b; --line:#e6e6e6; --code:#f7f7f7; --accent:#111;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0c0c0c;--fg:#ededed;--mut:#9b9b9b;--line:#232323;--code:#161616;--accent:#ededed}
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--bg);color:var(--fg);overflow-wrap:anywhere;
+  font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC",system-ui,sans-serif;
+}
+main{max-width:44rem;margin:0 auto;padding:5rem 1.25rem 7rem}
+a{color:inherit;text-decoration:none;border-bottom:1px solid var(--line)}
+a:hover{border-bottom-color:var(--fg)}
+code,pre{font-family:var(--mono);font-size:.9em}
+h1{font-size:1.45rem;font-weight:650;letter-spacing:-.01em;margin:0}
+h2{font-size:.8rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);margin:4.5rem 0 1.1rem}
+p{margin:.6rem 0}
+header .sub{margin:.5rem 0 0;font-size:1.05rem}
+header .sub .ver{font-family:var(--mono);font-size:.8em;color:var(--mut);margin-left:.5rem}
+header .note{margin:.9rem 0 0;color:var(--mut);font-size:.9rem}
+header .note code{color:var(--fg)}
+pre{
+  margin:.7rem 0 0;padding:.85rem 1rem;background:var(--code);border:1px solid var(--line);
+  border-radius:4px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;
+}
+pre code{font-size:.875rem}
+.alt{color:var(--mut);font-size:.9rem;margin-top:1.4rem}
+.alt code{padding:.1rem .3rem;background:var(--code);border:1px solid var(--line);border-radius:3px;color:var(--fg)}
+dl{margin:0;display:grid;grid-template-columns:7rem 1fr;gap:.55rem 1.2rem}
+dt{font-size:.9rem;color:var(--mut);padding-top:.1rem}
+dd{margin:0}
+table{width:100%;border-collapse:collapse;font-size:.93rem;table-layout:auto}
+th,td{text-align:left;padding:.5rem .6rem .5rem 0;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
+td:first-child{white-space:nowrap;font-family:var(--mono);font-size:.88rem}
+footer{margin-top:5rem;padding-top:1.2rem;border-top:1px solid var(--line);color:var(--mut);font-size:.88rem;line-height:2}
+footer a{margin-right:1.1rem}
+@media (max-width:34rem){
+  main{padding:3rem 1.1rem 4rem}
+  dl{grid-template-columns:1fr;gap:.15rem}
+  dt{margin-top:.7rem}
+  /* 窄屏把表格拆成"标签 + 说明"，比横向滚动更省事 */
+  table,thead,tbody,tr,td,th{display:block}
+  thead{display:none}
+  tbody tr{padding:.65rem 0;border-bottom:1px solid var(--line)}
+  tbody tr:last-child{border-bottom:0}
+  td{border:0;padding:0}
+  td:first-child{white-space:normal;color:var(--mut);font-size:.82rem;letter-spacing:.02em}
+  td:last-child{margin-top:.2rem;overflow-wrap:anywhere}
+}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>packnest</h1>
+  <p class="sub">国内网络开箱可用的多语言运行时安装器<span class="ver">v__PK_VERSION__</span></p>
+  <p class="note">命令行叫 <code>pk</code>（也提供 <code>packnest</code> 别名）。与 NestJS 无关。</p>
+</header>
+
+<section id="install">
+  <h2>安装</h2>
+  <pre><code>npm i -g packnest
+pk install node@22</code></pre>
+  <p class="alt">不想用 npm：走 gitee 直取，全程不访问 GitHub。</p>
+  <pre><code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh</code></pre>
+  <p class="alt">Windows PowerShell：</p>
+  <pre><code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex</code></pre>
+  <p class="alt">或者 <code>brew install nekoleamo/packnest/packnest</code> · <code>scoop install packnest</code></p>
+</section>
+
+<section id="why">
+  <h2>它解决什么</h2>
+  <dl>
+    <dt>国内网络</dt>
+    <dd>内置 default / cn / tuna / aliyun / ustc 五档。装第一个工具时做真实探测（500ms HEAD，结果缓存 6h）：官方源通就直连，不通自动落国内档。</dd>
+    <dt>npm 配对</dt>
+    <dd>npm 不是独立工具，是 node 的伴生包：按 node 的精确版本反查「最新兼容的 npm」，替换掉发行版自带的旧版（按补丁号判分界，排除预发布）。</dd>
+    <dt>校验</dt>
+    <dd>首次安装要求至少两个源给出相同摘要并写进 TOFU 表，之后同一版本完全离线可验证；源之间矛盾时硬失败，并告诉你产物与哪个源一致。</dd>
+    <dt>卸载</dt>
+    <dd>台账是唯一事实源：只删自己记录过的目录，切版本靠 shim 原子重指，卸载回到零残留（连空的版本目录一起收掉）。</dd>
+    <dt>体积</dt>
+    <dd>单个 Go 二进制，<code>CGO_ENABLED=0</code>，六平台构建，只依赖两个第三方库（semver、toml）。</dd>
+  </dl>
+</section>
+
+<section id="tools">
+  <h2>能装什么</h2>
+  <table>
+    <thead><tr><th>工具</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>node</td><td>官方索引 + 国内镜像；装完自动配对 npm</td></tr>
+      <tr><td>npm</td><td>只作为 node 的伴生包出现，不单独暴露一个版本</td></tr>
+      <tr><td>pnpm</td><td>需要先有 node（不隐式安装运行时），<code>PNPM_HOME</code> 指向共享前缀</td></tr>
+      <tr><td>bun</td><td>单文件布局，官方 release + 镜像回退</td></tr>
+      <tr><td>deno</td><td>单文件布局；上游重新发布过的版本会因两源摘要不一致被拒，需要时用 <code>--insecure</code></td></tr>
+      <tr><td>go</td><td>装完把 <code>GOTOOLCHAIN=local</code> 写进环境，避免它自己去下一套工具链</td></tr>
+      <tr><td>python</td><td>只装 python-build-standalone 预编译版，永不源码编译</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="commands">
+  <h2>命令</h2>
+  <table>
+    <thead><tr><th>命令</th><th>做什么</th></tr></thead>
+    <tbody>
+      <tr><td>install</td><td>装工具；无参数时按当前目录的 <code>pk.toml</code> 全装并刷新 <code>pk.lock</code></td></tr>
+      <tr><td>uninstall</td><td>台账驱动卸载（被引用的版本需要 <code>--force</code>）</td></tr>
+      <tr><td>use</td><td>切换全局默认版本；<code>--project</code> 固定到当前项目</td></tr>
+      <tr><td>list</td><td>已装工具与占用空间；<code>--available</code> 列各工具最新可装版本</td></tr>
+      <tr><td>which</td><td>把 shim 解析回真实二进制路径</td></tr>
+      <tr><td>mirror</td><td><code>list</code> / <code>probe</code> / <code>use</code> / <code>write</code> 四个子命令管理镜像档</td></tr>
+      <tr><td>doctor</td><td>体检 PATH、台账、镜像、全局包、其他版本管理器</td></tr>
+      <tr><td>env</td><td>输出 shell 片段；<code>--write</code> 才写进 rc 的托管块</td></tr>
+      <tr><td>gc</td><td>回收零引用版本与超限缓存</td></tr>
+    </tbody>
+  </table>
+  <p class="alt">全局开关 <code>--json</code>（GUI 与脚本的唯一契约）· <code>--offline</code> · <code>--yes</code> · <code>--root</code>；退出码固定 0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用。</p>
+</section>
+
+<footer>
+  <a href="https://github.com/nekoleamo/packnest">源码</a>
+  <a href="https://github.com/nekoleamo/packnest/blob/main/docs/cli.md">命令手册</a>
+  <a href="https://github.com/nekoleamo/packnest/blob/main/docs/troubleshooting.md">故障排查</a>
+  <a href="https://github.com/nekoleamo/packnest/blob/main/docs/json-schema.md">--json 契约</a>
+  <a href="https://gitee.com/null_593_5354/packnest">gitee 镜像</a>
+  <a href="https://gitee.com/null_593_5354/packnest/releases">发布产物</a>
+  <br>MIT · 不采集访问统计 · 页面不加载任何第三方资源
+</footer>
+
+</main>
+</body>
+</html>
