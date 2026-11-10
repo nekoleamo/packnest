@@ -19,7 +19,7 @@ param(
   [ValidateSet('default', 'cn')][string]$Mirror = 'default',
   [string]$Base = $env:PK_INSTALL_BASE,
   [string]$Version = '',
-  [string]$Dir = (Join-Path $env:LOCALAPPDATA 'packnest\bin'),
+  [string]$Dir = '',
   [switch]$SkipVerify,
   [switch]$DryRun
 )
@@ -30,6 +30,11 @@ $ProgressPreference = 'SilentlyContinue'   # 大文件下载别刷进度条
 $GiteeRepo = if ($env:PK_GITEE_REPO) { $env:PK_GITEE_REPO } else { 'null_593_5354/packnest' }
 $Registry  = if ($env:PK_NPM_REGISTRY) { $env:PK_NPM_REGISTRY } else { 'https://registry.npmmirror.com' }
 $Scope     = if ($env:PK_NPM_SCOPE) { $env:PK_NPM_SCOPE } else { '@packnest' }
+
+if (-not $Dir) {
+  $Dir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'packnest\bin' } else { Join-Path $HOME '.packnest\bin' }
+}
+$TempRoot = if ($env:TEMP) { $env:TEMP } elseif ([IO.Path]::GetTempPath()) { [IO.Path]::GetTempPath() } else { '.' }
 
 $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
   'ARM64' { 'arm64' }
@@ -67,7 +72,7 @@ $Version = $Version.TrimStart('v')   # allow -Version v0.7.0
 # channel: explicit -Base > -Mirror cn (npm platform package) > gitee release
 $from = if ($Base) { 'base' } elseif ($Mirror -eq 'cn') { 'npm' } else { 'gitee' }
 
-$tmp = New-Item -ItemType Directory -Path (Join-Path $env:TEMP ("pk-" + [guid]::NewGuid())) -Force
+$tmp = New-Item -ItemType Directory -Path (Join-Path $TempRoot ("pk-" + [guid]::NewGuid())) -Force
 try {
   $final = $null   # path of the extracted packnest.exe we will install
 

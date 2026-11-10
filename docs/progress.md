@@ -296,7 +296,11 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 | curl 一行（gitee） | **完全不校验哈希**就装 | 安装前拉 `checksums.txt` 对 sha256，不符退出码 4；`--skip-verify` 才能放行 |
 | `--from npm` / `--mirror cn` | 同样不校验 | 对 registry 的 `dist.shasum` 校验 sha1 |
 | 自托管 `--base` | 同样不校验 | 对 `<base>/v<ver>/checksums.txt` 校验 sha256 |
-| install.ps1 | ① 版本探测写死 `gitee.com/api/v5/repos/packnest/packnest`（404，且匿名 401）→ 默认通道直接装不上；② `-Mirror cn` 指向 `npmmirror /-/binary/packnest/...`（该路径不存在，404）；③ 不校验哈希 | 版本改为 npm registry 优先；`-Mirror cn` 改走 npm 平台包（`@packnest/win32-<arch>` + registry shasum 校验）；gitee/base 通道校验 `checksums.txt` sha256；新增 `-SkipVerify` |
+| install.ps1 | ① 版本探测写死 `gitee.com/api/v5/repos/packnest/packnest`（404，且匿名 401）→ 默认通道直接装不上；② `-Mirror cn` 指向 `npmmirror /-/binary/packnest/...`（该路径不存在，404）；③ 不校验哈希；④ **zip 解到临时根目录 → 与"待安装 exe"同路径 → 最后一步变成自我复制**（用户实测 Windows ARM64：`Copy-Item : 无法使用项 … 其自身覆盖该项`）；⑤ 中文消息经 `iwr \| iex` 按控制台代码页解码 → GBK 控制台下全是 `?` | 版本改为 npm registry 优先；`-Mirror cn` 改走 npm 平台包（`@packnest/win32-<arch>` + registry shasum 校验）；gitee/base 通道校验 `checksums.txt` sha256；解压改到独立子目录（zip → `$tmp\unz`，npm → `$tmp\npmpkg`）；**面向用户的输出全部改成 ASCII**（注释仍是中文）；新增 `-SkipVerify` 与 `PK_SKIP_VERIFY` / `PK_VERSION` / `PK_INSTALL_DIR` 环境变量；`LOCALAPPDATA`/`TEMP` 缺失时有兜底 |
+
+install.ps1 的验证方式：`brew install --cask powershell` 需要 sudo，改为直接下载 PowerShell 7.6.9 的
+osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 篡改产物 / `-SkipVerify` / `-DryRun`），
+全部符合预期——其中篡改分支实测抛 `SHA256 mismatch` 且不落任何文件。
 
 根因与硬化（防止再犯）：
 - `make release` 现在**可重复**：打包前 `touch -t $(SOURCE_DATE)`，tar 走 `tar -cf - | gzip -n`，zip 用 `-X`；
