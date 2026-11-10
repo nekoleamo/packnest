@@ -19,7 +19,8 @@ func (a *app) cmdList(args []string) int {
 	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
 	a.usageFor(fs, "list")
-	available := fs.Bool("available", false, "列出各工具的最新可用版本（需索引，可离线读缓存）")
+	available := fs.Bool("available", false, "列出各工具的最新可用版本（索引默认 24h 缓存）")
+	refresh := fs.Bool("refresh", false, "忽略索引缓存，强制重新拉取（配合 --available）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -61,6 +62,7 @@ func (a *app) cmdList(args []string) int {
 
 	if a.json {
 		if *available {
+			a.refreshIndex = *refresh
 			rows := a.availableRows()
 			return a.emit(struct {
 				Schema    int                 `json:"schema"`
@@ -97,6 +99,7 @@ func (a *app) cmdList(args []string) int {
 	}
 
 	if *available {
+		a.refreshIndex = *refresh
 		return a.printAvailable()
 	}
 	return jsonout.ExitOK
@@ -148,10 +151,14 @@ func (a *app) availableRows() []availableEntry {
 	if err != nil {
 		return []availableEntry{{Name: "-", Err: err.Error()}}
 	}
+	ttl := provider.DefaultIndexTTL
+	if a.refreshIndex {
+		ttl = 0 // 0 = 每次都回源（仍会写缓存，供 --offline 用）
+	}
 	loader := &provider.IndexLoader{
 		Client:   a.client,
 		CacheDir: a.paths.CacheMeta(),
-		TTL:      provider.DefaultIndexTTL,
+		TTL:      ttl,
 		Custom:   toolchain.LoadPBSIndex,
 	}
 	rows := make([]availableEntry, 0, len(all))

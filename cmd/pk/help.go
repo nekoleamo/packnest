@@ -34,10 +34,11 @@ var commandHelp = map[string]string{
   切换全局默认版本：写 config.toml、更新台账引用、把 shim 重指到该版本。
   只会切到**已安装**的版本（先 pk install）。`,
 
-	"list": `pk list [--available] [--json]
+	"list": `pk list [--available [--refresh]] [--json]
 
-  列出已装工具（* 表示当前全局默认），带各版本占用空间。
-  --available 额外列各工具最新可用版本与最近几个版本（索引 24h 缓存，离线可读缓存）。`,
+  列出已装工具（* 表示当前全局默认），带各版本占用空间。这个不带网络。
+  --available 额外列各工具最新可用版本与最近几个版本（索引 24h 缓存，离线可读缓存）。
+  --refresh   忽略缓存强制回源（想看"此刻最新"时用）。`,
 
 	"which": `pk which <命令> [--json]
 

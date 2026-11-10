@@ -44,6 +44,8 @@ type app struct {
 	client  *fetch.Client
 	now     func() time.Time
 	ctx     context.Context
+	// refreshIndex 为 true 时忽略索引缓存（list --available --refresh）
+	refreshIndex bool
 }
 
 // context 返回命令上下文（Ctrl-C 会取消，M1 的下载用它做中断清理）。
