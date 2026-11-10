@@ -51,6 +51,7 @@ while [ $# -gt 0 ]; do
     --check-auth) CHECK_AUTH=1; shift ;;
     --stage) STAGE=1; shift ;;
     --promote) PROMOTE="$2"; shift 2 ;;
+    --promote-all) PROMOTE="--all"; shift ;;
     --otp) OTP="$2"; shift 2 ;;
     --tag) TAG="$2"; shift 2 ;;
     --registry) REGISTRY="$2"; shift 2 ;;
@@ -77,6 +78,17 @@ make_auth_config() {
 # --promote <stage-id|--list>：把 staged 版本提升为正式版本。
 # 注意：npm 规定"提升"必须由带 2FA 的维护者确认；stage-only token 只能 stage 不能 promote。
 if [ -n "$PROMOTE" ]; then
+  if [ "$PROMOTE" = "--all" ]; then
+    ids=$(npm stage list --registry "$REGISTRY" 2>/dev/null | awk '/^id: /{print $2}')
+    [ -n "$ids" ] || { echo "没有 staged 版本"; exit 0; }
+    for id in $ids; do
+      echo "== approve $id"
+      otp_value=$(auto_otp); args=""
+      [ -n "$otp_value" ] && args="--otp $otp_value"
+      npm stage approve "$id" $args --registry "$REGISTRY" || echo "  （这个需要浏览器确认，批准后重跑）"
+    done
+    exit 0
+  fi
   if [ "$PROMOTE" = "--list" ]; then
     npm stage list --registry "$REGISTRY"
     exit $?
@@ -232,6 +244,8 @@ if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ] || [ "$STAGE" -eq 1 ]; then
   if [ "$PUBLISH" -eq 1 ] || [ "$STAGE" -eq 1 ]; then
     load_token || exit 3
     make_auth_config
+    STAGED=$(npm stage list --registry "$REGISTRY" 2>/dev/null \
+      | awk '/^package name: /{n=$3} /^version: /{if (n!="") {print n"@"$2; n=""}}' || true)
   else
     echo "dry-run：只打包并校验 manifest，不需要凭据"
   fi
@@ -252,10 +266,21 @@ if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ] || [ "$STAGE" -eq 1 ]; then
   otp_value=$(auto_otp)
   [ -n "$otp_value" ] && PUBLISH_ARGS="$PUBLISH_ARGS --otp $otp_value"
   [ "$DRY_RUN" -eq 1 ] && PUBLISH_ARGS="$PUBLISH_ARGS --dry-run"
+  # 先拿一次"已 stage 的清单"，同版本直接跳过（避免 E409 + 误报失败）
+  STAGED=$(npm stage list --registry "$REGISTRY" 2>/dev/null \
+    | awk '/^package name: /{n=$3} /^version: /{if (n!="") {print n"@"$2; n=""}}' || true)
+
   for p in "$OUT"/@*/*/ "$OUT"/packnest/; do
+    pkg_name=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["name"])' "$p/package.json" 2>/dev/null || echo "")
+    pkg_ver=$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["version"])' "$p/package.json" 2>/dev/null || echo "")
+    if [ "$STAGE" -eq 1 ] && printf '%s\n' "$STAGED" | grep -qx "${pkg_name}@${pkg_ver}"; then
+      echo "  跳过（已 staged）：${pkg_name}@${pkg_ver}"
+      continue
+    fi
     echo "== 发布 ${SCOPE}/$(basename "$p")"
     # shellcheck disable=SC2086
-    out=$( cd "$p" && npm publish $PUBLISH_ARGS 2>&1 ) || {
+    out=$( cd "$p" && npm $PUBLISH_ARGS 2>&1 ) || {
+      FAILED="${FAILED:-} $(basename "$p")"
       # staging 是幂等的：同版本已 staged/已发布时跳过，不当作失败
       if echo "$out" | grep -qE 'Cannot stage previously published version|previously published versions'; then
         echo "  跳过（该版本已在 stage/已发布）：$(basename "$p")"
@@ -267,6 +292,7 @@ if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ] || [ "$STAGE" -eq 1 ]; then
       echo "  1) npmjs → Access Tokens 重建 Granular token 并**勾上 Bypass 2FA**（推荐，之后无需 OTP）" >&2
       echo "  2) 在凭据文件里加 NPM_TOTP_SECRET=<base32 2FA 密钥> —— 脚本会自动算 OTP 传 --otp" >&2
       echo "  3) 账号 Settings → Two-Factor Authentication 改成 auth-only（只在登录时要求 2FA）" >&2
+      continue
       if echo "$out" | grep -qiE 'stage-only|must be staged|stage publish'; then
         echo "" >&2
         echo "检测到这是 **stage-only token**：它只能 stage，不能直接发布。两种走法：" >&2
@@ -280,7 +306,7 @@ if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ] || [ "$STAGE" -eq 1 ]; then
   if [ "$STAGE" -eq 1 ]; then
     echo "已全部 stage。下一步（需要 2FA，本机配了 NPM_TOTP_SECRET 就全自动）："
     echo "  sh scripts/release-npm.sh --promote --list"
-    echo "  sh scripts/release-npm.sh --promote <stage-id>"
+    echo "  sh scripts/release-npm.sh --promote-all    # 逐个 approve（需要浏览器/OTP）"
   elif [ "$DRY_RUN" -eq 1 ]; then
     echo "dry-run 完成（没有真的发布；这 7 个包都已打包好并校验过 manifest）"
   else
