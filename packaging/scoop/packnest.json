@@ -1,16 +1,16 @@
 {
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "国内网络开箱可用的多语言运行时安装器（node/pnpm/bun/deno/go/python）",
   "homepage": "https://gitee.com/null_593_5354/packnest",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://gitee.com/null_593_5354/packnest/releases/download/v0.7.0/packnest_0.7.0_windows_amd64.zip",
-      "hash": "4eebf7edaff9af6edad29f91517c2b3ae4be8c59d5d270d8f8bb15b96b6a4514"
+      "url": "https://gitee.com/null_593_5354/packnest/releases/download/v0.7.1/packnest_0.7.1_windows_amd64.zip",
+      "hash": "3817314924fa2e06048436815455c872ff225da41f21f4f6d0ad14415db2b000"
     },
     "arm64": {
-      "url": "https://gitee.com/null_593_5354/packnest/releases/download/v0.7.0/packnest_0.7.0_windows_arm64.zip",
-      "hash": "ead081abb2d2e56ef91f4b120542b50db9bc8c0a01e1a78cadf3f3fefd7caccc"
+      "url": "https://gitee.com/null_593_5354/packnest/releases/download/v0.7.1/packnest_0.7.1_windows_arm64.zip",
+      "hash": "175dcfaf644d3a337627b5dc05d67aa583f3f74b8f9570b0b14c7e07974c45c7"
     }
   },
   "bin": [["packnest.exe", "pk"], "packnest.exe"],
