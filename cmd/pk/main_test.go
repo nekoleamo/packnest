@@ -1025,13 +1025,28 @@ func TestListSingleTool(t *testing.T) {
 	if code != 0 || !strings.Contains(out, "可装") || !strings.Contains(out, "pk install node@") {
 		t.Fatalf("文本视图异常: %d\n%s", code, out)
 	}
-	// 装一个之后：✓ 标记 + 默认标记
+	// 装一个之后：已装/默认标记 + 它排在最下面（升序，最新在最下）
 	if code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99"); code != 0 {
 		t.Fatalf("install: %s", errOut)
 	}
 	code, out, _ = execCLI(t, "--root", root, "list", "node")
-	if code != 0 || !strings.Contains(out, "已装 * 22.99.99") || !strings.Contains(out, "✓ 22.99.99") {
+	if code != 0 || !strings.Contains(out, "已装 * 22.99.99") || !strings.Contains(out, "已装 · 当前默认") {
 		t.Fatalf("已装/默认标记缺失:\n%s", out)
+	}
+	// 一版一行：最后一个版本行必须是索引里的最新版
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	var lastVersion string
+	for _, ln := range lines {
+		t := strings.TrimSpace(ln)
+		if t == "" || strings.HasPrefix(t, "…") || strings.HasPrefix(t, "想装") {
+			continue
+		}
+		if f := strings.Fields(t); len(f) > 0 && strings.HasPrefix(f[0], "2") {
+			lastVersion = f[0]
+		}
+	}
+	if lastVersion != "22.99.99" {
+		t.Fatalf("升序排列时最新版应在最下面，最后一行是 %q:\n%s", lastVersion, out)
 	}
 	// 未知工具：退出 1 并列出可用工具
 	if code, _, errOut := execCLI(t, "--root", root, "list", "rust"); code != 1 || !strings.Contains(errOut, "bun") {
@@ -1053,5 +1068,41 @@ func TestListAvailableNoInstallNudge(t *testing.T) {
 	}
 	if !strings.Contains(out, "可装版本") {
 		t.Fatalf("应列出可装版本:\n%s", out)
+	}
+}
+
+// --limit 只截最近 N 个，--all 等于不截断。
+func TestListSingleToolLimit(t *testing.T) {
+	// 需要一个多版本索引：--limit 的截断才有意义
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{
+			{Version: "22.99.1"}, {Version: "22.99.2"}, {Version: "22.99.3"},
+			{Version: "22.99.4"}, {Version: "22.99.5"},
+		},
+		NPM: map[string]string{"11.20.0": "^20.17.0 || >=22.9.0"},
+	})
+	t.Setenv("PK_MIRROR_NODE_INDEX", fm.Server.URL+"/node/index.json")
+	root := t.TempDir()
+
+	countRows := func(out string) int {
+		n := 0
+		for _, ln := range strings.Split(out, "\n") {
+			f := strings.Fields(strings.TrimSpace(ln))
+			if len(f) > 0 && strings.HasPrefix(f[0], "2") && strings.Count(f[0], ".") == 2 {
+				n++
+			}
+		}
+		return n
+	}
+	_, out, _ := execCLI(t, "--root", root, "list", "node", "--limit", "2")
+	if got := countRows(out); got != 2 {
+		t.Fatalf("--limit 2 应只列 2 行，实际 %d:\n%s", got, out)
+	}
+	_, outAll, _ := execCLI(t, "--root", root, "list", "node", "--all")
+	if countRows(outAll) < countRows(out) {
+		t.Fatalf("--all 不应比 --limit 少:\n%s", outAll)
+	}
+	if !strings.Contains(outAll, "全部") {
+		t.Fatalf("--all 时应提示是全部版本:\n%s", outAll)
 	}
 }

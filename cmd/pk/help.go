@@ -43,13 +43,14 @@ pk use --lock
   --project  不改全局，改为「固定到当前项目」：写 pk.toml + 重新生成 pk.lock
   --lock     只按现有 pk.toml 重新生成 pk.lock（不切版本、不装东西）`,
 
-	"list": `pk list [工具] [--available] [--refresh] [--all] [--json]
+	"list": `pk list [工具] [--available] [--refresh] [--all|--limit N] [--json]
 
   不带参数：列出已装工具（* 是当前全局默认），带版本占用空间。这个不带网络。
-  pk list node：只看 node —— 已装版本 + 该工具**全部**可装版本（✓ 已装、括号里是 LTS 代号）。
+  pk list node：只看 node —— 已装版本 + 可装版本，**一版一行、旧到新、最新在最下面**
+                （右对齐便于扫读，标签列写 latest / lts: <代号> / 已装 · 当前默认）。
   --available 每个工具一行，给最新版与最近 5 个（索引 24h 缓存，离线读缓存）。
   --refresh   忽略缓存强制回源。
-  --all       配合工具名：不截断（默认只列最近 20 个）。`,
+  --limit N   配合工具名：只列最近 N 个（默认 20）；--all 等于 --limit 0。`,
 
 	"which": `pk which <命令> [--json]
 

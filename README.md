@@ -50,6 +50,7 @@ registry 的 `dist.shasum`），对不上退出码 4。PowerShell 版参数名�
 ```bash
 pk install node@22          # 装 node，并自动替换成最新兼容的 npm
 pk list                     # 已装工具（* 是当前全局默认，带占用空间）
+pk list node                # 只看 node：已装 + 可装版本（一版一行，最新在最下面）
 pk list --available         # 各工具最新可装版本（索引 24h 缓存，离线可读；--refresh 强制回源）
 pk which node               # shim 指到哪个真实二进制
 pk use node@22.23.4         # 切换全局默认版本

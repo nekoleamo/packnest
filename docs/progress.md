@@ -283,6 +283,16 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
   现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
 
+## 0.7.2（2026-11-10）
+
+版本文本列表改成可扫读的形态（用户反馈"全部版本展示凌乱"）：
+
+- `pk list <工具>` 的版本区改成**一版一行、升序、最新在最下面**（同 nvm ls-remote / pyenv
+  install --list / fnm ls-remote 的约定），版本号右对齐成列，右侧是标签列：
+  `latest` / `lts: <代号>` / `已装` / `已装 · 当前默认`
+- 默认只列最近 20 个并在末尾提示"前面还有 N 个"；`--limit N` 自定义，`--all` 等于 `--limit 0`
+- `--json` 同步带上 `installed` / `lts` 字段，GUI 与脚本不用再解析文本
+
 ## 0.7.1（2026-11-10）
 
 Windows 实测反馈驱动的三条修复（详见下面「list 的三个问题」）：

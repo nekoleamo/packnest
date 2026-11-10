@@ -21,7 +21,8 @@ func (a *app) cmdList(args []string) int {
 	a.usageFor(fs, "list")
 	available := fs.Bool("available", false, "列出各工具的最新可用版本（索引默认 24h 缓存）")
 	refresh := fs.Bool("refresh", false, "忽略索引缓存，强制重新拉取（配合 --available / 工具名）")
-	all := fs.Bool("all", false, "配合工具名：列出该工具的全部可装版本（默认只列最近 20 个）")
+	all := fs.Bool("all", false, "配合工具名：列出全部可装版本（等于 --limit 0）")
+	limit := fs.Int("limit", 20, "配合工具名：只列最近 N 个版本（0 = 全部）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -29,7 +30,14 @@ func (a *app) cmdList(args []string) int {
 		return a.failUsage(fmt.Errorf("用法: pk list [工具] [--available] [--refresh] [--all]"))
 	}
 	if tool := fs.Arg(0); tool != "" {
-		return a.listToolVersions(tool, *refresh, *all)
+		n := *limit
+		if *all {
+			n = 0
+		}
+		if n < 0 {
+			return a.failUsage(fmt.Errorf("--limit 不能为负数"))
+		}
+		return a.listToolVersions(tool, *refresh, n)
 	}
 
 	ledger, recovered, err := store.LoadLedgerWithRecovery(a.paths.Ledger())
@@ -199,7 +207,7 @@ func (a *app) availableRows() []availableEntry {
 //
 // 单工具视图和 `--available` 的"每个工具一行"是两件事：这里要能看见完整版本集，
 // 而不是只有最新版和"近几个"。
-func (a *app) listToolVersions(name string, refresh, all bool) int {
+func (a *app) listToolVersions(name string, refresh bool, limit int) int {
 	p, err := provider.Get(name)
 	if err != nil {
 		return a.fail(err) // provider.Get 的报错里已经列了可用工具
@@ -310,26 +318,56 @@ func (a *app) listToolVersions(name string, refresh, all bool) int {
 		fmt.Fprintln(a.out, "  可装   （索引里没有稳定版本）")
 		return jsonout.ExitOK
 	}
-	limit := len(versions)
-	if !all && limit > 20 {
-		limit = 20
+	// versions 是降序；展示用升序（最新在最下面），窗口取升序序列的尾部 = 最近 N 个。
+	asc := make([]string, 0, len(versions))
+	for i := len(versions) - 1; i >= 0; i-- {
+		asc = append(asc, versions[i])
 	}
-	items := make([]string, 0, limit)
-	for _, v := range versions[:limit] {
-		label := v
-		if lts := ltsOf[v]; lts != "" && !strings.EqualFold(lts, "lts") {
-			label += " (" + lts + ")"
-		} else if lts != "" {
-			label += " (lts)"
+	shown := asc
+	truncated := 0
+	if limit > 0 && len(asc) > limit {
+		truncated = len(asc) - limit
+		shown = asc[truncated:]
+	}
+	// 一版一行，升序（最新在最下面），版本号右对齐后再放标签，扫读时列是齐的。
+	width := 0
+	for _, v := range shown {
+		if len(v) > width {
+			width = len(v)
+		}
+	}
+	if truncated > 0 {
+		fmt.Fprintf(a.out, "  可装   （显示最近 %d 个，旧 → 新，最新在最下面）\n", len(shown))
+	} else {
+		fmt.Fprintf(a.out, "  可装   （全部 %d 个，旧 → 新，最新在最下面）\n", len(shown))
+	}
+	for _, v := range shown {
+		tags := make([]string, 0, 3)
+		if v == latest.Version && hasLatest {
+			tags = append(tags, "latest")
+		}
+		if lts := ltsOf[v]; lts != "" {
+			if strings.EqualFold(lts, "lts") {
+				tags = append(tags, "lts")
+			} else {
+				tags = append(tags, "lts: "+lts)
+			}
 		}
 		if containsStr(installed, v) {
-			label = "✓ " + label
+			if active[name] == v {
+				tags = append(tags, "已装 · 当前默认")
+			} else {
+				tags = append(tags, "已装")
+			}
 		}
-		items = append(items, label)
+		if len(tags) == 0 {
+			fmt.Fprintf(a.out, "         %*s\n", width, v)
+			continue
+		}
+		fmt.Fprintf(a.out, "         %*s  %s\n", width, v, strings.Join(tags, " · "))
 	}
-	fmt.Fprintln(a.out, "  可装   "+strings.Join(items, " · "))
-	if limit < len(versions) {
-		fmt.Fprintf(a.out, "          …还有 %d 个（pk list %s --all 看全部）\n", len(versions)-limit, name)
+	if truncated > 0 {
+		fmt.Fprintf(a.out, "         …还有前面 %d 个更旧的版本（pk list %s --all 看全部，或 --limit N）\n", truncated, name)
 	}
 	fmt.Fprintf(a.out, "  想装某个版本：pk install %s@<版本>\n", name)
 	return jsonout.ExitOK

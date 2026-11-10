@@ -174,16 +174,32 @@ $ pk list --available --json
 ### 2.1 只看一个工具的全部版本
 
 ```bash
-$ pk list node
+$ pk list node                     # 默认最近 20 个
 node：可装 877 个版本（索引最新 26.13.0 · lts 26.13.0）
   已装 * 22.23.4
-  可装   26.13.0 (Lithium) · 26.12.1 · 26.12.0 · …（默认列最近 20 个）
-          …还有 857 个（pk list node --all 看全部）
+  可装   （显示最近 20 个，旧 → 新，最新在最下面）
+         26.11.0
+         26.11.1
+         26.12.0
+         26.12.1
+         26.13.0  latest · lts: Lithium
+         …还有前面 872 个更旧的版本（pk list node --all 看全部，或 --limit N）
   想装某个版本：pk install node@<版本>
+
+$ pk list node --all               # 全部 877 个
+$ pk list node --limit 5           # 只想要最后 5 个
 ```
 
-`✓` 表示这个版本本机已装，`*` 是当前全局默认；括号里是上游给的 LTS 代号。
-`--all` 不截断；`--json` 给出 `{tool, latest, lts, total, installed[], available[]}`。
+排版约定（和 nvm ls-remote / pyenv install --list / fnm ls-remote 一致）：**一版一行、升序、
+最新在最下面**，版本号右对齐成列，后面跟标签列：
+
+| 标签 | 含义 |
+|---|---|
+| `latest` | 索引里的最新稳定版 |
+| `lts: <代号>` | 上游标记的 LTS（node 有代号如 Lithium；只有布尔标记时显示 `lts`） |
+| `已装` / `已装 · 当前默认` | 本机已装 / 且是该工具的全局默认 |
+
+`--json` 给 `{tool, latest, lts, total, installed[], available[]}`（`available` 里带 `lts` 与 `installed`）。
 
 > 索引里 npm/pnpm 走的是 registry 的 **abbreviated 元数据**（约 2MB，而不是 25MB），
 > 单次索引拉取有 45s 总超时——慢源上会明确报"索引拉取超时"，不会再像以前那样一直挂着。

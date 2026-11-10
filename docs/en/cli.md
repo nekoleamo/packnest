@@ -128,20 +128,28 @@ Installed:
   * node   22.23.4   177.5 MB (npm 12.2.2, bundled 10.9.9)
     pnpm   12.19.0    49.4 MB
 
-$ pk list node                 # one tool: installed versions + EVERY installable version
+$ pk list node                 # one tool: installed versions + installable versions
 node: 877 versions installable (index latest 26.13.0, lts 26.13.0)
   installed  * 22.23.4
-  available    26.13.0 (Lithium) · 26.12.1 · 26.12.0 · … (20 shown)
-               …857 more (pk list node --all)
+  available  (latest 20 shown, oldest → newest, newest at the bottom)
+             26.11.0
+             26.11.1
+             26.12.0
+             26.12.1
+             26.13.0  latest · lts: Lithium
+             …872 older ones above (pk list node --all, or --limit N)
   install one: pk install node@<version>
+
+$ pk list node --all           # all 877
+$ pk list node --limit 5       # just the newest 5
 
 $ pk list --available          # one line per tool: latest + 5 recent (24h cache, offline-readable)
 $ pk list --available --refresh  # ignore the cache and go to the network
 $ pk list node --json          # {tool, latest, lts, total, installed[], available[]}
 ```
 
-`✓` marks a version installed locally, `*` is the current global default, and the parenthesis
-carries the upstream LTS codename. Index fetches for npm/pnpm use the registry's **abbreviated
+Layout follows nvm/pyenv/fnm: **one version per line, ascending, newest at the bottom**, right-aligned
+into a column with a tag column after it (`latest`, `lts: <codename>`, `已装` / `已装 · 当前默认`). Index fetches for npm/pnpm use the registry's **abbreviated
 metadata** (~2 MB instead of ~25 MB) and every index fetch has a 45 s total timeout, so a slow
 mirror reports "index fetch timed out" instead of hanging forever.
 
