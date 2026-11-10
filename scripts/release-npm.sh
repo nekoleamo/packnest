@@ -196,10 +196,15 @@ for f in "$VER_DIR"/packnest_"$VERSION"_*; do
   esac
   os=${rest%_*}; arch=${rest#*_}
   scopeName=${SCOPE#@}
-  pkg="$OUT/@$scopeName/$os-$arch"
+  # 平台包必须用 **node 风格** 名字（darwin-x64 / linux-x64 / win32-x64），
+  # 因为主包 package.json 的 optionalDependencies 与 install.js 都按 process.platform/arch 找包；
+  # 用 Go 风格（windows-amd64）会导致除 darwin-arm64 外全部装不上。
+  npm_os=$os; [ "$os" = "windows" ] && npm_os=win32
+  npm_arch=$arch; [ "$arch" = "amd64" ] && npm_arch=x64
+  pkg="$OUT/@$scopeName/$npm_os-$npm_arch"
   mkdir -p "$pkg/bin"
   # 平台包也给个极简 README（npm 页面上不至于空白）
-  printf '# @%s/%s-%s\n\npacknest 的 %s-%s 预编译二进制，由主包 [packnest](https://www.npmjs.com/package/packnest) 依赖。\n\n不要直接安装；用 \140npm i -g packnest\140。\n' "$scopeName" "$os" "$arch" "$os" "$arch" > "$pkg/README.md"
+  printf '# @%s/%s-%s\n\npacknest 的 %s-%s 预编译二进制，由主包 [packnest](https://www.npmjs.com/package/packnest) 依赖。\n\n不要直接安装；用 \140npm i -g packnest\140。\n' "$scopeName" "$npm_os" "$npm_arch" "$npm_os" "$npm_arch" > "$pkg/README.md"
   tmp="$OUT/.tmp-$os-$arch"; mkdir -p "$tmp"
   abs=$(cd "$(dirname "$f")" && pwd)/$(basename "$f")
   if [ "$archive" = "tar" ]; then
@@ -211,10 +216,10 @@ for f in "$VER_DIR"/packnest_"$VERSION"_*; do
   chmod +x "$pkg/bin/$exe"
   cat > "$pkg/package.json" <<JSON
 {
-  "name": "$SCOPE/$os-$arch",
+  "name": "$SCOPE/$npm_os-$npm_arch",
   "version": "$VERSION",
   "description": "packnest 的 $os-$arch 二进制（由主包 packnest 依赖）",
-  "os": ["$os"], "cpu": ["$arch"],
+  "os": ["$npm_os"], "cpu": ["$npm_arch"],
   "files": ["bin/$exe"],
   "license": "MIT"
 }
