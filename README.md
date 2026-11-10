@@ -189,9 +189,18 @@ pk 二进制本身（按渠道）：
 | npm | `npm uninstall -g packnest` |
 | Scoop | `scoop uninstall packnest && scoop bucket rm nekoleamo` |
 | winget | `winget uninstall nekoleamo.packnest` |
-| curl 脚本（macOS/Linux） | `rm -f ~/.local/bin/pk ~/.local/bin/packnest` |
-| iwr 脚本（Windows） | 删 `%LOCALAPPDATA%\packnest\bin` |
+| curl 脚本（macOS/Linux） | `rm -f ~/.local/bin/pk ~/.local/bin/packnest`（默认 `~/.local/bin`，装了 `--dir` 就用那个目录） |
+| iwr 脚本（Windows） | `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\packnest\bin"` |
 | 自托管 / 手动 | 删掉那个文件即可 |
+
+脚本装的这两个渠道，`pk` 自己知道装到哪了（安装时写了 `state/install.json`），所以可以一条命令连自己一起删：
+
+```bash
+pk uninstall --all --yes --purge --self     # 删运行时 + 缓存 + 配置 + pk 二进制本身
+```
+
+`--self` 在 macOS/Linux 上直接删掉进程自己（unlink 正在运行的文件没问题）并收掉空目录；
+Windows 上系统不允许删除正在运行的 exe，会打印出要你执行的那条 `Remove-Item`。
 
 **pk 只写 `~/.packnest` 和它自己的托管块**，所以上面的步骤之后不会剩什么。特别地：
 `~/.npm` 缓存、`~/.npmrc`、别的版本管理器目录**从来没被动过**，也不需要清理。

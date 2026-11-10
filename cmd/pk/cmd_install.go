@@ -194,21 +194,30 @@ func (a *app) cmdUninstall(args []string) int {
 	all := fs.Bool("all", false, "清掉 pk 装过的一切（所有运行时 + shim + PATH/rc 托管块）")
 	purge := fs.Bool("purge", false, "配合 --all：连 PK_ROOT 一起删（缓存、台账、配置）")
 	keepCache := fs.Bool("keep-cache", false, "配合 --purge：保留 cache/（离线可重装）")
+	self := fs.Bool("self", false, "配合 --all：连 pk 二进制自己一起删（Windows 会给出命令）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
 	if !*all && fs.NArg() != 1 {
-		return a.failUsage(fmt.Errorf("用法: pk uninstall <工具>@<版本> | pk uninstall --all [--purge] [--yes]"))
+		return a.failUsage(fmt.Errorf("用法: pk uninstall <工具>[@<版本>] | pk uninstall --all [--purge] [--yes]"))
 	}
 	if *all && fs.NArg() != 0 {
 		return a.failUsage(fmt.Errorf("--all 不接受工具参数；只想删一个用 pk uninstall <工具>@<版本>"))
 	}
 	tool, version := "", ""
 	if !*all {
-		var err error
-		tool, version, err = splitToolVersion(fs.Arg(0))
-		if err != nil {
-			return a.failUsage(err)
+		arg := fs.Arg(0)
+		if idx := strings.LastIndex(arg, "@"); idx > 0 && idx == len(arg)-1 {
+			return a.failUsage(fmt.Errorf("版本为空: %q（写 pk uninstall %s 可删该工具的所有版本）", arg, arg[:idx]))
+		}
+		if strings.Contains(arg, "@") {
+			var err error
+			tool, version, err = splitToolVersion(arg)
+			if err != nil {
+				return a.failUsage(err)
+			}
+		} else {
+			tool = arg // 不带版本：删这个工具的全部版本
 		}
 	}
 
@@ -241,10 +250,13 @@ func (a *app) cmdUninstall(args []string) int {
 		return a.failWith(err)
 	}
 	if *all {
-		return a.uninstallAll(inst, *purge, *keepCache)
+		return a.uninstallAll(inst, *purge, *keepCache, *self)
 	}
-	if *keepCache || *purge {
-		return a.failUsage(fmt.Errorf("--purge/--keep-cache 只能配合 --all 用"))
+	if *keepCache || *purge || *self {
+		return a.failUsage(fmt.Errorf("--purge/--keep-cache/--self 只能配合 --all 用"))
+	}
+	if version == "" {
+		return a.uninstallTool(inst, tool, *force)
 	}
 	if err := inst.Uninstall(tool, version, *force); err != nil {
 		return a.fail(err)

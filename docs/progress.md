@@ -283,6 +283,26 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
   现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
 
+## 0.7.7（2026-11-10）
+
+卸载体验补齐两件事：
+
+**① `pk uninstall <工具>`（不带版本）= 删该工具的全部版本**
+原来必须写精确版本（`pk uninstall go@1.27.3`），删一个装了多版本的工具得反复敲。
+现在先**逐条列出会被删掉的版本**（`*` 标当前全局默认）再二次确认：
+`--yes` 直接过；交互终端问 y/N；非交互（管道/CI）没有 `--yes` 一律不动 —— 用 ioctl/GetConsoleMode
+判断 stdin 是不是终端（`/dev/null` 也是字符设备，只看 `ModeCharDevice` 会误判）。
+`npm` 单独卸载会提示"它是 node 的伴生包"。`--all` 也换成同一套确认逻辑。
+
+**② curl / iwr 装的 `pk` 自己也能一条命令删掉**
+两个安装脚本现在会写 `state/install.json`（channel / platform / version / dir），
+`pk uninstall --all --yes --purge --self` 就能连二进制一起删：unix 上直接 unlink 正在运行的文件
+（合法）并收掉空目录；Windows 不允许删运行中的 exe，改为打印那条 `Remove-Item`。
+`--all` 的收尾提示也会用记录下来的真实目录，而不是猜 `~/.local/bin`。
+
+用例：`TestUninstallToolAllVersions`（引用拦截 / force / 空集合）、`TestUninstallAllSelf`
+（用 install.json 的目录）、`TestInstallInfoRoundTrip`，覆盖率回到 install 87.0% / store 87.7%。
+
 ## 0.7.6（2026-11-10）
 
 「怎么彻底卸载」原来只有零散知识（`pk uninstall <工具>@<版本>` + `pk env --unset` + 各渠道各自的删法），

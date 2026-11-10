@@ -25,3 +25,13 @@ func termWidth() int {
 	}
 	return int(ws.col)
 }
+
+// stdinIsTerminal 判断标准输入是不是终端。
+// 注意 /dev/null 也是字符设备，所以不能只看 os.ModeCharDevice —— 用 ioctl 才准。
+func stdinIsTerminal() bool {
+	type winsize struct{ row, col, xpixel, ypixel uint16 }
+	ws := &winsize{}
+	_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, os.Stdin.Fd(),
+		uintptr(syscall.TIOCGWINSZ), uintptr(unsafe.Pointer(ws)))
+	return errno == 0
+}

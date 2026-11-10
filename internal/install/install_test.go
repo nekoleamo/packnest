@@ -1285,3 +1285,50 @@ func TestInstallForceRehash(t *testing.T) {
 		t.Fatalf("TOFU 表应被真实摘要覆盖: %+v (产物 sha256=%s)", entry, res.SHA256)
 	}
 }
+
+// UninstallTool：不带版本时删掉该工具的全部版本；被项目/工具引用的版本需要 force。
+func TestUninstallToolAllVersions(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.98.1"}, {Version: "22.98.2"}},
+		NPM:      map[string]string{"11.20.0": "^20.17.0 || >=22.9.0"},
+	})
+	inst := newInstaller(t, fm, nil)
+	ctx := context.Background()
+	for _, v := range []string{"22.98.1", "22.98.2"} {
+		if _, err := inst.Install(ctx, "node", v); err != nil {
+			t.Fatalf("install %s: %v", v, err)
+		}
+	}
+	if got := inst.Root(); got == "" {
+		t.Fatal("Root() 不该为空")
+	}
+	// 22.98.1 被项目锁引用：不带 force 应拒绝并报出它
+	if err := inst.ledger.AddRef("node", "22.98.1", store.Ref{Kind: store.RefProject, Name: "my-app"}); err != nil {
+		t.Fatal(err)
+	}
+	removed, err := inst.UninstallTool("node", false)
+	if err == nil || !strings.Contains(err.Error(), "22.98.1") {
+		t.Fatalf("被引用的版本应拒绝并报出: removed=%v err=%v", removed, err)
+	}
+	if len(removed) != 1 || removed[0] != "22.98.2" {
+		t.Fatalf("只该删掉没被引用的那个: %v", removed)
+	}
+	if inst.ledger.Find("node", "22.98.1") == nil {
+		t.Fatal("被引用的版本不该被删")
+	}
+	// force：全删
+	removed, err = inst.UninstallTool("node", true)
+	if err != nil {
+		t.Fatalf("--force 应放行: %v", err)
+	}
+	if len(removed) != 1 || removed[0] != "22.98.1" {
+		t.Fatalf("force 后应删掉剩下的那个: %v", removed)
+	}
+	if len(inst.ledger.Installs) != 0 {
+		t.Fatalf("台账应清空: %+v", inst.ledger.Installs)
+	}
+	// 再删一次：没有已装版本
+	if _, err := inst.UninstallTool("node", true); err == nil {
+		t.Fatal("没有版本时应报错")
+	}
+}

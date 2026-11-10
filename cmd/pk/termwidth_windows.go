@@ -42,3 +42,16 @@ func termWidth() int {
 	}
 	return w
 }
+
+// stdinIsTerminal 判断标准输入是不是控制台。
+func stdinIsTerminal() bool {
+	kernel32 := syscall.NewLazyDLL("kernel32.dll")
+	getMode := kernel32.NewProc("GetConsoleMode")
+	h, err := syscall.GetStdHandle(syscall.STD_INPUT_HANDLE)
+	if err != nil {
+		return false
+	}
+	var mode uint32
+	r, _, _ := getMode.Call(uintptr(h), uintptr(unsafe.Pointer(&mode)))
+	return r != 0
+}

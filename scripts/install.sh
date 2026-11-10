@@ -124,7 +124,14 @@ print(dist.get("shasum", ""))
   mkdir -p "$DIR"
   install -m 0755 "$tmp/package/bin/packnest" "$DIR/packnest"
   ln -sf "$DIR/packnest" "$DIR/pk"
-  echo "装好了：$DIR/pk（$("$DIR/pk" --version)）"
+  # 记一笔"自己是怎么装的"，`pk uninstall --all` 才能精确告诉你/替你删掉哪个文件
+ROOT="${PK_ROOT:-$HOME/.packnest}"
+mkdir -p "$ROOT/state" 2>/dev/null || true
+cat > "$ROOT/state/install.json" <<JSON 2>/dev/null || true
+{"schema":1,"channel":"script","platform":"${os}","version":"${VERSION}","dir":"${DIR}"}
+JSON
+
+echo "装好了：$DIR/pk（$("$DIR/pk" --version)）"
   case ":$PATH:" in
     *":$DIR:"*) ;;
     *) echo "把 $DIR 加进 PATH：export PATH=\"$DIR:\$PATH\"" ;;
@@ -203,6 +210,13 @@ tar -xzf "$tmp/pk.tar.gz" -C "$tmp"
 mkdir -p "$DIR"
 install -m 0755 "$tmp/packnest" "$DIR/packnest"
 ln -sf "$DIR/packnest" "$DIR/pk"
+
+# 记一笔"自己是怎么装的"，`pk uninstall --all` 才能精确告诉你/替你删掉哪个文件
+ROOT="${PK_ROOT:-$HOME/.packnest}"
+mkdir -p "$ROOT/state" 2>/dev/null || true
+cat > "$ROOT/state/install.json" <<JSON 2>/dev/null || true
+{"schema":1,"channel":"script","platform":"${os}","version":"${VERSION}","dir":"${DIR}"}
+JSON
 
 echo "装好了：$DIR/pk（$("$DIR/pk" --version)）"
 case ":$PATH:" in

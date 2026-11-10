@@ -84,6 +84,9 @@ func (p Paths) Ledger() string { return p.join("state", "installs.json") }
 // Known 是 TOFU 校验和表。
 func (p Paths) Known() string { return p.join("state", "known.json") }
 
+// InstallInfo 记录"pk 自己是怎么装的"（由安装脚本写入）。
+func (p Paths) InstallInfo() string { return p.join("state", "install.json") }
+
 // Probe 是镜像探测结果缓存。
 func (p Paths) Probe() string { return p.join("state", "probe.json") }
 

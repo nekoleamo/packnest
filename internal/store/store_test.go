@@ -243,3 +243,26 @@ func TestWriteAtomicError(t *testing.T) {
 		t.Fatal("锁目录无法创建时应报错")
 	}
 }
+
+// install.json：安装脚本记录"pk 自己装到哪了"，`uninstall --all --self` 靠它精确删除。
+func TestInstallInfoRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state", "install.json")
+	if got := LoadInstallInfo(path); got != nil {
+		t.Fatal("缺失时应返回 nil")
+	}
+	info := &InstallInfo{Channel: "script", Platform: "darwin-arm64", Version: "0.7.7", Dir: "/home/me/.local/bin"}
+	if err := info.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	back := LoadInstallInfo(path)
+	if back == nil || back.Dir != info.Dir || back.Version != "0.7.7" || back.Schema != 1 {
+		t.Fatalf("往返失败: %+v", back)
+	}
+	// 损坏的 JSON 当没有，不要让卸载流程崩
+	if err := os.WriteFile(path, []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadInstallInfo(path); got != nil {
+		t.Fatalf("损坏时应返回 nil，得到 %+v", got)
+	}
+}

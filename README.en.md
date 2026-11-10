@@ -193,9 +193,19 @@ Without `--yes` it only prints the plan.
 | npm | `npm uninstall -g packnest` |
 | Scoop | `scoop uninstall packnest && scoop bucket rm nekoleamo` |
 | winget | `winget uninstall nekoleamo.packnest` |
-| curl script (macOS/Linux) | `rm -f ~/.local/bin/pk ~/.local/bin/packnest` |
-| iwr script (Windows) | delete `%LOCALAPPDATA%\packnest\bin` |
+| curl script (macOS/Linux) | `rm -f ~/.local/bin/pk ~/.local/bin/packnest` (default dir; use yours if you passed `--dir`) |
+| iwr script (Windows) | `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\packnest\bin"` |
 | self-hosted / manual | delete that file |
+
+The two script channels record where pk itself was installed (`state/install.json`), so one command
+can remove everything including pk:
+
+```bash
+pk uninstall --all --yes --purge --self     # runtimes + cache + config + the pk binary itself
+```
+
+`--self` unlinks the running binary on macOS/Linux and removes the directory if it ends up empty;
+on Windows a running exe cannot be deleted, so it prints the exact `Remove-Item` command instead.
 
 pk only writes `~/.packnest` plus its own managed blocks, so nothing else is left behind —
 `~/.npm`, `~/.npmrc` and other managers' directories are never touched.

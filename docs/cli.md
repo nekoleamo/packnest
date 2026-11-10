@@ -293,12 +293,17 @@ $ pk use --lock
 $ pk uninstall --all                # 只打印计划
 $ pk uninstall --all --yes          # 运行时 + shim + rc/Path 托管块（保留缓存）
 $ pk uninstall --all --yes --purge  # 再删掉整个 ~/.packnest
+$ pk uninstall --all --yes --purge --self   # 连 pk 二进制自己一起删（脚本安装的渠道）
 ```
 
 `--all` 会清：① 每个运行时目录 ② `~/.packnest/bin` 的 shim ③ shell rc 的托管块
 （Windows 还有注册表用户 Path 的四段目录）④ 打印"按安装渠道删 pk 自己"的命令。
 不带 `--yes` 只打印计划；`--purge --keep-cache` 保留缓存方便离线重装。
 退出码：0 全部成功 / 1 有没删干净的（会逐条列出来）。
+
+脚本（curl / iwr）安装时会写 `state/install.json` 记住装到哪个目录，所以 `--self` 能精确删除：
+macOS/Linux 直接 unlink 正在运行的二进制（合法），目录空了顺手收掉；
+Windows 不允许删运行中的 exe，会打印那条要你执行的 `Remove-Item`。
 
 ```bash
 $ pk uninstall node@20.18.1

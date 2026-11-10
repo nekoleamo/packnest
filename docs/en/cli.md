@@ -206,6 +206,10 @@ pk uninstall <tool>@<version> [--force]
 pk uninstall --all [--purge] [--keep-cache] [--yes]
 ```
 
+`--self` also removes the `pk` binary itself (the installer scripts record their target directory in
+`state/install.json`): on macOS/Linux it unlinks the running binary; on Windows it prints the
+`Remove-Item` command, because a running exe cannot be deleted.
+
 `--all` removes everything pk installed: every tool directory, the shims in `~/.packnest/bin`, the
 managed block in your shell rc (on Windows also the user Path registry entries), and prints the
 command that removes the `pk` binary itself for your install channel. Without `--yes` it only prints

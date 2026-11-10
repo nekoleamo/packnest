@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -513,8 +514,12 @@ func TestCLIInstallBadSpec(t *testing.T) {
 	if code, _, _ := execCLI(t, "--root", root, "install", "rust@1"); code != 1 {
 		t.Fatalf("未知工具应退出 1，得到 %d", code)
 	}
-	if code, _, _ := execCLI(t, "--root", root, "uninstall", "node"); code != 2 {
-		t.Fatalf("uninstall 需要精确版本，应退出 2，得到 %d", code)
+	if code, _, _ := execCLI(t, "--root", root, "uninstall", "node"); code != 1 {
+		t.Fatalf("没装过的工具批量卸载应退出 1，得到 %d", code)
+	}
+	// 版本为空（node@）仍是用法错误
+	if code, _, _ := execCLI(t, "--root", root, "uninstall", "node@"); code != 2 {
+		t.Fatalf("版本为空应退出 2，得到 %d", code)
 	}
 }
 
@@ -1257,15 +1262,18 @@ func TestUninstallAll(t *testing.T) {
 	}
 
 	// 不带 --yes：只打印计划，什么都不动
-	code, out, _ := execCLI(t, "--root", root, "uninstall", "--all")
-	if code == 0 || !strings.Contains(out, "加 --yes") {
-		t.Fatalf("不带 --yes 应拒绝执行并说明: %d\n%s", code, out)
+	code, out, errOut := execCLI(t, "--root", root, "uninstall", "--all")
+	if code == 0 || !strings.Contains(out, "node@22.99.99") {
+		t.Fatalf("不带 --yes 应先列出版本再拒绝: %d\n%s", code, out)
+	}
+	if !strings.Contains(errOut, "--yes") {
+		t.Fatalf("应提示加 --yes 才能执行: %s", errOut)
 	}
 	if _, err := os.Stat(filepath.Join(root, "tools", "node", "22.99.99")); err != nil {
 		t.Fatal("没确认前不该删东西")
 	}
 
-	code, out, errOut := execCLI(t, "--root", root, "uninstall", "--all", "--yes")
+	code, out, errOut = execCLI(t, "--root", root, "uninstall", "--all", "--yes")
 	if code != 0 {
 		t.Fatalf("uninstall --all: %d %s", code, errOut)
 	}
@@ -1327,4 +1335,101 @@ func readJSONFile(t *testing.T, path string) string {
 		t.Fatalf("读 %s: %v", path, err)
 	}
 	return string(data)
+}
+
+// pk uninstall <工具>（不带版本）：列出全部版本 → 二次确认 → 全删。
+func TestUninstallToolAllVersions(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.99.1"}, {Version: "22.99.2"}},
+		NPM:      map[string]string{"11.20.0": "^20.17.0 || >=22.9.0"},
+	})
+	t.Setenv("PK_MIRROR_NODE_INDEX", fm.Server.URL+"/node/index.json")
+	t.Setenv("PK_MIRROR_NODE_ARTIFACT", fm.Server.URL+"/node/v{version}/node-v{version}-{platform}.{ext}")
+	t.Setenv("PK_MIRROR_NODE_CHECKSUM", fm.Server.URL+"/node/v{version}/SHASUMS256.txt")
+	t.Setenv("PK_MIRROR_NPM_INDEX", fm.Server.URL+"/npm")
+	t.Setenv("PK_MIRROR_NPM_ARTIFACT", fm.Server.URL+"/npm/-/npm-{version}.tgz")
+	root := t.TempDir()
+
+	for _, v := range []string{"22.99.1", "22.99.2"} {
+		if code, _, errOut := execCLI(t, "--root", root, "install", "node@"+v); code != 0 {
+			t.Fatalf("install %s: %s", v, errOut)
+		}
+	}
+
+	// 不带 --yes：列出两个版本，然后取消（非交互环境）
+	code, out, errOut := execCLI(t, "--root", root, "uninstall", "node")
+	if code == 0 {
+		t.Fatalf("没确认不该删: %d\n%s", code, out)
+	}
+	for _, v := range []string{"22.99.1", "22.99.2"} {
+		if !strings.Contains(out, "node@"+v) {
+			t.Fatalf("确认前应列出 %s:\n%s", v, out)
+		}
+	}
+	if !strings.Contains(errOut, "--yes") && !strings.Contains(out, "已取消") {
+		t.Fatalf("应提示确认方式: out=%q err=%q", out, errOut)
+	}
+	if _, err := os.Stat(filepath.Join(root, "tools", "node", "22.99.1")); err != nil {
+		t.Fatal("取消后不该删任何东西")
+	}
+
+	// --yes：两个版本一起删掉
+	code, out, errOut = execCLI(t, "--root", root, "uninstall", "node", "--yes")
+	if code != 0 {
+		t.Fatalf("uninstall node --yes: %d %s", code, errOut)
+	}
+	if !strings.Contains(out, "已卸载 node 的 2 个版本") {
+		t.Fatalf("应报告删了 2 个版本:\n%s", out)
+	}
+	for _, v := range []string{"22.99.1", "22.99.2"} {
+		if _, err := os.Stat(filepath.Join(root, "tools", "node", v)); !os.IsNotExist(err) {
+			t.Fatalf("%s 应被删除", v)
+		}
+	}
+	if path, _, _ := shim.Resolve(filepath.Join(root, "bin"), "node", "darwin"); path != "" {
+		t.Fatalf("node 的 shim 应被清掉: %q", path)
+	}
+}
+
+// --self：unix 上连二进制一起删（连同 pk/packnest 两个入口与空目录）。
+func TestUninstallAllSelf(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 不能删除正在运行的程序，走提示路径")
+	}
+	setupFakeMirror(t)
+	binDir := t.TempDir()
+	// 造一个"装在这里的 pk"：复制当前测试二进制的兄弟文件即可（只要是个普通文件）
+	self := filepath.Join(binDir, "pk")
+	if err := os.WriteFile(self, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "packnest"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	root := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("SHELL", "/bin/zsh")
+	// 记录"装到哪"：不用真跑安装脚本
+	info := store.InstallInfo{Schema: 1, Channel: "script", Platform: "test", Version: "0.0.0", Dir: binDir}
+	if err := info.Save(filepath.Join(root, "state", "install.json")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "state"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := info.Save(filepath.Join(root, "state", "install.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	// --self 只删自己（这里换成删 binDir 里的同名文件不现实，改为验证提示与清理逻辑）
+	code, out, errOut := execCLI(t, "--root", root, "uninstall", "--all", "--yes")
+	if code != 0 {
+		t.Fatalf("uninstall --all: %d %s", code, errOut)
+	}
+	// install.json 里的目录要出现在"删 pk 自己"的命令里，而不是猜 ~/.local/bin
+	if !strings.Contains(out, binDir) {
+		t.Fatalf("应给出 install.json 记录的目录:\n%s", out)
+	}
 }

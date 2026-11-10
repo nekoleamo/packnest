@@ -179,6 +179,15 @@ try {
   # pk 与 packnest 指向同一个二进制（Windows 没有可靠的 symlink，直接复制一份）
   Copy-Item (Join-Path $Dir 'packnest.exe') (Join-Path $Dir 'pk.exe') -Force
 
+  # record how pk itself was installed (used by `pk uninstall --all --self`)
+  try {
+    $root = if ($env:PK_ROOT) { $env:PK_ROOT } else { Join-Path $HOME '.packnest' }
+    $stateDir = Join-Path $root 'state'
+    New-Item -ItemType Directory -Path $stateDir -Force | Out-Null
+    $record = [ordered]@{ schema = 1; channel = 'script'; platform = "windows-$arch"; version = $Version; dir = $Dir }
+    ($record | ConvertTo-Json -Compress) | Set-Content -Path (Join-Path $stateDir 'install.json') -Encoding UTF8
+  } catch { }
+
   Write-Host "Installed: $(Join-Path $Dir 'pk.exe')"
   $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
   if ($userPath -notlike "*$Dir*") {

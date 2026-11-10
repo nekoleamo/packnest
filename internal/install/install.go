@@ -335,6 +335,70 @@ func (i *Installer) Uninstall(tool, version string, force bool) error {
 	return nil
 }
 
+// UninstallTool 删掉某个工具的**所有**已装版本（`pk uninstall go`）。
+//
+// 语义与单个卸载一致：不带 force 时，被项目锁 / 其他工具依赖引用的版本会被拒绝；
+// 但「全局默认」不算障碍 —— 整个工具都要没了，默认版本自然一起清掉。
+func (i *Installer) UninstallTool(tool string, force bool) ([]string, error) {
+	versions := make([]string, 0, 4)
+	for _, in := range i.ledger.Installs {
+		if in.Tool == tool {
+			versions = append(versions, in.Version)
+		}
+	}
+	if len(versions) == 0 {
+		return nil, fmt.Errorf("%s 没有已装版本（`pk list` 看已装工具）", tool)
+	}
+	sort.Strings(versions)
+
+	removed := make([]string, 0, len(versions))
+	var blocked []string
+	for _, v := range versions {
+		in := i.ledger.Find(tool, v)
+		if in == nil {
+			continue
+		}
+		if refs := nonGlobalRefs(in); len(refs) > 0 && !force {
+			blocked = append(blocked, fmt.Sprintf("%s@%s（%s）", tool, v, strings.Join(refs, ", ")))
+			continue
+		}
+		if err := removeDirWithRetry(in.Path, 3); err != nil {
+			return removed, fmt.Errorf("删除 %q 失败（可能仍有进程占用，关掉后重试或用 --force 留残）: %w", in.Path, err)
+		}
+		pruneEmptyDirs(filepath.Dir(in.Path), i.opt.Paths.Root)
+		if err := i.removeShimsFor(in.Path); err != nil {
+			return removed, err
+		}
+		if i.ActiveVersion(tool) == v {
+			i.clearActive(tool)
+		}
+		i.ledger.Remove(tool, v)
+		removed = append(removed, v)
+		i.emit(jsonout.Event{Ev: "uninstall", Tool: tool, Version: v})
+	}
+	if len(blocked) > 0 {
+		return removed, fmt.Errorf("%s 里这些版本仍被引用，未删除（确需删除加 --force）: %s",
+			tool, strings.Join(blocked, "; "))
+	}
+	return removed, nil
+}
+
+// nonGlobalRefs 列出"不是全局默认"的引用（项目锁、被其他工具依赖）。
+func nonGlobalRefs(in *store.Install) []string {
+	out := make([]string, 0, len(in.References))
+	for _, r := range in.References {
+		if r.Kind == store.RefGlobal {
+			continue
+		}
+		name := r.Kind
+		if r.Name != "" {
+			name += ":" + r.Name
+		}
+		out = append(out, name)
+	}
+	return out
+}
+
 func (i *Installer) removeShimsFor(dir string) error {
 	names, err := shim.List(i.opt.Paths.Bin(), i.opt.GOOS)
 	if err != nil {
@@ -798,3 +862,6 @@ func LoadProject(dir string) (map[string]string, error) {
 }
 
 func boolPtr(b bool) *bool { return &b }
+
+// Root 暴露 PK_ROOT（CLI 打印"从哪里卸载"用）。
+func (i *Installer) Root() string { return i.opt.Paths.Root }

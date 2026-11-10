@@ -39,7 +39,8 @@ pk uninstall --all [--purge] [--keep-cache] [--yes]
         最后按"自己是怎么装的"给出删除 pk 二进制的命令（brew / npm / scoop / winget / 脚本）。
         --purge      连 PK_ROOT 一起删（缓存、台账、配置）
         --keep-cache 配合 --purge：保留 cache/，离线可重装
-        不带 --yes 只打印计划，不动任何东西。`,
+        --self       连 pk 二进制自己一起删（unix 直接删；Windows 会打印要执行的命令）
+        不带 --yes 只打印计划，不动任何东西；交互终端会列出版本再问一次 y/N。`,
 
 	"use": `pk use <工具>@<版本> [--project]
 pk use --lock
