@@ -8,185 +8,291 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <style>
 :root{
-  --bg:#fff; --surface:#f5faf8; --surface-2:#eef7f3;
-  --fg:#0e1a17; --muted:#5d6f69; --line:#e2ede8;
-  --accent:#00a884; --accent-strong:#00795f; --tint:#e9f8f2;
+  --bg:#fbfdfc; --panel:#fff; --fg:#0b1512; --muted:#546963; --line:#e2ede9;
+  --accent:#0d9488; --accent-soft:#0d948814; --accent-text:#0a7268;
+  --term-bg:#0a1210; --term-fg:#c8ded8; --term-dim:#7a938e;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
-  --ease:cubic-bezier(.2,.7,.3,1);
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC",system-ui,sans-serif;
+  --ease:cubic-bezier(.22,.68,.28,1);
 }
 @media (prefers-color-scheme:dark){
   :root{
-    --bg:#0b1210; --surface:#111b18; --surface-2:#14231e;
-    --fg:#e8f2ee; --muted:#93a8a1; --line:#1e2d28;
-    --accent:#35d6b0; --accent-strong:#7fe7cd; --tint:#0f2620;
+    --bg:#070b0a; --panel:#0c1412; --fg:#e7f2ee; --muted:#93aea7; --line:#1b2926;
+    --accent:#2dd4bf; --accent-soft:#2dd4bf1f; --accent-text:#5eead4;
+    --term-bg:#080f0d; --term-fg:#cfe7e0; --term-dim:#7d9993;
   }
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
 body{
   margin:0;background:var(--bg);color:var(--fg);overflow-wrap:anywhere;
-  font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans SC",system-ui,sans-serif;
-  -webkit-font-smoothing:antialiased;
+  font:16px/1.7 var(--sans);-webkit-font-smoothing:antialiased;
 }
-main{max-width:50rem;margin:0 auto;padding:4.5rem 1.35rem 6rem}
-a{color:inherit;text-decoration:none}
+main{max-width:56rem;margin:0 auto;padding:0 1.35rem 5rem}
+a{color:inherit;text-decoration:none;transition:color .16s var(--ease)}
 code,pre{font-family:var(--mono)}
+::selection{background:var(--accent-soft)}
+
+/* ---------- 顶栏 ---------- */
+.top{
+  position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:.7rem;
+  padding:.85rem 0;background:color-mix(in srgb,var(--bg) 84%,transparent);
+  border-bottom:1px solid var(--line);backdrop-filter:blur(12px);
+  margin-inline:-1.35rem;padding-inline:1.35rem;
+}
+.brand{display:flex;align-items:center;gap:.45rem;font-weight:680;letter-spacing:-.02em}
+.brand .tag{
+  padding:.05rem .4rem;border:1px solid var(--line);border-radius:4px;
+  font-family:var(--mono);font-size:.75rem;color:var(--muted);letter-spacing:.06em;
+}
+.ver{
+  padding:.1rem .5rem;border:1px solid var(--line);border-radius:999px;background:var(--panel);
+  font-family:var(--mono);font-size:.75rem;color:var(--accent-text);
+}
+.top nav{display:flex;align-items:center;gap:1.1rem;margin-left:auto;font-size:.9rem;color:var(--muted)}
+.top nav a:hover{color:var(--accent-text)}
 
 /* ---------- hero ---------- */
-.hero{animation:rise .5s var(--ease) both}
-.hero h1{font-size:2.15rem;line-height:1.15;letter-spacing:-.025em;margin:0;font-weight:680}
-.hero .pitch{font-size:1.2rem;margin:.75rem 0 0;max-width:34rem}
-.hero .note{margin:.9rem 0 0;color:var(--muted);font-size:.92rem}
-.hero .note code{color:var(--fg)}
-
-.ver{
-  display:inline-block;vertical-align:.15em;margin-left:.55rem;padding:.1rem .5rem;
-  border:1px solid var(--line);border-radius:999px;background:var(--surface);
-  font-family:var(--mono);font-size:.72rem;color:var(--accent-strong);letter-spacing:.02em;
+.hero{position:relative;text-align:center;padding:5.5rem 0 0}
+.hero::before{
+  content:"";position:absolute;left:50%;top:-6rem;width:52rem;height:32rem;z-index:-1;
+  transform:translateX(-50%);pointer-events:none;border-radius:50%;
+  background:radial-gradient(closest-side,var(--accent-soft),transparent 72%);
+  animation:breathe 14s ease-in-out infinite;
 }
-
-/* ---------- 亮点徽章条 ---------- */
-.facts{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.5rem 0 0;padding:0;list-style:none;
-  animation:rise .5s var(--ease) .06s both}
-.facts li{
-  display:flex;align-items:baseline;gap:.4rem;padding:.32rem .7rem;
-  background:var(--surface);border:1px solid var(--line);border-radius:999px;
-  font-size:.85rem;color:var(--muted);
-  transition:border-color .18s var(--ease),transform .18s var(--ease);
+.pill{
+  display:inline-flex;align-items:center;gap:.4rem;padding:.25rem .75rem;
+  border:1px solid var(--line);border-radius:999px;background:var(--panel);
+  font-size:.82rem;color:var(--muted);animation:rise .5s var(--ease) both;
 }
-.facts li:hover{border-color:var(--accent);transform:translateY(-1px)}
-.facts b{color:var(--fg);font-weight:640;font-variant-numeric:tabular-nums}
-
-/* ---------- 主安装块（重点：底色 + 尺寸，不靠描边强调） ---------- */
-.primary{
-  position:relative;margin:2.25rem 0 0;padding:1.15rem 1.25rem;
-  background:var(--tint);border:1px solid var(--line);border-radius:8px;
-  animation:rise .5s var(--ease) .12s both;transition:border-color .2s var(--ease);
+.pill b{color:var(--accent-text);font-weight:600}
+h1{
+  margin:1.15rem auto 0;max-width:34rem;font-size:clamp(2rem,5.2vw,3.1rem);line-height:1.14;
+  letter-spacing:-.03em;font-weight:700;animation:rise .5s var(--ease) .05s both;
 }
-.primary:hover{border-color:var(--accent)}
-.primary pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:1rem;line-height:1.8}
-.primary .cmd b{color:var(--accent-strong);font-weight:600}
+h1 em{font-style:normal;color:var(--accent-text)}
+.lede{
+  margin:1.1rem auto 0;max-width:32rem;color:var(--muted);font-size:1.06rem;
+  animation:rise .5s var(--ease) .1s both;
+}
+.lede .tk{color:var(--fg);font-family:var(--mono);font-size:.94em}
+
+/* ---------- 主 CTA：可复制的安装块 ---------- */
+.cta{margin:2rem auto 0;max-width:33rem;animation:rise .5s var(--ease) .15s both}
+.install{
+  display:flex;align-items:center;gap:.6rem;padding:.7rem .75rem .7rem 1rem;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 1px 2px #0b151208;
+  transition:border-color .18s var(--ease),box-shadow .18s var(--ease);
+}
+.install:hover{border-color:var(--accent);box-shadow:0 2px 16px #0d94881f}
+.install .prompt{color:var(--accent-text);font-family:var(--mono);font-size:.95rem;flex:none}
+.install code{flex:1;min-width:0;font-size:.95rem;text-align:left}
+.install code .and{color:var(--muted)}
 .copy{
-  position:absolute;top:.7rem;right:.7rem;appearance:none;cursor:pointer;
-  padding:.28rem .62rem;border:1px solid var(--line);border-radius:999px;
-  background:var(--bg);color:var(--muted);font:inherit;font-size:.78rem;
-  transition:color .18s var(--ease),border-color .18s var(--ease),transform .12s var(--ease);
+  flex:none;appearance:none;cursor:pointer;padding:.42rem .85rem;border-radius:8px;
+  border:1px solid transparent;background:var(--accent);color:#04201c;
+  font:inherit;font-size:.85rem;font-weight:600;
+  transition:filter .16s var(--ease),transform .12s var(--ease),background .16s var(--ease);
 }
-.copy:hover{color:var(--accent-strong);border-color:var(--accent)}
-.copy:active{transform:scale(.96)}
-.copy.done{color:var(--accent-strong);border-color:var(--accent)}
+.copy:hover{filter:brightness(1.07)}
+.copy:active{transform:scale(.97)}
+.copy.done{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent)}
 
-.channels{
-  list-style:none;margin:1.3rem 0 0;padding:0;display:grid;grid-template-columns:8rem 1fr;
-  gap:.5rem 1rem;font-size:.88rem;animation:rise .5s var(--ease) .18s both;
+.sub-cta{margin:.9rem 0 0;font-size:.88rem;color:var(--muted);animation:rise .5s var(--ease) .2s both}
+.sub-cta button{
+  color:var(--muted);border:0;border-bottom:1px solid var(--line);background:none;
+  padding:0 0 1px;font:inherit;cursor:pointer;
+  transition:color .16s var(--ease),border-color .16s var(--ease);
 }
-.channels li{display:contents}
-.channels span{color:var(--muted)}
-.channels code{color:var(--fg);font-size:.94em;overflow-wrap:anywhere}
+.sub-cta button:hover{color:var(--accent-text);border-bottom-color:var(--accent)}
+.sub-cta .dot{color:var(--line);margin:0 .45rem}
+
+/* ---------- 终端窗口 ---------- */
+.window{
+  margin:3rem auto 0;max-width:44rem;border-radius:14px;overflow:hidden;
+  background:var(--term-bg);border:1px solid #ffffff14;
+  box-shadow:0 18px 50px -22px #04201c66, 0 0 0 1px #00000008;
+  animation:rise .6s var(--ease) .25s both;
+}
+.window .bar{
+  display:flex;align-items:center;gap:.4rem;padding:.6rem .85rem;
+  border-bottom:1px solid #ffffff0f;background:#ffffff05;
+}
+.window .lights{display:flex;gap:.35rem}
+.window .lights i{width:.6rem;height:.6rem;border-radius:50%;background:#ffffff24}
+.window .title{
+  margin-left:.5rem;font-family:var(--mono);font-size:.78rem;color:var(--term-dim);letter-spacing:.02em;
+}
+.window pre{
+  margin:0;padding:1rem 1.1rem 1.15rem;font-size:.85rem;line-height:1.85;color:var(--term-fg);
+  white-space:pre-wrap;overflow-wrap:anywhere;
+}
+.window .p{color:var(--accent)}
+.window .cmd{color:#fff}
+.window .dim{color:var(--term-dim)}
+.window .ok{color:var(--accent)}
+.window .cursor{display:inline-block;width:.5em;height:1em;vertical-align:-.13em;background:var(--accent);animation:blink 1.2s steps(1) infinite}
+
+/* ---------- 数字条 ---------- */
+.stats{
+  display:grid;grid-template-columns:repeat(5,1fr);list-style:none;
+  margin:3.25rem 0 0;padding:1.15rem 0;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+}
+.stats li{padding:0 .9rem;border-left:1px solid var(--line)}
+.stats li:first-child{border-left:0;padding-left:0}
+.stats b{display:block;font-family:var(--mono);font-size:1.55rem;line-height:1.2;letter-spacing:-.02em}
+.stats span{display:block;margin-top:.25rem;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 
 /* ---------- 章节 ---------- */
-section{margin:4.25rem 0 0}
+section{margin:4rem 0 0}
 h2{
-  display:flex;align-items:center;gap:.5rem;
-  font-size:.78rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
-  color:var(--muted);margin:0 0 1.25rem;
+  display:flex;align-items:baseline;gap:.6rem;margin:0 0 1.15rem;
+  font-size:.8rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
 }
-h2::before{content:"";width:.4rem;height:.4rem;border-radius:50%;background:var(--accent);flex:none}
+h2::before{content:"";width:.35rem;height:.35rem;border-radius:50%;background:var(--accent);flex:none}
+h2 .hint{font-family:var(--mono);font-size:.78rem;letter-spacing:0;text-transform:none;color:var(--muted);opacity:.85}
 
-/* ---------- 它解决什么 ---------- */
-dl{margin:0;display:grid;grid-template-columns:8rem 1fr;gap:.8rem 1.4rem}
-dt{color:var(--muted);font-size:.9rem;padding-top:.15rem}
+/* ---------- 为什么 ---------- */
+dl{margin:0;display:grid;grid-template-columns:8.5rem 1fr;gap:.9rem 1.5rem}
+dt{color:var(--muted);font-size:.9rem;padding-top:.1rem}
 dd{margin:0}
 dd b{font-weight:640}
-dd code{padding:.08rem .3rem;background:var(--surface);border:1px solid var(--line);border-radius:4px;font-size:.92em}
+dd code{padding:.06rem .3rem;background:var(--accent-soft);border-radius:4px;font-size:.92em;color:var(--accent-text)}
 
 /* ---------- 表格 ---------- */
-table{width:100%;border-collapse:collapse;table-layout:auto;font-size:.94rem}
-th,td{text-align:left;padding:.6rem .7rem .6rem 0;border-bottom:1px solid var(--line);vertical-align:top}
-th{font-weight:600;font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-tbody tr{transition:background-color .15s var(--ease)}
-tbody tr:hover{background:var(--surface)}
-td:first-child{white-space:nowrap;font-family:var(--mono);font-size:.9rem;color:var(--accent-strong)}
-td code{padding:.08rem .3rem;background:var(--surface);border:1px solid var(--line);border-radius:4px;font-size:.92em;color:var(--fg)}
-
-.after{margin:1.1rem 0 0;color:var(--muted);font-size:.88rem}
-.after code{padding:.08rem .3rem;background:var(--surface);border:1px solid var(--line);border-radius:4px;color:var(--fg)}
+table{width:100%;border-collapse:collapse;table-layout:auto;font-size:.95rem}
+th,td{text-align:left;padding:.68rem .8rem .68rem 0;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-weight:500;font-size:.78rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+tbody tr{transition:background-color .14s var(--ease)}
+tbody tr:hover{background:var(--accent-soft)}
+td:first-child{white-space:nowrap;font-family:var(--mono);font-size:.92rem;color:var(--accent-text)}
+td code{padding:.06rem .3rem;background:var(--accent-soft);border-radius:4px;font-size:.92em;color:var(--accent-text)}
+.after{margin:1rem 0 0;color:var(--muted);font-size:.88rem}
+.after code{padding:.06rem .3rem;background:var(--accent-soft);border-radius:4px;color:var(--accent-text)}
 
 /* ---------- 英文摘要 ---------- */
 .en{
-  margin:4.25rem 0 0;padding:1.2rem 1.3rem;border:1px solid var(--line);border-radius:8px;
-  background:var(--surface);font-size:.92rem;line-height:1.75;color:var(--muted);
+  margin:4rem 0 0;padding:1.3rem 1.4rem;border:1px solid var(--line);border-radius:12px;
+  background:var(--panel);font-size:.92rem;line-height:1.8;color:var(--muted);
 }
-.en h2{margin-bottom:.7rem}
+.en h2{margin-bottom:.6rem}
 .en p{margin:0}
 .en code{color:var(--fg)}
 
 /* ---------- 页脚 ---------- */
-footer{margin-top:3.5rem;padding-top:1.35rem;border-top:1px solid var(--line);color:var(--muted);font-size:.88rem}
-footer nav{display:flex;flex-wrap:wrap;gap:.35rem 1.3rem;margin-bottom:.7rem}
-footer a{position:relative;transition:color .18s var(--ease)}
+footer{
+  display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1.4rem;
+  margin-top:3.5rem;padding-top:1.4rem;border-top:1px solid var(--line);
+  color:var(--muted);font-size:.88rem;
+}
+footer nav{display:flex;flex-wrap:wrap;gap:.5rem 1.4rem}
+footer a{position:relative}
 footer a::after{
   content:"";position:absolute;left:0;right:0;bottom:-2px;height:1px;background:var(--accent);
-  transform:scaleX(0);transform-origin:left;transition:transform .22s var(--ease);
+  transform:scaleX(0);transform-origin:left;transition:transform .2s var(--ease);
 }
-footer a:hover{color:var(--accent-strong)}
+footer a:hover{color:var(--accent-text)}
 footer a:hover::after{transform:scaleX(1)}
+footer .fine{margin-left:auto;font-size:.8rem;opacity:.9}
 
-@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes breathe{0%,100%{opacity:.75;transform:translateX(-50%) scale(1)}50%{opacity:1;transform:translateX(-50%) scale(1.06)}}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto}
 }
 @media print{*{animation:none!important;opacity:1!important;transform:none!important}}
 
 /* ---------- 窄屏 ---------- */
-@media (max-width:34rem){
-  main{padding:3rem 1.1rem 4rem}
-  .hero h1{font-size:1.85rem}
-  .hero .pitch{font-size:1.08rem}
-  .primary{padding:1rem 1.05rem}
-  .primary pre{font-size:.92rem}
-  .channels{grid-template-columns:1fr;gap:.15rem}
-  .channels span{display:block;margin-top:.6rem;font-size:.82rem}
+@media (max-width:40rem){
+  main{padding:0 1.1rem 3.5rem}
+  .top{margin-inline:-1.1rem;padding-inline:1.1rem}
+  .top nav .hide-sm{display:none}
+  .top nav{gap:.9rem;font-size:.86rem}
+  .hero{padding-top:3.5rem}
+  .stats{grid-template-columns:repeat(3,1fr);gap:1.1rem 0}
+  .stats li:nth-child(4){border-left:0;padding-left:0}
   dl{grid-template-columns:1fr;gap:.2rem}
-  dt{margin-top:.85rem}
+  dt{margin-top:.9rem}
   table,thead,tbody,tr,td,th{display:block}
   thead{display:none}
-  tbody tr{padding:.7rem 0;border-bottom:1px solid var(--line)}
+  tbody tr{padding:.72rem 0;border-bottom:1px solid var(--line)}
   tbody tr:last-child{border-bottom:0}
   td{border:0;padding:0}
-  td:first-child{white-space:normal;font-size:.78rem;letter-spacing:.04em}
+  td:first-child{white-space:normal;font-size:.8rem;letter-spacing:.06em}
   td:last-child{margin-top:.15rem}
   tbody tr:hover{background:none}
+  .install{flex-wrap:wrap}
+  .install code{font-size:.9rem}
+  footer .fine{margin-left:0;width:100%}
 }
 </style>
 </head>
 <body>
 <main>
 
-<header class="hero">
-  <h1>packnest<span class="ver">v__PK_VERSION__</span></h1>
-  <p class="pitch">国内网络开箱可用的多语言运行时安装器。</p>
-  <p class="note">命令行叫 <code>pk</code>（也提供 <code>packnest</code> 别名）。与 NestJS 无关。</p>
-  <ul class="facts">
-    <li><b>6</b> 平台单二进制</li>
-    <li><b>0</b> CGO</li>
-    <li><b>2</b> 个第三方依赖</li>
-    <li><b>7</b> 种运行时</li>
-    <li><b>0</b> 残留卸载</li>
-  </ul>
-</header>
-
-<div class="primary">
-  <button class="copy" type="button" aria-label="复制安装命令">复制</button>
-  <pre><code><span class="cmd"><b>$</b> npm i -g packnest
-<b>$</b> pk install node@22</code></pre>
+<div class="top">
+  <span class="brand">packnest<span class="tag">pk</span></span>
+  <span class="ver">v__PK_VERSION__</span>
+  <nav>
+    <a class="hide-sm" href="#tools">工具</a>
+    <a class="hide-sm" href="#commands">命令</a>
+    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/cli.md">文档</a>
+    <a href="https://github.com/nekoleamo/packnest">GitHub</a>
+    <a href="https://gitee.com/null_593_5354/packnest">gitee</a>
+  </nav>
 </div>
 
-<ul class="channels">
-  <li><span>gitee 直取</span><code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh</code></li>
-  <li><span>Windows PowerShell</span><code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex</code></li>
-  <li><span>Homebrew</span><code>brew install nekoleamo/packnest/packnest</code></li>
-  <li><span>Scoop</span><code>scoop install packnest</code></li>
+<header class="hero">
+  <span class="pill">国内镜像开箱可用 <b>·</b> 与 NestJS 无关</span>
+  <h1>一条命令，<br>装好你的<em>运行时</em></h1>
+  <p class="lede">
+    <span class="tk">node</span> · <span class="tk">npm</span> · <span class="tk">pnpm</span> ·
+    <span class="tk">bun</span> · <span class="tk">deno</span> · <span class="tk">go</span> ·
+    <span class="tk">python</span><br>
+    Go 单二进制、零 CGO、六平台；node 装完自动配对最新兼容的 npm。
+  </p>
+
+  <div class="cta">
+    <div class="install">
+      <span class="prompt">$</span>
+      <code>npm i -g packnest <span class="and">&amp;&amp;</span> pk install node@22</code>
+      <button class="copy" type="button" aria-label="复制安装命令">复制</button>
+    </div>
+    <p class="sub-cta">也可以
+      <button type="button" data-cmd="curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh">gitee 一行安装</button>
+      <span class="dot">·</span>
+      <button type="button" data-cmd="brew install nekoleamo/packnest/packnest">Homebrew</button>
+      <span class="dot">·</span>
+      <button type="button" data-cmd="scoop install packnest">Scoop</button>
+      <span class="dot">·</span>
+      <button type="button" data-cmd="iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex">PowerShell</button>
+    </p>
+  </div>
+</header>
+
+<div class="window" role="img" aria-label="pk install node@22 的真实输出">
+  <div class="bar">
+    <span class="lights"><i></i><i></i><i></i></span>
+    <span class="title">pk install node@22</span>
+  </div>
+<pre><span class="p">$</span> <span class="cmd">pk install node@22</span>
+<span class="dim">解析 node@22.23.4</span>
+<span class="dim">下载 47.7 MB/47.7 MB 100% (5.0 MB/s)</span>
+<span class="ok">校验通过 node@22.23.4（network）</span>
+<span class="dim">伴生包 npm@12.2.2（replaced 10.9.9）</span>
+<span class="ok">装好 node@22.23.4</span> <span class="dim">→ ~/.packnest/tools/node/22.23.4（已设为全局默认）</span>
+<span class="p">$</span> <span class="cursor"></span></pre>
+</div>
+
+<ul class="stats">
+  <li><b>6</b><span>平台产物</span></li>
+  <li><b>0</b><span>CGO</span></li>
+  <li><b>2</b><span>第三方依赖</span></li>
+  <li><b>7</b><span>运行时</span></li>
+  <li><b>0</b><span>残留卸载</span></li>
 </ul>
 
 <section id="why">
@@ -206,7 +312,7 @@ footer a:hover::after{transform:scaleX(1)}
 </section>
 
 <section id="tools">
-  <h2>能装什么</h2>
+  <h2>能装什么 <span class="hint">7 providers · 内嵌 TOML 声明</span></h2>
   <table>
     <thead><tr><th>工具</th><th>说明</th></tr></thead>
     <tbody>
@@ -222,7 +328,7 @@ footer a:hover::after{transform:scaleX(1)}
 </section>
 
 <section id="commands">
-  <h2>命令</h2>
+  <h2>命令 <span class="hint">9 个 · 命令面固定</span></h2>
   <table>
     <thead><tr><th>命令</th><th>做什么</th></tr></thead>
     <tbody>
@@ -255,20 +361,25 @@ footer a:hover::after{transform:scaleX(1)}
     <a href="https://gitee.com/null_593_5354/packnest">gitee 镜像</a>
     <a href="https://gitee.com/null_593_5354/packnest/releases">发布产物</a>
   </nav>
-  MIT · 不采集访问统计 · 不加载任何第三方资源
+  <span class="fine">MIT · 不采集访问统计 · 不加载任何第三方资源</span>
 </footer>
 
 </main>
 <script>
 (function(){
+  function flash(el,text){
+    var old=el.textContent;
+    el.textContent=text;el.classList.add('done');
+    setTimeout(function(){el.textContent=old;el.classList.remove('done');},1400);
+  }
+  function copy(text,el){
+    if(!navigator.clipboard)return;
+    navigator.clipboard.writeText(text).then(function(){flash(el,'已复制');});
+  }
   var btn=document.querySelector('.copy');
-  if(!btn||!navigator.clipboard)return;
-  var text='npm i -g packnest\npk install node@22';
-  btn.addEventListener('click',function(){
-    navigator.clipboard.writeText(text).then(function(){
-      btn.textContent='已复制';btn.classList.add('done');
-      setTimeout(function(){btn.textContent='复制';btn.classList.remove('done');},1400);
-    });
+  if(btn)btn.addEventListener('click',function(){copy('npm i -g packnest && pk install node@22',btn);});
+  document.querySelectorAll('.sub-cta button[data-cmd]').forEach(function(b){
+    b.addEventListener('click',function(){copy(b.dataset.cmd,b);});
   });
 })();
 </script>
