@@ -1,6 +1,8 @@
 package env
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -135,5 +137,73 @@ func TestToolchainVars(t *testing.T) {
 	}
 	if PathHint([]string{"/a", "/b"}) == "" {
 		t.Fatal("PathHint 不该为空")
+	}
+}
+
+func TestWriteManagedBlockIdempotent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".zshrc")
+	original := "# 用户自己的配置\nexport FOO=1" // 故意不带结尾换行
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	block := "export PATH=/pk/bin:$PATH\nexport GOTOOLCHAIN=local\n"
+	for i := 0; i < 3; i++ {
+		if err := WriteManagedBlock(path, block); err != nil {
+			t.Fatalf("第 %d 次写: %v", i+1, err)
+		}
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if strings.Count(text, ManagedBegin) != 1 || strings.Count(text, ManagedEnd) != 1 {
+		t.Fatalf("托管块应该只有一份:\n%s", text)
+	}
+	// 反复写不能垫空行（块外内容一个字节不改，块内也只写一份）。
+	want := original + "\n" + ManagedBegin + "\n" + strings.TrimRight(block, "\n") + "\n" + ManagedEnd + "\n"
+	if text != want {
+		t.Fatalf("反复写不幂等：\n--- got ---\n%q\n--- want ---\n%q", text, want)
+	}
+}
+
+func TestWriteManagedBlockReplacesMiddleBlock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".bashrc")
+	pre := "before\n"
+	post := "after\n"
+	seed := pre + ManagedBegin + "\nold line\n" + ManagedEnd + "\n" + post
+	if err := os.WriteFile(path, []byte(seed), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteManagedBlock(path, "new line\n"); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	want := pre + ManagedBegin + "\nnew line\n" + ManagedEnd + "\n" + post
+	if string(data) != want {
+		t.Fatalf("got %q want %q", data, want)
+	}
+}
+
+func TestRemoveManagedBlockLeavesNoBlankLine(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".bashrc")
+	original := "before\nafter\n"
+	seed := "before\n" + ManagedBegin + "\nX=1\n" + ManagedEnd + "\n" + "after\n"
+	if err := os.WriteFile(path, []byte(seed), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := RemoveManagedBlock(path); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(path)
+	if string(data) != original {
+		t.Fatalf("删块后应完全还原: got %q want %q", data, original)
+	}
+	if got := ReadManagedBlock(path); got != "" {
+		t.Fatalf("删完不该还能读到块: %q", got)
+	}
+	// 没有块时再删一次不应报错，也不改文件。
+	if err := RemoveManagedBlock(path); err != nil {
+		t.Fatal(err)
 	}
 }

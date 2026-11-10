@@ -413,6 +413,10 @@ func TestUninstallClean(t *testing.T) {
 	if _, err := os.Stat(res.Path); !os.IsNotExist(err) {
 		t.Fatal("版本目录应被删除")
 	}
+	// 空的 tools/node 也要收掉（零残留，而不是"空壳还在"）。
+	if _, err := os.Stat(filepath.Dir(res.Path)); !os.IsNotExist(err) {
+		t.Fatalf("空的上层目录应被清理: %v", err)
+	}
 	for _, name := range []string{"node", "npm", "npx"} {
 		if path, _, _ := shim.Resolve(root.Bin(), name, "darwin"); path != "" {
 			t.Fatalf("%s 的 shim 应被清掉，得到 %q", name, path)
@@ -1220,5 +1224,64 @@ func TestResolveAutoProfileFallsBackToCN(t *testing.T) {
 	}
 	if inst.opt.Profile != "cn" {
 		t.Fatalf("auto 应判定为 cn，得到 %q", inst.opt.Profile)
+	}
+}
+
+// --force-rehash：本地 TOFU 表写着旧摘要（例如上游重新发布过同一版本）时，
+// 不加开关要报错并提示处置，加了开关要重新向校验源求值并覆盖。
+func TestInstallForceRehash(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.22.2"}},
+		NPM:      npmMatrix(),
+	})
+	root, err := paths.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 先造一份"脏"TOFU 表：摘要与镜像给的对不上。
+	dirty := &verify.Known{Schema: verify.KnownSchema, Entries: map[string]verify.Entry{
+		verify.Key("node", "22.22.2", "darwin-arm64"): {
+			Digest: strings.Repeat("a", 64), Algo: verify.AlgoSHA256,
+			Verified: verify.VerifiedStrong, Sources: 2,
+		},
+	}}
+	if err := dirty.Save(root.Known()); err != nil {
+		t.Fatal(err)
+	}
+	newWith := func(mutate func(*Options)) *Installer {
+		opt := Options{
+			Paths: root, Client: fetch.New(), Cfg: store.DefaultConfig(),
+			Profile: "cn", GOOS: "darwin", GOARCH: "arm64", LookupProvider: fakeLookup(fm),
+		}
+		if mutate != nil {
+			mutate(&opt)
+		}
+		inst, err := New(opt)
+		if err != nil {
+			t.Fatalf("New: %v", err)
+		}
+		return inst
+	}
+
+	_, err = newWith(nil).Install(context.Background(), "node", "22.22.2")
+	if !errors.Is(err, verify.ErrChecksum) || !strings.Contains(err.Error(), "--force-rehash") {
+		t.Fatalf("脏 TOFU 表应拒绝并提示 --force-rehash，得到 %v", err)
+	}
+
+	inst := newWith(func(o *Options) { o.Rehash = true; o.Force = true })
+	res, err := inst.Install(context.Background(), "node", "22.22.2")
+	if err != nil {
+		t.Fatalf("--force-rehash 应放行: %v", err)
+	}
+	if err := inst.Finalize(); err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	known, err := verify.LoadKnown(root.Known())
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry, ok := known.Get(verify.Key("node", "22.22.2", "darwin-arm64"))
+	if !ok || entry.Digest != res.SHA256 {
+		t.Fatalf("TOFU 表应被真实摘要覆盖: %+v (产物 sha256=%s)", entry, res.SHA256)
 	}
 }

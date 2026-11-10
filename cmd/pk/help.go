@@ -9,7 +9,7 @@ import (
 
 // commandHelp 是 9 个命令的 `--help` 文本（方案 §12.2 第 10 条：命令要能自解释）。
 var commandHelp = map[string]string{
-	"install": `pk install [工具[@版本]]... [--frozen] [--insecure] [--force] [--quiet] [--jobs N]
+	"install": `pk install [工具[@版本]]... [--frozen] [--insecure] [--force] [--force-rehash] [--quiet] [--jobs N]
 
   装工具。不带参数时按当前目录的 pk.toml 全装。
   作用域：没有 --global/--project 开关，由当前目录决定：
@@ -25,6 +25,7 @@ var commandHelp = map[string]string{
     --frozen    严格按 pk.lock（不做解析；清单与锁不一致即失败，CI 用）
     --insecure  允许无校验安装（标记 unverified；校验和源互相矛盾时也靠它放行）
     --force     重装已存在的版本
+    --force-rehash  忽略本地校验表（state/known.json），重新向校验源求值并覆盖记录
     --jobs N    预留（当前固定单连接：国内 CDN 分片常更慢）
     --quiet     只报错，不打印进度与结果
   退出码：0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用`,

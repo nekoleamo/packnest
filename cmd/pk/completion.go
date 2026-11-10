@@ -29,7 +29,7 @@ _packnest() {
     env) COMPREPLY=( $(compgen -W "--shell --write --unset --completion --json" -- "$cur") ); return ;;
     doctor) COMPREPLY=( $(compgen -W "--globals --probe --json" -- "$cur") ); return ;;
     gc) COMPREPLY=( $(compgen -W "--dry-run --cache-max --json" -- "$cur") ); return ;;
-    install) COMPREPLY=( $(compgen -W "--frozen --insecure --force --quiet --json" -- "$cur") ); return ;;
+    install) COMPREPLY=( $(compgen -W "--frozen --insecure --force --force-rehash --quiet --json" -- "$cur") ); return ;;
   esac
   if [ "$COMP_CWORD" -eq 1 ]; then
     COMPREPLY=( $(compgen -W "%s" -- "$cur") )
@@ -49,7 +49,7 @@ _packnest() {
   fi
   case $words[2] in
     mirror) _values 'subcommand' list probe use write ;;
-    install) _values 'flag' --frozen --insecure --force --quiet --json ;;
+    install) _values 'flag' --frozen --insecure --force --force-rehash --quiet --json ;;
     gc) _values 'flag' --dry-run --cache-max --json ;;
     doctor) _values 'flag' --globals --probe --json ;;
     env) _values 'flag' --shell --write --unset --completion --json ;;

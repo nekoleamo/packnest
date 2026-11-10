@@ -316,6 +316,9 @@ func (c *Client) downloadOnce(ctx context.Context, url, partPath, metaPath strin
 	if data, err := os.ReadFile(metaPath); err == nil && json.Unmarshal(data, &pm) == nil && pm.URL == url {
 		if st, err := os.Stat(partPath); err == nil {
 			offset = st.Size()
+		} else {
+			// 半成品被清掉了：旧的大小/ETag 不能再拿来比，否则会假报"大小不符"。
+			pm = partMeta{URL: url}
 		}
 	} else {
 		pm = partMeta{URL: url}
@@ -343,8 +346,9 @@ func (c *Client) downloadOnce(ctx context.Context, url, partPath, metaPath strin
 		// 服务器不支持 Range：全量重下（丢掉的只是续传进度，不是错误）。
 		offset = 0
 		pm.ETag = resp.Header.Get("ETag")
-		if resp.ContentLength > 0 {
-			pm.Size = resp.ContentLength
+		pm.Size = resp.ContentLength // 未知长度（-1）时不比大小
+		if pm.Size < 0 {
+			pm.Size = 0
 		}
 	case http.StatusPartialContent:
 		total, ok := parseContentRangeTotal(resp.Header.Get("Content-Range"))

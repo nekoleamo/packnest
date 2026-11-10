@@ -410,3 +410,51 @@ func TestRecordNilKnown(t *testing.T) {
 		t.Fatalf("record 应自建表: %+v", v.Known)
 	}
 }
+
+// --force-rehash：本地表写脏（例如上游重新发布过同一版本）时不比旧记录，
+// 重新向校验源求值并用新值覆盖 TOFU 条目。
+func TestVerifyRehashOverwritesTOFU(t *testing.T) {
+	newSum := testkit.Sha256Hex([]byte("artifact-v2"))
+	known := &Known{Schema: KnownSchema, Entries: map[string]Entry{
+		"node@1.0.0/linux-amd64": {Digest: strings.Repeat("a", 64), Verified: VerifiedWeak, Sources: 1},
+	}}
+	ff := &fakeFetcher{files: map[string][]byte{
+		"https://a/SHASUMS256.txt": []byte(newSum + "  node.tar.gz\n"),
+		"https://b/SHASUMS256.txt": []byte(newSum + "  node.tar.gz\n"),
+	}}
+	v := New(known)
+	v.Fetch = ff.fetch
+	res, err := v.Verify(context.Background(), Request{
+		Tool: "node", Version: "1.0.0", Platform: "linux-amd64", Artifact: "node.tar.gz",
+		Digest: newSum, Algo: AlgoSHA256, Format: "gnu-sums",
+		SumsURLs: []string{"https://a/SHASUMS256.txt", "https://b/SHASUMS256.txt"},
+		Rehash:   true,
+	})
+	if err != nil {
+		t.Fatalf("--force-rehash 应放行并重新校验: %v", err)
+	}
+	if res.Mode != "network" || res.Verified != VerifiedStrong {
+		t.Fatalf("应走 network/strong: %+v", res)
+	}
+	entry, ok := known.Get(Key("node", "1.0.0", "linux-amd64"))
+	if !ok || entry.Digest != newSum || entry.Verified != VerifiedStrong {
+		t.Fatalf("TOFU 表应被覆盖: %+v", entry)
+	}
+}
+
+// --force-rehash 也要守住产物真伪：源说 A、产物是 B 时照样失败。
+func TestVerifyRehashStillRejectsMismatch(t *testing.T) {
+	ff := &fakeFetcher{files: map[string][]byte{
+		"https://a/SHASUMS256.txt": []byte(strings.Repeat("c", 64) + "  node.tar.gz\n"),
+	}}
+	v := New(nil)
+	v.Fetch = ff.fetch
+	_, err := v.Verify(context.Background(), Request{
+		Tool: "node", Version: "1.0.0", Platform: "linux-amd64", Artifact: "node.tar.gz",
+		Digest: strings.Repeat("d", 64), Algo: AlgoSHA256, Format: "gnu-sums",
+		SumsURLs: []string{"https://a/SHASUMS256.txt"}, Rehash: true,
+	})
+	if !errors.Is(err, ErrChecksum) {
+		t.Fatalf("产物与源不符必须失败: %v", err)
+	}
+}

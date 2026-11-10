@@ -46,9 +46,11 @@ type Options struct {
 	Offline  bool
 	Insecure bool
 	Force    bool
-	GOOS     string
-	GOARCH   string
-	Now      func() time.Time
+	// Rehash 强制重新向校验源求值并覆盖 TOFU 记录（`--force-rehash`）。
+	Rehash bool
+	GOOS   string
+	GOARCH string
+	Now    func() time.Time
 	// LookupProvider 默认 provider.Get（测试注入假清单）。
 	LookupProvider func(id string) (*provider.Provider, error)
 	// Events 用于 NDJSON 事件输出（nil 则静默）。
@@ -316,6 +318,8 @@ func (i *Installer) Uninstall(tool, version string, force bool) error {
 	if err := removeDirWithRetry(in.Path, 3); err != nil {
 		return fmt.Errorf("删除 %q 失败（可能仍有进程占用，关掉后重试或用 --force 留残）: %w", in.Path, err)
 	}
+	// 顺手把空的 tools/<tool> 收掉：卸载干净不是“目录还在但不空”。
+	pruneEmptyDirs(filepath.Dir(in.Path), i.opt.Paths.Root)
 	if err := i.removeShimsFor(in.Path); err != nil {
 		return err
 	}
@@ -583,6 +587,7 @@ func (i *Installer) verifyArtifact(ctx context.Context, p *provider.Provider, re
 		Format:       p.Checksum.Format,
 		InlineShasum: inline,
 		Insecure:     i.opt.Insecure,
+		Rehash:       i.opt.Rehash,
 	}
 	return v.Verify(ctx, req)
 }
@@ -683,7 +688,7 @@ func (i *Installer) installNpmPackage(ctx context.Context, npmP *provider.Provid
 	if _, err := v.Verify(ctx, verify.Request{
 		Tool: "npm", Version: version, Platform: platform,
 		Digest: digest, Algo: algo, Format: "registry-integrity", InlineShasum: shasum,
-		Insecure: i.opt.Insecure,
+		Insecure: i.opt.Insecure, Rehash: i.opt.Rehash,
 	}); err != nil {
 		_ = os.Remove(cachePath)
 		return err

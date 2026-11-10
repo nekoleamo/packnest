@@ -18,6 +18,7 @@ import (
 	"hash"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -101,6 +102,11 @@ func (k *Known) Save(path string) error {
 	data, err := json.MarshalIndent(k, "", "  ")
 	if err != nil {
 		return err
+	}
+	if dir := filepath.Dir(path); dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("创建校验表目录失败: %w", err)
+		}
 	}
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
@@ -222,6 +228,9 @@ type Request struct {
 	InlineShasum string
 	// Insecure 允许无校验安装（标记 unverified）。
 	Insecure bool
+	// Rehash 表示忽略本地 TOFU 记录、重新向校验源求值并覆盖记录（`--force-rehash`）。
+	// 用于上游重新发布了同一版本、或本地表被写脏的场景。
+	Rehash bool
 }
 
 // Result 是校验结果。
@@ -261,8 +270,8 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 	}
 	key := Key(req.Tool, req.Version, req.Platform)
 
-	// 1. 已知版本：只比本地表，零网络（离线可验证）。
-	if entry, ok := v.Known.Get(key); ok {
+	// 1. 已知版本：只比本地表，零网络（离线可验证）。--force-rehash 跳过这一步。
+	if entry, ok := v.Known.Get(key); ok && !req.Rehash {
 		if entryAlgo := entry.Algo; entryAlgo != "" && entryAlgo != algo {
 			return Result{}, fmt.Errorf("%w: %s 的摘要算法变了（记录 %s，现在 %s）；确需覆盖用 --force-rehash",
 				ErrChecksum, key, entryAlgo, algo)

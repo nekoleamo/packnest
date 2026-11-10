@@ -95,6 +95,7 @@ func (i *Installer) GC(ctx context.Context, cacheMax int64, dryRun, force bool) 
 			keep = append(keep, in)
 			continue
 		}
+		pruneEmptyDirs(filepath.Dir(in.Path), i.opt.Paths.Root)
 		if err := i.removeShimsFor(in.Path); err != nil {
 			return res, err
 		}
@@ -119,6 +120,18 @@ func (i *Installer) GC(ctx context.Context, cacheMax int64, dryRun, force bool) 
 	sort.Strings(res.CacheRemoved)
 	sort.Strings(res.KeptRef)
 	return res, nil
+}
+
+// pruneEmptyDirs 自下而上删空目录（遇到非空立即停，绝不强删）。
+//
+// 卸载/GC 之后 tools/<tool>/ 往往剩下一个空壳，用户看到的不是“零残留”。
+func pruneEmptyDirs(dir, stopAt string) {
+	for dir != "" && dir != stopAt && strings.HasPrefix(dir, stopAt+string(filepath.Separator)) {
+		if err := os.Remove(dir); err != nil {
+			return
+		}
+		dir = filepath.Dir(dir)
+	}
 }
 
 // clearActive 清掉某工具的全局默认（配置与台账引用）。

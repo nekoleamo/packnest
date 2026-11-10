@@ -248,6 +248,35 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - `pk install --dry-run`：只解析并打印"版本 / 产物 URL / 校验方式"，不下载（CI 里做预检很方便）
 - 安装失败追加"下一步"建议（mirror probe / doctor / --insecure）
 
+## 0.7.0（2026-11-10，发布前全量复查）
+
+全面 review + 自动化测试后修掉的问题（每条都补了会失败的用例，先红后绿）：
+
+| # | 问题 | 后果 | 修法 / 用例 |
+|---|---|---|---|
+| 1 | 校验失败信息让你加 `--force-rehash`，但这个开关**根本不存在** | 用户按建议操作只会得到"flag provided but not defined" | 实现 `install --force-rehash`（忽略 `state/known.json` 的旧记录，重新向校验源求值并覆盖）：`TestVerifyRehashOverwritesTOFU`、`TestVerifyRehashStillRejectsMismatch`、`TestInstallForceRehash`、`TestCLIInstallForceRehashFlag` |
+| 2 | `pk env --write` 反复写会**每次多一个空行**（托管块替换后没吃掉结尾换行） | rc 文件被慢慢撑大，"幂等"名不副实 | 替换/删除时吃掉一个换行：`TestWriteManagedBlockIdempotent`、`TestWriteManagedBlockReplacesMiddleBlock`、`TestRemoveManagedBlockLeavesNoBlankLine` |
+| 3 | 归档里的符号链接目标**不校验**（先建 `../../x` 链接再写文件 → 写到解压根外） | tar-slip 的链接变体，安全红线 | `checkLinkTarget`：绝对路径/跑出解压根一律拒绝：`TestExtractRejectsEscapingSymlinkTar`、`TestExtractRejectsAbsoluteSymlink`、`TestCheckLinkTargetInTree` |
+| 4 | 半截下载被清扫、只剩 `.part.meta` 时，旧的大小记录会让新下载假报"产物大小不符" | chunked（无 Content-Length）源上必现，用户被迫手清缓存 | meta 只在 `.part` 存在时才信；200 分支直接采信本次长度：`TestDownloadIgnoresStalePartMeta` |
+| 5 | `gc` 淘汰缓存时，**删不掉的文件也算"已释放"**，且索引条目被删（下次永远不再试） | 报告的数字是假的，磁盘占用不会降 | 先删后记账，失败就保留条目：`TestPruneCacheRemovalFailureNotCounted` |
+| 6 | 卸载/GC 之后留下空的 `tools/<tool>/` 空壳 | "卸载零残留"不成立 | `pruneEmptyDirs` 自下而上删空目录（非空即停）：`TestUninstallClean` 补断言 |
+
+顺手清掉的债：`cmd_stub.go`（9 命令全实现后已是死代码）、`provider.SortVersionsDesc` 里的死排序、
+`archive.applySingle` 的两个等价分支、`mirror_test` 里没人用的 `writeFile`、`tar.TypeRegA`（Go 1.11 起废弃）、
+`verify.Known.Save` 不建父目录（首次写 `state/known.json` 会失败）。
+
+真网实测（本机 macOS arm64，`/tmp/pk-smoke` 为全新 PK_ROOT）：node@22 + 伴生 npm、pnpm、bun、go、python
+全部装成并可执行（`node -v` / `npm -v` / `pnpm -v` / `bun --version` / `go version` / `python3 --version`）；
+`deno` 仍按设计硬失败（两源校验和不一致 → 提示 `--insecure`，属已知缺口"上游重新发布"）；
+`env --write`/`--unset`、`list`、`list --available`、`which`、`use`、`gc --dry-run`、`uninstall`、
+`--frozen` 不一致退出码、`doctor --json`、`--json` 事件流全部按契约工作。
+
+## 行数预算现状
+
+`cmd/` + `internal/`（不含 `*_test.go`、不含 `internal/testkit` 夹具）**8465 / 8500 行**，余量 35 行。
+注意：这个数字现在靠人肉看，`make check` 的 7 项门禁里**没有行数门禁**（AGENTS.md 里的说法超前于实现）。
+下个版本要么加一条 `loc` 门禁，要么先还砍一刀（`internal/install` 1281 行、`cmd/pk` 2189 行是两个大头）。
+
 ## 已知缺口（按计划补齐，不是遗漏）
 
 - go 的国内索引源：npmmirror 没有 go 的产物/索引（实测），所以索引只声明官方 `?mode=json&include=all`，

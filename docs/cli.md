@@ -1,6 +1,6 @@
 # pk 操作手册
 
-> 适用于 **packnest v0.6.x**。所有示例都能直接复制执行；`$` 开头是命令，其余是输出示例。
+> 适用于 **packnest v0.7.x**。所有示例都能直接复制执行；`$` 开头是命令，其余是输出示例。
 > 命令面固定 9 个：`install` `uninstall` `use` `list` `which` `mirror` `doctor` `env` `gc`，另有 `version` `help`。
 
 ## 目录
@@ -376,13 +376,13 @@ $ pk gc --json
 
 ```bash
 $ pk --version
-packnest v0.6.6 (go1.27.3, darwin/arm64)
+packnest v0.7.0 (go1.27.3, darwin/arm64)
 
 $ pk --json version
 {
   "schema": 1,
   "name": "packnest",
-  "version": "0.6.6",
+  "version": "0.7.0",
   "go": "go1.27.3",
   "os": "darwin",
   "arch": "arm64"

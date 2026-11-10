@@ -217,14 +217,15 @@ func PruneCache(p paths.Paths, limit int64, now time.Time, dryRun bool) (SweepRe
 			break
 		}
 		path := filepath.Join(dir, c.name)
-		res.Removed = append(res.Removed, path)
-		res.Bytes += c.entry.Size
-		total -= c.entry.Size
 		if !dryRun {
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				// 删不掉（Windows 占用常见）：不计入已释放，台账留着下次再试。
 				continue
 			}
 		}
+		res.Removed = append(res.Removed, path)
+		res.Bytes += c.entry.Size
+		total -= c.entry.Size
 		delete(idx.Entries, c.name)
 	}
 	if !dryRun {

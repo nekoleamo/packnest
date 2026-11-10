@@ -126,16 +126,19 @@ func extractTarGz(archivePath, dstDir string, layout Layout, goos string) error 
 		case tar.TypeSymlink:
 			if goos == "windows" {
 				// Windows 建符号链接需要开发者模式/管理员，且我们一律取 zip 产物。
-				return fmt.Errorf("Windows 不支持带符号链接的 tar 归档（应改取 zip 产物，见方案 §18.3）: %s", hdr.Name)
+				return fmt.Errorf("不支持带符号链接的 tar 归档（Windows 应改取 zip 产物，见方案 §18.3）: %s", hdr.Name)
 			}
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return err
+			}
+			if err := checkLinkTarget(dstDir, target, hdr.Linkname); err != nil {
 				return err
 			}
 			_ = os.Remove(target)
 			if err := os.Symlink(hdr.Linkname, target); err != nil {
 				return fmt.Errorf("创建符号链接 %q 失败: %w", rel, err)
 			}
-		case tar.TypeReg, tar.TypeRegA:
+		case tar.TypeReg:
 			n, err := writeEntry(target, tr, hdr.FileInfo().Mode().Perm())
 			if err != nil {
 				return err
@@ -178,7 +181,7 @@ func extractZip(archivePath, dstDir string, layout Layout, goos string) error {
 		}
 		if f.Mode()&os.ModeSymlink != 0 {
 			if goos == "windows" {
-				return fmt.Errorf("Windows 不支持 zip 里的符号链接: %s", f.Name)
+				return fmt.Errorf("不支持 zip 里的符号链接（Windows 没有稳定的链接语义）: %s", f.Name)
 			}
 			rc, err := f.Open()
 			if err != nil {
@@ -190,6 +193,9 @@ func extractZip(archivePath, dstDir string, layout Layout, goos string) error {
 				return err
 			}
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return err
+			}
+			if err := checkLinkTarget(dstDir, target, string(link)); err != nil {
 				return err
 			}
 			_ = os.Remove(target)
@@ -242,12 +248,29 @@ func writeEntry(target string, r io.Reader, mode os.FileMode) (int64, error) {
 	return n, nil
 }
 
+// checkLinkTarget 确认符号链接不会把写入引到解压根之外（tar-slip 的符号链接变体）。
+//
+// 解压时的路径校验（paths.SafeJoin）只看条目名，如果归档里先放一个指向 /etc 的
+// 符号链接、再往该路径写常规文件，写入就跑到根目录外了。
+func checkLinkTarget(dstDir, target, linkname string) error {
+	clean := strings.ReplaceAll(linkname, `\`, "/")
+	if clean == "" {
+		return fmt.Errorf("符号链接目标为空: %q", filepath.Base(target))
+	}
+	if filepath.IsAbs(clean) || strings.HasPrefix(clean, "/") || (len(clean) > 1 && clean[1] == ':') {
+		return fmt.Errorf("符号链接 %q 指向绝对路径 %q，拒绝", filepath.Base(target), linkname)
+	}
+	resolved := filepath.Clean(filepath.Join(filepath.Dir(target), filepath.FromSlash(clean)))
+	rel, err := filepath.Rel(dstDir, resolved)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("符号链接 %q 指向解压目录之外（%q），拒绝", filepath.Base(target), linkname)
+	}
+	return nil
+}
+
 // applySingle 处理单文件布局：把唯一产物挪到 layout.Single 并赋予 0755。
 func applySingle(dstDir string, layout Layout, files []string) error {
 	if layout.Single == "" {
-		if len(files) != 0 {
-			return nil
-		}
 		return nil
 	}
 	if len(files) != 1 {

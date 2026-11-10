@@ -251,3 +251,43 @@ func TestPruneCacheRemoveError(t *testing.T) {
 		t.Fatal("幽灵记录应被清掉")
 	}
 }
+
+// 删不掉的缓存文件（Windows 进程占用是常态）不能算进"已释放"。
+func TestPruneCacheRemovalFailureNotCounted(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root 无视目录权限，这个用例不适用")
+	}
+	root := t.TempDir()
+	p, _ := paths.New(root)
+	if err := os.MkdirAll(p.CacheArchives(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	name := "locked.tar.gz"
+	path := filepath.Join(p.CacheArchives(), name)
+	if err := os.WriteFile(path, make([]byte, 100), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	idx, _ := LoadCacheIndex(p.CacheIndex())
+	idx.Touch(name, 100, now.Add(-time.Hour))
+	if err := idx.Save(p.CacheIndex()); err != nil {
+		t.Fatal(err)
+	}
+	// 目录设成只读：文件删不掉。
+	if err := os.Chmod(p.CacheArchives(), 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(p.CacheArchives(), 0o755) })
+
+	res, err := PruneCache(p, 1, now, false)
+	if err != nil {
+		t.Fatalf("删不掉不该让 gc 整体失败: %v", err)
+	}
+	if len(res.Removed) != 0 || res.Bytes != 0 {
+		t.Fatalf("删不掉的文件不该计入已释放: %+v", res)
+	}
+	back, _ := LoadCacheIndex(p.CacheIndex())
+	if _, ok := back.Entries[name]; !ok {
+		t.Fatal("删不掉时索引条目要保留，下次再试")
+	}
+}

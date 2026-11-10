@@ -498,3 +498,32 @@ func TestDownloadProgressNilSafe(t *testing.T) {
 		t.Fatalf("Download: %v", err)
 	}
 }
+
+// 半成品被清掉、只剩 meta 时，旧的大小记录不能让新下载假报"大小不符"。
+func TestDownloadIgnoresStalePartMeta(t *testing.T) {
+	payload := []byte("0123456789")
+	// 故意不给 Content-Length（chunked）：这样"未知长度"分支才是被考的那条路径。
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(payload[:4])
+		w.(http.Flusher).Flush()
+		_, _ = w.Write(payload[4:])
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+	dst := filepath.Join(dir, "x.tar.gz")
+	// meta 说上次下到 500 字节（半截文件已经被清扫掉了）。
+	if err := writePartMeta(dst+".part.meta", partMeta{URL: srv.URL, Size: 500}); err != nil {
+		t.Fatal(err)
+	}
+	n, err := New().Download(context.Background(), srv.URL, dst)
+	if err != nil {
+		t.Fatalf("残留 meta 不该导致失败: %v", err)
+	}
+	if n != int64(len(payload)) {
+		t.Fatalf("字节 = %d，期望 %d", n, len(payload))
+	}
+	if got, _ := os.ReadFile(dst); string(got) != string(payload) {
+		t.Fatalf("产物内容不符: %q", got)
+	}
+}

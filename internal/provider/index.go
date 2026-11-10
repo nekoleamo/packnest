@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -510,7 +509,5 @@ func (l *IndexLoader) ttl() time.Duration {
 
 // SortVersionsDesc 返回降序版本号（展示用）。
 func SortVersionsDesc(vs []Version) []string {
-	out := versionStrings(vs)
-	sort.SliceStable(out, func(i, j int) bool { return out[i] > out[j] })
-	return spec.SortDesc(out)
+	return spec.SortDesc(versionStrings(vs))
 }

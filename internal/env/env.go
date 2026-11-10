@@ -196,7 +196,9 @@ func WriteManagedBlock(path, content string) error {
 	text := string(existing)
 	if start := strings.Index(text, ManagedBegin); start >= 0 {
 		if end := strings.Index(text[start:], ManagedEnd); end >= 0 {
-			text = text[:start] + block + text[start+end+len(ManagedEnd):]
+			// 块自带结尾换行，所以吃掉后面的那一个，反复写不会垫空行。
+			rest := strings.TrimPrefix(text[start+end+len(ManagedEnd):], "\n")
+			text = text[:start] + block + rest
 		} else {
 			text = text[:start] + block // 残缺块：整段重写
 		}
@@ -254,6 +256,6 @@ func RemoveManagedBlock(path string) error {
 	if end < 0 {
 		return nil
 	}
-	cleaned := text[:start] + text[start+end+len(ManagedEnd):]
+	cleaned := text[:start] + strings.TrimPrefix(text[start+end+len(ManagedEnd):], "\n")
 	return os.WriteFile(path, []byte(cleaned), 0o644)
 }

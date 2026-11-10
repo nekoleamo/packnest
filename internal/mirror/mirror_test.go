@@ -265,10 +265,6 @@ type errString string
 
 func (e errString) Error() string { return string(e) }
 
-func writeFile(path, content string) error {
-	return os.WriteFile(path, []byte(content), 0o644)
-}
-
 func TestDetectAbroadPrefersOfficial(t *testing.T) {
 	official := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	defer official.Close()

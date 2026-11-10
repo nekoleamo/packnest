@@ -942,3 +942,46 @@ func TestUseProjectPin(t *testing.T) {
 		t.Fatalf("未装版本应拒绝: %d %q", code, errOut)
 	}
 }
+
+// --force-rehash 是校验失败信息里给出的处置，必须真的存在（否则建议是空头支票）。
+func TestCLIInstallForceRehashFlag(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.99.99"}},
+		NPM:      map[string]string{"11.20.0": "^20.17.0 || >=22.9.0"},
+	})
+	t.Setenv("PK_MIRROR_NODE_INDEX", fm.Server.URL+"/node/index.json")
+	t.Setenv("PK_MIRROR_NODE_ARTIFACT", fm.Server.URL+"/node/v{version}/node-v{version}-{platform}.{ext}")
+	t.Setenv("PK_MIRROR_NODE_CHECKSUM", fm.Server.URL+"/node/v{version}/SHASUMS256.txt")
+	root := t.TempDir()
+
+	// 先正常装一次，拿到真实 TOFU 记录，再把它改脏（模拟上游重新发布）。
+	if code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99"); code != 0 {
+		t.Fatalf("首次安装应成功，得到 %d（%s）", code, errOut)
+	}
+	knownPath := filepath.Join(root, "state", "known.json")
+	data, err := os.ReadFile(knownPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var known map[string]any
+	if err := json.Unmarshal(data, &known); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := known["entries"].(map[string]any)
+	for _, raw := range entries {
+		entry, _ := raw.(map[string]any)
+		entry["digest"] = strings.Repeat("a", 64)
+	}
+	dirty, _ := json.Marshal(known)
+	if err := os.WriteFile(knownPath, dirty, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99", "--force")
+	if code != 4 || !strings.Contains(errOut, "--force-rehash") {
+		t.Fatalf("脏 TOFU 应退 4 并提示 --force-rehash，得到 %d（%s）", code, errOut)
+	}
+	if code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99", "--force", "--force-rehash"); code != 0 {
+		t.Fatalf("--force-rehash 应放行，得到 %d（%s）", code, errOut)
+	}
+}

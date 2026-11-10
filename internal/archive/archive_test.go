@@ -588,3 +588,71 @@ func FuzzArchivePath(f *testing.F) {
 		}
 	})
 }
+
+// 符号链接逃逸（tar-slip 的链接变体）：先建指向根外的链接，再往里写文件。
+// 路径校验只看条目名，所以链接目标必须在建链接时就拦住。
+func TestExtractRejectsEscapingSymlinkTar(t *testing.T) {
+	dir := t.TempDir()
+	arch := filepath.Join(dir, "evil.tar.gz")
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	if err := tw.WriteHeader(&tar.Header{
+		Name: "esc", Linkname: "../../outside", Typeflag: tar.TypeSymlink, Mode: 0o777,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	tw.Close()
+	gz.Close()
+	if err := os.WriteFile(arch, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(dir, "tree")
+	if err := Extract(arch, dst, FormatTarGz, Layout{}, "darwin"); err == nil {
+		t.Fatal("指向解压根之外的符号链接必须报错")
+	}
+}
+
+func TestExtractRejectsAbsoluteSymlink(t *testing.T) {
+	dir := t.TempDir()
+	arch := filepath.Join(dir, "evil.tar.gz")
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	if err := tw.WriteHeader(&tar.Header{
+		Name: "esc", Linkname: "/etc/passwd", Typeflag: tar.TypeSymlink, Mode: 0o777,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	tw.Close()
+	gz.Close()
+	if err := os.WriteFile(arch, buf.Bytes(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Extract(arch, filepath.Join(dir, "tree"), FormatTarGz, Layout{}, "darwin"); err == nil {
+		t.Fatal("绝对路径的符号链接必须报错")
+	}
+}
+
+func TestCheckLinkTargetInTree(t *testing.T) {
+	dst := filepath.Join("base", "tree")
+	cases := []struct {
+		name     string
+		target   string
+		linkname string
+		wantErr  bool
+	}{
+		{"相对但仍在树内", filepath.Join(dst, "bin", "npm"), "../lib/npm-cli.js", false},
+		{"同目录", filepath.Join(dst, "a"), "b", false},
+		{"往上一级跑出", filepath.Join(dst, "a"), "../../x", true},
+		{"绝对路径", filepath.Join(dst, "a"), "/etc/passwd", true},
+		{"空目标", filepath.Join(dst, "a"), "", true},
+		{"windows 盘符", filepath.Join(dst, "a"), `C:\x`, true},
+	}
+	for _, c := range cases {
+		err := checkLinkTarget(dst, c.target, c.linkname)
+		if (err != nil) != c.wantErr {
+			t.Errorf("%s: err = %v, wantErr = %v", c.name, err, c.wantErr)
+		}
+	}
+}

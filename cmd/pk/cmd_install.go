@@ -44,6 +44,7 @@ func (a *app) cmdInstall(args []string) int {
 	insecure := fs.Bool("insecure", false, "允许无校验安装（标记 unverified）")
 	jobs := fs.Int("jobs", 1, "并发下载数（M4；默认 1，国内 CDN 分片常更慢）")
 	force := fs.Bool("force", false, "重装已存在的版本")
+	rehash := fs.Bool("force-rehash", false, "忽略本地校验表，重新向校验源求值并覆盖记录")
 	quiet := fs.Bool("quiet", false, "只报错，不打印进度")
 	dryRun := fs.Bool("dry-run", false, "只解析并打印计划（版本/URL/校验方式），不下载")
 	if err := parseFlexible(fs, args); err != nil {
@@ -99,6 +100,7 @@ func (a *app) cmdInstall(args []string) int {
 		Offline:        a.offline,
 		Insecure:       *insecure,
 		Force:          *force,
+		Rehash:         *rehash,
 		GOOS:           runtime.GOOS,
 		GOARCH:         runtime.GOARCH,
 		Project:        project,
