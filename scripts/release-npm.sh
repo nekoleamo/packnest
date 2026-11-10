@@ -40,6 +40,7 @@ TAG=""
 SCOPE="${PK_NPM_SCOPE:-@packnest}"
 TOKEN_FILE="${PK_NPM_TOKEN_FILE:-$HOME/.pi/agent/local/secrets.env}"
 CHECK_AUTH=0
+TRUSTED=0
 STAGE=0
 PROMOTE=""
 REGISTRY="${NPM_REGISTRY:-https://registry.npmjs.org}"
@@ -52,6 +53,7 @@ while [ $# -gt 0 ]; do
     --stage) STAGE=1; shift ;;
     --promote) PROMOTE="$2"; shift 2 ;;
     --promote-all) PROMOTE="--all"; shift ;;
+    --trusted) TRUSTED=1; shift ;;
     --otp) OTP="$2"; shift 2 ;;
     --tag) TAG="$2"; shift 2 ;;
     --registry) REGISTRY="$2"; shift 2 ;;
@@ -242,8 +244,12 @@ esac
 
 if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ] || [ "$STAGE" -eq 1 ]; then
   if [ "$PUBLISH" -eq 1 ] || [ "$STAGE" -eq 1 ]; then
-    load_token || exit 3
-    make_auth_config
+    if [ "$TRUSTED" -eq 0 ]; then
+      load_token || exit 3
+      make_auth_config
+    else
+      echo "trusted publishing：走 CI OIDC，不需要 npm token"
+    fi
     STAGED=$(npm stage list --registry "$REGISTRY" 2>/dev/null \
       | awk '/^package name: /{n=$3} /^version: /{if (n!="") {print n"@"$2; n=""}}' || true)
   else
@@ -256,6 +262,7 @@ if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ] || [ "$STAGE" -eq 1 ]; then
   else
     PUBLISH_ARGS="publish --access public --registry $REGISTRY"
   fi
+  [ "$TRUSTED" -eq 1 ] && PUBLISH_ARGS="$PUBLISH_ARGS --provenance"
   # 预发布版本（如 0.6.0-M5）npm 强制要求 --tag，否则报 "must specify a tag"
   if [ -z "$TAG" ]; then
     case "$VERSION" in

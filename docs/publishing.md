@@ -118,6 +118,26 @@ npm 新增了 **staged publishing**：可以签发"stage-only"的 token，它**�
 
 所以"0.6.0 装得上、0.6.1 发布成功却没有"的原因不是网络，而是 **0.6.1 停在 staged 状态没 promote**。
 
+### ✅ Trusted Publishing（推荐：无 token、无 2FA 弹窗）
+
+npm 的 OIDC 方案：CI 用 GitHub 身份直接发布，**不存任何 npm token**。一次配置，永久自动化。
+
+1. npmjs 上给 **7 个包**各配一条 Trusted Publisher
+   （`packnest` + `@packnest/{darwin,linux,windows}-{amd64,arm64}`）：
+   Settings → Trusted Publisher → **GitHub Actions** →
+   Organization/user = `nekoleamo`、Repository = `packnest`、Workflow filename = `npm-publish.yml`、Environment = `npm`
+2. 仓库里的 `packaging/ci/npm-publish.yml` 已经写好（`id-token: write` + `environment: npm` + `--provenance`）
+3. 发版：
+
+```bash
+git tag -a v0.6.3 -m "packnest 0.6.3" && git push origin v0.6.3
+```
+
+CI 会跑门禁 → 打 6 平台产物 → `release-npm.sh` → `release-npm.sh --publish --trusted`（不需要 `NODE_AUTH_TOKEN`）。
+npm 会自动生成 provenance 并跳过 2FA。
+
+> 注意：Trusted Publishing 只对**公开仓库 + 公开包**生效；`--provenance` 要求仓库可见。
+
 ### 怎么做到真正无人值守（不再弹浏览器）
 
 npm 的 2FA 有两种模式，决定自动化难度：
