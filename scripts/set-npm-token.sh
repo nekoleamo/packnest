@@ -40,5 +40,5 @@ printf '%s=%s\n' "$KEY" "$TOKEN" >> "$tmp"
 mv "$tmp" "$SECRETS"
 chmod 600 "$SECRETS"
 
-echo "已写入 $SECRETS（权限 600，值不回显）"
+echo "已写入 ${SECRETS}（权限 600，值不回显）"
 echo "发布：sh scripts/release-npm.sh --publish            # 脚本自己读，不打印"
