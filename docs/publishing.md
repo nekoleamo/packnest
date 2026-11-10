@@ -49,7 +49,7 @@ CI 侧有两种"零云端凭据"的用法：
 
 | 方案 | 做法 | 代价 |
 |---|---|---|
-| **A. CI 只构建** | 默认的 `packaging/ci/npm-publish.yml`（发布步骤已注释），tag 触发后只出产物；你下载产物后在本机 `make publish` | 发布要手动点一下 |
+| **A. CI 只构建** | 默认的 `.github/workflows/npm-publish.yml`（发布步骤已注释），tag 触发后只出产物；你下载产物后在本机 `make publish` | 发布要手动点一下 |
 | **B. 自托管 runner** | 把同一个 job 挂到自己机器的 runner，publish 步骤取消注释但不配 Secret——token 由**那台机器**的凭据文件提供 | 机器要常在线 |
 
 只有第三种（云端 GitHub 托管 runner + Secret）才需要把 token 放到云上，本仓库模板默认不这么做。
@@ -126,7 +126,7 @@ npm 的 OIDC 方案：CI 用 GitHub 身份直接发布，**不存任何 npm toke
    （`packnest` + `@packnest/{darwin,linux,windows}-{amd64,arm64}`）：
    Settings → Trusted Publisher → **GitHub Actions** →
    Organization/user = `nekoleamo`、Repository = `packnest`、Workflow filename = `npm-publish.yml`、Environment = `npm`
-2. 仓库里的 `packaging/ci/npm-publish.yml` 已经写好（`id-token: write` + `environment: npm` + `--provenance`）
+2. 仓库里的 `.github/workflows/npm-publish.yml` 已经写好（`id-token: write` + `environment: npm` + `--provenance`）
 3. 发版：
 
 ```bash
