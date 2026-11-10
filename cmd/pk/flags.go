@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// parseFlexible 允许开关出现在位置参数之后（`pk install deno --insecure`）。
+// parseFlexible 允许开关出现在位置参数之后（`pk install bun --insecure`）。
 //
 // 标准库 flag 遇到第一个非开关参数就停止解析，CLI 用户却习惯"命令 目标 --开关"，
 // 所以这里先做一遍分离：开关（含需要值的）排到前面，位置参数排在后面。

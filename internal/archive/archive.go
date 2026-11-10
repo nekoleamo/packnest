@@ -30,7 +30,7 @@ const (
 	FormatTarGz Format = "tar.gz"
 	// FormatTgz 是 npm/pnpm 的 .tgz（同样是 gzip+tar）。
 	FormatTgz Format = "tgz"
-	// FormatZip 是 windows 的 .zip（也用于 bun/deno）。
+	// FormatZip 是 windows 的 .zip（bun 也用 zip）。
 	FormatZip Format = "zip"
 )
 
@@ -41,7 +41,7 @@ var ErrNoSingle = errors.New("单文件布局的归档里应有且只有一个�
 type Layout struct {
 	// Strip 是剥掉的路径层数（node tar 为 1）。
 	Strip int
-	// Single 非空表示归档里只有一个文件，落到该相对路径并 chmod 0755（deno）。
+	// Single 非空表示归档里只有一个文件，落到该相对路径并 chmod 0755。
 	Single string
 	// Bins 是要暴露的命令名（用来保证可执行位）。
 	Bins []string

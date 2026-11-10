@@ -283,6 +283,30 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
   现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
 
+## 0.8.0（2026-11-10）
+
+**移除 deno**（上游进入生命末期，不再值得为一个单文件产物维护一整条 provider 链路）。
+
+删掉的东西：
+- `providers/deno.toml`（内嵌清单从 7 个降到 6 个：node / npm / pnpm / bun / go / python）
+- `DENO_INSTALL_ROOT` / `DENO_DIR` 两个环境变量（`pk env` 输出里不再有）
+- 文档/站点/清单里的 deno 行与"7 种运行时"（改成 6）
+
+**保留的东西**（有意为之，不是漏删）：
+- `layout.single` 这条解压能力 + 它的测试。真实 provider 已经没人用，但代码只有几十行、
+  逻辑独立，以后加 zig/nushell 这类"单文件产物"能直接复用。回归改由合成清单
+  `singlefile`（testkit）守着：`TestAcceptance_M2_SingleFileLayout` 名字不变，主体换成它。
+- `per-artifact` 校验和格式（`<产物>.sha256sum`）同样保留，同样是通用能力。
+- `docs/progress.md` 里的历史记录（0.6–0.7 的 deno 交付与踩坑）**不改**：那是当时的真实记录。
+
+验收用例调整（按"验收项 = 测试名"的约定，改名需留痕）：
+- `M5_AllSevenOfficialUnreachable` → **`M5_AllProvidersOfficialUnreachable`**（工具数从 7 变 6，
+  名字里的 "Seven" 会变成假话；断言改为"所有 provider"）
+- `M2_ThreePlatformSmoke` / `M2_OfficialUnreachable` / `M0_ProviderLoad`：去掉 deno 断言，工具数同步
+
+旧用户不受影响：台账里如果还有 deno 记录，`pk list` 照常显示（provider 查不到就少两列），
+`pk uninstall deno` / `pk uninstall --all` 仍然能把它删干净。
+
 ## 0.7.9（2026-11-10）
 
 Windows `--self` 仍然删不掉（0.7.8 实测 `where.exe pk` 还在）。根因是 **Go 给 cmd.exe 拼参数**：

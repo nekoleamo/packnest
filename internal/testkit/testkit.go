@@ -377,7 +377,7 @@ func replaceSums(b []byte) []byte {
 	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
-// MakeSingleFileZip 造只有单个文件的 zip（deno 的单文件布局）。
+// MakeSingleFileZip 造只有单个文件的 zip（layout.single 用的单文件布局夹具）。
 func MakeSingleFileZip(name, content string) []byte {
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)

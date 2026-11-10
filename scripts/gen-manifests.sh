@@ -17,7 +17,7 @@ cat > packaging/brew/packnest.rb <<RB
 # formula 名是 packnest，装出来的命令是 pk（brew 允许两者不同名，先例 ripgrep→rg）。
 # 由 scripts/gen-manifests.sh 生成，别手改。
 class Packnest < Formula
-  desc "国内网络开箱可用的多语言运行时安装器（node/pnpm/bun/deno/go/python）"
+  desc "国内网络开箱可用的多语言运行时安装器（node/pnpm/bun/go/python）"
   homepage "https://gitee.com/$REPO"
   version "$VER"
   license "MIT"
@@ -58,7 +58,7 @@ RB
 cat > packaging/scoop/packnest.json <<JSON
 {
   "version": "$VER",
-  "description": "国内网络开箱可用的多语言运行时安装器（node/pnpm/bun/deno/go/python）",
+  "description": "国内网络开箱可用的多语言运行时安装器（node/pnpm/bun/go/python）",
   "homepage": "https://gitee.com/$REPO",
   "license": "MIT",
   "architecture": {

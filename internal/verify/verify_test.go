@@ -35,7 +35,7 @@ short  x
 
 func TestParsePerArtifact(t *testing.T) {
 	sum := "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-	if got, ok := ParsePerArtifact([]byte(sum + "  deno.zip\n")); !ok || got != sum {
+	if got, ok := ParsePerArtifact([]byte(sum + "  artifact.zip\n")); !ok || got != sum {
 		t.Fatalf("ParsePerArtifact = %q/%v", got, ok)
 	}
 	if _, ok := ParsePerArtifact([]byte("nonsense")); ok {

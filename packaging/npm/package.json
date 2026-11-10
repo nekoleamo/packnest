@@ -1,7 +1,7 @@
 {
   "name": "packnest",
   "version": "0.0.0",
-  "description": "国内网络开箱可用的多语言运行时安装器（node/npm/pnpm/bun/deno/go/python）：Go 单二进制、零 CGO，内置国内镜像与自动探测。",
+  "description": "国内网络开箱可用的多语言运行时安装器（node/npm/pnpm/bun/go/python）：Go 单二进制、零 CGO，内置国内镜像与自动探测。",
   "bin": {
     "pk": "bin/pk.js",
     "packnest": "bin/pk.js"
@@ -30,7 +30,6 @@
     "china",
     "pnpm",
     "bun",
-    "deno",
     "go"
   ],
   "license": "MIT",

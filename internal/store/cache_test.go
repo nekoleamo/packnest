@@ -39,7 +39,7 @@ func TestSweepStale(t *testing.T) {
 
 	old := filepath.Join(p.Tool("node"), "22.22.2.tmp.abcd")
 	fresh := filepath.Join(p.Tool("node"), "22.22.2.tmp.efgh")
-	oldDir := filepath.Join(p.Tool("deno"), "2.9.8.old")
+	oldDir := filepath.Join(p.Tool("bun"), "2.9.8.old")
 	part := filepath.Join(p.CacheArchives(), "node.part")
 	for _, dir := range []string{filepath.Dir(old), p.CacheArchives()} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {

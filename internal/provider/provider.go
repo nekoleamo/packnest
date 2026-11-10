@@ -31,7 +31,7 @@ const (
 	IndexJSON     = "json"     // 一次性 JSON（node index.json、npm registry 元数据）
 	IndexRegistry = "registry" // npm registry 元数据（versions/engines/dist）
 	IndexDirList  = "dirlist"  // 目录列举式 JSON（npmmirror 的 /-/binary/<tool>/）
-	// IndexGitHub 是 GitHub Releases API（bun/deno 的"官方源"）。
+	// IndexGitHub 是 GitHub Releases API（bun 的"官方源"）。
 	IndexGitHub = "github-releases"
 	// IndexPBS 是 python-build-standalone 的两级目录列举（release 标签 → 文件）。
 	// 解析在 internal/toolchain 里，provider 只负责声明。
@@ -92,7 +92,7 @@ type ChecksumBlock struct {
 type LayoutBlock struct {
 	// Strip 是剥掉的路径层级（node tar 是 1）。
 	Strip int `toml:"strip"`
-	// Single 非空表示产物是单文件，落到该相对路径（deno）。
+	// Single 非空表示产物是单文件，落到该相对路径（layout.single）。
 	Single string `toml:"single"`
 	// Bins 是要暴露到 shim 的命令名。
 	Bins []string `toml:"bins"`

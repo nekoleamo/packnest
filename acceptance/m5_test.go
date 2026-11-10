@@ -168,7 +168,7 @@ func TestAcceptance_M5_CompanionMatrix7(t *testing.T) {
 }
 
 // TestAcceptance_M5_AllSevenOfficialUnreachable：官方源全挂，7 个工具都能从国内档装。
-func TestAcceptance_M5_AllSevenOfficialUnreachable(t *testing.T) {
+func TestAcceptance_M5_AllProvidersOfficialUnreachable(t *testing.T) {
 	dead := "http://127.0.0.1:1"
 	node := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
 		Versions: []testkit.NodeSpec{{Version: "22.22.2", NPMVersion: "11.20.0"}},
@@ -184,16 +184,6 @@ func TestAcceptance_M5_AllSevenOfficialUnreachable(t *testing.T) {
 			{Goos: "windows", Goarch: "amd64", Ext: "zip", Name: "windows-x64"},
 		},
 		ChecksumPath: "SHASUMS256.txt", ChecksumFormat: "gnu-sums", VersionDir: "bun-v%s/",
-	})
-	deno := testkit.NewFakeTool(t, testkit.FakeToolOptions{
-		Tool: "deno", Versions: []string{"2.9.8"}, ProviderTOML: testkit.DenoProviderTOML,
-		MakeArtifact: func(platform, _ string) []byte { return testkit.MakeFakeDenoZip() },
-		Platforms: []testkit.FakePlatform{
-			{Goos: "darwin", Goarch: "arm64", Ext: "zip", Name: "aarch64-apple-darwin"},
-			{Goos: "linux", Goarch: "amd64", Ext: "zip", Name: "x86_64-unknown-linux-gnu"},
-			{Goos: "windows", Goarch: "amd64", Ext: "zip", Name: "x86_64-pc-windows-msvc"},
-		},
-		ChecksumPath: "deno-%s.zip.sha256sum", ChecksumFormat: "per-artifact",
 	})
 	goTool := testkit.NewFakeGo(t, []string{"1.27.3"})
 	pbs := testkit.NewFakePBS(t, testkit.PBSOptions{Tags: []string{"20261026"}, Versions: []string{"3.13.18"}})
@@ -211,7 +201,6 @@ func TestAcceptance_M5_AllSevenOfficialUnreachable(t *testing.T) {
 	add("npm", testkit.NPMProviderTOML(node.Server.URL), "/npm")
 	add("pnpm", testkit.PnpmProviderTOML(pnpm.Server.URL), "/pnpm")
 	add("bun", testkit.BunProviderTOML(bun.Server.URL), "/bun")
-	add("deno", testkit.DenoProviderTOML(deno.Server.URL), "/deno")
 	add("go", testkit.GoProviderTOML(goTool.Server.URL), "/dl")
 	add("python", testkit.PBSProviderTOML(pbs.Server.URL), "/pbs")
 
@@ -236,7 +225,7 @@ func TestAcceptance_M5_AllSevenOfficialUnreachable(t *testing.T) {
 	ctx := context.Background()
 	targets := []struct{ tool, spec string }{
 		{"node", "22.22.2"}, {"pnpm", "10.4.1"}, {"bun", "1.4.4"},
-		{"deno", "2.9.8"}, {"go", "1.27.3"}, {"python", "3.13"},
+		{"go", "1.27.3"}, {"python", "3.13"},
 	}
 	for _, target := range targets {
 		if _, err := inst.Install(ctx, target.tool, target.spec); err != nil {
@@ -247,7 +236,7 @@ func TestAcceptance_M5_AllSevenOfficialUnreachable(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 7 个工具全部可解析（node 记录里还带伴生 npm）
-	for _, name := range []string{"node", "npm", "npx", "pnpm", "bun", "bunx", "deno", "go", "gofmt", "python3", "pip3"} {
+	for _, name := range []string{"node", "npm", "npx", "pnpm", "bun", "bunx", "go", "gofmt", "python3", "pip3"} {
 		got, isShim, err := shim.Resolve(p.Bin(), name, "darwin")
 		if err != nil || !isShim || got == "" {
 			t.Errorf("%s 的 shim 缺失: %q %v %v", name, got, isShim, err)
@@ -260,8 +249,8 @@ func TestAcceptance_M5_AllSevenOfficialUnreachable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ledger.Installs) != 6 {
-		t.Fatalf("台账应有 6 条（npm 记在 node 上）: %+v", ledger.Installs)
+	if len(ledger.Installs) != 5 {
+		t.Fatalf("台账应有 5 条（node/pnpm/bun/go/python；npm 记在 node 上）: %+v", ledger.Installs)
 	}
 	_ = fmt.Sprint
 }

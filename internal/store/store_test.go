@@ -188,7 +188,7 @@ func TestWriteAtomicCreatesDirs(t *testing.T) {
 func TestInstallTimeDefault(t *testing.T) {
 	l := &Ledger{Schema: LedgerSchema}
 	before := time.Now().Add(-time.Second)
-	l.Upsert(Install{Tool: "deno", Version: "2.1.9", Path: "/x"})
+	l.Upsert(Install{Tool: "bun", Version: "1.4.4", Path: "/x"})
 	if l.Installs[0].InstalledAt.Before(before) {
 		t.Fatal("InstalledAt 应被填成当前时间")
 	}

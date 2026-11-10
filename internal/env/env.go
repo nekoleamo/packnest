@@ -54,8 +54,6 @@ func SharedVarsFor(mode string, p paths.Paths, npmCache, nodeVersion string) []K
 		{"npm_config_prefer_offline", "true"},
 		{"PNPM_HOME", filepath.Join(prefix, "pnpm")},
 		{"BUN_INSTALL", filepath.Join(prefix, "bun")},
-		{"DENO_INSTALL_ROOT", filepath.Join(prefix, "deno")},
-		{"DENO_DIR", p.Root + "/cache/deno"},
 	}
 }
 
@@ -70,8 +68,6 @@ func SharedVars(p paths.Paths, npmCache string) []KV {
 		{"npm_config_prefer_offline", "true"},
 		{"PNPM_HOME", p.GlobalPnpmBin()},
 		{"BUN_INSTALL", p.Global() + "/bun"},
-		{"DENO_INSTALL_ROOT", p.Global() + "/deno"},
-		{"DENO_DIR", p.Root + "/cache/deno"},
 	}
 }
 

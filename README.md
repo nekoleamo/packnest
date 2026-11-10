@@ -5,7 +5,7 @@
 **国内网络开箱可用的多语言运行时安装器。**
 
 命令行叫 `pk`（也提供 `packnest` 别名）。Go 单二进制、`CGO_ENABLED=0`、6 平台、只依赖 2 个第三方库，
-装 **node / npm / pnpm / bun / deno / go / python**，内置国内镜像档与真实网络探测，
+装 **node / npm / pnpm / bun / go / python**，内置国内镜像档与真实网络探测，
 node 装完自动配对「最新兼容的 npm」，卸载可回滚到零残留。
 
 ```bash

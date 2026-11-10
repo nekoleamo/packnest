@@ -1,6 +1,6 @@
 {
   "version": "0.7.9",
-  "description": "国内网络开箱可用的多语言运行时安装器（node/pnpm/bun/deno/go/python）",
+  "description": "国内网络开箱可用的多语言运行时安装器（node/pnpm/bun/go/python）",
   "homepage": "https://gitee.com/null_593_5354/packnest",
   "license": "MIT",
   "architecture": {

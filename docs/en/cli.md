@@ -82,7 +82,7 @@ $ pk install                    # install everything declared in ./pk.toml
 
 ### 1.2 Tools
 
-`node` · `npm` · `pnpm` · `bun` · `deno` · `go` · `python`
+`node` · `npm` · `pnpm` · `bun` · `go` · `python`
 
 `npm` is not installed on its own: it is a companion of Node, paired by exact Node version. `pnpm`
 requires Node to be present first — runtimes are never installed implicitly.

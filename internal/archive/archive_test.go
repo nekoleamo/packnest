@@ -136,19 +136,19 @@ func TestExtractWindowsRejectsSymlink(t *testing.T) {
 }
 
 func TestExtractSingleFileLayout(t *testing.T) {
-	// deno：zip 里只有一个文件。
+	// 单文件布局：zip 里只有一个文件。
 	dir := t.TempDir()
-	arch := filepath.Join(dir, "deno.zip")
-	if err := os.WriteFile(arch, testkit.MakeSingleFileZip("deno", "#!/bin/sh\n"), 0o644); err != nil {
+	arch := filepath.Join(dir, "single.zip")
+	if err := os.WriteFile(arch, testkit.MakeSingleFileZip("singlefile", "#!/bin/sh\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	dst := filepath.Join(dir, "tree")
-	if err := Extract(arch, dst, FormatZip, Layout{Single: "bin/deno"}, "darwin"); err != nil {
+	if err := Extract(arch, dst, FormatZip, Layout{Single: "bin/singlefile"}, "darwin"); err != nil {
 		t.Fatalf("Extract: %v", err)
 	}
-	fi, err := os.Stat(filepath.Join(dst, "bin", "deno"))
+	fi, err := os.Stat(filepath.Join(dst, "bin", "singlefile"))
 	if err != nil {
-		t.Fatalf("单文件应落在 bin/deno: %v", err)
+		t.Fatalf("单文件应落在 bin/singlefile: %v", err)
 	}
 	if fi.Mode().Perm()&0o100 == 0 {
 		t.Fatal("单文件必须 0755")
@@ -359,11 +359,11 @@ func TestApplySingleTargetExists(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dst, "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dst, "bin", "deno"), []byte("x"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dst, "bin", "singlefile"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// 目标已是同一路径 → 不该再 rename（覆盖 applySingle 的相等分支）
-	if err := applySingle(dst, Layout{Single: "bin/deno"}, []string{filepath.Join(dst, "bin", "deno")}); err != nil {
+	if err := applySingle(dst, Layout{Single: "bin/singlefile"}, []string{filepath.Join(dst, "bin", "singlefile")}); err != nil {
 		t.Fatalf("applySingle: %v", err)
 	}
 	if err := applySingle(dst, Layout{}, nil); err != nil {
@@ -408,11 +408,11 @@ func TestApplySingleTargetBlocked(t *testing.T) {
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	// bin 是文件 → 无法写 bin/deno
+	// bin 是文件 → 无法写 bin/singlefile
 	if err := os.WriteFile(filepath.Join(dst, "bin"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := applySingle(dst, Layout{Single: "bin/deno"}, []string{filepath.Join(dst, "deno")}); err == nil {
+	if err := applySingle(dst, Layout{Single: "bin/singlefile"}, []string{filepath.Join(dst, "singlefile")}); err == nil {
 		t.Fatal("目标父路径是文件时应报错")
 	}
 }
@@ -464,7 +464,7 @@ func TestExtractTarWithDirs(t *testing.T) {
 
 func TestExtractZipEntryOpenError(t *testing.T) {
 	// 截断的 zip 中央目录：OpenReader 成功但读条目失败。
-	data := testkit.MakeSingleFileZip("deno", strings.Repeat("x", 4096))
+	data := testkit.MakeSingleFileZip("singlefile", strings.Repeat("x", 4096))
 	dir := t.TempDir()
 	arch := filepath.Join(dir, "trunc.zip")
 	// 砍掉尾部一段，破坏 deflate 流但仍保留中央目录可被识别的情况很难构造，
@@ -473,10 +473,10 @@ func TestExtractZipEntryOpenError(t *testing.T) {
 		t.Fatal(err)
 	}
 	dst := filepath.Join(dir, "tree")
-	_ = Extract(arch, dst, FormatZip, Layout{Single: "bin/deno"}, "linux")
-	if _, err := os.Stat(filepath.Join(dst, "bin", "deno")); err == nil {
+	_ = Extract(arch, dst, FormatZip, Layout{Single: "bin/singlefile"}, "linux")
+	if _, err := os.Stat(filepath.Join(dst, "bin", "singlefile")); err == nil {
 		// 若恰好还能解出来，产物必须是完整的
-		if st, _ := os.Stat(filepath.Join(dst, "bin", "deno")); st.Size() != 4096 {
+		if st, _ := os.Stat(filepath.Join(dst, "bin", "singlefile")); st.Size() != 4096 {
 			t.Fatalf("截断的归档不该产出半成品，得到 %d 字节", st.Size())
 		}
 	}
@@ -529,7 +529,7 @@ func TestApplySingleRenameFailure(t *testing.T) {
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := applySingle(dst, Layout{Single: "bin/deno"}, []string{filepath.Join(dst, "missing")}); err == nil {
+	if err := applySingle(dst, Layout{Single: "bin/singlefile"}, []string{filepath.Join(dst, "missing")}); err == nil {
 		t.Fatal("源文件不存在时应报错")
 	}
 }

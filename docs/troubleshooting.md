@@ -35,7 +35,7 @@ iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB 
 |---|---|---|
 | `网络失败: 索引全部不可用` | 档位选错或代理没生效 | `pk mirror probe --tool node` 看哪一路通；`pk mirror use cn`；`HTTPS_PROXY` 要 export |
 | `校验失败: 拿不到…校验和` | 所有校验和源都不可用（首次装、纯内网） | 有内网源就 `PK_MIRROR_<TOOL>_CHECKSUM=<url>`；否则确认产物来源可信后 `--insecure`（会标 unverified） |
-| `校验失败: 校验和源之间不一致` | 镜像被污染 **或上游重新发布过产物**（实测 deno v2.9.8） | 报错里会写"产物与哪个源一致"；确认后 `--insecure`，不要盲目加 |
+| `校验失败: 校验和源之间不一致` | 镜像被污染 **或上游重新发布过产物** | 报错里会写"产物与哪个源一致"；确认后 `--insecure`，不要盲目加 |
 | `校验失败: sha256 与本地记录不一致` | TOFU 表里记的和现在下到的不一样（上游重新发布过、或表被写脏） | 先确认不是镜像问题，再加 `--force-rehash`（重新向校验源求值并覆盖这一条；等价于只重算这一个版本，不用删整张表） |
 | `解压失败（产物可能被截断）` | 缓存里是半截文件 | 已自动删除缓存，重试即可；反复失败就 `pk gc --cache-max 1` 清空缓存 |
 | `--frozen` 报不一致 | `pk.toml` 与 `pk.lock` 漂移 | 本地跑一次 `pk install` 更新锁并提交；CI 不解析版本 |

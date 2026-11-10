@@ -4,7 +4,7 @@
 
 ## 一句话
 
-`pk`（发布名 `packnest`）是**多语言运行时安装器**：Go、单二进制、`CGO_ENABLED=0`，装 node/npm/pnpm/bun/deno/go/python，内置国内镜像档 + 自动探测，node 装完自动配对最新兼容 npm，卸载可回滚到零残留。GUI（Wails v3.1.0）在 M6+，v1 只有 CLI。
+`pk`（发布名 `packnest`）是**多语言运行时安装器**：Go、单二进制、`CGO_ENABLED=0`，装 node/npm/pnpm/bun/go/python，内置国内镜像档 + 自动探测，node 装完自动配对最新兼容 npm，卸载可回滚到零残留。GUI（Wails v3.1.0）在 M6+，v1 只有 CLI。
 
 ## 硬约束（写死为门禁，不许"顺手放宽"）
 

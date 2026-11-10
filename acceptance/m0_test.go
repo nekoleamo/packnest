@@ -89,8 +89,8 @@ func TestAcceptance_M0_ProviderLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("provider 加载失败: %v", err)
 	}
-	if len(all) != 7 {
-		t.Fatalf("应有 7 个 provider（node/npm/pnpm/bun/deno/go/python），得到 %d", len(all))
+	if len(all) != 6 {
+		t.Fatalf("应有 6 个 provider（node/npm/pnpm/bun/go/python），得到 %d", len(all))
 	}
 	for _, p := range all {
 		if err := p.Validate(); err != nil {

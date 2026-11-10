@@ -9,7 +9,7 @@ import (
 	"github.com/packnest/packnest/internal/provider"
 )
 
-// FakeTool 是"一个目录列举式镜像 + 产物 + 校验和"的通用假镜像（bun/deno）。
+// FakeTool 是"一个目录列举式镜像 + 产物 + 校验和"的通用假镜像（bun / 单文件产物都用它）。
 type FakeTool struct {
 	Server   *httptest.Server
 	Files    map[string][]byte
@@ -18,7 +18,7 @@ type FakeTool struct {
 	Artifact []byte
 }
 
-// FakeToolOptions 描述 bun/deno 这类"每版本一个目录"的镜像。
+// FakeToolOptions 描述"每版本一个目录"的镜像。
 type FakeToolOptions struct {
 	Tool string
 	// Versions 是要提供的版本。
@@ -139,18 +139,21 @@ bunx = "bun"
 `, baseURL)
 }
 
-// DenoProviderTOML 是 deno 的测试清单（目录列举 + 单文件 zip + per-artifact 校验）。
-func DenoProviderTOML(baseURL string) string {
-	return fmt.Sprintf(`id = "deno"
-display = "Deno"
+// SingleFileProviderTOML 是一个"单文件产物"的测试清单（目录列举 + 单文件 zip + per-artifact 校验）。
+//
+// 真实 provider 里已经没人用 layout.single（deno 已移除），但这条解压能力保留着，
+// 用这个合成清单守住回归：`TestAcceptance_M2_SingleFileLayout` 就是跑它。
+func SingleFileProviderTOML(baseURL string) string {
+	return fmt.Sprintf(`id = "singlefile"
+display = "SingleFile"
 kind = "binary"
 [index]
 kind = "dirlist"
 [index.urls]
-default = "%[1]s/deno/"
+default = "%[1]s/singlefile/"
 [artifact]
 [artifact.urls]
-default = "%[1]s/deno/v{version}/deno-{platform}.zip"
+default = "%[1]s/singlefile/v{version}/singlefile-{platform}.zip"
 [artifact.ext]
 windows = "zip"
 darwin = "zip"
@@ -163,10 +166,10 @@ windows-amd64 = "x86_64-pc-windows-msvc"
 format = "per-artifact"
 mode = "tofu-then-verify"
 [checksum.urls]
-default = "%[1]s/deno/v{version}/deno-{platform}.zip.sha256sum"
+default = "%[1]s/singlefile/v{version}/singlefile-{platform}.zip.sha256sum"
 [layout]
-single = "bin/deno"
-bins = ["deno"]
+single = "bin/singlefile"
+bins = ["singlefile"]
 `, baseURL)
 }
 
@@ -178,10 +181,10 @@ func MakeFakeBunZip(platform string) []byte {
 	})
 }
 
-// MakeFakeDenoZip 造 deno 的单文件 zip。
-func MakeFakeDenoZip() []byte {
+// MakeFakeSingleFileZip 造一个只含单个文件的 zip（layout.single 用）。
+func MakeFakeSingleFileZip() []byte {
 	return MakeZip([]ZipEntry{
-		{Name: "deno", Content: "#!/bin/sh\necho deno 2.9.8\n"},
+		{Name: "singlefile", Content: "#!/bin/sh\necho singlefile 1.0.0\n"},
 	})
 }
 

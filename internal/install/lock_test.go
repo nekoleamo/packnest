@@ -108,11 +108,11 @@ func TestBuildProjectLock(t *testing.T) {
 	if in := pickInstallForTool("node", "latest", ledger, nil); in == nil || in.Version != "22.22.2" {
 		t.Fatalf("别名应取最新已装: %+v", in)
 	}
-	if in := pickInstallForTool("deno", "2", ledger, nil); in != nil {
+	if in := pickInstallForTool("bun", "2", ledger, nil); in != nil {
 		t.Fatalf("没装过应返回 nil: %+v", in)
 	}
 	// 缺工具时报错
-	if _, err := BuildProjectLock(map[string]string{"deno": "2"}, ledger, nil); err == nil {
+	if _, err := BuildProjectLock(map[string]string{"bun": "2"}, ledger, nil); err == nil {
 		t.Fatal("缺工具应报错")
 	}
 	if got := lock.LockTools(); !strings.Contains(got, "node@22.22.2") {
@@ -415,11 +415,11 @@ func TestSaveProjectTool(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "pk.toml"), []byte("[mirrors]\nprofile = \"cn\"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := SaveProjectTool(dir, "deno", "2.9.8"); err != nil {
+	if err := SaveProjectTool(dir, "bun", "1.4.4"); err != nil {
 		t.Fatal(err)
 	}
 	raw, _ = os.ReadFile(filepath.Join(dir, "pk.toml"))
-	if !strings.Contains(string(raw), "[tools]") || !strings.Contains(string(raw), `deno = "2.9.8"`) {
+	if !strings.Contains(string(raw), "[tools]") || !strings.Contains(string(raw), `bun = "1.4.4"`) {
 		t.Fatalf("[tools] 段未追加:\n%s", raw)
 	}
 }

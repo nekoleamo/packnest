@@ -180,7 +180,7 @@ func ParseGNUSums(data []byte) map[string]string {
 	return out
 }
 
-// ParsePerArtifact 解析单文件校验和（deno 的 .sha256sum 里只有一个哈希）。
+// ParsePerArtifact 解析单文件校验和（`<产物>.sha256sum` 里只有一个哈希）。
 func ParsePerArtifact(data []byte) (string, bool) {
 	for _, line := range strings.Split(string(data), "\n") {
 		fields := strings.Fields(strings.TrimSpace(line))
@@ -296,7 +296,7 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 		return Result{}, fmt.Errorf("%w: 拿不到 %s 的校验和（所有源都不可用）；确认风险后可加 --insecure", ErrChecksum, key)
 	}
 	if len(expected) > 1 {
-		// 源之间不一致有两种可能：镜像被投毒，或上游重新发布过同一版本（实测 deno 出现过）。
+		// 源之间不一致有两种可能：镜像被投毒，或上游重新发布过同一版本。
 		// 按方案 §18.6 一律硬失败，但把"产物与哪个源一致"写清楚，让用户能判断该不该 --insecure。
 		matched := "与任何源都不一致"
 		for sum := range expected {

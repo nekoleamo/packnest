@@ -4,7 +4,7 @@
 
 Command name: `pk` (the `packnest` alias points at the same binary). A single Go binary,
 `CGO_ENABLED=0`, six platform targets, exactly two third-party libraries. It installs
-**node / npm / pnpm / bun / deno / go / python**, ships China mirror profiles with real network
+**node / npm / pnpm / bun / go / python**, ships China mirror profiles with real network
 probing, pairs the newest compatible npm after installing Node, and uninstalls back to zero residue.
 
 ```bash

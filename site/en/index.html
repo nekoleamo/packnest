@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>packnest — a runtime installer that just works on China's network</title>
-<meta name="description" content="Single Go binary, zero CGO, six platforms. One command installs Node/npm/pnpm/bun/deno/Go/Python, with built-in China mirrors and real reachability probing; npm is auto-paired to each Node version.">
+<meta name="description" content="Single Go binary, zero CGO, six platforms. One command installs Node/npm/pnpm/bun/Go/Python, with built-in China mirrors and real reachability probing; npm is auto-paired to each Node version.">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="alternate" hreflang="zh-CN" href="../">
 <link rel="alternate" hreflang="en" href="./">
@@ -31,7 +31,7 @@
   <h1>One command,<br>every <em>runtime</em></h1>
   <p class="lede">
     <span class="tk">node</span> · <span class="tk">npm</span> · <span class="tk">pnpm</span> ·
-    <span class="tk">bun</span> · <span class="tk">deno</span> · <span class="tk">go</span> ·
+    <span class="tk">bun</span> · <span class="tk">go</span> ·
     <span class="tk">python</span>
   </p>
   <p class="lede lede-sub">
@@ -91,7 +91,7 @@
   <li><b>6</b><span>platforms</span></li>
   <li><b>0</b><span>CGO</span></li>
   <li><b>2</b><span>dependencies</span></li>
-  <li><b>7</b><span>runtimes</span></li>
+  <li><b>6</b><span>runtimes</span></li>
   <li><b>0</b><span>residue</span></li>
 </ul>
 
@@ -120,7 +120,6 @@
       <tr><td>npm</td><td>only appears as Node's companion; never exposed as its own version</td></tr>
       <tr><td>pnpm</td><td>needs Node first (runtimes are never installed implicitly); <code>PNPM_HOME</code> points at the shared prefix</td></tr>
       <tr><td>bun</td><td>single-file layout, official releases with mirror fallback</td></tr>
-      <tr><td>deno</td><td>single-file layout; versions the upstream re-published are rejected when two sources disagree — use <code>--insecure</code> if you accept the risk</td></tr>
       <tr><td>go</td><td>writes <code>GOTOOLCHAIN=local</code> into your environment so Go does not fetch a second toolchain</td></tr>
       <tr><td>python</td><td>installs python-build-standalone prebuilt builds only, never compiles from source</td></tr>
     </tbody>

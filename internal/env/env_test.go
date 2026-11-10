@@ -67,8 +67,12 @@ func TestSharedVars(t *testing.T) {
 	if vars["BUN_INSTALL"] != "/root/global/bun" {
 		t.Fatalf("BUN_INSTALL = %q", vars["BUN_INSTALL"])
 	}
-	if vars["DENO_INSTALL_ROOT"] != "/root/global/deno" || vars["DENO_DIR"] != "/root/cache/deno" {
-		t.Fatalf("deno 变量异常: %+v", vars)
+	// deno 已在 0.8.0 移除：共享前缀里不该再出现 DENO_* 变量
+	if _, ok := vars["DENO_INSTALL_ROOT"]; ok {
+		t.Fatalf("不该再有 DENO_INSTALL_ROOT: %+v", vars)
+	}
+	if _, ok := vars["DENO_DIR"]; ok {
+		t.Fatalf("不该再有 DENO_DIR: %+v", vars)
 	}
 }
 

@@ -11,7 +11,7 @@ func TestAllProvidersValidate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("All: %v", err)
 	}
-	want := []string{"bun", "deno", "go", "node", "npm", "pnpm", "python"}
+	want := []string{"bun", "go", "node", "npm", "pnpm", "python"}
 	if len(all) != len(want) {
 		t.Fatalf("provider 数量 = %d，期望 %d（%v）", len(all), len(want), IDs())
 	}
@@ -104,17 +104,49 @@ func TestArtifactURLRegistryPlaceholder(t *testing.T) {
 	}
 }
 
-func TestArtifactURLDenoSingle(t *testing.T) {
-	p, _ := Get("deno")
-	if p.Layout.Single != "bin/deno" {
-		t.Fatalf("deno 必须单文件布局（方案 §18.7）: %q", p.Layout.Single)
+// 单文件布局（layout.single）已经没有真实 provider 用了（deno 已移除），
+// 但这条能力还在解压层，用合成清单守住 URL 渲染与校验和路径。
+func TestArtifactURLSingleFileLayout(t *testing.T) {
+	toml := `
+id = "singlefile"
+display = "SingleFile"
+[index]
+kind = "dirlist"
+[index.urls]
+default = "https://example.invalid/singlefile/"
+[artifact]
+[artifact.urls]
+default = "https://example.invalid/singlefile/v{version}/sf-{platform}.zip"
+[artifact.ext]
+darwin = "zip"
+linux = "zip"
+windows = "zip"
+[artifact.platform]
+darwin-arm64 = "aarch64-apple-darwin"
+linux-amd64 = "x86_64-unknown-linux-gnu"
+windows-amd64 = "x86_64-pc-windows-msvc"
+[checksum]
+format = "per-artifact"
+mode = "tofu-then-verify"
+[checksum.urls]
+default = "https://example.invalid/singlefile/v{version}/sf-{platform}.zip.sha256sum"
+[layout]
+single = "bin/singlefile"
+bins = ["singlefile"]
+`
+	p, err := Parse([]byte(toml))
+	if err != nil {
+		t.Fatalf("合成清单非法: %v", err)
 	}
-	u, err := p.ArtifactURL("2.1.9", "darwin", "arm64", "cn")
+	if p.Layout.Single != "bin/singlefile" {
+		t.Fatalf("单文件布局解析失败: %q", p.Layout.Single)
+	}
+	u, err := p.ArtifactURL("1.0.0", "darwin", "arm64", "default")
 	if err != nil {
 		t.Fatalf("ArtifactURL: %v", err)
 	}
-	if !strings.HasSuffix(u, "deno-aarch64-apple-darwin.zip") {
-		t.Fatalf("平台映射错误: %q", u)
+	if !strings.HasSuffix(u, "sf-aarch64-apple-darwin.zip") {
+		t.Fatalf("URL 渲染异常: %q", u)
 	}
 }
 
@@ -317,6 +349,7 @@ func TestArtifactURLsChain(t *testing.T) {
 	if _, err := p.ArtifactURLs("22.22.2", "plan9", "amd64", "cn"); err == nil {
 		t.Fatal("不支持的平台应报错")
 	}
+	// deno 已在 0.8.0 移除：内嵌清单里不该再有它
 	if p, _ := Get("deno"); p != nil {
 		if _, err := p.ChecksumURLs("1.0.0", "plan9", "amd64", "cn"); err == nil {
 			t.Fatal("不支持的平台应报错")

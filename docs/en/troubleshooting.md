@@ -28,7 +28,7 @@ unzip the release asset into `%LOCALAPPDATA%\packnest\bin` as `packnest.exe` + `
 |---|---|---|
 | `网络失败: 索引全部不可用` | wrong profile, or the proxy is not in effect | `pk mirror probe --tool node` to see which route answers; `pk mirror use cn`; make sure `HTTPS_PROXY` is exported |
 | `校验失败: 拿不到…校验和` | every checksum source is unreachable (first install, air-gapped network) | point at an internal source with `PK_MIRROR_<TOOL>_CHECKSUM=<url>`, else confirm the artifact's origin and use `--insecure` (marked `unverified`) |
-| `校验失败: 校验和源之间不一致` | the mirror is poisoned **or upstream re-published the artifact** (observed with deno v2.9.8) | the error states which source the artifact matches; confirm, then use `--insecure` — never add it blindly |
+| `校验失败: 校验和源之间不一致` | the mirror is poisoned **or upstream re-published the artifact** | the error states which source the artifact matches; confirm, then use `--insecure` — never add it blindly |
 | `校验失败: sha256 与本地记录不一致` | the TOFU record differs from what was downloaded (upstream re-published, or the table went stale) | verify it is not a mirror problem, then `--force-rehash` re-evaluates and overwrites just that entry — no need to delete the whole table |
 | `解压失败（产物可能被截断）` | the cached artifact is truncated | the cache entry is deleted automatically, retry; if it repeats, `pk gc --cache-max 1` empties the cache |
 | `--frozen` reports a mismatch | `pk.toml` drifted from `pk.lock` | run `pk install` locally, commit the refreshed lock; CI never resolves versions |

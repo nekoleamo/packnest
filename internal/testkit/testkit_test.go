@@ -230,17 +230,17 @@ func TestNewFakeToolBun(t *testing.T) {
 	}
 }
 
-func TestNewFakeToolDeno(t *testing.T) {
+func TestNewFakeToolSingleFile(t *testing.T) {
 	ft := NewFakeTool(t, FakeToolOptions{
-		Tool:         "deno",
+		Tool:         "singlefile",
 		Versions:     []string{"2.9.8"},
-		ProviderTOML: DenoProviderTOML,
-		MakeArtifact: func(platform, ext string) []byte { return MakeFakeDenoZip() },
+		ProviderTOML: SingleFileProviderTOML,
+		MakeArtifact: func(platform, ext string) []byte { return MakeFakeSingleFileZip() },
 		Platforms: []FakePlatform{
 			{"darwin", "arm64", "zip", "aarch64-apple-darwin"},
 			{"linux", "amd64", "zip", "x86_64-unknown-linux-gnu"},
 		},
-		ChecksumPath:   "deno-%s.zip.sha256sum",
+		ChecksumPath:   "singlefile-%s.zip.sha256sum",
 		ChecksumFormat: "per-artifact",
 	})
 	if ft.Artifact == nil {
