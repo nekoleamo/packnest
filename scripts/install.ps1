@@ -42,22 +42,35 @@ $arch = switch ($env:PROCESSOR_ARCHITECTURE) {
   default { throw "Unsupported architecture: $env:PROCESSOR_ARCHITECTURE" }
 }
 
+# Get-LatestVersion resolves the newest version for the gitee/base channel.
+#
+# Order matters: ask **gitee** first, because that is where the artifact comes from.
+# Asking npm first bit us in the field: gitee had 0.7.6 published while npm's `latest`
+# was still 0.7.4 (0.7.5/0.7.6 were staged and not yet approved), so the one-liner
+# installed 0.7.4 and looked "broken".
 function Get-LatestVersion {
   if ($Base) {
-    $v = (Invoke-WebRequest -Uri "$($Base.TrimEnd('/'))/latest" -TimeoutSec 15 -UseBasicParsing).Content.Trim()
-    if ($v) { return $v.TrimStart('v') }
-  }
-  # npm registry is public and needs no credentials (gitee's API now returns 401 anonymously)
-  foreach ($reg in @($Registry, 'https://registry.npmjs.org')) {
     try {
-      $meta = Invoke-RestMethod -Uri "$($reg.TrimEnd('/'))/packnest/latest" -TimeoutSec 20
-      if ($meta.version) { return $meta.version.TrimStart('v') }
+      $v = (Invoke-WebRequest -Uri "$($Base.TrimEnd('/'))/latest" -TimeoutSec 15 -UseBasicParsing).Content.Trim()
+      if ($v) { return $v.TrimStart('v') }
     } catch { }
   }
   try {
     $release = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/$GiteeRepo/releases/latest" -TimeoutSec 15
     if ($release.tag_name) { return $release.tag_name.TrimStart('v') }
   } catch { }
+  # gitee's API occasionally answers 401 anonymously: fall back to the single source of truth
+  # in the repo (scripts/latest.txt, bumped by `make release` and checked by verify-release).
+  try {
+    $v = (Invoke-WebRequest -Uri "https://gitee.com/$GiteeRepo/raw/main/scripts/latest.txt" -TimeoutSec 15 -UseBasicParsing).Content.Trim()
+    if ($v) { return $v.TrimStart('v') }
+  } catch { }
+  foreach ($reg in @($Registry, 'https://registry.npmjs.org')) {
+    try {
+      $meta = Invoke-RestMethod -Uri "$($reg.TrimEnd('/'))/packnest/latest" -TimeoutSec 20
+      if ($meta.version) { return $meta.version.TrimStart('v') }
+    } catch { }
+  }
   throw 'Cannot detect the latest version; pass -Version explicitly.'
 }
 
@@ -65,12 +78,12 @@ if ($env:PK_SKIP_VERIFY -eq '1') { $SkipVerify = [switch]$true }   # `iwr | iex`
 if (-not $Version -and $env:PK_VERSION) { $Version = $env:PK_VERSION }
 if ($env:PK_INSTALL_DIR) { $Dir = $env:PK_INSTALL_DIR }
 
-if (-not $Version) { $Version = Get-LatestVersion }
-if (-not $Version) { throw 'Cannot detect the latest version; pass -Version explicitly.' }
-$Version = $Version.TrimStart('v')   # allow -Version v0.7.0
-
 # channel: explicit -Base > -Mirror cn (npm platform package) > gitee release
 $from = if ($Base) { 'base' } elseif ($Mirror -eq 'cn') { 'npm' } else { 'gitee' }
+
+# npm channel resolves the version from that package's own dist-tags (inside the branch below)
+if (-not $Version -and $from -ne 'npm') { $Version = Get-LatestVersion }
+if ($Version) { $Version = $Version.TrimStart('v') }   # allow -Version v0.7.0
 
 $tmp = New-Item -ItemType Directory -Path (Join-Path $TempRoot ("pk-" + [guid]::NewGuid())) -Force
 try {

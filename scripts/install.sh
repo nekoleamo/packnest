@@ -138,17 +138,23 @@ if [ -z "$VERSION" ] && [ -n "$BASE" ]; then
 fi
 
 if [ -z "$VERSION" ]; then
-  # 版本号来源：npm registry 的主包元数据（公开、不需凭据、国内走 npmmirror）。
-  # 注意：gitee 的 API 现在要 token（匿名 401），不能当主路。
-  VERSION=$(curl -fsSL --max-time 15 "https://registry.npmmirror.com/packnest/latest" 2>/dev/null \
-    | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' | head -1 || true)
+  # 版本号必须跟"下载渠道"对齐：走 gitee 就问 gitee 的最新 release。
+  # 别再优先问 npm —— npm 的 latest 可能落后于 gitee（补丁版还在 staged 未 approve 时就会这样，
+  # 实测过：gitee 已发 0.7.6，npm latest 还是 0.7.4，于是装到了旧版）。
+  VERSION=$(curl -fsSL --max-time 15 "https://gitee.com/api/v5/repos/${GITEE_REPO}/releases/latest" 2>/dev/null \
+    | sed -n 's/.*"tag_name":"\([^"]*\)".*/\1/p' | head -1 || true)
   if [ -z "$VERSION" ]; then
-    VERSION=$(curl -fsSL --max-time 15 "https://registry.npmjs.org/packnest/latest" 2>/dev/null \
+    # gitee API 匿名偶发 401 / 限流：退回仓库里的单一真源文件（发布时由 make release 更新）
+    VERSION=$(curl -fsSL --max-time 15 "https://gitee.com/${GITEE_REPO}/raw/main/scripts/latest.txt" 2>/dev/null \
+      | tr -d ' \t\r\n' || true)
+  fi
+  if [ -z "$VERSION" ]; then
+    VERSION=$(curl -fsSL --max-time 15 "https://registry.npmmirror.com/packnest/latest" 2>/dev/null \
       | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' | head -1 || true)
   fi
   if [ -z "$VERSION" ]; then
-    VERSION=$(curl -fsSL --max-time 15 "https://gitee.com/api/v5/repos/${GITEE_REPO}/releases/latest" 2>/dev/null \
-      | sed -n 's/.*"tag_name":"\([^"]*\)".*/\1/p' || true)
+    VERSION=$(curl -fsSL --max-time 15 "https://registry.npmjs.org/packnest/latest" 2>/dev/null \
+      | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' | head -1 || true)
   fi
   VERSION=${VERSION#v}
   [ -n "$VERSION" ] || { echo "拿不到最新版本，请用 --version 指定" >&2; exit 3; }

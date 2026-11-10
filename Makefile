@@ -152,6 +152,8 @@ release:
 	done
 	@$(MAKE) --no-print-directory checksums
 	@printf '%s\n' "$(VERSION)" > $(DIST)/latest
+	@printf '%s\n' "$(VERSION)" > scripts/latest.txt
+	@echo "已同步 scripts/latest.txt（安装脚本在 gitee API 不可用时的版本来源；记得提交）"
 	@cp scripts/install.sh $(DIST)/install.sh
 	@echo "自托管基地址就绪：把 $(DIST)/ 整个目录丢到任意静态 host，即可 --base <url>"
 
