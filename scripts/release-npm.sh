@@ -339,32 +339,37 @@ if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ] || [ "$STAGE" -eq 1 ]; then
       echo "  跳过（已 staged）：${pkg_name}@${pkg_ver}"
       continue
     fi
-    echo "== 发布 ${SCOPE}/$(basename "$p")"
+    echo "== 发布 ${pkg_name:-$(basename "$p")}"
     # shellcheck disable=SC2086
     out=$( cd "$p" && npm $PUBLISH_ARGS $USERCONFIG_FLAG 2>&1 ) || {
-      FAILED="${FAILED:-} $(basename "$p")"
       # staging 是幂等的：同版本已 staged/已发布时跳过，不当作失败
       if echo "$out" | grep -qE 'Cannot stage previously published version|previously published versions'; then
         echo "  跳过（该版本已在 stage/已发布）：$(basename "$p")"
         continue
       fi
+      FAILED="${FAILED:-} $(basename "$p")"
       echo "$out" | grep -vE '^npm (notice|warn)' | tail -6
       echo "" >&2
-      echo "发布被拒。最常见原因与处置（三选一，都在本机配一次即可全自动）：" >&2
-      echo "  1) npmjs → Access Tokens 重建 Granular token 并**勾上 Bypass 2FA**（推荐，之后无需 OTP）" >&2
-      echo "  2) 在凭据文件里加 NPM_TOTP_SECRET=<base32 2FA 密钥> —— 脚本会自动算 OTP 传 --otp" >&2
-      echo "  3) 账号 Settings → Two-Factor Authentication 改成 auth-only（只在登录时要求 2FA）" >&2
-      continue
-      if echo "$out" | grep -qiE 'stage-only|must be staged|stage publish'; then
-        echo "" >&2
-        echo "检测到这是 **stage-only token**：它只能 stage，不能直接发布。两种走法：" >&2
-        echo "  a) sh scripts/release-npm.sh --stage   # 全部 stage，再由维护者在网页/命令里 promote（需 2FA）" >&2
-        echo "  b) 换一个普通 read-write 的 Granular token（不勾 stage-only 权限），然后直接 --publish" >&2
+      if echo "$out" | grep -qiE 'stage-only|E_STAGE_REQUIRED|can only publish to a staging area'; then
+        echo "这个 token 是 **stage-only**：它能 stage，但直接 publish 和 approve 都会被拦。三种走法：" >&2
+        echo "  a) sh scripts/release-npm.sh --stage，再到 npm 网页上 approve（需要 2FA）" >&2
+        echo "  b) 换一个勾了 Bypass 2FA 的普通 read-write Granular token，然后 --publish" >&2
+        echo "  c) 凭据文件里加 NPM_TOTP_SECRET=<base32 2FA 密钥>，用 --stage 后 --promote-all（自动出 OTP）" >&2
+      else
+        echo "发布被拒。最常见原因与处置（三选一，都在本机配一次即可全自动）：" >&2
+        echo "  1) npmjs → Access Tokens 重建 Granular token 并**勾上 Bypass 2FA**（推荐，之后无需 OTP）" >&2
+        echo "  2) 在凭据文件里加 NPM_TOTP_SECRET=<base32 2FA 密钥> —— 脚本会自动算 OTP 传 --otp" >&2
+        echo "  3) 账号 Settings → Two-Factor Authentication 改成 auth-only（只在登录时要求 2FA）" >&2
       fi
-      exit 1
+      continue
     }
     echo "$out" | grep -vE '^npm (notice|warn)' | tail -1
   done
+  if [ -n "${FAILED:-}" ]; then
+    echo "" >&2
+    echo "以上包没发出去：${FAILED}（其余动作不算完成）" >&2
+    exit 1
+  fi
   if [ "$STAGE" -eq 1 ]; then
     echo "已全部 stage。下一步（需要 2FA，本机配了 NPM_TOTP_SECRET 就全自动）："
     echo "  sh scripts/release-npm.sh --promote --list"
