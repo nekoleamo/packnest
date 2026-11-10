@@ -27,6 +27,8 @@ permissions:
 
 jobs:
   publish:
+    # 本机手动发 npm 时，把仓库 Variable SKIP_NPM_PUBLISH 设为 true 跳过这一步
+    if: vars.SKIP_NPM_PUBLISH != 'true'
     runs-on: ubuntu-latest
     environment: npm        # 与 npmjs 上的 Environment 配置保持一致
     steps:
@@ -71,7 +73,7 @@ jobs:
   # 需要仓库里有 Secret GITEE_TOKEN，且变量 PUBLISH_GITEE=true；不想在云端存 token 就删掉这个 job，
   # 改在本机跑 `make gitee-release`（凭据只在本机）。
   gitee-release:
-    if: vars.PUBLISH_GITEE == 'true'
+    if: always() && vars.PUBLISH_GITEE == 'true'
     needs: publish
     runs-on: ubuntu-latest
     steps:
@@ -92,7 +94,7 @@ jobs:
   # 开关：仓库 Variable PUBLISH_TAPS=true；Secret TAP_TOKEN = 有 homebrew-packnest 与 scoop-bucket
   # 写权限的 GitHub PAT（Actions 自带的 GITHUB_TOKEN 只能写当前仓库）。
   taps:
-    if: vars.PUBLISH_TAPS == 'true'
+    if: always() && vars.PUBLISH_TAPS == 'true'
     needs: publish
     runs-on: ubuntu-latest
     steps:
