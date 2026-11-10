@@ -58,7 +58,9 @@ esac
 
 # 通道决定：显式 --from > 给了 --base 就 base > 默认 gitee
 if [ -z "$FROM" ]; then
-  if [ -n "$BASE" ]; then FROM=base; else FROM=gitee; fi
+  if [ -n "$BASE" ]; then FROM=base
+  elif [ "$MIRROR" = "cn" ]; then FROM=npm     # 国内免费通道 = npm（npmmirror 镜像），不用自建存储
+  else FROM=gitee; fi
 fi
 
 if [ "$FROM" = "npm" ]; then
