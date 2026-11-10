@@ -31,7 +31,7 @@ code,pre{font-family:var(--mono)}
   border-bottom:1px solid var(--line);backdrop-filter:blur(12px);
   margin-inline:-1.35rem;padding-inline:1.35rem;
 }
-.brand{display:flex;align-items:center;gap:.45rem;font-weight:680;letter-spacing:-.02em}
+.brand{display:flex;align-items:center;gap:.45rem;font-weight:680;letter-spacing:-.02em;white-space:nowrap}
 .brand .tag{
   padding:.05rem .4rem;border:1px solid var(--line);border-radius:4px;
   font-family:var(--mono);font-size:.75rem;color:var(--muted);letter-spacing:.06em;
@@ -41,6 +41,7 @@ code,pre{font-family:var(--mono)}
   font-family:var(--mono);font-size:.75rem;color:var(--accent-text);
 }
 .top nav{display:flex;align-items:center;gap:1.1rem;margin-left:auto;font-size:.9rem;color:var(--muted)}
+.top nav a,.ver{white-space:nowrap}
 .top nav a:hover{color:var(--accent-text)}
 
 /* ---------- hero ---------- */
@@ -69,19 +70,27 @@ h1 em{font-style:normal;color:var(--accent-text)}
 .lede .tk{color:var(--fg);font-family:var(--mono);font-size:.94em}
 
 /* ---------- 主 CTA：可复制的安装块 ---------- */
-.cta{margin:2rem auto 0;max-width:33rem;animation:rise .5s var(--ease) .15s both}
+.cta{margin:2rem auto 0;max-width:38rem;animation:rise .5s var(--ease) .15s both}
 .install{
-  display:flex;align-items:center;gap:.6rem;padding:.7rem .75rem .7rem 1rem;
+  display:block;padding:.6rem .85rem .7rem;
+  margin-bottom:.55rem;
   background:var(--panel);border:1px solid var(--line);border-radius:12px;
   box-shadow:0 1px 2px #0b151208;
   transition:border-color .18s var(--ease),box-shadow .18s var(--ease);
 }
 .install:hover{border-color:var(--accent);box-shadow:0 2px 16px #0d94881f}
-.install .prompt{color:var(--accent-text);font-family:var(--mono);font-size:.95rem;flex:none}
-.install code{flex:1;min-width:0;font-size:.95rem;text-align:left}
+.install .row{display:flex;align-items:center;gap:.6rem;margin-bottom:.4rem}
+.install .os{
+  padding:.06rem .42rem;border:1px solid var(--line);border-radius:5px;
+  background:var(--bg);font-family:var(--mono);font-size:.78rem;color:var(--muted);letter-spacing:.02em;
+}
+.install code{
+  display:block;font-size:.82rem;line-height:1.8;text-align:left;
+  white-space:pre-wrap;overflow-wrap:break-word;
+}
 .install code .and{color:var(--muted)}
 .copy{
-  flex:none;appearance:none;cursor:pointer;padding:.42rem .85rem;border-radius:8px;
+  margin-left:auto;appearance:none;cursor:pointer;padding:.34rem .8rem;border-radius:8px;
   border:1px solid transparent;background:var(--accent);color:#04201c;
   font:inherit;font-size:.85rem;font-weight:600;
   transition:filter .16s var(--ease),transform .12s var(--ease),background .16s var(--ease);
@@ -97,7 +106,7 @@ h1 em{font-style:normal;color:var(--accent-text)}
   transition:color .16s var(--ease),border-color .16s var(--ease);
 }
 .sub-cta button:hover{color:var(--accent-text);border-bottom-color:var(--accent)}
-.sub-cta .dot{color:var(--line);margin:0 .45rem}
+.sub-cta .dot{color:var(--muted);opacity:.5;margin:0 .45rem}
 
 /* ---------- 终端窗口 ---------- */
 .window{
@@ -118,7 +127,7 @@ h1 em{font-style:normal;color:var(--accent-text)}
 .window .note{margin-left:auto;font-family:var(--mono);font-size:.76rem;color:var(--term-dim)}
 .window pre{
   margin:0;padding:1rem 1.1rem 1.15rem;font-size:.85rem;line-height:1.85;color:var(--term-fg);
-  white-space:pre-wrap;overflow-wrap:anywhere;
+  white-space:pre-wrap;overflow-wrap:break-word;
 }
 .window .p{color:var(--accent)}
 .window .cmd{color:#fff}
@@ -201,7 +210,7 @@ footer .fine{margin-left:auto;font-size:.8rem;opacity:.9}
 @media (max-width:40rem){
   main{padding:0 1.1rem 3.5rem}
   .top{margin-inline:-1.1rem;padding-inline:1.1rem}
-  .top nav .hide-sm{display:none}
+  .top nav .hide-sm,.top nav .hide-xs{display:none}
   .top nav{gap:.9rem;font-size:.86rem}
   .hero{padding-top:3.5rem}
   .stats{grid-template-columns:repeat(3,1fr);gap:1.1rem 0}
@@ -216,8 +225,8 @@ footer .fine{margin-left:auto;font-size:.8rem;opacity:.9}
   td:first-child{white-space:normal;font-size:.8rem;letter-spacing:.06em}
   td:last-child{margin-top:.15rem}
   tbody tr:hover{background:none}
-  .install{flex-wrap:wrap}
-  .install code{font-size:.9rem}
+  .install{padding:.55rem .75rem .65rem}
+  .install code{font-size:.76rem;line-height:1.75}
   footer .fine{margin-left:0;width:100%}
 }
 
@@ -229,3 +238,13 @@ footer .fine{margin-left:auto;font-size:.8rem;opacity:.9}
 }
 .lang:hover{color:var(--accent-text);border-color:var(--accent)}
 
+
+
+/* ---------- npm 兜底那一行 ---------- */
+.fallback{margin:.6rem 0 0;font-size:.84rem;color:var(--muted);animation:rise .5s var(--ease) .22s both}
+.fallback .linkbtn{
+  color:var(--muted);border:0;border-bottom:1px solid var(--line);background:none;
+  padding:0 0 1px;font:inherit;cursor:pointer;
+  transition:color .16s var(--ease),border-color .16s var(--ease);
+}
+.fallback .linkbtn:hover{color:var(--accent-text);border-bottom-color:var(--accent)}

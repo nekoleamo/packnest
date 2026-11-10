@@ -1,7 +1,7 @@
 #!/bin/sh
 # packnest 安装脚本（不访问 GitHub）
 #
-#   curl -fsSL https://gitee.com/${GITEE_REPO}/raw/master/scripts/install.sh | sh -s -- --mirror cn
+#   curl -fsSL https://gitee.com/${GITEE_REPO}/raw/main/scripts/install.sh | sh
 #
 # 选项：
 #   --mirror cn|default   产物来源档位（cn 从 npmmirror 取，default 从 gitee）

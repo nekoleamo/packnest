@@ -20,8 +20,8 @@
     <a class="hide-sm" href="#tools">工具</a>
     <a class="hide-sm" href="#commands">命令</a>
     <a href="https://github.com/nekoleamo/packnest/blob/main/docs/cli.md">文档</a>
-    <a href="https://github.com/nekoleamo/packnest">GitHub</a>
-    <a href="https://gitee.com/null_593_5354/packnest">gitee</a>
+    <a class="hide-xs" href="https://github.com/nekoleamo/packnest">GitHub</a>
+    <a class="hide-xs" href="https://gitee.com/null_593_5354/packnest">gitee</a>
     <a class="lang" href="en/" hreflang="en" aria-label="Switch to English">EN</a>
   </nav>
 </div>
@@ -38,19 +38,25 @@
 
   <div class="cta">
     <div class="install">
-      <span class="prompt">$</span>
-      <code>npm i -g packnest <span class="and">&amp;&amp;</span> pk install node@22</code>
-      <button class="copy" type="button" aria-label="复制安装命令">复制</button>
+      <div class="row">
+        <span class="os">macOS · Linux</span>
+        <button class="copy" type="button" data-copy="curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh" aria-label="复制安装命令">复制</button>
+      </div>
+      <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh</code>
     </div>
-    <p class="sub-cta">也可以
-      <button type="button" data-cmd="curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh">gitee 一行安装</button>
+    <div class="install">
+      <div class="row">
+        <span class="os">Windows</span>
+        <button class="copy" type="button" data-copy="iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex" aria-label="复制安装命令">复制</button>
+      </div>
+      <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex</code>
+    </div>
+    <p class="sub-cta">也有包管理器
+      <button type="button" data-copy="brew install nekoleamo/packnest/packnest">Homebrew</button>
       <span class="dot">·</span>
-      <button type="button" data-cmd="brew install nekoleamo/packnest/packnest">Homebrew</button>
-      <span class="dot">·</span>
-      <button type="button" data-cmd="scoop install packnest">Scoop</button>
-      <span class="dot">·</span>
-      <button type="button" data-cmd="iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex">PowerShell</button>
+      <button type="button" data-copy="scoop install packnest">Scoop</button>
     </p>
+    <p class="fallback">已经在用 npm 管工具链？<button class="linkbtn" type="button" data-copy="npm i -g packnest">npm i -g packnest</button> 也行</p>
   </div>
 </header>
 
@@ -130,7 +136,7 @@
 <section class="en" lang="en">
   <h2>In English</h2>
   <p>packnest (command <code>pk</code>) installs Node/npm/pnpm/bun/deno/Go/Python as a single zero-CGO Go binary for six platforms, with only two third-party dependencies. It ships China mirror presets plus real reachability probing, pairs the newest npm compatible with the exact Node version being installed, verifies artifacts against multiple checksum sources (TOFU, offline-verifiable afterwards), and uninstalls back to zero residue.
-  <br>Install: <code>npm i -g packnest &amp;&amp; pk install node@22</code> — or <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh</code>.</p>
+  <br>Install: <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh</code> (Windows: <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex</code>) — or via npm: <code>npm i -g packnest</code>.</p>
 </section>
 
 <footer>
@@ -148,19 +154,15 @@
 </main>
 <script>
 (function(){
-  function flash(el,text){
-    var old=el.textContent;
-    el.textContent=text;el.classList.add('done');
-    setTimeout(function(){el.textContent=old;el.classList.remove('done');},1400);
-  }
-  function copy(text,el){
-    if(!navigator.clipboard)return;
-    navigator.clipboard.writeText(text).then(function(){flash(el,'已复制');});
-  }
-  var btn=document.querySelector('.copy');
-  if(btn)btn.addEventListener('click',function(){copy('npm i -g packnest && pk install node@22',btn);});
-  document.querySelectorAll('.sub-cta button[data-cmd]').forEach(function(b){
-    b.addEventListener('click',function(){copy(b.dataset.cmd,b);});
+  document.querySelectorAll('[data-copy]').forEach(function(el){
+    el.addEventListener('click',function(){
+      if(!navigator.clipboard)return;
+      if(!el.dataset.label)el.dataset.label=el.textContent;
+      navigator.clipboard.writeText(el.dataset.copy).then(function(){
+        el.textContent='已复制';el.classList.add('done');
+        setTimeout(function(){el.textContent=el.dataset.label;el.classList.remove('done');},1400);
+      });
+    });
   });
 })();
 </script>

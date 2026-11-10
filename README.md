@@ -9,7 +9,7 @@
 node 装完自动配对「最新兼容的 npm」，卸载可回滚到零残留。
 
 ```bash
-npm i -g packnest && pk install node@22
+curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh && pk install node@22
 ```
 
 > 官网（单页极简版）：<https://nekoleamo.github.io/packnest/> · 源码 [GitHub](https://github.com/nekoleamo/packnest) / 镜像 [gitee](https://gitee.com/null_593_5354/packnest)
@@ -19,22 +19,22 @@ npm i -g packnest && pk install node@22
 ## 安装
 
 ```bash
-# ① npm（国内自动走 npmmirror，秒装）
-npm i -g packnest
-npm i -g packnest --registry=https://registry.npmmirror.com   # 强制镜像
+# ① curl 一行（推荐；从 gitee 直取，不访问 GitHub）
+curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh
 
-# ② curl 一行（gitee，不访问 GitHub）
-curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh -s -- --mirror cn
-
-# ③ PowerShell 一行
+# ② Windows PowerShell 一行
 iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex
 
-# ④ Homebrew（自有 tap；formula 名 packnest，命令名 pk）
+# ③ Homebrew（自有 tap；formula 名 packnest，命令名 pk）
 brew install nekoleamo/packnest/packnest
 
-# ⑤ Scoop
+# ④ Scoop
 scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket
 scoop install packnest
+
+# ⑤ npm（已经在用 npm 管工具链时才推荐：多一个 Node 依赖，但升级最省事）
+npm i -g packnest
+npm i -g packnest --registry=https://registry.npmmirror.com   # 强制走 npmmirror
 
 # ⑥ 自托管（把 make release 的 dist/ 丢到任意静态 host，零成本）
 curl -fsSL https://你的域名/install.sh | sh -s -- --base https://你的域名/packnest

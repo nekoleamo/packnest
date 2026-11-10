@@ -1,7 +1,7 @@
 <#
 packnest 安装脚本（Windows，不访问 GitHub）
 
-  iwr https://gitee.com/null_593_5354/packnest/raw/master/scripts/install.ps1 -UseB | iex
+  iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex
 
   -Mirror cn|default   产物来源（cn 从 npmmirror 取）
   -Version vX.Y.Z      指定版本

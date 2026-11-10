@@ -422,7 +422,10 @@ $ pk install --help          # 同上
 ### 12.1 新机器（国内）从零到可用
 
 ```bash
-npm i -g packnest
+curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh          # 推荐：gitee 直取，不访问 GitHub
+# Windows: iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex
+# 已经在用 npm 管工具链的话也可以：npm i -g packnest
+
 pk mirror use cn
 pk install node@22
 pk env --write && source ~/.zshrc

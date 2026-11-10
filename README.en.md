@@ -8,7 +8,7 @@ Command name: `pk` (the `packnest` alias points at the same binary). A single Go
 probing, pairs the newest compatible npm after installing Node, and uninstalls back to zero residue.
 
 ```bash
-npm i -g packnest && pk install node@22
+curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh && pk install node@22
 ```
 
 > Website (single page, zh + en): <https://nekoleamo.github.io/packnest/en/>
@@ -18,22 +18,22 @@ npm i -g packnest && pk install node@22
 ## Install packnest itself
 
 ```bash
-# ① npm (goes through npmmirror automatically in China)
-npm i -g packnest
-npm i -g packnest --registry=https://registry.npmmirror.com   # force the mirror
-
-# ② one-liner from gitee (never touches GitHub)
+# ① curl one-liner (recommended; served by gitee, never touches GitHub)
 curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh
 
-# ③ PowerShell
+# ② Windows PowerShell one-liner
 iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex
 
-# ④ Homebrew (own tap; formula is named packnest, the command is pk)
+# ③ Homebrew (own tap; formula is named packnest, the command is pk)
 brew install nekoleamo/packnest/packnest
 
-# ⑤ Scoop
+# ④ Scoop
 scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket
 scoop install packnest
+
+# ⑤ npm (only if you already manage toolchains with npm: one extra Node dependency, easiest upgrades)
+npm i -g packnest
+npm i -g packnest --registry=https://registry.npmmirror.com   # force the npmmirror mirror
 
 # ⑥ Self-hosted (drop the dist/ from `make release` on any static host)
 curl -fsSL https://your-host/install.sh | sh -s -- --base https://your-host/packnest
