@@ -60,9 +60,9 @@ function Get-LatestVersion {
     if ($release.tag_name) { return $release.tag_name.TrimStart('v') }
   } catch { }
   # gitee's API occasionally answers 401 anonymously: fall back to the single source of truth
-  # in the repo (scripts/latest.txt, bumped by `make release` and checked by verify-release).
+  # in the repo (scripts/latest, bumped by `make release` and checked by verify-release).
   try {
-    $v = (Invoke-WebRequest -Uri "https://gitee.com/$GiteeRepo/raw/main/scripts/latest.txt" -TimeoutSec 15 -UseBasicParsing).Content.Trim()
+    $v = (Invoke-WebRequest -Uri "https://gitee.com/$GiteeRepo/raw/main/scripts/latest" -TimeoutSec 15 -UseBasicParsing).Content.Trim()
     if ($v) { return $v.TrimStart('v') }
   } catch { }
   foreach ($reg in @($Registry, 'https://registry.npmjs.org')) {

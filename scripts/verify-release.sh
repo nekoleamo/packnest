@@ -47,16 +47,16 @@ while read -r want file; do
   fi
 done < "$SUMS"
 
-# scripts/latest.txt 是安装脚本在 gitee API 不可用时的版本来源：必须与本次发布一致，
+# scripts/latest 是安装脚本在 gitee API 不可用时的版本来源：必须与本次发布一致，
 # 否则用户跑 `curl … | sh` 会拿到"版本号指向一个不存在的产物"或旧版本。
-if [ -f scripts/latest.txt ]; then
-  pinned=$(tr -d ' \t\r\n' < scripts/latest.txt)
+if [ -f scripts/latest ]; then
+  pinned=$(tr -d ' \t\r\n' < scripts/latest)
   if [ "$pinned" != "$VER" ]; then
-    echo "scripts/latest.txt = $pinned，但发布版本是 $VER（安装脚本的兜底版本源过期）" >&2
+    echo "scripts/latest = $pinned，但发布版本是 $VER（安装脚本的兜底版本源过期）" >&2
     fail=1
   fi
 else
-  echo "缺少 scripts/latest.txt（安装脚本的兜底版本源）" >&2
+  echo "缺少 scripts/latest（安装脚本的兜底版本源）" >&2
   fail=1
 fi
 

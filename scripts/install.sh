@@ -145,7 +145,7 @@ if [ -z "$VERSION" ]; then
     | sed -n 's/.*"tag_name":"\([^"]*\)".*/\1/p' | head -1 || true)
   if [ -z "$VERSION" ]; then
     # gitee API 匿名偶发 401 / 限流：退回仓库里的单一真源文件（发布时由 make release 更新）
-    VERSION=$(curl -fsSL --max-time 15 "https://gitee.com/${GITEE_REPO}/raw/main/scripts/latest.txt" 2>/dev/null \
+    VERSION=$(curl -fsSL --max-time 15 "https://gitee.com/${GITEE_REPO}/raw/main/scripts/latest" 2>/dev/null \
       | tr -d ' \t\r\n' || true)
   fi
   if [ -z "$VERSION" ]; then
