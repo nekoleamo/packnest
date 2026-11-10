@@ -1,6 +1,6 @@
 # winget manifest 草稿（需配合 wingetcreate 提交到 microsoft/winget-pkgs）
 PackageIdentifier: nekoleamo.packnest
-PackageVersion: 0.7.2
+PackageVersion: 0.7.3
 PackageName: packnest
 Publisher: nekoleamo
 License: MIT
@@ -8,8 +8,8 @@ ShortDescription: 国内网络开箱可用的多语言运行时安装器（pk）
 PackageUrl: https://gitee.com/null_593_5354/packnest
 Installers:
   - Architecture: x64
-    InstallerUrl: https://gitee.com/null_593_5354/packnest/releases/download/v0.7.2/packnest_0.7.2_windows_amd64.zip
-    InstallerSha256: b86644bf18333c766cb7e4c0ed5da7be9f975fdd952cd1b2dd32a2c7a19307fa
+    InstallerUrl: https://gitee.com/null_593_5354/packnest/releases/download/v0.7.3/packnest_0.7.3_windows_amd64.zip
+    InstallerSha256: cdfbcfba6bc60465a219f266531338f6bd33ca5e46ff66ce76a76e1c41dc4658
     InstallerType: zip
     NestedInstallerType: portable
     NestedInstallerFiles:
