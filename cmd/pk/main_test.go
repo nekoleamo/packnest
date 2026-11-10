@@ -900,3 +900,45 @@ func TestEnvProject(t *testing.T) {
 		t.Fatalf("无项目时应提示: %d %q", code, errOut)
 	}
 }
+
+func TestUseProjectPin(t *testing.T) {
+	setupFakeMirror(t)
+	root := t.TempDir()
+	proj := t.TempDir()
+	t.Setenv("PK_CWD", proj)
+	if code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99"); code != 0 {
+		t.Fatalf("安装失败: %d %s", code, errOut)
+	}
+	// 固定到项目
+	code, out, errOut := execCLI(t, "--root", root, "use", "node@22.99.99", "--project")
+	if code != 0 {
+		t.Fatalf("use --project 失败: %d %s", code, errOut)
+	}
+	if !strings.Contains(out, "已固定到项目") {
+		t.Fatalf("输出异常: %q", out)
+	}
+	toml, err := os.ReadFile(filepath.Join(proj, "pk.toml"))
+	if err != nil || !strings.Contains(string(toml), `node = "22.99.99"`) {
+		t.Fatalf("pk.toml 未写入: %v %q", err, toml)
+	}
+	lock, err := os.ReadFile(filepath.Join(proj, "pk.lock"))
+	if err != nil || !strings.Contains(string(lock), `version = "22.99.99"`) {
+		t.Fatalf("pk.lock 未生成: %v %q", err, lock)
+	}
+	// 幂等：再固定一次，pk.toml 里只有一行 node
+	if code, _, _ = execCLI(t, "--root", root, "use", "node@22.99.99", "--project"); code != 0 {
+		t.Fatal("重复固定应成功")
+	}
+	toml, _ = os.ReadFile(filepath.Join(proj, "pk.toml"))
+	if strings.Count(string(toml), "node = ") != 1 {
+		t.Fatalf("pk.toml 出现重复键:\n%s", toml)
+	}
+	// --lock 只刷新锁
+	if code, out, _ := execCLI(t, "--root", root, "use", "--lock"); code != 0 || !strings.Contains(out, "已更新 pk.lock") {
+		t.Fatalf("use --lock 异常: %d %q", code, out)
+	}
+	// 没装过的版本不能固定
+	if code, _, errOut := execCLI(t, "--root", root, "use", "node@1.0.0", "--project"); code != 1 || !strings.Contains(errOut, "还没装") {
+		t.Fatalf("未装版本应拒绝: %d %q", code, errOut)
+	}
+}

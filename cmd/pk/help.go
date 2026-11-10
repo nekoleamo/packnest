@@ -34,10 +34,13 @@ var commandHelp = map[string]string{
   台账驱动卸载：只删台账里记录过的目录（不在台账里的目录只提示不删）。
   被引用（全局默认 / 项目锁 / 其他工具依赖）的版本需要 --force。`,
 
-	"use": `pk use <工具>@<版本>
+	"use": `pk use <工具>@<版本> [--project]
+pk use --lock
 
   切换全局默认版本：写 config.toml、更新台账引用、把 shim 重指到该版本。
-  只会切到**已安装**的版本（先 pk install）。`,
+  只会切到**已安装**的版本（先 pk install）。
+  --project  不改全局，改为「固定到当前项目」：写 pk.toml + 重新生成 pk.lock
+  --lock     只按现有 pk.toml 重新生成 pk.lock（不切版本、不装东西）`,
 
 	"list": `pk list [--available [--refresh]] [--json]
 

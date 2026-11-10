@@ -16,15 +16,21 @@ func (a *app) cmdUse(args []string) int {
 	fs := flag.NewFlagSet("use", flag.ContinueOnError)
 	fs.SetOutput(a.errOut)
 	a.usageFor(fs, "use")
+	project := fs.Bool("project", false, "固定到当前项目的 pk.toml + pk.lock（默认改全局默认）")
+	lockOnly := fs.Bool("lock", false, "只按现有 pk.toml 重新生成 pk.lock（不切版本）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
-	if fs.NArg() != 1 {
-		return a.failUsage(fmt.Errorf("用法: pk use <工具>@<版本>"))
+	if fs.NArg() != 1 && !*lockOnly {
+		return a.failUsage(fmt.Errorf("用法: pk use <工具>@<版本> [--project] 或 pk use --lock"))
 	}
-	tool, version, err := splitToolVersion(fs.Arg(0))
-	if err != nil {
-		return a.failUsage(err)
+	tool, version := "", ""
+	var err error
+	if !*lockOnly {
+		tool, version, err = splitToolVersion(fs.Arg(0))
+		if err != nil {
+			return a.failUsage(err)
+		}
 	}
 
 	unlock, err := store.Lock(a.paths.Lock())
@@ -45,6 +51,33 @@ func (a *app) cmdUse(args []string) int {
 	if err != nil {
 		return a.failWith(err)
 	}
+	if *lockOnly {
+		return a.refreshProjectLock(inst)
+	}
+	if *project {
+		// 项目级固定：核对已装 → 写 pk.toml → 重新生成 pk.lock（不改全局默认）
+		if in := inst.Ledger().Find(tool, version); in == nil {
+			return a.fail(fmt.Errorf("%s@%s 还没装（先 `pk install %s@%s`）", tool, version, tool, version))
+		}
+		if err := install.SaveProjectTool(a.cwd(), tool, version); err != nil {
+			return a.fail(err)
+		}
+		if code := a.refreshProjectLock(inst); code != 0 {
+			return code
+		}
+		if a.json {
+			return a.emit(struct {
+				Schema  int    `json:"schema"`
+				Tool    string `json:"tool"`
+				Version string `json:"version"`
+				Scope   string `json:"scope"`
+				Lock    string `json:"lock"`
+			}{jsonout.SchemaVersion, tool, version, "project", install.LockFileName})
+		}
+		fmt.Fprintf(a.out, "已固定到项目：%s = %q（写入 pk.toml，并更新 %s）\n", tool, version, install.LockFileName)
+		fmt.Fprintln(a.out, "项目内生效：echo 'eval \"$(pk env --project)\"' > .envrc && direnv allow")
+		return jsonout.ExitOK
+	}
 	if err := inst.Activate(tool, version); err != nil {
 		return a.fail(err)
 	}
@@ -64,6 +97,33 @@ func (a *app) cmdUse(args []string) int {
 		}{jsonout.SchemaVersion, tool, version, a.paths.Config()})
 	}
 	fmt.Fprintf(a.out, "已切到 %s@%s（全局默认写进 %s，shim 已重指）\n", tool, version, a.paths.Config())
+	return jsonout.ExitOK
+}
+
+// refreshProjectLock 按当前 pk.toml 重新生成 pk.lock（不装东西、不改默认）。
+func (a *app) refreshProjectLock(inst *install.Installer) int {
+	project, err := install.LoadProject(a.cwd())
+	if err != nil {
+		return a.fail(err)
+	}
+	if len(project) == 0 {
+		fmt.Fprintln(a.errOut, "pk: 当前目录没有 pk.toml")
+		return jsonout.ExitFail
+	}
+	active := map[string]string{}
+	for tool, version := range a.cfg.Tools {
+		active[tool] = version
+	}
+	lock, err := install.BuildProjectLock(project, inst.Ledger(), active)
+	if err != nil {
+		return a.fail(err)
+	}
+	if err := lock.Save(a.cwd()); err != nil {
+		return a.fail(err)
+	}
+	if !a.json {
+		fmt.Fprintf(a.out, "已更新 %s（%s）\n", install.LockFileName, lock.LockTools())
+	}
 	return jsonout.ExitOK
 }
 
