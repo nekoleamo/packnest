@@ -20,7 +20,7 @@ var commandHelp = map[string]string{
     --frozen    严格按 pk.lock（不做解析；清单与锁不一致即失败，CI 用）
     --insecure  允许无校验安装（标记 unverified；校验和源互相矛盾时也靠它放行）
     --force     重装已存在的版本
-    --jobs N    并发下载数（默认 1：国内 CDN 分片常更慢）
+    --jobs N    预留（当前固定单连接：国内 CDN 分片常更慢）
     --quiet     只报错，不打印进度与结果
   退出码：0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用`,
 
@@ -60,7 +60,8 @@ var commandHelp = map[string]string{
     MIRROR_UNREACHABLE（--probe）      索引源不可达
     GO_TOOLCHAIN_NOT_LOCAL            装了 go 但 GOTOOLCHAIN 不是 local
     GLOBAL_ENGINES_UNMET / GLOBAL_NATIVE_ABI / GLOBAL_SHADOWS_PROJECT（--globals）
-    FOREIGN_MANAGER                   检测到 proto/nvm/mise 等其他管理器
+    FOREIGN_MANAGER                   检测到 proto/nvm/mise 等其他管理器（--foreign 列出版本）
+    FOREIGN_SHIM_PRIORITY             别人的 shim 排在 pk 前面，会抢走 node
   退出码：有 error 级问题时为 1。`,
 
 	"env": `pk env [--shell bash|zsh|sh|powershell] [--write] [--unset] [--completion SHELL] [--json]

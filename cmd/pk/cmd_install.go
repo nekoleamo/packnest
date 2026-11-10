@@ -49,7 +49,9 @@ func (a *app) cmdInstall(args []string) int {
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
-	_ = jobs
+	if *jobs != 1 {
+		fmt.Fprintln(a.errOut, "pk: 当前版本单连接下载（--jobs 预留给后续版本；国内 CDN 分片往往更慢）")
+	}
 
 	project, err := install.LoadProject(a.cwd())
 	if err != nil {

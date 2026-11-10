@@ -820,3 +820,38 @@ func TestInstallQuiet(t *testing.T) {
 		t.Fatal("安静模式也要真装上")
 	}
 }
+
+func TestDoctorForeign(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	// 造一个假 proto 的 node 版本目录
+	if err := os.MkdirAll(filepath.Join(home, ".proto", "tools", "node", "26.13.0"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	code, out, _ := execCLI(t, "--root", root, "--json", "doctor", "--foreign")
+	if code != 0 {
+		t.Fatalf("doctor --foreign 退出码 %d: %s", code, out)
+	}
+	if !strings.Contains(out, "FOREIGN_MANAGER") || !strings.Contains(out, "proto") {
+		t.Fatalf("应列出 proto: %s", out)
+	}
+	if !strings.Contains(out, "26.13.0") {
+		t.Fatalf("应列出版本号: %s", out)
+	}
+	// PATH 里 pk 之前有别人的 shim → 告警
+	t.Setenv("PATH", filepath.Join(home, ".proto", "shims")+string(os.PathListSeparator)+filepath.Join(root, "bin"))
+	_, out, _ = execCLI(t, "--root", root, "--json", "doctor", "--foreign")
+	if !strings.Contains(out, "FOREIGN_SHIM_PRIORITY") {
+		t.Fatalf("应告警 shim 优先级: %s", out)
+	}
+}
+
+func TestScanForeignManagersEmpty(t *testing.T) {
+	if got := scanForeignManagers(t.TempDir()); len(got) != 0 {
+		t.Fatalf("空 home 应返回空: %+v", got)
+	}
+	if got := foreignPathConflicts("", "/x/bin"); len(got) != 0 {
+		t.Fatalf("空 PATH 应返回空: %+v", got)
+	}
+}

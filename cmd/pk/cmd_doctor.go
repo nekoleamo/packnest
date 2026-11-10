@@ -27,9 +27,6 @@ func (a *app) cmdDoctor(args []string) int {
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
-	if *foreign {
-		return a.notImplemented("doctor --foreign", "M5")
-	}
 
 	var issues []jsonout.Issue
 	add := func(sev jsonout.Severity, code, msg string, detail map[string]any) {
@@ -148,6 +145,26 @@ func (a *app) cmdDoctor(args []string) int {
 		}
 		if len(pkgs) == 0 {
 			add(jsonout.SeverityInfo, "GLOBALS_NONE", fmt.Sprintf("全局包目录里没有包（%s）", prefix), map[string]any{"prefix": prefix})
+		}
+	}
+
+	// 6d. 其他管理器（--foreign 才逐个列版本；默认只做一次轻量探测）
+	if *foreign {
+		home, _ := os.UserHomeDir()
+		managers := scanForeignManagers(home)
+		if len(managers) == 0 {
+			add(jsonout.SeverityInfo, "FOREIGN_NONE", "没有检测到 proto/nvm/volta/asdf/mise/fnm/nodenv 的 node 版本目录", nil)
+		}
+		for _, m := range managers {
+			add(jsonout.SeverityInfo, "FOREIGN_MANAGER",
+				fmt.Sprintf("%s 里有 %d 个 node 版本（%s…）", m.Name, len(m.Versions), strings.Join(tailVersions(m.Versions, 3), ", ")),
+				map[string]any{"manager": m.Name, "path": m.Path, "versions": m.Versions,
+					"advice": "只让一方管 node：把 ~/.packnest/bin 放到它前面，或移除对方的 shell 初始化行（我们不会自动改别人目录）"})
+		}
+		if conflicts := foreignPathConflicts(os.Getenv("PATH"), a.paths.Bin()); len(conflicts) > 0 {
+			add(jsonout.SeverityWarn, "FOREIGN_SHIM_PRIORITY",
+				"PATH 里这些目录排在 pk 前面，会抢走 node 命令："+strings.Join(conflicts, ", "),
+				map[string]any{"dirs": conflicts, "advice": "把 ~/.packnest/bin 移到 PATH 最前（pk env --write 会加托管块）"})
 		}
 	}
 
@@ -330,6 +347,14 @@ func installedTools(l *store.Ledger, tool string) []string {
 		}
 	}
 	return out
+}
+
+// tailVersions 取最后 n 个版本（列表太长时只显示最新的几个）。
+func tailVersions(versions []string, n int) []string {
+	if len(versions) <= n {
+		return versions
+	}
+	return versions[len(versions)-n:]
 }
 
 func splitPath(p string) []string {
