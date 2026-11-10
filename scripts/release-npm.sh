@@ -103,7 +103,7 @@ if [ -n "$REJECT" ]; then
     ids=$(npm stage list $USERCONFIG_FLAG --registry "$REGISTRY" 2>/dev/null | awk '/^id: /{print $2}')
     [ -n "$ids" ] || { echo "没有 staged 版本"; exit 0; }
     for id in $ids; do
-      echo "== reject $id"
+      echo "== reject ${id}"
       npm stage reject "$id" $USERCONFIG_FLAG --registry "$REGISTRY" || true
     done
     exit 0
@@ -124,13 +124,13 @@ if [ -n "$PROMOTE" ]; then
       | awk -v want="$WANT" '/^id: /{id=$2} /^version: /{if (want==""||$2==want) print id}' )
     [ -n "$ids" ] || { echo "没有 staged 版本"; exit 0; }
     for id in $ids; do
-      echo "== approve $id"
+      echo "== approve ${id}"
       otp_value=$(auto_otp); args=""
       [ -n "$otp_value" ] && args="--otp $otp_value"
       if npm stage approve "$id" $args $USERCONFIG_FLAG --registry "$REGISTRY"; then
         echo "  ✓ $id"
       else
-        echo "  ✗ $id（浏览器确认被跳过或未完成，单独重跑：sh scripts/release-npm.sh --promote $id）"
+        echo "  ✗ ${id}（未完成，单独重跑：sh scripts/release-npm.sh --promote ${id}）"
       fi
     done
     exit 0
