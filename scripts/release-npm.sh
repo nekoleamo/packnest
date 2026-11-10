@@ -23,6 +23,13 @@ set -eu
 
 . "$(dirname "$0")/lib/secrets.sh"
 
+# 账号开了 auth-and-writes 2FA、token 又没勾 Bypass 时，可以用本地 TOTP 密钥自动出码。
+auto_otp() {
+  if [ -n "${OTP:-}" ]; then printf '%s' "$OTP"; return 0; fi
+  secret="${NPM_TOTP_SECRET:-$(secret_from_file "$TOKEN_FILE" NPM_TOTP_SECRET)}"
+  if [ -n "$secret" ]; then totp_code "$secret"; fi
+}
+
 DIST="${DIST:-dist}"
 OUT="$DIST/npm"
 PUBLISH=0
@@ -174,12 +181,6 @@ echo "已生成 npm 包："
 find "$OUT" -name package.json -maxdepth 3 | sed 's|^|  |'
 
 # 凭据：从环境变量或 600 权限的凭据文件取，只在子进程里 export，绝不打印。
-# 账号开了 auth-and-writes 2FA、token 又没勾 Bypass 时，可以用本地 TOTP 密钥自动出码。
-auto_otp() {
-  if [ -n "${OTP:-}" ]; then printf '%s' "$OTP"; return 0; fi
-  secret="${NPM_TOTP_SECRET:-$(secret_from_file "$TOKEN_FILE" NPM_TOTP_SECRET)}"
-  if [ -n "$secret" ]; then totp_code "$secret"; fi
-}
 
 load_token() {
   if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
@@ -255,6 +256,11 @@ if [ "$PUBLISH" -eq 1 ] || [ "$DRY_RUN" -eq 1 ] || [ "$STAGE" -eq 1 ]; then
     echo "== 发布 ${SCOPE}/$(basename "$p")"
     # shellcheck disable=SC2086
     out=$( cd "$p" && npm publish $PUBLISH_ARGS 2>&1 ) || {
+      # staging 是幂等的：同版本已 staged/已发布时跳过，不当作失败
+      if echo "$out" | grep -qE 'Cannot stage previously published version|previously published versions'; then
+        echo "  跳过（该版本已在 stage/已发布）：$(basename "$p")"
+        continue
+      fi
       echo "$out" | grep -vE '^npm (notice|warn)' | tail -6
       echo "" >&2
       echo "发布被拒。最常见原因与处置（三选一，都在本机配一次即可全自动）：" >&2
