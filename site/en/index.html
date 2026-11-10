@@ -32,8 +32,11 @@
   <p class="lede">
     <span class="tk">node</span> · <span class="tk">npm</span> · <span class="tk">pnpm</span> ·
     <span class="tk">bun</span> · <span class="tk">deno</span> · <span class="tk">go</span> ·
-    <span class="tk">python</span><br>
-    Single Go binary, zero CGO, six platforms. Installs the newest npm compatible with each Node version.
+    <span class="tk">python</span>
+  </p>
+  <p class="lede lede-sub">
+    Single Go binary · zero CGO · six platforms<br>
+    installs the newest npm compatible with each Node version
   </p>
 
   <div class="cta">
@@ -51,11 +54,20 @@
       </div>
       <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex</code>
     </div>
-    <p class="sub-cta">Or a package manager
-      <button type="button" data-copy="brew install nekoleamo/packnest/packnest">Homebrew</button>
-      <span class="dot">·</span>
-      <button type="button" data-copy="scoop install packnest">Scoop</button>
-    </p>
+    <div class="install">
+      <div class="row">
+        <span class="os">Homebrew</span>
+        <button class="copy" type="button" data-copy="brew install nekoleamo/packnest/packnest" aria-label="Copy install command">Copy</button>
+      </div>
+      <code>brew install nekoleamo/packnest/packnest</code>
+    </div>
+    <div class="install">
+      <div class="row">
+        <span class="os">Scoop</span>
+        <button class="copy" type="button" data-copy="scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket&#10;scoop install packnest" aria-label="Copy install command">Copy</button>
+      </div>
+      <code>scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket<br>scoop install packnest</code>
+    </div>
     <p class="fallback">Already managing toolchains with npm?<button class="linkbtn" type="button" data-copy="npm i -g packnest">npm i -g packnest</button> works too</p>
   </div>
 </header>

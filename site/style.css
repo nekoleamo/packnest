@@ -68,12 +68,13 @@ h1 em{font-style:normal;color:var(--accent-text)}
   animation:rise .5s var(--ease) .1s both;
 }
 .lede .tk{color:var(--fg);font-family:var(--mono);font-size:.94em}
+.lede-sub{margin-top:.5rem;font-size:.98rem;line-height:1.85}
 
 /* ---------- 主 CTA：可复制的安装块 ---------- */
 .cta{margin:2rem auto 0;max-width:38rem;animation:rise .5s var(--ease) .15s both}
 .install{
-  display:block;padding:.6rem .85rem .7rem;
-  margin-bottom:.55rem;
+  display:block;padding:.55rem .85rem .62rem;
+  margin-bottom:.5rem;
   background:var(--panel);border:1px solid var(--line);border-radius:12px;
   box-shadow:0 1px 2px #0b151208;
   transition:border-color .18s var(--ease),box-shadow .18s var(--ease);

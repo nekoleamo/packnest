@@ -32,8 +32,11 @@
   <p class="lede">
     <span class="tk">node</span> · <span class="tk">npm</span> · <span class="tk">pnpm</span> ·
     <span class="tk">bun</span> · <span class="tk">deno</span> · <span class="tk">go</span> ·
-    <span class="tk">python</span><br>
-    Go 单二进制、零 CGO、六平台；node 装完自动配对最新兼容的 npm。
+    <span class="tk">python</span>
+  </p>
+  <p class="lede lede-sub">
+    Go 单二进制 · 零 CGO · 六平台<br>
+    node 装完自动配对最新兼容的 npm
   </p>
 
   <div class="cta">
@@ -51,11 +54,20 @@
       </div>
       <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex</code>
     </div>
-    <p class="sub-cta">也有包管理器
-      <button type="button" data-copy="brew install nekoleamo/packnest/packnest">Homebrew</button>
-      <span class="dot">·</span>
-      <button type="button" data-copy="scoop install packnest">Scoop</button>
-    </p>
+    <div class="install">
+      <div class="row">
+        <span class="os">Homebrew</span>
+        <button class="copy" type="button" data-copy="brew install nekoleamo/packnest/packnest" aria-label="复制安装命令">复制</button>
+      </div>
+      <code>brew install nekoleamo/packnest/packnest</code>
+    </div>
+    <div class="install">
+      <div class="row">
+        <span class="os">Scoop</span>
+        <button class="copy" type="button" data-copy="scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket&#10;scoop install packnest" aria-label="复制安装命令">复制</button>
+      </div>
+      <code>scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket<br>scoop install packnest</code>
+    </div>
     <p class="fallback">已经在用 npm 管工具链？<button class="linkbtn" type="button" data-copy="npm i -g packnest">npm i -g packnest</button> 也行</p>
   </div>
 </header>
