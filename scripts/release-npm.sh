@@ -117,13 +117,21 @@ fi
 if [ -n "$PROMOTE" ]; then
   ensure_auth
   if [ "$PROMOTE" = "--all" ]; then
-    ids=$(npm stage list $USERCONFIG_FLAG --registry "$REGISTRY" 2>/dev/null | awk '/^id: /{print $2}')
+    # 只处理"当前版本"（dist/latest），避免把历史残留一起 approve（每个都会弹一次浏览器）
+    WANT=""
+    [ -f "$DIST/latest" ] && WANT=$(cat "$DIST/latest")
+    ids=$(npm stage list $USERCONFIG_FLAG --registry "$REGISTRY" 2>/dev/null \
+      | awk -v want="$WANT" '/^id: /{id=$2} /^version: /{if (want==""||$2==want) print id}' )
     [ -n "$ids" ] || { echo "没有 staged 版本"; exit 0; }
     for id in $ids; do
       echo "== approve $id"
       otp_value=$(auto_otp); args=""
       [ -n "$otp_value" ] && args="--otp $otp_value"
-      npm stage approve "$id" $args $USERCONFIG_FLAG --registry "$REGISTRY" || echo "  （这个需要浏览器确认，批准后重跑）"
+      if npm stage approve "$id" $args $USERCONFIG_FLAG --registry "$REGISTRY"; then
+        echo "  ✓ $id"
+      else
+        echo "  ✗ $id（浏览器确认被跳过或未完成，单独重跑：sh scripts/release-npm.sh --promote $id）"
+      fi
     done
     exit 0
   fi
