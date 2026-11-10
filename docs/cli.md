@@ -171,6 +171,23 @@ $ pk list --available --json
 
 ---
 
+### 2.1 只看一个工具的全部版本
+
+```bash
+$ pk list node
+node：可装 877 个版本（索引最新 26.13.0 · lts 26.13.0）
+  已装 * 22.23.4
+  可装   26.13.0 (Lithium) · 26.12.1 · 26.12.0 · …（默认列最近 20 个）
+          …还有 857 个（pk list node --all 看全部）
+  想装某个版本：pk install node@<版本>
+```
+
+`✓` 表示这个版本本机已装，`*` 是当前全局默认；括号里是上游给的 LTS 代号。
+`--all` 不截断；`--json` 给出 `{tool, latest, lts, total, installed[], available[]}`。
+
+> 索引里 npm/pnpm 走的是 registry 的 **abbreviated 元数据**（约 2MB，而不是 25MB），
+> 单次索引拉取有 45s 总超时——慢源上会明确报"索引拉取超时"，不会再像以前那样一直挂着。
+
 ## 3. which — 命令到底是谁
 
 ```bash

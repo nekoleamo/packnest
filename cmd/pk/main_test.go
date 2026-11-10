@@ -985,3 +985,73 @@ func TestCLIInstallForceRehashFlag(t *testing.T) {
 		t.Fatalf("--force-rehash 应放行，得到 %d（%s）", code, errOut)
 	}
 }
+
+// pk list <工具>：单工具视图要给出完整版本集（不止"最近 5 个"），并标出已装/默认。
+func TestListSingleTool(t *testing.T) {
+	fm := setupFakeMirror(t)
+	t.Setenv("PK_MIRROR_NODE_INDEX", fm.Server.URL+"/node/index.json")
+	root := t.TempDir()
+
+	code, out, errOut := execCLI(t, "--root", root, "--json", "list", "node")
+	if code != 0 {
+		t.Fatalf("list node 退出码 %d: %s", code, errOut)
+	}
+	var doc struct {
+		Schema    int    `json:"schema"`
+		Tool      string `json:"tool"`
+		Latest    string `json:"latest"`
+		Total     int    `json:"total"`
+		Installed []struct {
+			Version string `json:"version"`
+			Active  bool   `json:"active"`
+		} `json:"installed"`
+		Available []struct {
+			Version   string `json:"version"`
+			LTS       string `json:"lts,omitempty"`
+			Installed bool   `json:"installed,omitempty"`
+		} `json:"available"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("非法 JSON: %v\n%s", err, out)
+	}
+	if doc.Schema != 1 || doc.Tool != "node" || doc.Total == 0 || len(doc.Available) != doc.Total {
+		t.Fatalf("单工具视图字段不对: %+v", doc)
+	}
+	if doc.Latest != "22.99.99" {
+		t.Fatalf("latest = %q", doc.Latest)
+	}
+	// 文本视图：要出现"可装 N 个版本"与安装建议
+	code, out, _ = execCLI(t, "--root", root, "list", "node")
+	if code != 0 || !strings.Contains(out, "可装") || !strings.Contains(out, "pk install node@") {
+		t.Fatalf("文本视图异常: %d\n%s", code, out)
+	}
+	// 装一个之后：✓ 标记 + 默认标记
+	if code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99"); code != 0 {
+		t.Fatalf("install: %s", errOut)
+	}
+	code, out, _ = execCLI(t, "--root", root, "list", "node")
+	if code != 0 || !strings.Contains(out, "已装 * 22.99.99") || !strings.Contains(out, "✓ 22.99.99") {
+		t.Fatalf("已装/默认标记缺失:\n%s", out)
+	}
+	// 未知工具：退出 1 并列出可用工具
+	if code, _, errOut := execCLI(t, "--root", root, "list", "rust"); code != 1 || !strings.Contains(errOut, "bun") {
+		t.Fatalf("未知工具应退出 1 并列出候选: %d %s", code, errOut)
+	}
+}
+
+// list --available 在没有已装工具时不该再喊"先装 node"（用户当时问的就是可装什么）。
+func TestListAvailableNoInstallNudge(t *testing.T) {
+	fm := setupFakeMirror(t)
+	t.Setenv("PK_MIRROR_NODE_INDEX", fm.Server.URL+"/node/index.json")
+	root := t.TempDir()
+	code, out, errOut := execCLI(t, "--root", root, "list", "--available")
+	if code != 0 {
+		t.Fatalf("退出码 %d: %s", code, errOut)
+	}
+	if strings.Contains(out, "还没装任何工具") || strings.Contains(out, "已装:\n") {
+		t.Fatalf("查可装版本时不该提示装工具，也不该打印空的「已装:」:\n%s", out)
+	}
+	if !strings.Contains(out, "可装版本") {
+		t.Fatalf("应列出可装版本:\n%s", out)
+	}
+}

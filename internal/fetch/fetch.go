@@ -29,6 +29,9 @@ const (
 	DefaultConnectTimeout = 5 * time.Second
 	DefaultHeaderTimeout  = 8 * time.Second
 	DefaultRetries        = 2
+	// DefaultIndexTimeout 是单次索引拉取的总超时（含读完 body）。
+	// registry 元数据可能几十 MB，没有这个上限时遇到慢源会一直挂着（Windows 上实测过）。
+	DefaultIndexTimeout = 45 * time.Second
 )
 
 // StatusError 表示 HTTP 状态非 2xx（可据此判定网络类失败，退出码 3）。
@@ -63,6 +66,8 @@ type Client struct {
 	Progress func(done, total int64)
 	// Now 可注入，用于 TTL 判断（测试不 sleep）。
 	Now func() time.Time
+	// IndexTimeout 是单次索引拉取的总超时；<=0 用 DefaultIndexTimeout。
+	IndexTimeout time.Duration
 }
 
 // New 返回带默认超时的客户端。
@@ -191,6 +196,15 @@ type IndexResult struct {
 // GetIndex 取版本索引：先看本地缓存 TTL，过期则发条件请求（304 时 0 字节），
 // 网络失败时回退过期缓存并标记 Stale（方案 §6.2：索引永远不是阻塞项）。
 func (c *Client) GetIndex(ctx context.Context, url, bodyPath, metaPath string, ttl time.Duration) (IndexResult, error) {
+	return c.GetIndexAccept(ctx, url, bodyPath, metaPath, ttl, "")
+}
+
+// GetIndexAccept 与 GetIndex 相同，但带上自定义 Accept 头：npm registry 支持
+// application/vnd.npm.install-v1+json（abbreviated 元数据），体积比完整元数据小一个数量级。
+func (c *Client) GetIndexAccept(ctx context.Context, url, bodyPath, metaPath string, ttl time.Duration, accept string) (IndexResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.indexTimeout())
+	defer cancel()
+
 	meta, body, hasCache := readIndexCache(bodyPath, metaPath)
 	res := IndexResult{Meta: meta, Body: body, FromCache: hasCache}
 	if hasCache && ttl > 0 && c.now().Sub(meta.FetchedAt) < ttl {
@@ -204,7 +218,7 @@ func (c *Client) GetIndex(ctx context.Context, url, bodyPath, metaPath string, t
 		return res, ErrOffline
 	}
 
-	fresh, status, hdr, err := c.getConditional(ctx, url, meta, hasCache)
+	fresh, status, hdr, err := c.getConditional(ctx, url, meta, hasCache, accept)
 	if err != nil {
 		if hasCache {
 			res.Stale = true
@@ -232,12 +246,15 @@ func (c *Client) GetIndex(ctx context.Context, url, bodyPath, metaPath string, t
 }
 
 // getConditional 发条件请求；返回 body（304 时为 nil）、状态码与响应头。
-func (c *Client) getConditional(ctx context.Context, url string, meta IndexMeta, hasCache bool) ([]byte, int, http.Header, error) {
+func (c *Client) getConditional(ctx context.Context, url string, meta IndexMeta, hasCache bool, accept string) ([]byte, int, http.Header, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf("构造请求失败: %w", err)
 	}
 	c.setHeaders(req)
+	if accept != "" {
+		req.Header.Set("Accept", accept)
+	}
 	if hasCache && meta.ETag != "" {
 		req.Header.Set("If-None-Match", meta.ETag)
 	}
@@ -254,6 +271,9 @@ func (c *Client) getConditional(ctx context.Context, url string, meta IndexMeta,
 		body, readErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if readErr != nil {
+			if errors.Is(readErr, context.Canceled) || errors.Is(readErr, context.DeadlineExceeded) {
+				return nil, 0, nil, fmt.Errorf("索引拉取超时或被取消（%s，上限 %s）: %w", url, c.indexTimeout(), readErr)
+			}
 			lastErr = fmt.Errorf("读取响应体失败: %w", readErr)
 			continue
 		}
@@ -452,6 +472,13 @@ func (c *Client) retries() int {
 		return 0
 	}
 	return c.Retries
+}
+
+func (c *Client) indexTimeout() time.Duration {
+	if c.IndexTimeout > 0 {
+		return c.IndexTimeout
+	}
+	return DefaultIndexTimeout
 }
 
 func (c *Client) now() time.Time {

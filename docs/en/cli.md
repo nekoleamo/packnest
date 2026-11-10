@@ -124,13 +124,26 @@ pk list [--available [--refresh]] [--json]
 
 ```bash
 $ pk list
-已装:
-  * node   22.23.4   177.5 MB (npm 12.2.2 ← 自带 10.9.9)
+Installed:
+  * node   22.23.4   177.5 MB (npm 12.2.2, bundled 10.9.9)
     pnpm   12.19.0    49.4 MB
 
-$ pk list --available          # newest installable version per tool (24h index cache, offline-readable)
+$ pk list node                 # one tool: installed versions + EVERY installable version
+node: 877 versions installable (index latest 26.13.0, lts 26.13.0)
+  installed  * 22.23.4
+  available    26.13.0 (Lithium) · 26.12.1 · 26.12.0 · … (20 shown)
+               …857 more (pk list node --all)
+  install one: pk install node@<version>
+
+$ pk list --available          # one line per tool: latest + 5 recent (24h cache, offline-readable)
 $ pk list --available --refresh  # ignore the cache and go to the network
+$ pk list node --json          # {tool, latest, lts, total, installed[], available[]}
 ```
+
+`✓` marks a version installed locally, `*` is the current global default, and the parenthesis
+carries the upstream LTS codename. Index fetches for npm/pnpm use the registry's **abbreviated
+metadata** (~2 MB instead of ~25 MB) and every index fetch has a 45 s total timeout, so a slow
+mirror reports "index fetch timed out" instead of hanging forever.
 
 `*` marks the global default. `--json` returns `{schema, tools:[{name, version, active, path, npm,
 requires, verified, size_bytes}]}`.

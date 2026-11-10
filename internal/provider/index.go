@@ -17,6 +17,10 @@ import (
 // DefaultIndexTTL 是索引缓存有效期（方案 §6.2：首次 + 每 24h 一次 304）。
 const DefaultIndexTTL = 24 * time.Hour
 
+// RegistryAbbrevAccept 是 npm registry 的 abbreviated 元数据 MIME：
+// 只含 versions/dist-tags/dist/engines，不含 readme/description，体积小很多。
+const RegistryAbbrevAccept = "application/vnd.npm.install-v1+json"
+
 // IndexFile 是 JSON 索引里列出的产物文件（go 的 dl 页有 sha256）。
 type IndexFile struct {
 	Filename string `json:"filename"`
@@ -94,7 +98,13 @@ func (l *IndexLoader) Load(ctx context.Context, p *Provider, profile string) (*I
 	for _, url := range urls {
 		bodyPath := filepath.Join(l.CacheDir, p.ID+".json")
 		metaPath := filepath.Join(l.CacheDir, p.ID+".meta.json")
-		res, err := l.client().GetIndex(ctx, url, bodyPath, metaPath, l.ttl())
+		// registry 用 abbreviated 元数据：同一个包的完整元数据可能有几十 MB，
+		// 而我们只要 versions[].version/engines/dist —— 小一个数量级，慢源上差别很大。
+		accept := ""
+		if p.Index.Kind == IndexRegistry {
+			accept = RegistryAbbrevAccept
+		}
+		res, err := l.client().GetIndexAccept(ctx, url, bodyPath, metaPath, l.ttl(), accept)
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("%s: %v", url, err))
 			continue
@@ -153,6 +163,11 @@ func (i *Index) Find(version string) (Version, bool) {
 		}
 	}
 	return Version{}, false
+}
+
+// LatestLTS 返回最高的 LTS 稳定版本（`pk list <tool>` 单工具视图用）。
+func (i *Index) LatestLTS() (Version, bool) {
+	return i.latestLTS()
 }
 
 // Latest 返回最高稳定版本。

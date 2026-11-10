@@ -527,3 +527,51 @@ func TestDownloadIgnoresStalePartMeta(t *testing.T) {
 		t.Fatalf("产物内容不符: %q", got)
 	}
 }
+
+// 索引拉取必须有总超时：慢源（npm registry 元数据可能有几十 MB）不能把命令挂死。
+func TestGetIndexTimeout(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		w.WriteHeader(200)
+		if f, ok := w.(http.Flusher); ok {
+			_, _ = w.Write([]byte("{"))
+			f.Flush()
+		}
+		time.Sleep(2 * time.Second) // 卡住不返回
+	}))
+	defer srv.Close()
+
+	c := New()
+	c.IndexTimeout = 150 * time.Millisecond
+	dir := t.TempDir()
+	start := time.Now()
+	_, err := c.GetIndex(context.Background(), srv.URL+"/idx", filepath.Join(dir, "b.json"), filepath.Join(dir, "m.json"), time.Hour)
+	if err == nil {
+		t.Fatal("慢源应超时报错，而不是挂住")
+	}
+	if !strings.Contains(err.Error(), "超时") {
+		t.Fatalf("错误信息应说明超时: %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 3*time.Second {
+		t.Fatalf("超时没有生效，耗时 %s", elapsed)
+	}
+}
+
+// registry 索引要带 abbreviated Accept 头（25MB 完整元数据 → 2MB）。
+func TestGetIndexAcceptHeader(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = r.Header.Get("Accept")
+		_, _ = w.Write([]byte(`{"versions":{}}`))
+	}))
+	defer srv.Close()
+
+	c := New()
+	dir := t.TempDir()
+	if _, err := c.GetIndexAccept(context.Background(), srv.URL+"/npm", filepath.Join(dir, "b.json"), filepath.Join(dir, "m.json"), time.Hour, "application/vnd.npm.install-v1+json"); err != nil {
+		t.Fatal(err)
+	}
+	if got != "application/vnd.npm.install-v1+json" {
+		t.Fatalf("Accept = %q", got)
+	}
+}

@@ -20,9 +20,16 @@ func (a *app) cmdList(args []string) int {
 	fs.SetOutput(a.errOut)
 	a.usageFor(fs, "list")
 	available := fs.Bool("available", false, "列出各工具的最新可用版本（索引默认 24h 缓存）")
-	refresh := fs.Bool("refresh", false, "忽略索引缓存，强制重新拉取（配合 --available）")
+	refresh := fs.Bool("refresh", false, "忽略索引缓存，强制重新拉取（配合 --available / 工具名）")
+	all := fs.Bool("all", false, "配合工具名：列出该工具的全部可装版本（默认只列最近 20 个）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
+	}
+	if fs.NArg() > 1 {
+		return a.failUsage(fmt.Errorf("用法: pk list [工具] [--available] [--refresh] [--all]"))
+	}
+	if tool := fs.Arg(0); tool != "" {
+		return a.listToolVersions(tool, *refresh, *all)
 	}
 
 	ledger, recovered, err := store.LoadLedgerWithRecovery(a.paths.Ledger())
@@ -74,9 +81,10 @@ func (a *app) cmdList(args []string) int {
 		return a.emit(jsonout.NewList(entries))
 	}
 
-	if len(entries) == 0 {
+	switch {
+	case len(entries) == 0 && !*available:
 		fmt.Fprintln(a.out, "还没装任何工具。`pk install node@22` 开始。")
-	} else {
+	case len(entries) > 0:
 		fmt.Fprintln(a.out, "已装:")
 		for _, e := range entries {
 			mark := " "
@@ -185,6 +193,155 @@ func (a *app) availableRows() []availableEntry {
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+// listToolVersions 打印某一个工具的全部可装版本 + 本机已装（`pk list node`）。
+//
+// 单工具视图和 `--available` 的"每个工具一行"是两件事：这里要能看见完整版本集，
+// 而不是只有最新版和"近几个"。
+func (a *app) listToolVersions(name string, refresh, all bool) int {
+	p, err := provider.Get(name)
+	if err != nil {
+		return a.fail(err) // provider.Get 的报错里已经列了可用工具
+	}
+	ledger, _, lerr := store.LoadLedgerWithRecovery(a.paths.Ledger())
+	if lerr != nil {
+		return a.fail(lerr)
+	}
+	active := a.activeVersions(ledger)
+	installed := make([]string, 0, 4)
+	for _, in := range ledger.Installs {
+		if in.Tool == name {
+			installed = append(installed, in.Version)
+		}
+	}
+	installed = spec.SortDesc(installed)
+
+	ttl := provider.DefaultIndexTTL
+	if refresh {
+		ttl = 0
+	}
+	loader := &provider.IndexLoader{
+		Client:   a.client,
+		CacheDir: a.paths.CacheMeta(),
+		TTL:      ttl,
+		Custom:   toolchain.LoadPBSIndex,
+	}
+	idx, err := loader.Load(a.context(), p, a.cfg.Mirror)
+	if err != nil {
+		fmt.Fprintf(a.errOut, "pk: %s 的版本索引取不到: %v\n", name, err)
+		fmt.Fprintln(a.errOut, "试一试：pk list "+name+" --refresh（强制回源）· pk mirror probe（看哪个源通）· pk mirror use cn（换档）")
+		return jsonout.ExitNetwork
+	}
+
+	ltsOf := make(map[string]string, len(idx.Versions))
+	for _, v := range idx.Versions {
+		if v.LTS != "" {
+			ltsOf[v.Version] = v.LTS
+		}
+	}
+	versions := spec.SortDesc(idx.VersionList()) // 降序、去预发布
+	latest, hasLatest := idx.Latest()
+	ltsVer, hasLTS := idx.LatestLTS()
+	ltsLatest := ""
+	if hasLTS {
+		ltsLatest = ltsVer.Version
+	}
+
+	if a.json {
+		type instEntry struct {
+			Version string `json:"version"`
+			Active  bool   `json:"active"`
+		}
+		type availEntry struct {
+			Version   string `json:"version"`
+			LTS       string `json:"lts,omitempty"`
+			Installed bool   `json:"installed,omitempty"`
+		}
+		inst := make([]instEntry, 0, len(installed))
+		for _, v := range installed {
+			inst = append(inst, instEntry{Version: v, Active: active[name] == v})
+		}
+		avail := make([]availEntry, 0, len(versions))
+		for _, v := range versions {
+			avail = append(avail, availEntry{Version: v, LTS: ltsOf[v], Installed: containsStr(installed, v)})
+		}
+		out := struct {
+			Schema    int          `json:"schema"`
+			Tool      string       `json:"tool"`
+			Latest    string       `json:"latest,omitempty"`
+			LTS       string       `json:"lts,omitempty"`
+			Total     int          `json:"total"`
+			Installed []instEntry  `json:"installed"`
+			Available []availEntry `json:"available"`
+			Stale     bool         `json:"stale,omitempty"`
+		}{jsonout.SchemaVersion, name, latest.Version, ltsLatest, len(versions), inst, avail, idx.Stale}
+		return a.emit(out)
+	}
+
+	head := name + "：可装 " + fmt.Sprint(len(versions)) + " 个版本"
+	if hasLatest {
+		head += "（索引最新 " + latest.Version
+		if hasLTS && ltsLatest != "" {
+			head += " · lts " + ltsLatest
+		}
+		head += "）"
+	}
+	if idx.Stale {
+		head += " [索引来自过期缓存]"
+	}
+	fmt.Fprintln(a.out, head)
+	if len(installed) == 0 {
+		fmt.Fprintln(a.out, "  已装   （本机还没装）")
+	} else {
+		for i, v := range installed {
+			mark := " "
+			if active[name] == v {
+				mark = "*"
+			}
+			if i == 0 {
+				fmt.Fprintf(a.out, "  已装 %s %s\n", mark, v)
+			} else {
+				fmt.Fprintf(a.out, "       %s %s\n", mark, v)
+			}
+		}
+	}
+	if len(versions) == 0 {
+		fmt.Fprintln(a.out, "  可装   （索引里没有稳定版本）")
+		return jsonout.ExitOK
+	}
+	limit := len(versions)
+	if !all && limit > 20 {
+		limit = 20
+	}
+	items := make([]string, 0, limit)
+	for _, v := range versions[:limit] {
+		label := v
+		if lts := ltsOf[v]; lts != "" && !strings.EqualFold(lts, "lts") {
+			label += " (" + lts + ")"
+		} else if lts != "" {
+			label += " (lts)"
+		}
+		if containsStr(installed, v) {
+			label = "✓ " + label
+		}
+		items = append(items, label)
+	}
+	fmt.Fprintln(a.out, "  可装   "+strings.Join(items, " · "))
+	if limit < len(versions) {
+		fmt.Fprintf(a.out, "          …还有 %d 个（pk list %s --all 看全部）\n", len(versions)-limit, name)
+	}
+	fmt.Fprintf(a.out, "  想装某个版本：pk install %s@<版本>\n", name)
+	return jsonout.ExitOK
+}
+
+func containsStr(list []string, want string) bool {
+	for _, v := range list {
+		if v == want {
+			return true
+		}
+	}
+	return false
 }
 
 // mustAlias 把 "lts" 包成 spec（别名由索引层解析）。
