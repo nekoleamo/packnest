@@ -1213,3 +1213,118 @@ func TestListGridMode(t *testing.T) {
 		t.Fatalf("不存在的大版本应退出 1: %d %s", code, errOut)
 	}
 }
+
+// 渠道检测：不同安装方式要用不同命令才能删干净。
+func TestDetectInstallChannel(t *testing.T) {
+	cases := []struct {
+		path, goos, want string
+	}{
+		{"/opt/homebrew/Cellar/packnest/0.7.5/bin/pk", "darwin", "brew"},
+		{"/usr/local/Cellar/packnest/0.7.5/bin/pk", "darwin", "brew"},
+		{"/opt/homebrew/lib/node_modules/packnest/bin/pk.js", "darwin", "npm"},
+		{`C:\Users\me\AppData\Roaming\npm\node_modules\packnest\bin\pk.js`, "windows", "npm"},
+		{`C:\Users\me\scoop\apps\packnest\current\pk.exe`, "windows", "scoop"},
+		{`C:\Users\me\AppData\Local\Microsoft\WinGet\Packages\packnest\pk.exe`, "windows", "winget"},
+		{`C:\Users\me\AppData\Local\packnest\bin\pk.exe`, "windows", "script-windows"},
+		{"/home/me/.local/bin/pk", "linux", "script-posix"},
+		{"/home/me/.packnest/bin/pk", "linux", "script-posix"},
+		{"/tmp/build/pk", "linux", "manual"},
+	}
+	for _, c := range cases {
+		if got := detectInstallChannel(c.path, c.goos); got.Name != c.want {
+			t.Errorf("detectInstallChannel(%q,%s) = %s，期望 %s", c.path, c.goos, got.Name, c.want)
+		}
+	}
+}
+
+// 彻底卸载：运行时、shim、rc 托管块都清掉；不带 --yes 只打印计划。
+func TestUninstallAll(t *testing.T) {
+	setupFakeMirror(t)
+	root := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("SHELL", "/bin/zsh")
+
+	if code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99"); code != 0 {
+		t.Fatalf("install: %s", errOut)
+	}
+	if code, _, errOut := execCLI(t, "--root", root, "env", "--write"); code != 0 {
+		t.Fatalf("env --write: %s", errOut)
+	}
+	rc := filepath.Join(home, ".zshrc")
+	if data, err := os.ReadFile(rc); err != nil || !strings.Contains(string(data), "# >>> packnest >>>") {
+		t.Fatalf("rc 里应有托管块: %v", err)
+	}
+
+	// 不带 --yes：只打印计划，什么都不动
+	code, out, _ := execCLI(t, "--root", root, "uninstall", "--all")
+	if code == 0 || !strings.Contains(out, "加 --yes") {
+		t.Fatalf("不带 --yes 应拒绝执行并说明: %d\n%s", code, out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "tools", "node", "22.99.99")); err != nil {
+		t.Fatal("没确认前不该删东西")
+	}
+
+	code, out, errOut := execCLI(t, "--root", root, "uninstall", "--all", "--yes")
+	if code != 0 {
+		t.Fatalf("uninstall --all: %d %s", code, errOut)
+	}
+	if !strings.Contains(out, "已卸载 1 个运行时") || !strings.Contains(out, "删掉 pk 自己") {
+		t.Fatalf("输出应说明删了什么、pk 自己怎么删:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(root, "tools", "node", "22.99.99")); !os.IsNotExist(err) {
+		t.Fatal("运行时目录应被删除")
+	}
+	if data, err := os.ReadFile(rc); err != nil || strings.Contains(string(data), "# >>> packnest >>>") {
+		t.Fatalf("rc 里的托管块应被清掉: %v\n%s", err, data)
+	}
+	ledger := readJSONFile(t, filepath.Join(root, "state", "installs.json"))
+	if !strings.Contains(ledger, `"installs": []`) {
+		t.Fatalf("台账应清空: %s", ledger)
+	}
+	// 没加 --purge：PK_ROOT 还在（缓存留着重装用）
+	if _, err := os.Stat(filepath.Join(root, "cache")); err != nil {
+		t.Fatal("没加 --purge 时应保留缓存")
+	}
+}
+
+// --purge 连根删；--keep-cache 只留 cache/。
+func TestUninstallAllPurge(t *testing.T) {
+	setupFakeMirror(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("SHELL", "/bin/zsh")
+
+	for _, keepCache := range []bool{false, true} {
+		root := t.TempDir()
+		if code, _, errOut := execCLI(t, "--root", root, "install", "node@22.99.99"); code != 0 {
+			t.Fatalf("install: %s", errOut)
+		}
+		args := []string{"--root", root, "uninstall", "--all", "--yes", "--purge"}
+		if keepCache {
+			args = append(args, "--keep-cache")
+		}
+		if code, _, errOut := execCLI(t, args...); code != 0 {
+			t.Fatalf("uninstall --purge(keepCache=%v): %s", keepCache, errOut)
+		}
+		entries, err := os.ReadDir(root)
+		if keepCache {
+			if err != nil || len(entries) != 1 || entries[0].Name() != "cache" {
+				t.Fatalf("--keep-cache 应只剩 cache/：%v %v", entries, err)
+			}
+			continue
+		}
+		if !os.IsNotExist(err) {
+			t.Fatalf("--purge 应删掉整个 PK_ROOT: %v %v", entries, err)
+		}
+	}
+}
+
+func readJSONFile(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("读 %s: %v", path, err)
+	}
+	return string(data)
+}

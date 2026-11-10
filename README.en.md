@@ -171,6 +171,35 @@ make npm-dry    # build the npm packages and validate manifests (no publish, no 
 | [docs/cli.md](docs/cli.md) | The Chinese manual (more narrative detail) |
 | [docs/progress.md](docs/progress.md) | Milestone progress, per-round deliveries and pitfalls |
 
+## Uninstalling everything
+
+Two layers: **what pk installed** is removed by pk, **pk itself** by the channel that installed it.
+
+```bash
+pk uninstall --all --yes            # every runtime + shims + rc/Path blocks (cache kept for offline reinstall)
+pk uninstall --all --yes --purge    # also delete ~/.packnest (tools, cache, ledger, config)
+pk uninstall --all --yes --purge --keep-cache   # keep cache/ only
+```
+
+`--all` does four things: removes every tool directory from the ledger, deletes the shims in
+`~/.packnest/bin`, strips the `# >>> packnest >>>` block from your shell rc (on Windows also the four
+directories pk added to the **user Path registry value**), and finally prints the exact command to
+remove the binary itself based on how it was installed (brew / npm / scoop / winget / script).
+Without `--yes` it only prints the plan.
+
+| Channel | Command |
+|---|---|
+| Homebrew | `brew uninstall packnest && brew untap nekoleamo/packnest` |
+| npm | `npm uninstall -g packnest` |
+| Scoop | `scoop uninstall packnest && scoop bucket rm nekoleamo` |
+| winget | `winget uninstall nekoleamo.packnest` |
+| curl script (macOS/Linux) | `rm -f ~/.local/bin/pk ~/.local/bin/packnest` |
+| iwr script (Windows) | delete `%LOCALAPPDATA%\packnest\bin` |
+| self-hosted / manual | delete that file |
+
+pk only writes `~/.packnest` plus its own managed blocks, so nothing else is left behind —
+`~/.npm`, `~/.npmrc` and other managers' directories are never touched.
+
 ## Known limitations
 
 - `--jobs` is reserved (downloads are single-connection today)

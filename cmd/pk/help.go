@@ -31,9 +31,15 @@ var commandHelp = map[string]string{
   退出码：0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用`,
 
 	"uninstall": `pk uninstall <工具>@<版本> [--force]
+pk uninstall --all [--purge] [--keep-cache] [--yes]
 
-  台账驱动卸载：只删台账里记录过的目录（不在台账里的目录只提示不删）。
-  被引用（全局默认 / 项目锁 / 其他工具依赖）的版本需要 --force。`,
+  单个：台账驱动卸载，只删台账里记录过的目录（不在台账里的只提示不删）；
+        被引用（全局默认 / 项目锁 / 其他工具依赖）的版本需要 --force。
+  全部：--all 清掉 pk 装过的一切 —— 所有运行时 + shim + shell rc / Windows 用户 Path 里的托管块，
+        最后按"自己是怎么装的"给出删除 pk 二进制的命令（brew / npm / scoop / winget / 脚本）。
+        --purge      连 PK_ROOT 一起删（缓存、台账、配置）
+        --keep-cache 配合 --purge：保留 cache/，离线可重装
+        不带 --yes 只打印计划，不动任何东西。`,
 
 	"use": `pk use <工具>@<版本> [--project]
 pk use --lock

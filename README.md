@@ -166,6 +166,36 @@ make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 | [docs/json-schema.md](docs/json-schema.md) | `--json` v1 契约（字段与问题码） |
 | [docs/publishing.md](docs/publishing.md) | 渠道、凭据、staged/trusted 发布流程 |
 
+## 彻底卸载
+
+分两层：**pk 装过的东西**用 pk 自己清，**pk 自己**要用当初安装它的渠道删。
+
+```bash
+pk uninstall --all --yes            # 所有运行时 + shim + rc/Path 托管块（保留缓存，可离线重装）
+pk uninstall --all --yes --purge    # 连 ~/.packnest 一起删（工具、缓存、台账、配置）
+pk uninstall --all --yes --purge --keep-cache   # 只留 cache/，下次装同版本不联网
+```
+
+`--all` 会依次：① 删掉台账里每个运行时目录；② 删 `~/.packnest/bin` 里的 shim；
+③ 清掉 shell rc 里的 `# >>> packnest >>>` 托管块（Windows 还有**注册表用户 Path** 里的四段目录）；
+④ 按"你当初怎么装的 pk"给出删二进制的确切命令（brew / npm / scoop / winget / 脚本）。
+不带 `--yes` 只打印计划，什么都不动。
+
+pk 二进制本身（按渠道）：
+
+| 渠道 | 命令 |
+|---|---|
+| Homebrew | `brew uninstall packnest && brew untap nekoleamo/packnest` |
+| npm | `npm uninstall -g packnest` |
+| Scoop | `scoop uninstall packnest && scoop bucket rm nekoleamo` |
+| winget | `winget uninstall nekoleamo.packnest` |
+| curl 脚本（macOS/Linux） | `rm -f ~/.local/bin/pk ~/.local/bin/packnest` |
+| iwr 脚本（Windows） | 删 `%LOCALAPPDATA%\packnest\bin` |
+| 自托管 / 手动 | 删掉那个文件即可 |
+
+**pk 只写 `~/.packnest` 和它自己的托管块**，所以上面的步骤之后不会剩什么。特别地：
+`~/.npm` 缓存、`~/.npmrc`、别的版本管理器目录**从来没被动过**，也不需要清理。
+
 ## 已知限制
 
 - `--jobs` 目前仅预留（单连接下载）

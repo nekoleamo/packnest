@@ -191,15 +191,25 @@ func (a *app) cmdUninstall(args []string) int {
 	fs.SetOutput(a.errOut)
 	a.usageFor(fs, "uninstall")
 	force := fs.Bool("force", false, "仍被引用也删除")
+	all := fs.Bool("all", false, "清掉 pk 装过的一切（所有运行时 + shim + PATH/rc 托管块）")
+	purge := fs.Bool("purge", false, "配合 --all：连 PK_ROOT 一起删（缓存、台账、配置）")
+	keepCache := fs.Bool("keep-cache", false, "配合 --purge：保留 cache/（离线可重装）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
-	if fs.NArg() != 1 {
-		return a.failUsage(fmt.Errorf("用法: pk uninstall <工具>@<版本>"))
+	if !*all && fs.NArg() != 1 {
+		return a.failUsage(fmt.Errorf("用法: pk uninstall <工具>@<版本> | pk uninstall --all [--purge] [--yes]"))
 	}
-	tool, version, err := splitToolVersion(fs.Arg(0))
-	if err != nil {
-		return a.failUsage(err)
+	if *all && fs.NArg() != 0 {
+		return a.failUsage(fmt.Errorf("--all 不接受工具参数；只想删一个用 pk uninstall <工具>@<版本>"))
+	}
+	tool, version := "", ""
+	if !*all {
+		var err error
+		tool, version, err = splitToolVersion(fs.Arg(0))
+		if err != nil {
+			return a.failUsage(err)
+		}
 	}
 
 	unlock, err := store.Lock(a.paths.Lock())
@@ -212,6 +222,11 @@ func (a *app) cmdUninstall(args []string) int {
 	}
 	defer unlock()
 
+	// --all 一次性输出汇总（或 NDJSON 汇总），逐条 uninstall 事件会把 JSON 文档冲乱
+	events := a.eventWriter()
+	if *all {
+		events = func(jsonout.Event) {}
+	}
 	inst, err := install.New(install.Options{
 		Paths:   a.paths,
 		Client:  a.client,
@@ -220,10 +235,16 @@ func (a *app) cmdUninstall(args []string) int {
 		Offline: a.offline,
 		GOOS:    runtime.GOOS,
 		GOARCH:  runtime.GOARCH,
-		Events:  a.eventWriter(),
+		Events:  events,
 	})
 	if err != nil {
 		return a.failWith(err)
+	}
+	if *all {
+		return a.uninstallAll(inst, *purge, *keepCache)
+	}
+	if *keepCache || *purge {
+		return a.failUsage(fmt.Errorf("--purge/--keep-cache 只能配合 --all 用"))
 	}
 	if err := inst.Uninstall(tool, version, *force); err != nil {
 		return a.fail(err)

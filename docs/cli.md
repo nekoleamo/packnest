@@ -287,6 +287,19 @@ $ pk use --lock
 
 ## 5. uninstall — 卸载
 
+### 5.1 彻底卸载（`--all`）
+
+```bash
+$ pk uninstall --all                # 只打印计划
+$ pk uninstall --all --yes          # 运行时 + shim + rc/Path 托管块（保留缓存）
+$ pk uninstall --all --yes --purge  # 再删掉整个 ~/.packnest
+```
+
+`--all` 会清：① 每个运行时目录 ② `~/.packnest/bin` 的 shim ③ shell rc 的托管块
+（Windows 还有注册表用户 Path 的四段目录）④ 打印"按安装渠道删 pk 自己"的命令。
+不带 `--yes` 只打印计划；`--purge --keep-cache` 保留缓存方便离线重装。
+退出码：0 全部成功 / 1 有没删干净的（会逐条列出来）。
+
 ```bash
 $ pk uninstall node@20.18.1
 pk: node@20.18.1 仍被引用（global:），确需删除加 --force

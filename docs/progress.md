@@ -283,6 +283,26 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
   现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
 
+## 0.7.6（2026-11-10）
+
+「怎么彻底卸载」原来只有零散知识（`pk uninstall <工具>@<版本>` + `pk env --unset` + 各渠道各自的删法），
+没有一个动作能把 pk 装过的东西一次清掉。补齐：
+
+| 层 | 原来 | 现在 |
+|---|---|---|
+| 运行时 | `pk uninstall <工具>@<版本>` 逐个删 | `pk uninstall --all`（引用关系不再拦路，显式全清） |
+| shim | 随单个卸载清理 | 一起清，连 `pk`/`packnest` 自入口 |
+| shell rc / Windows 用户 Path | `pk env --unset` | `--all` 里自动带上（含注册表 Path 四段） |
+| 缓存/台账/配置 | 无 | `--purge`（连根删）、`--keep-cache`（只留缓存） |
+| pk 二进制本身 | 无提示 | 按可执行文件路径**识别渠道**（brew / npm / scoop / winget / 脚本 / 手动），
+给出确切命令，如 `brew uninstall packnest && brew untap nekoleamo/packnest` |
+
+- 不带 `--yes` 只打印计划（删了什么、保留什么、pk 自己怎么删），不动磁盘；
+- `--json` 输出 `{removed[], purged, root, channel, self_hint, failures[]}`，且**不再混入逐条 uninstall 事件**；
+- 渠道判断是纯函数 `detectInstallChannel`，跨平台（手工归一化 `\\`，因为 `filepath.ToSlash` 在非 Windows 上是空操作）；
+- 用例：`TestDetectInstallChannel`（10 条路径）、`TestUninstallAll`（rc 块被清、台账清空、缓存保留）、
+  `TestUninstallAllPurge`（`--purge` 与 `--purge --keep-cache` 两种）
+
 ## 0.7.5（2026-11-10）
 
 `pk list <工具>` 版本多时的排版（用户："--all 列表仍不够美观"）：
