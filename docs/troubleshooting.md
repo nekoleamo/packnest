@@ -1,5 +1,7 @@
 # 故障排查（含与 proto / nvm / mise 共存）
 
+> **中文** · [English](en/troubleshooting.md)
+
 先跑 `pk doctor`（加 `--json` 给脚本用，`--globals` 查全局包，`--probe` 会发 HEAD 探测镜像）。
 问题码的完整表在 [json-schema.md](json-schema.md)。
 

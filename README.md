@@ -1,6 +1,8 @@
 # packnest
 
-**国内网络开箱可用的多语言运行时安装器 —— 与 NestJS 无关。**
+**中文** · [English](README.en.md)
+
+**国内网络开箱可用的多语言运行时安装器。**
 
 命令行叫 `pk`（也提供 `packnest` 别名）。Go 单二进制、`CGO_ENABLED=0`、6 平台、只依赖 2 个第三方库，
 装 **node / npm / pnpm / bun / deno / go / python**，内置国内镜像档与真实网络探测，
@@ -155,6 +157,7 @@ make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 | 文档 | 内容 |
 |---|---|
 | [docs/cli.md](docs/cli.md) | **操作手册**：9 个命令全量示例（可直接用于网站发布） |
+| [README.en.md](README.en.md) · [docs/en/](docs/en/README.md) | 英文版介绍与文档（CLI 参考、故障排查） |
 | [docs/progress.md](docs/progress.md) | 里程碑进度、每轮交付与踩过的坑 |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | 故障排查（含与 proto/nvm/mise 共存） |
 | [docs/json-schema.md](docs/json-schema.md) | `--json` v1 契约（字段与问题码） |

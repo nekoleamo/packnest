@@ -1,5 +1,7 @@
 # pk 操作手册
 
+> **中文** · [English](en/cli.md)
+>
 > 适用于 **packnest v0.7.x**。所有示例都能直接复制执行；`$` 开头是命令，其余是输出示例。
 > 命令面固定 9 个：`install` `uninstall` `use` `list` `which` `mirror` `doctor` `env` `gc`，另有 `version` `help`。
 

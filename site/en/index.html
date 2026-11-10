@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>packnest — a runtime installer that just works on China's network</title>
+<meta name="description" content="Single Go binary, zero CGO, six platforms. One command installs Node/npm/pnpm/bun/deno/Go/Python, with built-in China mirrors and real reachability probing; npm is auto-paired to each Node version.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="zh-CN" href="../">
+<link rel="alternate" hreflang="en" href="./">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main>
+
+<div class="top">
+  <span class="brand">packnest<span class="tag">pk</span></span>
+  <span class="ver">v__PK_VERSION__</span>
+  <nav>
+    <a class="hide-sm" href="#tools">Tools</a>
+    <a class="hide-sm" href="#commands">Commands</a>
+    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/cli.md">Docs</a>
+    <a href="https://github.com/nekoleamo/packnest">GitHub</a>
+    <a href="https://gitee.com/null_593_5354/packnest">gitee</a>
+    <a class="lang" href="../" hreflang="zh-CN" aria-label="切换到中文">中文</a>
+  </nav>
+</div>
+
+<header class="hero">
+  <span class="pill">China mirrors, zero setup <b>·</b> MIT</span>
+  <h1>One command,<br>every <em>runtime</em></h1>
+  <p class="lede">
+    <span class="tk">node</span> · <span class="tk">npm</span> · <span class="tk">pnpm</span> ·
+    <span class="tk">bun</span> · <span class="tk">deno</span> · <span class="tk">go</span> ·
+    <span class="tk">python</span><br>
+    Single Go binary, zero CGO, six platforms. Installs the newest npm compatible with each Node version.
+  </p>
+
+  <div class="cta">
+    <div class="install">
+      <span class="prompt">$</span>
+      <code>npm i -g packnest <span class="and">&amp;&amp;</span> pk install node@22</code>
+      <button class="copy" type="button" aria-label="Copy install command">Copy</button>
+    </div>
+    <p class="sub-cta">Or
+      <button type="button" data-cmd="curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh">gitee one-liner</button>
+      <span class="dot">·</span>
+      <button type="button" data-cmd="brew install nekoleamo/packnest/packnest">Homebrew</button>
+      <span class="dot">·</span>
+      <button type="button" data-cmd="scoop install packnest">Scoop</button>
+      <span class="dot">·</span>
+      <button type="button" data-cmd="iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex">PowerShell</button>
+    </p>
+  </div>
+</header>
+
+<div class="window" role="img" aria-label="Real output of pk install node@22">
+  <div class="bar">
+    <span class="lights"><i></i><i></i><i></i></span>
+    <span class="title">pk install node@22</span>
+    <span class="note">real output · CLI messages are Chinese</span>
+  </div>
+<pre><span class="p">$</span> <span class="cmd">pk install node@22</span>
+<span class="dim">解析 node@22.23.4</span>
+<span class="dim">下载 47.7 MB/47.7 MB 100% (5.0 MB/s)</span>
+<span class="ok">校验通过 node@22.23.4（network）</span>
+<span class="dim">伴生包 npm@12.2.2（replaced 10.9.9）</span>
+<span class="ok">装好 node@22.23.4</span> <span class="dim">→ ~/.packnest/tools/node/22.23.4（已设为全局默认）</span>
+<span class="p">$</span> <span class="cursor"></span></pre>
+</div>
+
+<ul class="stats">
+  <li><b>6</b><span>platforms</span></li>
+  <li><b>0</b><span>CGO</span></li>
+  <li><b>2</b><span>dependencies</span></li>
+  <li><b>7</b><span>runtimes</span></li>
+  <li><b>0</b><span>residue</span></li>
+</ul>
+
+<section id="why">
+  <h2>What it solves</h2>
+  <dl>
+    <dt>China network</dt>
+    <dd>Five built-in profiles: <code>default</code> / <code>cn</code> / <code>tuna</code> / <code>aliyun</code> / <code>ustc</code>. <b>The first install probes for real</b> (500ms HEAD, cached for 6h): reachable upstream means direct, otherwise it falls back to a domestic mirror automatically.</dd>
+    <dt>npm pairing</dt>
+    <dd>npm is not a standalone tool but a companion of Node: <b>the newest npm compatible with the exact Node version is looked up</b> and replaces the older one shipped in the tarball (boundaries are patch-level, pre-releases excluded).</dd>
+    <dt>Checksums</dt>
+    <dd>The first install requires <b>at least two sources to agree on the digest</b> and records it in a TOFU table; every later install of that version verifies fully offline. If sources disagree it fails hard and tells you which source the artifact actually matches.</dd>
+    <dt>Uninstall</dt>
+    <dd>The ledger is the only source of truth: only directories it recorded are removed, version switches are atomic shim re-points, and uninstalls leave zero residue.</dd>
+    <dt>Footprint</dt>
+    <dd>One Go binary with <code>CGO_ENABLED=0</code>, built for six targets, depending on exactly two third-party libraries (semver, toml).</dd>
+  </dl>
+</section>
+
+<section id="tools">
+  <h2>What it installs <span class="hint">7 providers · declarative embedded TOML</span></h2>
+  <table>
+    <thead><tr><th>tool</th><th>notes</th></tr></thead>
+    <tbody>
+      <tr><td>node</td><td>official index + China mirrors; npm is auto-paired on install</td></tr>
+      <tr><td>npm</td><td>only appears as Node's companion; never exposed as its own version</td></tr>
+      <tr><td>pnpm</td><td>needs Node first (runtimes are never installed implicitly); <code>PNPM_HOME</code> points at the shared prefix</td></tr>
+      <tr><td>bun</td><td>single-file layout, official releases with mirror fallback</td></tr>
+      <tr><td>deno</td><td>single-file layout; versions the upstream re-published are rejected when two sources disagree — use <code>--insecure</code> if you accept the risk</td></tr>
+      <tr><td>go</td><td>writes <code>GOTOOLCHAIN=local</code> into your environment so Go does not fetch a second toolchain</td></tr>
+      <tr><td>python</td><td>installs python-build-standalone prebuilt builds only, never compiles from source</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="commands">
+  <h2>Commands <span class="hint">9 fixed commands</span></h2>
+  <table>
+    <thead><tr><th>command</th><th>what it does</th></tr></thead>
+    <tbody>
+      <tr><td>install</td><td>installs a tool; with no argument installs everything in the local <code>pk.toml</code> and refreshes <code>pk.lock</code></td></tr>
+      <tr><td>uninstall</td><td>ledger-driven uninstall (referenced versions need <code>--force</code>)</td></tr>
+      <tr><td>use</td><td>switches the global default; <code>--project</code> pins it for the current project</td></tr>
+      <tr><td>list</td><td>installed tools with disk usage; <code>--available</code> lists the latest installable version per tool</td></tr>
+      <tr><td>which</td><td>resolves a shim back to the real binary path</td></tr>
+      <tr><td>mirror</td><td>four subcommands — <code>list</code> / <code>probe</code> / <code>use</code> / <code>write</code> — manage mirror profiles</td></tr>
+      <tr><td>doctor</td><td>checks PATH, ledger, mirrors, global packages and other version managers</td></tr>
+      <tr><td>env</td><td>prints a shell snippet; only <code>--write</code> touches the managed block in your rc</td></tr>
+      <tr><td>gc</td><td>reclaims unreferenced versions and over-limit cache</td></tr>
+    </tbody>
+  </table>
+  <p class="after">Global flags: <code>--json</code> (the only contract for GUIs and scripts) · <code>--offline</code> · <code>--yes</code> · <code>--root</code>. Fixed exit codes: 0 ok / 1 generic / 2 usage / 3 network / 4 checksum / 5 locked.</p>
+</section>
+
+<section class="en" lang="zh-CN">
+  <h2>中文</h2>
+  <p>本页是英文版。中文说明、命令手册与故障排查在中文页与 <code>docs/</code> 里：<a href="../">打开中文页</a>。</p>
+</section>
+
+<footer>
+  <nav>
+    <a href="https://github.com/nekoleamo/packnest">Source</a>
+    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/cli.md">CLI reference</a>
+    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/troubleshooting.md">Troubleshooting</a>
+    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/json-schema.md">--json contract</a>
+    <a href="https://gitee.com/null_593_5354/packnest">gitee mirror</a>
+    <a href="https://gitee.com/null_593_5354/packnest/releases">Releases</a>
+  </nav>
+  <span class="fine">MIT · no analytics · no third-party requests</span>
+</footer>
+
+</main>
+<script>
+(function(){
+  function flash(el,text){
+    var old=el.textContent;
+    el.textContent=text;el.classList.add('done');
+    setTimeout(function(){el.textContent=old;el.classList.remove('done');},1400);
+  }
+  function copy(text,el){
+    if(!navigator.clipboard)return;
+    navigator.clipboard.writeText(text).then(function(){flash(el,'Copied');});
+  }
+  var btn=document.querySelector('.copy');
+  if(btn)btn.addEventListener('click',function(){copy('npm i -g packnest && pk install node@22',btn);});
+  document.querySelectorAll('.sub-cta button[data-cmd]').forEach(function(b){
+    b.addEventListener('click',function(){copy(b.dataset.cmd,b);});
+  });
+})();
+</script>
+</body>
+</html>

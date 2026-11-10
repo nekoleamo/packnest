@@ -1,9 +1,10 @@
 #!/bin/sh
-# 把 site/ 渲染成 site/dist/：唯一做的事是注入版本号，不引任何前端工具链。
+# 把 site/ 渲染成 site/dist/：只做一件事 —— 注入版本号，不引任何前端工具链。
 #
 #   sh scripts/build-site.sh            # 版本号取自 git tag（回退 dist/latest、dev）
 #   PK_VERSION=0.7.0 sh scripts/build-site.sh
 #
+# 语言：site/index.html（中文，默认）+ site/en/index.html（英文），共用 site/style.css。
 # 为什么版本号要注入而不是写死在 HTML 里：发版后忘了改站点，是最常见的静默腐化。
 set -eu
 cd "$(dirname "$0")/.."
@@ -20,9 +21,17 @@ fi
 OUT=site/dist
 rm -rf "$OUT"
 mkdir -p "$OUT"
-for f in site/*; do
-  [ -f "$f" ] || continue
-  sed "s/__PK_VERSION__/${VER}/g" "$f" > "$OUT/$(basename "$f")"
+
+# 逐层复制（保留 en/ 子目录），文本文件统一做版本号替换。
+find site -type f ! -path 'site/dist/*' | while read -r f; do
+  rel=${f#site/}
+  mkdir -p "$OUT/$(dirname "$rel")"
+  case "$rel" in
+    *.html|*.css|*.svg)
+      sed "s/__PK_VERSION__/${VER}/g" "$f" > "$OUT/$rel" ;;
+    *)
+      cp "$f" "$OUT/$rel" ;;
+  esac
 done
 
-echo "site/dist 已生成（v${VER}）：$(ls -1 "$OUT" | tr '\n' ' ')"
+echo "site/dist 已生成（v${VER}）：$(cd "$OUT" && find . -type f | sed 's|^\./||' | sort | tr '\n' ' ')"

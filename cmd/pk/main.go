@@ -208,7 +208,7 @@ func (a *app) emit(v any) int {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintln(w, `packnest · 国内网络开箱可用的运行时安装器（与 NestJS 无关）
+	fmt.Fprintln(w, `packnest · 国内网络开箱可用的运行时安装器
 
 用法: pk <命令> [参数] [--json] [--offline] [--yes]
 
