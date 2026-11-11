@@ -36,6 +36,16 @@
    修法：help 文本只留语义与示例，开关列表由 `flag` 定义生成（`fs.PrintDefaults()`），
    `pk help <cmd>` 尾部提示 `pk <cmd> --help`；顺带把 4 处过期的 flag 描述（"（M4）"/"（M5 后续）"）更新。
 
+## 二点五、第二轮 review 又抓到的两个 bug（pnpm 平台包引入的回归）
+
+4. **离线重装必失败**：pnpm 的平台包元数据是**每次**都去拉的（在 `verifyArtifact` 里），
+   于是 `pk install pnpm --offline` 报「离线模式下禁止访问网络」——TOFU 表里明明记过这个版本。
+   修法：TOFU 命中且没给 `--force-rehash` 时不去取元数据。
+5. **校验失败会删缓存**：`fetchArtifactVerified` 把任何校验错误都当成"缓存脏了"→ 删掉产物重下；
+   离线时重下必然失败，缓存就被永久毁掉（实测复现：一次离线重装后再也装不上）。
+   修法：只有**摘要不符**才删/重下，离线与网络失败一律保留缓存。
+   回归用例：`internal/install/cache_offline_test.go`（两个）。
+
 ## 三、自动化：`.github/workflows/smoke.yml`（只验证，不发布）
 
 **首次跑通：2026-11-11，5/5 组合全绿（workflow conclusion = success）**：

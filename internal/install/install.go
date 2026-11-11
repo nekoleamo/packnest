@@ -616,6 +616,7 @@ func (i *Installer) newVerifier() *verify.Verifier {
 // 返回（缓存路径, 实际 URL, 产物 sha256, 校验结果）。
 func (i *Installer) fetchArtifactVerified(ctx context.Context, p *provider.Provider, resolved provider.Version, idx *provider.Index) (string, string, string, verify.Result, error) {
 	platform := i.opt.GOOS + "-" + i.opt.GOARCH
+	offline := i.opt.Offline || i.opt.Client.Offline
 	archivePath, artifactURL, fromCache, err := i.fetchArtifact(ctx, p, resolved, idx)
 	if err != nil {
 		return "", "", "", verify.Result{}, err
@@ -629,7 +630,8 @@ func (i *Installer) fetchArtifactVerified(ctx context.Context, p *provider.Provi
 		return sha, vr, err
 	}
 	sha, vr, err := run()
-	if err != nil && fromCache {
+	// 只有"摘要不符"才算缓存坏了；离线/网络失败不能删缓存（否则离线重装救不回来）
+	if err != nil && fromCache && !offline && errors.Is(err, verify.ErrChecksum) {
 		_ = os.Remove(archivePath)
 		if archivePath, artifactURL, _, err = i.fetchArtifact(ctx, p, resolved, idx); err != nil {
 			return "", "", "", verify.Result{}, err
@@ -637,7 +639,7 @@ func (i *Installer) fetchArtifactVerified(ctx context.Context, p *provider.Provi
 		sha, vr, err = run()
 	}
 	if err != nil {
-		if !fromCache {
+		if !fromCache && !offline && errors.Is(err, verify.ErrChecksum) {
 			// 刚下的产物就没过校验：删掉脏缓存，下次重下（可能是投毒或截断）。
 			_ = os.Remove(archivePath)
 		}
@@ -653,8 +655,8 @@ func (i *Installer) verifyArtifact(ctx context.Context, p *provider.Provider, re
 	if err != nil {
 		return verify.Result{}, err
 	}
-	if p.Checksum.Format == provider.ChecksumRegistry && len(sumsURLs) > 0 {
-		// 摘要改读平台包自己的元数据（pnpm 的 @pnpm/exe.*），否则会拿本体 tarball 的 integrity 去比
+	// 摘要改读平台包自己的元数据（pnpm 的 @pnpm/exe.*）；TOFU 已记过就不问网络，--force-rehash 才回源。
+	if _, known := i.known.Get(verify.Key(p.ID, version, platform)); p.Checksum.Format == provider.ChecksumRegistry && len(sumsURLs) > 0 && (!known || i.opt.Rehash) {
 		data, derr := i.opt.Client.Get(ctx, sumsURLs[0])
 		if derr != nil {
 			return verify.Result{}, derr
