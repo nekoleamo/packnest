@@ -4,7 +4,7 @@ packnest installer for Windows (never touches GitHub)
   iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex
 
   -Mirror default|cn   default = gitee release zip (fast in China too, recommended)
-                       cn      = npm platform package from npmmirror (@packnest/win32-<arch>)
+                       cn      = 保留兼容（2026-11-11 起都走 gitee；npm 通道已停用）
   -Base URL            any static host base URL (self-hosted OSS/CDN/intranet), highest priority
   -Version vX.Y.Z      exact version
   -Dir DIR             install dir (default: $env:LOCALAPPDATA\packnest\bin)
@@ -28,8 +28,6 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'   # 大文件下载别刷进度条
 
 $GiteeRepo = if ($env:PK_GITEE_REPO) { $env:PK_GITEE_REPO } else { 'null_593_5354/packnest' }
-$Registry  = if ($env:PK_NPM_REGISTRY) { $env:PK_NPM_REGISTRY } else { 'https://registry.npmmirror.com' }
-$Scope     = if ($env:PK_NPM_SCOPE) { $env:PK_NPM_SCOPE } else { '@packnest' }
 
 if (-not $Dir) {
   $Dir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'packnest\bin' } else { Join-Path $HOME '.packnest\bin' }
@@ -119,12 +117,6 @@ function Get-LatestVersion {
     $v = (Invoke-WebRequest -Uri "https://gitee.com/$GiteeRepo/raw/main/scripts/latest" -TimeoutSec 15 -UseBasicParsing).Content.Trim()
     if ($v) { return $v.TrimStart('v') }
   } catch { }
-  foreach ($reg in @($Registry, 'https://registry.npmjs.org')) {
-    try {
-      $meta = Invoke-RestMethod -Uri "$($reg.TrimEnd('/'))/packnest/latest" -TimeoutSec 20
-      if ($meta.version) { return $meta.version.TrimStart('v') }
-    } catch { }
-  }
   throw 'Cannot detect the latest version; pass -Version explicitly.'
 }
 
@@ -132,133 +124,70 @@ if ($env:PK_SKIP_VERIFY -eq '1') { $SkipVerify = [switch]$true }   # `iwr | iex`
 if (-not $Version -and $env:PK_VERSION) { $Version = $env:PK_VERSION }
 if ($env:PK_INSTALL_DIR) { $Dir = $env:PK_INSTALL_DIR }
 
-# channel: explicit -Base > -Mirror cn (npm platform package) > gitee release
-$from = if ($Base) { 'base' } elseif ($Mirror -eq 'cn') { 'npm' } else { 'gitee' }
+# channel: explicit -Base > gitee release（npm 平台包通道已于 2026-11-11 停用）
+if ($Mirror -eq 'cn') { Write-Host 'note: -Mirror cn now also uses gitee (npm channel retired)' }
+$from = if ($Base) { 'base' } else { 'gitee' }
 
-# npm channel resolves the version from that package's own dist-tags (inside the branch below)
-if (-not $Version -and $from -ne 'npm') { $Version = Get-LatestVersion }
+if (-not $Version) { $Version = Get-LatestVersion }
 if ($Version) { $Version = $Version.TrimStart('v') }   # allow -Version v0.7.0
 
 $tmp = New-Item -ItemType Directory -Path (Join-Path $TempRoot ("pk-" + [guid]::NewGuid())) -Force
 try {
   $final = $null   # path of the extracted packnest.exe we will install
 
-  if ($from -eq 'npm') {
-    $pkg = "$Scope/win32-$arch"
-    $encoded = $pkg -replace '/', '%2F'
-    $meta = Invoke-RestMethod -Uri "$($Registry.TrimEnd('/'))/$encoded" -TimeoutSec 30
-    $ver = if ($Version) { $Version } else { $meta.'dist-tags'.latest }
-    $dist = $meta.versions.$ver.dist
-    if (-not $dist) { throw "$pkg has no version $ver" }
-
-    Write-Host "Installing packnest $ver (windows-$arch, npm platform package $pkg)"
-    Write-Host "  source: $($dist.tarball)"
-    Write-Host "  target: $Dir"
-    if ($DryRun) { return }
-
-    $tgz = Join-Path $tmp.FullName 'pkg.tgz'
-    Download-File -url $dist.tarball -out $tgz
-
-    if (-not $SkipVerify) {
-      $want = $dist.shasum
-      if ($want) {
-        $got = (Get-FileHash -Path $tgz -Algorithm SHA1).Hash
-        if ($got -ne $want.ToUpper()) {
-          throw "SHA1 mismatch (registry says $want, got $got). Re-run with -SkipVerify only if you trust the source."
-        }
-        Write-Host '  verify: sha1 OK (registry dist.shasum)'
-      } else {
-        Write-Warning 'No shasum in registry metadata; skipping verification (not recommended).'
-      }
-    }
-
-    $extract = Join-Path $tmp.FullName 'npmpkg'
-    New-Item -ItemType Directory -Path $extract -Force | Out-Null
-    & (Get-TarCommand) -xzf $tgz -C $extract
-    if ($LASTEXITCODE -ne 0) { throw "Extraction failed (tar exit code $LASTEXITCODE)" }
-    $final = Join-Path $extract 'package\bin\packnest.exe'
-    if (-not (Test-Path $final)) { throw 'Platform package does not contain package/bin/packnest.exe' }
+  $name = "packnest_${Version}_windows_${arch}"
+  $url = if ($from -eq 'base') {
+    "$($Base.TrimEnd('/'))/v${Version}/${name}.zip"
   } else {
-    $name = "packnest_${Version}_windows_${arch}"
-    $url = if ($from -eq 'base') {
-      "$($Base.TrimEnd('/'))/v${Version}/${name}.zip"
-    } else {
-      "https://gitee.com/$GiteeRepo/releases/download/v${Version}/${name}.zip"
-    }
-    $sumsUrl = if ($Base) {
-      "$($Base.TrimEnd('/'))/v${Version}/checksums.txt"
-    } else {
-      "https://gitee.com/$GiteeRepo/releases/download/v${Version}/checksums.txt"
-    }
-
-    Write-Host "Installing packnest $Version (windows-$arch)"
-    Write-Host "  source: $url"
-    Write-Host "  target: $Dir"
-    if ($DryRun) { return }
-
-    $zip = Join-Path $tmp.FullName 'pk.zip'
-    try {
-      Download-File -url $url -out $zip
-    } catch {
-      # 国内直连 gitee 偶发被重置：自动退到 npmmirror 的 npm 平台包（另一个 host，通常更快）
-      Write-Warning "gitee 下载失败，改用 npmmirror 的 npm 平台包重试：$($_.Exception.Message)"
-      $Mirror = 'cn'
-      $from = 'npm'
-      $pkg = "$Scope/win32-$arch"
-      $encoded = $pkg -replace '/', '%2F'
-      $meta = Invoke-RestMethod -Uri "$($Registry.TrimEnd('/'))/$encoded" -TimeoutSec 30
-      $ver = $meta.'dist-tags'.latest
-      $dist = $meta.versions.$ver.dist
-      if (-not $dist) { throw "npm 平台包里没有 $ver" }
-      $tgz = Join-Path $tmp.FullName 'pkg.tgz'
-      Download-File -url $dist.tarball -out $tgz
-      if (-not $SkipVerify -and $dist.shasum) {
-        $got = (Get-FileHash -Path $tgz -Algorithm SHA1).Hash
-        if ($got -ne $dist.shasum.ToUpper()) { throw "SHA1 mismatch after fallback" }
-        Write-Host '  verify: sha1 OK (registry dist.shasum, fallback)'
-      }
-      $extract = Join-Path $tmp.FullName 'npmpkg'
-      New-Item -ItemType Directory -Path $extract -Force | Out-Null
-      & (Get-TarCommand) -xzf $tgz -C $extract
-      if ($LASTEXITCODE -ne 0) { throw "Extraction failed (tar exit code $LASTEXITCODE)" }
-      $final = Join-Path $extract 'package\bin\packnest.exe'
-      if (-not (Test-Path $final)) { throw 'Platform package does not contain package/bin/packnest.exe' }
-      $Version = $ver
-    }
-
-    # 走到这里 $final 还有值，说明刚才 gitee 下载成功、没走 npm 兜底
-    if (-not $final) {
-    if (-not $SkipVerify) {
-      $sums = try {
-        $sumsTmp = Join-Path $tmp.FullName 'checksums.txt'
-        Download-File -url $sumsUrl -out $sumsTmp -rounds 2
-        Get-Content -Raw $sumsTmp
-      } catch { $null }
-      if ($null -eq $sums) { $sums = '' }
-      $want = $null
-      foreach ($line in ($sums -split "`n")) {
-        $f = $line.Trim() -split '\s+'
-        if ($f.Count -ge 2 -and $f[1] -eq "${name}.zip") { $want = $f[0]; break }
-      }
-      if (-not $want) {
-        throw "No sha256 for ${name}.zip in $sumsUrl. Re-run with -SkipVerify only if you trust the source."
-      }
-      $got = (Get-FileHash -Path $zip -Algorithm SHA256).Hash
-      if ($got -ne $want.ToUpper()) {
-        throw "SHA256 mismatch (expected $want, got $got). The artifact may be tampered with or truncated."
-      }
-      Write-Host '  verify: sha256 OK (checksums.txt)'
-    }
-
-    # 解到独立子目录：zip 里的 packnest.exe 不能和 pk.zip 混在一层，
-    # 否则下面的复制会和源文件同一路径（0.7.0 在 Windows 上就是这么炸的）。
-    $extract = Join-Path $tmp.FullName 'unz'
-    New-Item -ItemType Directory -Path $extract -Force | Out-Null
-    Expand-Archive -Path $zip -DestinationPath $extract -Force
-    $final = Join-Path $extract 'packnest.exe'
-    if (-not (Test-Path $final)) { throw 'The zip does not contain packnest.exe' }
-    }
+    "https://gitee.com/$GiteeRepo/releases/download/v${Version}/${name}.zip"
   }
+  $sumsUrl = if ($Base) {
+    "$($Base.TrimEnd('/'))/v${Version}/checksums.txt"
+  } else {
+    "https://gitee.com/$GiteeRepo/releases/download/v${Version}/checksums.txt"
+  }
+
+  Write-Host "Installing packnest $Version (windows-$arch)"
+  Write-Host "  source: $url"
+  Write-Host "  target: $Dir"
+  if ($DryRun) { return }
+
+  $zip = Join-Path $tmp.FullName 'pk.zip'
+  try {
+    Download-File -url $url -out $zip
+  } catch {
+    throw "Download failed: $url -- retry once, fix the network, or self-host with -Base. ($($_.Exception.Message))"
+  }
+
+  if (-not $SkipVerify) {
+    $sums = try {
+      $sumsTmp = Join-Path $tmp.FullName 'checksums.txt'
+      Download-File -url $sumsUrl -out $sumsTmp -rounds 2
+      Get-Content -Raw $sumsTmp
+    } catch { $null }
+    if ($null -eq $sums) { $sums = '' }
+    $want = $null
+    foreach ($line in ($sums -split "`n")) {
+      $f = $line.Trim() -split '\s+'
+      if ($f.Count -ge 2 -and $f[1] -eq "${name}.zip") { $want = $f[0]; break }
+    }
+    if (-not $want) {
+      throw "No sha256 for ${name}.zip in $sumsUrl. Re-run with -SkipVerify only if you trust the source."
+    }
+    $got = (Get-FileHash -Path $zip -Algorithm SHA256).Hash
+    if ($got -ne $want.ToUpper()) {
+      throw "SHA256 mismatch (expected $want, got $got). The artifact may be tampered with or truncated."
+    }
+    Write-Host '  verify: sha256 OK (checksums.txt)'
+  }
+
+  # 解到独立子目录：zip 里的 packnest.exe 不能和 pk.zip 混在一层，
+  # 否则下面的复制会和源文件同一路径（0.7.0 在 Windows 上就是这么炸的）。
+  $extract = Join-Path $tmp.FullName 'unz'
+  New-Item -ItemType Directory -Path $extract -Force | Out-Null
+  Expand-Archive -Path $zip -DestinationPath $extract -Force
+  $final = Join-Path $extract 'packnest.exe'
+  if (-not (Test-Path $final)) { throw 'The zip does not contain packnest.exe' }
 
   New-Item -ItemType Directory -Path $Dir -Force | Out-Null
   Copy-Item $final (Join-Path $Dir 'packnest.exe') -Force

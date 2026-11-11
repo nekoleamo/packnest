@@ -27,23 +27,20 @@ LDFLAGS := -s -w -X main.Version=$(VERSION)
 SOURCE_DATE := 202001010000
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
-.PHONY: gitee-release help build test race check fmt loc vet cover cross fuzz bench golden accept clean dist list-providers release checksums npm-packages npm-dry publish publish-stage stage-list promote site verify-release publish-manifests
+.PHONY: gitee-release help build test race check fmt loc vet cover cross fuzz bench golden accept clean dist list-providers release checksums site verify-release publish-manifests
 
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
 	@echo "make test      零外网单测"
 	@echo "make check     8 项门禁（提交前必跑）"
-	@echo "make loc       只看行数预算（红线 10000；cmd/pk 3200 与单文件 600 只 warn）"
+	@echo "make loc       只看行数预算（红线 10300；cmd/pk 3200 与单文件 600 只 warn）"
 	@echo "make accept    只跑验收用例 TestAcceptance_*"
 	@echo "make cross     6 平台交叉编译到 $(DIST)/"
 	@echo "make cover     只看覆盖率明细"
 	@echo "make bench     只看性能预算"
 	@echo "make release   6 平台发布包 + checksums.txt 到 dist/"
-	@echo "make npm-dry   只打包 npm 包并校验 manifest（不发、不需要凭据）"
-	@echo "make publish   stage + promote（推荐，兼容 2027 新规）"
-	@echo "make publish-stage  只 stage（无需 2FA，CI 可跑）"
-	@echo "make publish-direct 直接发布（2027-01 前有效，已弃用）"
 	@echo "make gitee-release  上传产物到 gitee release（二进制主源）"
+	@echo "    注：npm 分发渠道已于 2026-11-11 停用（见 docs/publishing.md）"
 	@echo "make site      渲染官网到 site/dist（只注入版本号，无前端工具链）"
 	@echo "make verify-release  核对已发布产物与 checksums.txt（发布后必跑）"
 	@echo "make publish-manifests  verify → 生成并推送 brew/scoop/winget 清单"
@@ -166,31 +163,6 @@ checksums:
 	@cd $(DIST)/v$(VERSION) && { sha256sum packnest_*.tar.gz packnest_*.zip 2>/dev/null || shasum -a 256 packnest_*.tar.gz packnest_*.zip; } > checksums.txt
 	@cp $(DIST)/v$(VERSION)/checksums.txt $(DIST)/checksums.txt
 	@echo "已生成 checksums.txt：" && cat $(DIST)/checksums.txt
-
-# npm 包（本地打包，不发）
-npm-packages:
-	@sh scripts/release-npm.sh
-
-# 只打包 + 校验 manifest，不发布（凭据也不需要）
-npm-dry:
-	@sh scripts/release-npm.sh --dry-run
-
-# 发布正式版本（stage + 立刻 promote）——推荐路径。
-# npm 从 2027-01 起不允许 granular token 直接发布新版本，只允许 stage；
-# 所以 --stage 才是长期方案，promote 需要 2FA（本地 NPM_TOTP_SECRET 可自动出码）。
-publish: publish-stage promote
-
-# 只 stage（不需要 2FA，CI 里也可跑）
-publish-stage: release
-	@sh scripts/release-npm.sh --stage
-
-# 提升 staged 版本（需要 2FA：本地 TOTP 或 --otp）
-promote:
-	@sh scripts/release-npm.sh --promote --list
-
-# 仍然保留"直接发布"（在 2027-01 之前有效）
-publish-direct: release
-	@sh scripts/release-npm.sh --publish
 
 # 上传到 gitee release（凭据走 ~/.pi/agent/local/secrets.env 的 GITEE_TOKEN）
 gitee-release: release

@@ -31,19 +31,18 @@ brew install nekoleamo/packnest/packnest
 scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket
 scoop install packnest
 
-# ⑤ npm (only if you already manage toolchains with npm: one extra Node dependency, easiest upgrades)
-npm i -g packnest
-npm i -g packnest --registry=https://registry.npmmirror.com   # force the npmmirror mirror
-
-# ⑥ Self-hosted (drop the dist/ from `make release` on any static host)
+# ⑤ Self-hosted (drop the dist/ from `make release` on any static host)
 curl -fsSL https://your-host/install.sh | sh -s -- --base https://your-host/packnest
 ```
 
-Installer switches: `--mirror cn|default` · `--from npm|gitee|base` · `--base URL` · `--scope` ·
-`--version` · `--dir` · `--skip-verify` · `--dry-run`. The download is **verified with sha256** (gitee and
-self-hosted channels against `checksums.txt`, the npm channel against the registry `dist.shasum`); a
-mismatch exits with code 4. The PowerShell script uses `-Mirror` / `-Base` / `-Version` / `-Dir` /
-`-SkipVerify` / `-DryRun` (`-Mirror cn` pulls the npm platform package from npmmirror).
+Installer switches: `--from gitee|base` · `--base URL` · `--version` · `--dir` · `--skip-verify` ·
+`--dry-run` (`--mirror cn|default` is still accepted but both now mean gitee). The download is
+**verified with sha256** against `checksums.txt`; a mismatch exits with code 4. The PowerShell script
+uses `-Base` / `-Version` / `-Dir` / `-SkipVerify` / `-DryRun`.
+
+> The npm channel was retired on 2026-11-11: staged publishing needs 2FA, and archives built in the
+> cloud differ byte-for-byte from local builds (two sets of sha256). Installs made earlier with
+> `npm i -g packnest` keep working, and `pk uninstall --all` still recognises that channel.
 
 ## Quick start
 

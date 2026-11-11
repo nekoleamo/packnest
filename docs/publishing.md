@@ -1,297 +1,97 @@
-# 发布指南（npm / gitee / brew）
+# 发布指南（gitee / brew tap / scoop / winget / 官网）
 
-## 一、npm 发布需要什么
+> npm 分发渠道已于 **2026-11-11 停用**（原因见文末「为什么不再发 npm」）。
+> 现在的发布链路只有一条：**本机**构建 → gitee release → 渠道清单（brew tap / scoop bucket / winget 草稿）。
 
-**需要凭据**，三选一：
+## 一、唯一发布者：只在这台机器发
 
-| 方式 | 适合 | 怎么给 |
-|---|---|---|
-| `npm login` | 本地手工发一次 | 浏览器 OAuth 或用户名/密码/OTP，凭据落 `~/.npmrc` |
-| **Granular Access Token** | CI / 换机器 | npmjs.com → *Access Tokens* → *Generate New Token* → *Granular*：<br>① Packages and scopes：选 `packnest` **和** `@packnest` 组织（read and write）<br>② Expiration：按需（最长 1 年）<br>③ **勾上 Bypass 2FA**（否则非交互发布会报 OTP 错）<br>把 token 放 `NODE_AUTH_TOKEN` |
-| Classic token | 老账号 | *Access Tokens* → Classic → Automation（旧版，仍可用） |
-
-账号侧还要：
-- 邮箱已验证；
-- 包名可用：`packnest` 目前空闲（方案 §20 实测）；`@packnest` 是**组织/scope**，首次发布时自动创建（或先在网页建组织）；
-- **scoped 包默认 private（要钱）→ 必须 `--access public`**（我们的脚本已经带）。
-
-2FA 账号：token 勾 Bypass 2FA，或发布时 `--otp 123456`（脚本支持 `--otp`）。
-
-## 一·五、token 放哪儿（AI 不读凭据）
-
-本项目规约：**凭据文件不读、不打印、不入库**。所以 token 不放仓库、不放 `package.json`，只有两个安全落点：
-
-| 场景 | 落点 | 怎么放 |
-|---|---|---|
-| **本机自动化** | `~/.pi/agent/local/secrets.env`（权限 600，已在 `.gitignore` 里） | `sh scripts/set-npm-token.sh` —— 交互粘贴、不回显、不多写一行别的键 |
-| **CI** | 平台 Secret（GitHub Actions `secrets.NPM_TOKEN` / gitee 私密变量） | 流水线里 `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` |
-
-发布脚本 `scripts/release-npm.sh --publish` 自己按顺序找凭据，**只 echo "用了哪个来源"，从不打印值**：
-
-1. `NODE_AUTH_TOKEN` 环境变量；
-2. `PK_NPM_TOKEN_FILE`（默认 `~/.pi/agent/local/secrets.env`）里的 `NPM_TOKEN=`（会检查权限，不是 600 会给警告）；
-3. `~/.npmrc`（`npm login` 产生）。
-
-秘书（我）这边永远不需要读 token：脚本在子进程里 `export`，日志里只有 `<token 不显示>`；仓库里的 `.npmrc` 只放
-`registry` 和 `access=public` 这类非机密配置。
-实测：把假 token 放进临时凭据文件跑 `--dry-run`，输出里对 token 的命中数为 **0**。
-
-### 只放本地（推荐，不上任何云端 Secret）
-
-完全可以。凭据只存在于这台机器的 `~/.pi/agent/local/secrets.env`（600），发布也在本机跑：
-
-```bash
-make check                 # 门禁（可选但推荐）
-make publish               # = make release + scripts/release-npm.sh --publish
-```
-
-CI 侧有两种"零云端凭据"的用法：
-
-| 方案 | 做法 | 代价 |
-|---|---|---|
-| **A. CI 只构建** | 默认的 `.github/workflows/npm-publish.yml`（发布步骤已注释），tag 触发后只出产物；你下载产物后在本机 `make publish` | 发布要手动点一下 |
-| **B. 自托管 runner** | 把同一个 job 挂到自己机器的 runner，publish 步骤取消注释但不配 Secret——token 由**那台机器**的凭据文件提供 | 机器要常在线 |
-
-只有第三种（云端 GitHub 托管 runner + Secret）才需要把 token 放到云上，本仓库模板默认不这么做。
-
-### 这个文件到底怎么写
-
-路径：`~/.pi/agent/local/secrets.env`（目录不存在就 `mkdir -p ~/.pi/agent/local`）。格式是**纯 `KEY=value`，一行一个**：
-
-```sh
-NPM_ACCESS_TOKEN=npm_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-键名兼容（脚本按顺序找，命中即用）：`NPM_ACCESS_TOKEN` → `NPM_TOKEN` → `NODE_AUTH_TOKEN` → `NPM_AUTH_TOKEN`。
-所以叫 `NPM_ACCESS_TOKEN` 也行，不用改名。
-
-三种写法，任选（推荐第一种，值不进 shell history）：
-
-```sh
-# 1) 交互输入，不回显，自动 chmod 600（推荐）
-sh scripts/set-npm-token.sh
-
-# 2) 手工写：先建空文件并设权限，再用编辑器粘贴（不要 echo 到命令行，会进 history）
-mkdir -p ~/.pi/agent/local && install -m 600 /dev/null ~/.pi/agent/local/secrets.env
-${EDITOR:-vim} ~/.pi/agent/local/secrets.env
-
-# 3) 从别处一次性导入（管道，不落 history）
-read -rs T && printf 'NPM_TOKEN=%s\n' "$T" >> ~/.pi/agent/local/secrets.env && chmod 600 ~/.pi/agent/local/secrets.env
-```
-
-要点：
-- **不要加引号、不要 `export`**（脚本按 `KEY=value` 直接解析）；
-- 文件里已有的其他键（比如 gitee 的）**不用动**，`set-npm-token.sh` 只增改 `NPM_TOKEN=` 这一行；
-- 仓库里有模板 `packaging/secrets.env.example`，照抄键名即可，真值永远不进仓库；
-- 验证是否生效（不显示值）：`PK_NPM_TOKEN_FILE=~/.pi/agent/local/secrets.env sh scripts/release-npm.sh --dry-run` 不会读它，
-  真正发布时看输出里的 `凭据：/…/secrets.env（值不显示）`；
-- 本机有"凭据围栏"：AI 直接读该文件会被拒绝（实测 grep 已被拦），这是预期行为。
-
-### ⏳ 时间表：npm 正在取消"直接发布"
-
-npm 官方提示：**Bypass-2FA + direct-publish 的 granular token 正在被弃用，2027 年 1 月起不再允许用 granular token 直接发布新版本**，
-只能 `npm stage publish` 再由带 2FA 的维护者 promote。所以本项目的**长期正确路径**是两步：
-
-```bash
-make publish-stage     # 7 个包全部 stage（stage-only token 即可，CI 里能跑，无需 2FA）
-make promote           # 列 stage id
-sh scripts/release-npm.sh --promote <stage-id>   # 逐包提升；需要 2FA（本机 NPM_TOTP_SECRET 自动出码）
-```
-
-在 2027-01 之前 `make publish-direct`（旧的直接发布）仍然可用，但别把流程建在它上面。
-
-### 两种 token：普通 read-write vs stage-only（**踩过坑**）
-
-npm 新增了 **staged publishing**：可以签发"stage-only"的 token，它**只能把版本 stage 起来**，
-必须由带 2FA 的维护者 **promote** 才真正上线。症状：
-
-- `npm publish` 打印 `+ packnest@0.6.1`，但 `npm view packnest versions` 里没有它（`latest` 还是旧版本）；
-- 直接重发会弹 `npmjs.com/auth/cli/...`（那是让你去 promote）；
-- npm 原话：`Stage-only tokens cannot publish new package versions directly … Versions must be staged with 'npm stage publish' and then promoted by a maintainer with two-factor authentication (2FA)`。
-
-两条路：
-
-| 目标 | 做法 |
-|---|---|
-| **要全自动发布（推荐）** | 重建 token，权限选 **read-write（Publish）** 且**不要**勾 stage-only；需要 Bypass 2FA 或配 `NPM_TOTP_SECRET` |
-| **保留 stage-only token** | `sh scripts/release-npm.sh --stage`（7 个包全部 stage）→ `sh scripts/release-npm.sh --promote --list` 看 stage id → `--promote <id>`（这一步必须有 2FA，脚本支持 `--otp`/`NPM_TOTP_SECRET`） |
-
-所以"0.6.0 装得上、0.6.1 发布成功却没有"的原因不是网络，而是 **0.6.1 停在 staged 状态没 promote**。
-
-### ✅ Trusted Publishing（推荐：无 token、无 2FA 弹窗）
-
-npm 的 OIDC 方案：CI 用 GitHub 身份直接发布，**不存任何 npm token**。一次配置，永久自动化。
-
-> 找不到 Trusted Publisher 入口？它在**包的 Access 页**而不是 Settings 页：
-> `https://www.npmjs.com/package/<包名>/access` → 页面下方 "Trusted Publisher"。
-> 若仍然看不到（npm 分灰度）：改用 GitHub Secret `NPM_TOKEN` 那条路——工作流已经做了二选一判断，
-> 有 `NPM_TOKEN` 就走 token 模式，没有才走 OIDC。
-
-1. npmjs 上给 **7 个包**各配一条 Trusted Publisher
-   （`packnest` + `@packnest/{darwin,linux,windows}-{amd64,arm64}`）：
-   Settings → Trusted Publisher → **GitHub Actions** →
-   Organization/user = `nekoleamo`、Repository = `packnest`、Workflow filename = `npm-publish.yml`、Environment = `npm`
-2. 仓库里的 `.github/workflows/npm-publish.yml` 已经写好（`id-token: write` + `environment: npm` + `--provenance`）
-3. 发版：
-
-```bash
-git tag -a v0.6.3 -m "packnest 0.6.3" && git push origin v0.6.3
-```
-
-CI 会跑门禁 → 打 6 平台产物 → `release-npm.sh` → `release-npm.sh --publish --trusted`（不需要 `NODE_AUTH_TOKEN`）。
-npm 会自动生成 provenance 并跳过 2FA。
-
-清理 staged 残留：
-
-```bash
-sh scripts/release-npm.sh --reject --all      # 丢弃全部 staged（发布成功后收尾用）
-sh scripts/release-npm.sh --reject <stage-id>
-```
-
-> 注意：Trusted Publishing 只对**公开仓库 + 公开包**生效；`--provenance` 要求仓库可见。
-
-### 怎么做到真正无人值守（不再弹浏览器）
-
-npm 的 2FA 有两种模式，决定自动化难度：
-
-| 账号模式 | 现象 | 自动化方案 |
-|---|---|---|
-| `auth-and-writes` + token **没**勾 Bypass 2FA | 发几个包后弹 `npmjs.com/auth/cli/...` 链接 | ① 重建 token 勾 **Bypass 2FA**（推荐）② 或让脚本用本地 TOTP 自动出码 ③ 或把账号改成 `auth-only` |
-| `auth-and-writes` + token **勾了** Bypass | 完全非交互 | 直接用 `make publish` |
-| `auth-only` | 只在登录时要求 | 直接用 `make publish` |
-
-**方案②的做法**：在同一个凭据文件里加一行 base32 的 2FA 密钥（就是你配 Authenticator 时的那串）：
-
-```sh
-NPM_TOTP_SECRET=JBSWY3DPEHPK3PXP
-```
-
-`release-npm.sh` 检测到它就用 python3 按 RFC 6238 算 6 位码，自动 `--otp`（不打印、过 30 秒即失效）。
-仍想手动指定：`sh scripts/release-npm.sh --publish --otp 123456`。
-
-发布失败时脚本会直接把这三条处置打出来，不用去猜。
-
-轮换：npmjs.com 删旧 token → `sh scripts/set-npm-token.sh` 重录 → 重新发版。
-
-## 二、发布流程（本项目）
-
-```bash
-make release                     # 6 平台产物 + checksums → dist/
-sh scripts/release-npm.sh        # → dist/npm/（6 个平台包 + 主包）
-sh scripts/release-npm.sh --dry-run          # 只打包 + 校验 manifest，不发
-NODE_AUTH_TOKEN=npm_xxx sh scripts/release-npm.sh --publish          # 真发
-NODE_AUTH_TOKEN=npm_xxx sh scripts/release-npm.sh --publish --otp 123456
-sh scripts/release-npm.sh --publish --tag next                        # 预发布号必带 tag
-```
-
-**顺序**：脚本先发 6 个 `@packnest/<os>-<arch>` 子包，再发主包 `packnest`
-（主包的 `optionalDependencies` 指向子包；反过来用户 `npm i` 的瞬间会 404）。
-预发布版本（`0.6.0-M5` 这种）npm 强制要求 `--tag`，脚本自动用 `next`，正式发版用 `1.0.0` 即可走 `latest`。
-
-**国内不必额外交付**：发到 npmjs 后 npmmirror 通常几分钟内自动同步；想立刻同步：
-
-```bash
-curl -X PUT https://registry.npmmirror.com/-/package/packnest/syncs
-curl -X PUT 'https://registry.npmmirror.com/-/package/%40packnest%2Fdarwin-arm64/syncs'
-```
-
-（npmmirror 是只读镜像，**不能**直接 publish 到它。）
-
-### ⚠️ 唯一发布者：只在这台机器发（2026-11-11 拍板）
-
-**发布者只能有一个。** 仓库里的 `.github/workflows/npm-publish.yml` 也能发（tag push 时按
-`PUBLISH_TAPS` / `PUBLISH_GITEE` 变量跑），它和本机同时发就会出事：
+**发布者只能有一个。** 0.8.0 / 0.9.0 都因为「本机 + GitHub Actions 同时发布」出了事：
 
 | 谁来构建 | darwin_arm64 的 sha256（0.9.0 实测） |
 |---|---|
 | 本机 macOS（= gitee 上真正被下载到的文件） | `5b8bdf5a…` |
 | GitHub Actions ubuntu | `8cc7f131…` |
 
-同一份源码、同一份 checksums 口径，**两台机器构建出的 tar.gz/zip 字节不同**（gzip/zip 实现差异），
+同一份源码、同一套 checksums 口径，**两台机器构建出的 tar.gz/zip 字节不同**（gzip/zip 实现差异），
 于是同一个版本存在两套 sha256；而 gitee 的 `attach_files` 对同名文件**不替换**，
 最后就是「tap 里的 hash ≠ 用户下载到的文件」→ `brew install` 报 `reports different checksum`。
-0.8.0 与 0.9.0 各踩了一次（tap 上同一版本有两笔提交，相隔 42 秒～2 分钟）。
 
 现行规则：
 
-- 仓库变量 `PUBLISH_TAPS` / `PUBLISH_GITEE` 都是 **false**，且这两个 job 还额外要求
-  `workflow_dispatch` —— 即使变量被误开，tag push 也不会自动发布。
-- CI 只保留：pages（官网）、gitee-mirror（代码同步）；npm 发布看 `SKIP_NPM_PUBLISH`。
-- 发布全部在本机跑：
+- 云端 CI 只保留 `pages.yml`（官网）与 `gitee-mirror.yml`（代码/tag 镜像），**不再发布任何产物**；
+- 旧的 `npm-publish.yml` 已删除（它既是 npm 发布，也是云端 gitee/tap 发布的来源）；
+- 仓库变量 `PUBLISH_TAPS` / `PUBLISH_GITEE` 置为 `false`（历史遗留，现已无对应 job）。
+
+## 二、凭据放哪儿（AI 不读凭据）
+
+- 文件：`~/.pi/agent/local/secrets.env`（`chmod 600`，模板见 `packaging/secrets.env.example`）；
+- 需要的键：`GITEE_TOKEN`（上传 release 用，勾 projects / releases 权限）；
+- 推 brew tap / scoop bucket 走 `gh`（自己的 keyring），不需要额外 token；
+- **凭据围栏**：AI 读这个文件会被直接拒绝，脚本在子进程里读到内存，日志只打「用了哪个来源」。
+
+## 三、发布流程（照着做）
 
 ```bash
-make check && make release              # ① 产物（可重复：同一台机器重跑 sha256 不变）
-git commit && git tag -a vX.Y.Z && git push origin main && git push origin vX.Y.Z
-sh scripts/release-gitee.sh             # ② 上传 gitee
-make publish-manifests                  # ③ verify-release → gen-manifests → release-taps（自带线上核对）
-sh scripts/release-npm.sh --stage       # ④ npm stage，之后人工 promote
+cd ~/Documents/Working/packnest
+
+make check                              # ① 8 项门禁（含 make loc 行数红线）
+make release                            # ② 6 平台产物 + checksums.txt → dist/v<ver>/
+sh scripts/release-gitee.sh             # ③ 上传 gitee release（凭据只在本机）
+make verify-release                     # ④ 把线上产物拉回来对 checksums.txt（必跑）
+# ⑤ 仓库里改版本号 → commit → tag → push（两个远端 + tag）
+make publish-manifests                  # ⑥ verify-release → gen-manifests → release-taps（自带线上核对）
 ```
 
-`release-taps.sh` 现在推之前会跑一次 `verify-release`（线上产物 vs 本地清单，`PK_SKIP_LIVE_CHECK=1`
-可跳过，`make publish-manifests` 已经跑过所以会跳过）——清单和线上不一致时**拒绝推送**。
+**顺序不能乱**：清单里的 sha256 必须指向**已经发布**的那批产物。`make publish-manifests` 依赖
+`verify-release`，而 `release-taps.sh` 自己推之前也会跑一次线上核对（`PK_SKIP_LIVE_CHECK=1` 可跳过，
+`make publish-manifests` 已经跑过所以会跳过）——清单与线上不一致时**拒绝推送**。
 
-### ⚠️ 顺序与「产物必须可重复」这两件事（0.7.0 栽过一次）
-
-`make release` 现在产出的归档是**可重复的**（打包前用 `SOURCE_DATE` 钉死 mtime，tar 走
-`tar -cf - | gzip -n`，zip 用 `-X`）——同一版本重跑一次发行，sha256 不变，所以
-"重跑 release → 重新上传 → 清单没跟着变" 这类事故不会再发生。
-
-即便如此，发布顺序仍然不能乱，否则 tap/bucket 会指向旧的 sha256，`brew install` 直接报
-`reports different checksum`（0.7.0 就是这样挂的：tap 与 scoop bucket 是从**另一次构建**生成的）：
+发布后自检：
 
 ```bash
-make release                # ① 产物（可重复）
-sh scripts/release-gitee.sh # ② 上传到 gitee release
-make verify-release         # ③ 把已发布产物拉回来对 checksums.txt（必跑）
-sh scripts/gen-manifests.sh # ④ 生成 brew/scoop/winget 清单
-sh scripts/release-taps.sh  # ⑤ 推 homebrew tap + scoop bucket
+brew uninstall packnest && brew install nekoleamo/packnest/packnest   # 清缓存再装，验证 tap 与产物一致
+pk --version
 ```
 
-`make publish-manifests` 把 ③④⑤ 串起来，并且**依赖 verify-release**：产物与清单对不上时
-清单推不出去。
+## 四、gitee（唯一二进制主源）
 
-### 2FA 卡在「网站打不开」怎么办（stage → promote）
+- `sh scripts/release-gitee.sh` 建/复用 tag 对应的 release，逐个上传 `dist/v<ver>/packnest_*` 与 `checksums.txt`；
+- 同名文件**不会**被替换：重发同一版本必须先删掉旧附件（或换版本号），否则线上还是旧字节；
+- `install.sh` / `install.ps1` 默认从 `https://gitee.com/<owner>/<repo>/releases/download/v<ver>/<文件>` 取，
+  版本号从 gitee release API → 仓库里的 `scripts/latest`（`make release` 自动更新，记得提交）。
 
-`npm stage approve` 要 2FA。没有 OTP 时 npm 会打印：
+## 五、Homebrew tap / Scoop bucket
 
-```
-Open this URL in your browser to authenticate: https://www.npmjs.com/auth/cli/<authId>
-After authenticating, your token can be retrieved from: https://registry.npmjs.org/-/v1/done?authId=<authId>
-```
+- 模板：`packaging/brew/packnest.rb`、`packaging/scoop/packnest.json`（由 `scripts/gen-manifests.sh` 从
+  `dist/v<ver>/checksums.txt` 生成，**别手改**）；
+- 仓库：`nekoleamo/homebrew-packnest`（`Formula/packnest.rb`）、`nekoleamo/scoop-bucket`（`bucket/packnest.json`）；
+- `sh scripts/release-taps.sh` 会推这两个仓库，推完回读核对（用 `git clone`，不用有 CDN 缓存的 raw）；
+- winget 只生成草稿（`packaging/winget/`），提交到 microsoft/winget-pkgs 需手动。
 
-`www.npmjs.com` 大陆直连基本不通（实测经代理也会被 Cloudflare 拦 curl，返回 403；浏览器带 JS 挑战通常能过），
-而 `registry.npmjs.org` 经代理是通的（实测 200）。三条路，按省事排序：
+## 六、官网
 
-1. **配 `NPM_TOTP_SECRET`（一劳永逸）**：凭据文件里加一行 base32 2FA 密钥 →
-   `sh scripts/release-npm.sh --promote-all` 全自动出码，永不弹浏览器。
-2. **手机 authenticator 的 6 位码**：`sh scripts/release-npm.sh --promote <id> --otp 123456`
-   （7 个包在同一 30s 窗口内通常 1–2 个码够用）。
-3. **浏览器批准**（npmjs.com 能打开时）：
-   ```bash
-   sh scripts/release-npm.sh --promote <id>        # 打印 auth 链接（自己终端里是明文）
-   # 用带代理的浏览器批准后，把 /done?authId=<同一个 id> 链接交给：
-   HTTPS_PROXY=http://127.0.0.1:7892 sh scripts/npm-approve.sh 'https://registry.npmjs.org/-/v1/done?authId=<id>'
-   ```
-   `npm-approve.sh` 会取回 token（只用不打印），然后对当前版本的所有 staged 包逐个 approve。
+`make site` 渲染 `site/` → `site/dist`（只注入版本号），GitHub Pages 由 `pages.yml` 部署；
+站点里的安装命令与渠道矩阵要和本文件保持一致（npm 那条已删）。
 
-## 三、gitee（免费二进制主源）
+## 七、为什么不再发 npm
 
-- 建仓库 → 创建 release（tag `v<版本>`）→ 上传 `dist/v<版本>/*.tar.gz|zip` 与 `checksums.txt`；
-- `install.sh`/`install.ps1` 默认从 `https://gitee.com/<owner>/<repo>/releases/download/v<版本>/<文件>` 取；
-- 脚本本身放 `scripts/install.sh`（raw 地址，`curl … | sh` 用）。
+1. **2FA**：npm 的 staged publish 需要 `npm stage approve` 带 OTP 或浏览器批准，`www.npmjs.com`
+   大陆直连基本打不开（实测经代理也被 Cloudflare 拦 curl，返回 403；`registry.npmjs.org` 才通）。
+2. **构建差异**：npm 平台包也是从归档来的，云端与本机构建的字节同样不同，会引入第二套 sha256。
+3. **收益下降**：国内用户的主路径已经是 gitee + chubby 的脚本一行安装；brew/scoop 覆盖 macOS/Windows。
 
-## 四、Homebrew（自有 tap，免费）
+影响与保留：
 
-`packaging/brew/packnest.rb` 是模板：把 `url`/`sha256` 换成 gitee release 的实际值，放进自己的 tap 仓库
-`homebrew-<名字>`，用户 `brew install <owner>/<tap>/packnest`（命令名仍是 `pk`）。
+- `install.sh` / `install.ps1` 的 npm 通道（`--from npm`、`-Mirror cn`）已移除/退化为 gitee；
+- 已经用 `npm i -g packnest` 装过的旧版本照常能用，`pk uninstall --all` 仍识别这个渠道；
+- 历史 staged 记录（0.9.0 的 7 个包）会在 npm 侧自然过期（约 7 天），不清理也不影响任何人。
 
-## 五、发布前自检
+## 八、发布前自检清单
 
 ```bash
-make check                        # 8 项门禁（含手写行数门禁 make loc）
-make release && ls dist/v*/
-make verify-release               # 已发布产物 vs checksums.txt（发布后必跑）
-sh scripts/release-npm.sh --dry-run                # 7 个包 manifest 都过
-./scripts/install.sh --dry-run --from npm          # 通道连通性
-brew install nekoleamo/packnest/packnest           # 渠道实装一次（清缓存后再试：brew uninstall packnest）```
-
+make check                        # 8 项门禁（含行数红线）
+make release && ls dist/v*/       # 6 产物 + checksums.txt
+make verify-release               # 线上 vs 本地清单（发布后必跑）
+sh scripts/release-taps.sh --dry-run   # 只打印将要推送的清单文件
+brew install nekoleamo/packnest/packnest   # 渠道实装一次（先 brew uninstall）
+```

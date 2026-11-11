@@ -283,6 +283,21 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
   现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
 
+## 2026-11-11 · npm 分发渠道停用
+
+- 触发原因：`npm stage approve` 需要 2FA，`www.npmjs.com` 的浏览器批准页大陆直连打不开
+  （实测经代理也被 Cloudflare 拦 curl → 403；`registry.npmjs.org` 才通），而 stage 的
+  `--otp` 又需要本地 TOTP 密钥。
+- 更根本的原因：云端与本机构建出的归档字节不同，两边都发布会出现两套 sha256（0.8.0 / 0.9.0 各踩一次）。
+- 处置：删 `scripts/release-npm.sh`、`scripts/npm-approve.sh`、`scripts/set-npm-token.sh`、
+  `.github/workflows/npm-publish.yml`（换成一个只做代码镜像的 `gitee-mirror.yml`）、Makefile 的
+  `npm-packages / npm-dry / publish / publish-stage / promote / publish-direct` 目标；
+  `install.sh` / `install.ps1` 去掉 npm 通道（`--from npm` 报错指向 gitee/base，`-Mirror cn` 退化为 gitee，
+  gitee 下载失败不再自动退 npm 平台包）；README / docs / 官网同步（渠道矩阵 6 → 5）。
+- 保留：已经用 `npm i -g packnest` 装过的旧版本照常可用，`pk uninstall --all` 仍识别 npm 渠道
+  （`cmd/pk/uninstall_all.go` 那段不许删）；命令行工具 npm 本身（node 伴生）完全不受影响。
+- 0.9.0 的 7 个 staged 包会在 npm 侧自然过期（~7 天），不需要清理。
+
 ## 0.9.0（2026-11-11）
 
 - **外部 provider 清单**：`$PK_ROOT/providers/*.toml` + `PK_PROVIDERS_DIR`（追加、多目录）；内嵌永远赢；

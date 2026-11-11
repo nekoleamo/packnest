@@ -12,15 +12,15 @@
 
 - 显式 `SecurityProtocol = Tls12`
 - 每轮先试 **绕过系统代理的 WebClient**，再试系统代理，最后 IWR；失败重试 3 轮（1s/2s 退避）
-- 仍然失败 → **自动改走 npmmirror 的 npm 平台包**（另一个 host，国内通常更快，走 sha1 校验）
+- 仍然失败 → 提示重试 / 换网络 / 用 `-Base` 指向自托管源（npm 平台包通道已于 2026-11-11 停用）
 - `.tgz` 解压用 `tar.exe`（Win10 1803+ 自带），找不到就退回 `tar`
 
 手动兜底（任选）：
 
 ```powershell
-# 1) 直接走 npm 平台包
+# 1) 存到本地再跑（便于看报错、可加重试）
 iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB -OutFile pk.ps1
-.\pk.ps1 -Mirror cn                      # 或 & .\pk.ps1 -Mirror cn
+.\pk.ps1
 
 # 2) 自己下 zip 再用本地静态源装
 #    packnest_<版本>_windows_amd64.zip + checksums.txt 放同一目录，起个 http 服务后：

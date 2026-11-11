@@ -15,5 +15,5 @@ Notes:
 
 - The **Chinese** documents are the source of truth when the two disagree; this English set is
   maintained alongside them in the same commit.
-- `docs/publishing.md` (release channels, credentials, staged/trusted npm publishing) is
+- `docs/publishing.md` (release channels, credentials, the single-publisher rule) is
   intentionally Chinese-only: it is maintainer-facing.

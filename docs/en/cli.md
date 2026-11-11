@@ -33,7 +33,7 @@
 # install packnest itself (recommended: one line from gitee, no GitHub access)
 $ curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh
 # Windows: iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex
-# Already managing toolchains with npm? npm i -g packnest works too.
+# Or: brew install nekoleamo/packnest/packnest / scoop install packnest
 
 # pick a mirror profile (once; afterwards `auto` decides by itself)
 $ pk mirror use cn

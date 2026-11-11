@@ -1,5 +1,5 @@
 #!/bin/sh
-# 凭据文件解析（被 release-npm.sh / set-npm-token.sh 共用）。
+# 凭据文件解析（被 release-gitee.sh / gen-manifests 等发布脚本共用）。
 #
 # 容忍常见手写差异，避免"文件明明有却找不到"：
 #   前导 export / 键与等号之间空格 / 值两侧引号 / Windows CRLF / 行首缩进。

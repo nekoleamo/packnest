@@ -1,0 +1,34 @@
+# 只做一件事：把 GitHub 的 main 与 tag 镜像到 gitee（国内访问主源）。
+#
+# 发布（gitee release 产物、brew tap / scoop bucket 清单、npm）**不在云端做** ——
+# 云端与本机构建出的归档字节不同，两边都发会出现两套 sha256（0.8.0 / 0.9.0 各踩过一次）。
+# 发布流程固定在本机：make release → release-gitee.sh → publish-manifests，见 docs/publishing.md。
+#
+# npm 渠道已于 2026-11-11 停用（stage/approve 需要 2FA，且同样有跨机器构建差异问题）。
+#
+# 开关：仓库 Variable SYNC_GITEE=true；Secret GITEE_TOKEN 需 projects 权限。
+name: gitee-mirror
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    if: vars.SYNC_GITEE == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: push 到 gitee（main + tags）
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          PK_GITEE_REPO: null_593_5354/packnest
+        run: |
+          git push "https://oauth2:${GITEE_TOKEN}@gitee.com/${PK_GITEE_REPO}.git" HEAD:main --tags --force

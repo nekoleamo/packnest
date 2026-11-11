@@ -32,18 +32,16 @@ brew install nekoleamo/packnest/packnest
 scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket
 scoop install packnest
 
-# ⑤ npm（已经在用 npm 管工具链时才推荐：多一个 Node 依赖，但升级最省事）
-npm i -g packnest
-npm i -g packnest --registry=https://registry.npmmirror.com   # 强制走 npmmirror
-
-# ⑥ 自托管（把 make release 的 dist/ 丢到任意静态 host，零成本）
+# ⑤ 自托管（把 make release 的 dist/ 丢到任意静态 host，零成本）
 curl -fsSL https://你的域名/install.sh | sh -s -- --base https://你的域名/packnest
 ```
 
-安装脚本开关：`--mirror cn|default` · `--from npm|gitee|base` · `--base URL` · `--scope` · `--version` ·
-`--dir` · `--skip-verify` · `--dry-run`。下载后**校验 sha256**（gitee/自托管对 `checksums.txt`，npm 通道对
-registry 的 `dist.shasum`），对不上退出码 4。PowerShell 版参数名换成 `-Mirror` / `-Base` / `-Version` /
-`-Dir` / `-SkipVerify` / `-DryRun`（`-Mirror cn` 走 npmmirror 的 npm 平台包）。
+安装脚本开关：`--from gitee|base` · `--base URL` · `--version` · `--dir` · `--skip-verify` · `--dry-run`
+（`--mirror cn|default` 保留兼容，两者现在都走 gitee）。下载后**校验 sha256**（对 `checksums.txt`），
+对不上退出码 4。PowerShell 版参数名换成 `-Base` / `-Version` / `-Dir` / `-SkipVerify` / `-DryRun`。
+
+> npm 分发渠道已于 2026-11-11 停用：npm 的 stage/approve 要 2FA，而且云端与本地构建出的归档字节不同，
+> 容易出现两套 sha256。已经用 `npm i -g packnest` 装过的旧版本照常能用，`pk uninstall --all` 仍会识别这个渠道。
 
 ## 快速开始
 
@@ -205,7 +203,7 @@ make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 | [docs/progress.md](docs/progress.md) | 里程碑进度、每轮交付与踩过的坑 |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | 故障排查（含与 proto/nvm/mise 共存） |
 | [docs/json-schema.md](docs/json-schema.md) | `--json` v1 契约（字段与问题码） |
-| [docs/publishing.md](docs/publishing.md) | 渠道、凭据、staged/trusted 发布流程 |
+| [docs/publishing.md](docs/publishing.md) | 发布渠道（gitee / brew / scoop）、凭据、唯一发布者规则 |
 
 ## 彻底卸载
 

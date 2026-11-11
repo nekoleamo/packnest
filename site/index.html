@@ -68,7 +68,8 @@
       </div>
       <code>scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket<br>scoop install packnest</code>
     </div>
-    <p class="fallback">已经在用 npm 管工具链？<button class="linkbtn" type="button" data-copy="npm i -g packnest">npm i -g packnest</button> 也行</p>
+    <p class="fallback">自托管：把 <code>make release</code> 的 <code>dist/</code> 丢到任意静态 host，
+      <button class="linkbtn" type="button" data-copy="curl -fsSL https://your-host/install.sh | sh -s -- --base https://your-host/packnest">--base</button> 指过去即可</p>
   </div>
 </header>
 
@@ -147,7 +148,7 @@
 <section class="en" lang="en">
   <h2>In English</h2>
   <p>packnest (command <code>pk</code>) installs Node/npm/pnpm/bun/Go/Python as a single zero-CGO Go binary for six platforms, with only two third-party dependencies. It ships China mirror presets plus real reachability probing, pairs the newest npm compatible with the exact Node version being installed, verifies artifacts against multiple checksum sources (TOFU, offline-verifiable afterwards), and uninstalls back to zero residue — <code>pk uninstall --all --self</code> even removes pk itself.
-  <br>Install: <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh</code> (Windows: <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex</code>) — or via npm: <code>npm i -g packnest</code>.</p>
+  <br>Install: <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh</code> (Windows: <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex</code>) — or via Homebrew / Scoop.</p>
 </section>
 
 <footer>

@@ -48,7 +48,7 @@ echo "预检 OK：清单 6 个 hash 与 checksums.txt 一致"
 # 线上核对：清单必须和"用户真正下载到的文件"一致。本地 dist 自洽不够 ——
 # 曾经因为 mac 与 ubuntu 各发一次而出现两套 sha256（见 docs/publishing.md「唯一发布者」）。
 # 经 make publish-manifests 调用时 verify-release 已经跑过，用 PK_SKIP_LIVE_CHECK=1 跳过重复下载。
-if [ "${PK_SKIP_LIVE_CHECK:-}" != "1" ]; then
+if [ "${PK_SKIP_LIVE_CHECK:-}" != "1" ] && [ "$DRY" -eq 0 ]; then
   sh scripts/verify-release.sh >/dev/null || {
     echo "线上产物与本地清单不一致（先 make verify-release 看明细）；拒绝推清单" >&2
     exit 1
