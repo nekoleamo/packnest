@@ -250,6 +250,30 @@ sh scripts/release-taps.sh  # ⑤ 推 homebrew tap + scoop bucket
 `make publish-manifests` 把 ③④⑤ 串起来，并且**依赖 verify-release**：产物与清单对不上时
 清单推不出去。
 
+### 2FA 卡在「网站打不开」怎么办（stage → promote）
+
+`npm stage approve` 要 2FA。没有 OTP 时 npm 会打印：
+
+```
+Open this URL in your browser to authenticate: https://www.npmjs.com/auth/cli/<authId>
+After authenticating, your token can be retrieved from: https://registry.npmjs.org/-/v1/done?authId=<authId>
+```
+
+`www.npmjs.com` 大陆直连基本不通（实测经代理也会被 Cloudflare 拦 curl，返回 403；浏览器带 JS 挑战通常能过），
+而 `registry.npmjs.org` 经代理是通的（实测 200）。三条路，按省事排序：
+
+1. **配 `NPM_TOTP_SECRET`（一劳永逸）**：凭据文件里加一行 base32 2FA 密钥 →
+   `sh scripts/release-npm.sh --promote-all` 全自动出码，永不弹浏览器。
+2. **手机 authenticator 的 6 位码**：`sh scripts/release-npm.sh --promote <id> --otp 123456`
+   （7 个包在同一 30s 窗口内通常 1–2 个码够用）。
+3. **浏览器批准**（npmjs.com 能打开时）：
+   ```bash
+   sh scripts/release-npm.sh --promote <id>        # 打印 auth 链接（自己终端里是明文）
+   # 用带代理的浏览器批准后，把 /done?authId=<同一个 id> 链接交给：
+   HTTPS_PROXY=http://127.0.0.1:7892 sh scripts/npm-approve.sh 'https://registry.npmjs.org/-/v1/done?authId=<id>'
+   ```
+   `npm-approve.sh` 会取回 token（只用不打印），然后对当前版本的所有 staged 包逐个 approve。
+
 ## 三、gitee（免费二进制主源）
 
 - 建仓库 → 创建 release（tag `v<版本>`）→ 上传 `dist/v<版本>/*.tar.gz|zip` 与 `checksums.txt`；
