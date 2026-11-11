@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/packnest/packnest/internal/env"
+	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/paths"
 	"github.com/packnest/packnest/internal/shim"
 	"github.com/packnest/packnest/internal/store"
@@ -1236,8 +1237,8 @@ func TestDetectInstallChannel(t *testing.T) {
 		{"/tmp/build/pk", "linux", "manual"},
 	}
 	for _, c := range cases {
-		if got := detectInstallChannel(c.path, c.goos); got.Name != c.want {
-			t.Errorf("detectInstallChannel(%q,%s) = %s，期望 %s", c.path, c.goos, got.Name, c.want)
+		if got := install.DetectInstallChannel(c.path, c.goos); got.Name != c.want {
+			t.Errorf("install.DetectInstallChannel(%q,%s) = %s，期望 %s", c.path, c.goos, got.Name, c.want)
 		}
 	}
 }

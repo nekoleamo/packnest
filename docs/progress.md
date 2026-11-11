@@ -536,7 +536,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 | 离线重装 / 缓存被删 | ✅ 已修（TOFU 命中不问网络；只有摘要不符才删缓存） | — |
 | 内容寻址缓存（按 sha256 去重） | ⏳ 未做 | 行数余量 1，任何改动前必须先砍 |
 | L4 `dlopen` 试加载检测 | ⏳ 未做 | 同上；且属"锦上添花"，现用 gypfile/.node 判定已覆盖主要场景 |
-| 卸载编排挪进 `internal/install`（清 `cmd/pk` 3,220 warn） | ⏳ 未做 | 行数中性但 diff 大，需单独一轮 |
+| 卸载编排挪进 `internal/install`（清 `cmd/pk` 3,220 warn） | ✅ 部分完成：渠道识别（`DetectInstallChannel` / `SelfRemoveHint`）已挪进 `internal/install`，`cmd/pk` 3,220 → **3,181**（warn 消失）；剩余打印/交互编排仍留在 cmd | — |
 | winget 正式上架 | ⏳ 未做 | 要向 microsoft/winget-pkgs 提 PR（人工），草稿在 `packaging/winget/` |
 | windows-arm64 运行时、Windows `.cmd` shim、Gatekeeper 首启 | ⏳ 人工确认 | 无公共 ARM Windows runner；项目规则允许人工确认这三项 |
 
