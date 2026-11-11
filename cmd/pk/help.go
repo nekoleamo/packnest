@@ -9,7 +9,7 @@ import (
 
 // commandHelp 是 9 个命令的 `--help` 文本（方案 §12.2 第 10 条：命令要能自解释）。
 var commandHelp = map[string]string{
-	"install": `pk install [工具[@版本]]... [--frozen] [--insecure] [--force] [--force-rehash] [--quiet] [--jobs N]
+	"install": `pk install [工具[@版本]]... [--frozen] [--insecure] [--force] [--force-rehash] [--quiet] [--jobs N] [--corepack|--no-corepack]
 
   装工具。不带参数时按当前目录的 pk.toml 全装。
   作用域：没有 --global/--project 开关，由当前目录决定：
@@ -27,6 +27,8 @@ var commandHelp = map[string]string{
     --force     重装已存在的版本
     --force-rehash  忽略本地校验表（state/known.json），重新向校验源求值并覆盖记录
     --jobs N    接受但预留（当前固定单连接：国内 CDN 分片常更慢）
+    --corepack  装 node 后启用 corepack（写进 config.toml；只有 node ≤24 自带，25+ 明确报错）
+    --no-corepack  关闭 corepack
     --quiet     只报错，不打印进度与结果
   退出码：0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用`,
 

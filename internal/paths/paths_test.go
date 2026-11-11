@@ -55,8 +55,10 @@ func TestLayout(t *testing.T) {
 		t.Errorf("ToolVersion = %q", got)
 	}
 	segs := p.PathSegments()
-	if len(segs) != 4 || segs[0] != "/r/bin" || segs[1] != "/r/global/bin" {
-		t.Errorf("PathSegments = %v，期望 bin 在最前", segs)
+	// 五段、顺序固定（方案 B2-2）：shim → corepack → npm 全局 bin → PNPM_HOME → BUN_INSTALL/bin
+	want := []string{"/r/bin", "/r/global/corepack/bin", "/r/global/bin", "/r/global/pnpm", "/r/global/bun/bin"}
+	if strings.Join(segs, ":") != strings.Join(want, ":") {
+		t.Errorf("PathSegments = %v，期望 %v", segs, want)
 	}
 }
 

@@ -34,6 +34,9 @@ type NodeSpec struct {
 	NPMVersion string // 自带 npm 版本，如 11.20.0
 	OS         string // darwin（默认）
 	Arch       string // arm64（默认）
+	// Corepack 为 true 时包里带 lib/node_modules/corepack（node ≤24 的真实布局；
+	// node 25+ 已移除，用它造"不自带 corepack"的反例）。
+	Corepack bool
 }
 
 // MakeNode 造一个 tar.gz 形式的假 node 发行包：
@@ -51,6 +54,10 @@ func MakeNode(spec NodeSpec) []byte {
 	writeTarSymlink(tw, prefix+"bin/npx", "../lib/node_modules/npm/bin/npx-cli.js")
 	writeTarEntry(tw, prefix+"lib/node_modules/npm/package.json", npmPackageJSON(spec.NPMVersion), 0o644, tar.TypeReg)
 	writeTarEntry(tw, prefix+"lib/node_modules/npm/bin/npm-cli.js", "#!/usr/bin/env node\nconsole.log('npm');\n", 0o755, tar.TypeReg)
+	if spec.Corepack {
+		writeTarEntry(tw, prefix+"lib/node_modules/corepack/package.json", `{"name":"corepack","version":"0.34.0"}`, 0o644, tar.TypeReg)
+		writeTarEntry(tw, prefix+"lib/node_modules/corepack/dist/corepack.js", "#!/usr/bin/env node\n", 0o755, tar.TypeReg)
+	}
 	writeTarEntry(tw, prefix+"README.md", "fake node for tests\n", 0o644, tar.TypeReg)
 
 	closeAll(tw, gz)

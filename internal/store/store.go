@@ -198,6 +198,8 @@ type Config struct {
 	CacheMax string `toml:"cache_max"`
 	// CompanionModes 是 <工具> → bundled|latest-compatible|pinned。
 	CompanionModes map[string]string `toml:"companion_modes"`
+	// Corepack 是 node ≤24 的 corepack 开关（`pk install node --corepack` 写这里；默认关）。
+	Corepack bool `toml:"corepack"`
 	// Tools 是全局默认版本（`pk use` 写这里）。
 	Tools map[string]string `toml:"tools"`
 }

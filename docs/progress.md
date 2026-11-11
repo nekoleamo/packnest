@@ -481,10 +481,10 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ## 行数预算现状
 
-- **红线：10,200 行**（`cmd/` + `internal/`，不含 `*_test.go` 与 `internal/testkit`；
-  8,500 → 10,000（2026-11-10）→ 10,200（2026-11-11，外部 provider 落地后按实测上调），
+- **红线：10,300 行**（`cmd/` + `internal/`，不含 `*_test.go` 与 `internal/testkit`；
+  8,500 → 10,000（2026-11-10）→ 10,200 → 10,300（2026-11-11，外部 provider 与 corepack 落地后按实测上调），
   拍板记录见 `~/Documents/Plan/17-包管理器/pn-外部provider与工具链内工具-方案.md` §0.1）。
-- 现状 **10,167 行**（余量 33）：`cmd/pk` 3,197 · `internal/install` 1,377 · `internal/provider` 1,258 ·
+- 现状 **10,292 行**（余量 8）：`cmd/pk` 3,256 · `internal/install` 1,437 · `internal/provider` 1,258 ·
   `internal/testkit` 1,238 · `internal/env` 788 · `internal/store` 652 · `internal/fetch` 530。
   含 testkit 的旧口径是 11,183（testkit 是纯测试夹具，不计入门禁）。
 - ✅ 门禁已上线：`make loc`（`make check` 第 2 项，脚本 `tools/loccheck.sh`）——

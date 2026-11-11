@@ -32,6 +32,8 @@ func RegistryVars(profile string) []KV {
 	return []KV{
 		{"npm_config_registry", base},
 		{"BUN_CONFIG_REGISTRY", base},
+		// corepack 首次拉 pnpm/yarn 时按这个走，否则会绕开镜像档（方案 B.2）
+		{"COREPACK_NPM_REGISTRY", base},
 		{"PIP_INDEX_URL", prof.PipIndex},
 		{"GOPROXY", prof.GoProxy},
 		// go 装完必须写：否则 go 自己会再去下一套工具链（方案 §4.0）
@@ -54,6 +56,7 @@ func SharedVarsFor(mode string, p paths.Paths, npmCache, nodeVersion string) []K
 		{"npm_config_prefer_offline", "true"},
 		{"PNPM_HOME", filepath.Join(prefix, "pnpm")},
 		{"BUN_INSTALL", filepath.Join(prefix, "bun")},
+		{"COREPACK_HOME", filepath.Join(p.Root, "cache", "corepack")},
 	}
 }
 
@@ -68,6 +71,8 @@ func SharedVars(p paths.Paths, npmCache string) []KV {
 		{"npm_config_prefer_offline", "true"},
 		{"PNPM_HOME", p.GlobalPnpmBin()},
 		{"BUN_INSTALL", p.Global() + "/bun"},
+		// corepack 的缓存也进我们的根（--purge 能一起清）
+		{"COREPACK_HOME", filepath.Join(p.Root, "cache", "corepack")},
 	}
 }
 

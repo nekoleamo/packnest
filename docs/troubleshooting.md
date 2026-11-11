@@ -96,7 +96,7 @@ pk env --shell powershell | Invoke-Expression
 pk which node          # shim 指到哪个真实二进制
 pk list                # * 是当前全局默认
 pk use node@22.22.2    # 切默认（只会切到已安装的）
-pk env --shell bash    # 看 PATH 四段与 registry 变量
+pk env --shell bash    # 看 PATH 五段与 registry 变量
 ```
 
 - `PATH_ORDER`：`~/.packnest/bin` 必须**在 PATH 最前**，否则会被系统/其他管理器的 node 抢。
@@ -163,7 +163,7 @@ Remove-Item -Force "$env:LOCALAPPDATA\packnest\bin\pk.exe","$env:LOCALAPPDATA\pa
 Remove-Item "$env:LOCALAPPDATA\packnest\bin" -ErrorAction SilentlyContinue   # 目录空了才删
 ```
 
-另外，`install.ps1` 会把**安装目录**写进用户 Path（和 `pk env --write` 写的四段 `~/.packnest`
+另外，`install.ps1` 会把**安装目录**写进用户 Path（和 `pk env --write` 写的五段 `~/.packnest`
 目录不是一回事）。0.7.7 起 `uninstall --all` 会把这两拨一起从注册表用户 Path 里摘掉，
 不会再留一个指向空目录的死项。
 

@@ -285,9 +285,10 @@ $ pk env --completion zsh          # shell completion: eval "$(pk env --completi
 $ pk env --project                 # put the locked project versions first on PATH (direnv)
 ```
 
-The snippet contains the three PATH segments plus registry/shared-prefix variables
-(`npm_config_prefix`, `npm_config_cache`, `PNPM_HOME`, `BUN_INSTALL`, `DENO_DIR`, `GOPROXY`,
-`PIP_INDEX_URL`, `GOTOOLCHAIN=local`).
+The snippet contains the five PATH segments (`bin` → `global/corepack/bin` → `global/bin` →
+`global/pnpm` → `global/bun/bin`) plus registry/shared-prefix variables
+(`npm_config_prefix`, `npm_config_cache`, `PNPM_HOME`, `BUN_INSTALL`, `COREPACK_HOME`,
+`COREPACK_NPM_REGISTRY`, `GOPROXY`, `PIP_INDEX_URL`, `GOTOOLCHAIN=local`).
 
 ## 9. gc
 

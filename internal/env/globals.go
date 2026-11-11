@@ -38,10 +38,9 @@ type GlobalProblem struct {
 
 // ScanGlobals 扫描全局包目录（<prefix>/lib/node_modules，Windows 为 <prefix>/node_modules）。
 func ScanGlobals(prefix, goos string) ([]GlobalPackage, error) {
-	dirs := []string{filepath.Join(prefix, "lib", "node_modules")}
-	if goos == "windows" {
-		dirs = append([]string{filepath.Join(prefix, "node_modules")}, dirs...)
-	}
+	// 两种布局都扫：npm 是 <prefix>/lib/node_modules（Windows 是 <prefix>/node_modules），
+	// pnpm/bun 的全局目录则直接是 <prefix>/node_modules（方案 B.5）。不存在的目录自然跳过。
+	dirs := []string{filepath.Join(prefix, "lib", "node_modules"), filepath.Join(prefix, "node_modules")}
 	var out []GlobalPackage
 	seen := map[string]bool{}
 	for _, dir := range dirs {

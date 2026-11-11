@@ -55,7 +55,7 @@ v22.23.4
 ## 1. install — 安装运行时
 
 ```bash
-pk install [工具[@版本]]... [--dry-run] [--frozen] [--insecure] [--force] [--force-rehash] [--quiet]
+pk install [工具[@版本]]... [--dry-run] [--frozen] [--insecure] [--force] [--force-rehash] [--quiet] [--corepack|--no-corepack]
 ```
 
 ### 1.1 版本写法
@@ -86,6 +86,12 @@ $ pk install node@22.22.2
 | `bun` | 自带运行时的单二进制 |
 | `go` | 装完 `pk env` 会带 `GOTOOLCHAIN=local`（否则 go 自己会再下一套工具链） |
 | `python` | 只装 python-build-standalone 预编译版，永不源码编译 |
+
+`--corepack` / `--no-corepack` 是**全局开关**（写进 `config.toml` 的 `corepack`，默认关）：
+装 node 后把该 node 自带的 corepack 的 shim 装到 `$PK_ROOT/global/corepack/bin`（PATH 第 2 段，
+provider 装的 `pnpm` 永远优先）。**只有 node ≤24 自带 corepack**；node 25+ 敲 `--corepack` 会明确报错
+（"该 node 不自带 corepack：pnpm/yarn 请用 `pk install pnpm`"），不会静默跳过。corepack 首次
+拉 pnpm/yarn 会联网，走 `COREPACK_NPM_REGISTRY`（= 当前镜像档）。
 
 ```bash
 $ pk install pnpm            # 没装 node 时
@@ -297,7 +303,7 @@ $ pk uninstall --all --yes --purge --self   # 连 pk 二进制自己一起删（
 ```
 
 `--all` 会清：① 每个运行时目录 ② `~/.packnest/bin` 的 shim ③ shell rc 的托管块
-（Windows 还有注册表用户 Path 的四段目录）④ 打印"按安装渠道删 pk 自己"的命令。
+（Windows 还有注册表用户 Path 的五段目录）④ 打印"按安装渠道删 pk 自己"的命令。
 不带 `--yes` 只打印计划；`--purge --keep-cache` 保留缓存方便离线重装。
 退出码：0 全部成功 / 1 有没删干净的（会逐条列出来）。
 
@@ -391,13 +397,15 @@ $ pk doctor --probe              # 探测镜像可达性（MIRROR_UNREACHABLE）
 
 ```bash
 $ pk env --shell bash
-export PATH=/Users/you/.packnest/bin:/Users/you/.packnest/global/bin:…:$PATH
+export PATH=/Users/you/.packnest/bin:/Users/you/.packnest/global/corepack/bin:/Users/you/.packnest/global/bin:…:$PATH
 export npm_config_prefix=/Users/you/.packnest/global
 export npm_config_globalconfig=/Users/you/.packnest/global/etc/npmrc
 export npm_config_cache=/Users/you/.npm
 export npm_config_registry=https://registry.npmmirror.com
 export PNPM_HOME=/Users/you/.packnest/global/pnpm
 export BUN_INSTALL=/Users/you/.packnest/global/bun
+export COREPACK_HOME=/Users/you/.packnest/cache/corepack
+export COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
 export GOTOOLCHAIN=local
 export GOPROXY=https://goproxy.cn
 ```

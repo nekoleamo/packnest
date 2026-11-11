@@ -45,8 +45,18 @@ func (a *app) cmdInstall(args []string) int {
 	rehash := fs.Bool("force-rehash", false, "忽略本地校验表，重新向校验源求值并覆盖记录")
 	quiet := fs.Bool("quiet", false, "只报错，不打印进度")
 	dryRun := fs.Bool("dry-run", false, "只解析并打印计划（版本/URL/校验方式），不下载")
+	corepack := fs.Bool("corepack", false, "装 node 后启用 corepack（只有 node ≤24 自带；写进 config.toml）")
+	noCorepack := fs.Bool("no-corepack", false, "关闭 corepack（写进 config.toml）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
+	}
+
+	// corepack 是全局开关（方案 B2-2）：翻一下就落盘，之后装/切带 corepack 的 node 自动重放。
+	if *corepack != *noCorepack {
+		a.cfg.Corepack = *corepack
+		if err := a.cfg.Save(a.paths.Config()); err != nil {
+			return a.fail(err)
+		}
 	}
 
 	project, err := install.LoadProject(a.cwd())
@@ -101,6 +111,7 @@ func (a *app) cmdInstall(args []string) int {
 		Project:        project,
 		Frozen:         *frozen,
 		DryRun:         *dryRun,
+		Corepack:       a.cfg.Corepack,
 		Lock:           lockFile,
 		Events:         a.eventWriterFor(*quiet),
 		LookupProvider: nil,

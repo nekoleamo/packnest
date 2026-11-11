@@ -179,7 +179,7 @@ pk uninstall --all --yes --purge --keep-cache   # 只留 cache/，下次装同�
 ```
 
 `--all` 会依次：① 删掉台账里每个运行时目录；② 删 `~/.packnest/bin` 里的 shim；
-③ 清掉 shell rc 里的 `# >>> packnest >>>` 托管块（Windows 还有**注册表用户 Path** 里的四段目录）；
+③ 清掉 shell rc 里的 `# >>> packnest >>>` 托管块（Windows 还有**注册表用户 Path** 里的五段目录）；
 ④ 按"你当初怎么装的 pk"给出删二进制的确切命令（brew / npm / scoop / winget / 脚本）。
 不带 `--yes` 只打印计划，什么都不动。
 

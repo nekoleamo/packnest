@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -65,17 +66,26 @@ type Options struct {
 	Lock *Lock
 	// TTL 是索引缓存时长。
 	TTL time.Duration
+	// Corepack 为 true 时，装完 node（且该 node 自带 corepack）后执行 `corepack enable`
+	// 到 $PK_ROOT/global/corepack/bin（方案 B2-2；默认关，`pk install node --corepack` 才开）。
+	Corepack bool
+	// RunCommand 执行外部命令（默认 os/exec）；测试注入以免真跑 corepack。
+	RunCommand func(ctx context.Context, name string, args ...string) error
+	// CorepackBin 是 corepack 的 shim 目录；默认真实的 GlobalCorepackBin()（测试注入临时目录）。
+	CorepackBin string
 }
 
 // Result 是一次安装的结果。
 type Result struct {
-	Tool             string
-	Version          string
-	Path             string
-	Verified         string
-	SHA256           string
-	NPMVersion       string
-	NPMReplaced      string
+	Tool        string
+	Version     string
+	Path        string
+	Verified    string
+	SHA256      string
+	NPMVersion  string
+	NPMReplaced string
+	// Corepack 表示本次装完启用了 corepack（--corepack 且该 node 自带）。
+	Corepack         bool
 	AlreadyInstalled bool
 	// BecameDefault 表示这次安装把它设成了全局默认版本。
 	BecameDefault bool
@@ -270,6 +280,13 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		if err := i.installShims(p, target); err != nil {
 			return Result{}, err
 		}
+	}
+	if p.ID == "node" && i.opt.Corepack {
+		enabled, err := i.enableCorepack(ctx, target)
+		if err != nil {
+			return Result{}, err
+		}
+		res.Corepack = enabled
 	}
 	i.emit(jsonout.Event{Ev: "done", Tool: tool, Version: version, Path: target})
 	return res, nil
@@ -776,6 +793,43 @@ func (i *Installer) installNpmPackage(ctx context.Context, npmP *provider.Provid
 		return err
 	}
 	return nil
+}
+
+// enableCorepack 把该 node 自带的 corepack 的 shim 指到独立目录（方案 B2-2）。
+//
+// node 25+ 已移除 corepack —— 这种情况必须明确报错，而不是静默跳过：
+// 用户敲了 --corepack 就得知道"这个版本没有"，并被告知 pnpm/yarn 该怎么装。
+func (i *Installer) enableCorepack(ctx context.Context, toolDir string) (bool, error) {
+	if _, err := os.Stat(filepath.Join(toolDir, filepath.FromSlash("lib/node_modules/corepack"))); err != nil {
+		return false, fmt.Errorf("该 node 不自带 corepack（node 25+ 已移除）：pnpm/yarn 请用 `pk install pnpm`")
+	}
+	bin := i.opt.CorepackBin
+	if bin == "" {
+		bin = i.opt.Paths.GlobalCorepackBin()
+	}
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		return false, err
+	}
+	run := i.opt.RunCommand
+	if run == nil {
+		run = func(ctx context.Context, name string, args ...string) error {
+			cmd := exec.CommandContext(ctx, name, args...)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return fmt.Errorf("%s: %w（%s）", name, err, strings.TrimSpace(string(out)))
+			}
+			return nil
+		}
+	}
+	node := filepath.Join(toolDir, "bin", "node")
+	if _, err := os.Stat(node); err != nil {
+		node = filepath.Join(toolDir, "node") // 单文件布局兜底
+	}
+	if err := run(ctx, node, filepath.Join(toolDir, filepath.FromSlash("lib/node_modules/corepack/dist/corepack.js")),
+		"enable", "--install-directory", bin); err != nil {
+		return false, fmt.Errorf("corepack enable 失败: %w", err)
+	}
+	i.emit(jsonout.Event{Ev: "corepack", Tool: "node", Version: filepath.Base(filepath.Dir(toolDir)), Source: bin})
+	return true, nil
 }
 
 // transportOf 记录清单走的是哪种传输：内网 http 源在台账里留痕（只增字段，方案 §A.4.1）。

@@ -120,9 +120,15 @@ func (p Paths) GlobalPnpmBin() string { return p.join("global", "pnpm") }
 // GlobalBunBin 是 BUN_INSTALL 对应的 bin 目录。
 func (p Paths) GlobalBunBin() string { return p.join("global", "bun", "bin") }
 
+// GlobalCorepackBin 是 corepack 的 shim 目录（PATH 第 2 段，方案 B2-2）：
+// 独立一段，provider 装的 pnpm 永远优先，corepack 只补 yarn/yarnpkg 和 pnpm 兜底。
+func (p Paths) GlobalCorepackBin() string { return p.join("global", "corepack", "bin") }
+
 // PathSegments 返回固定顺序的四段 PATH（方案 §6.7，doctor 会断言顺序）。
+// PathSegments 返回 PATH 的五段（顺序即优先级，方案 B2-2）：
+// shim → corepack → npm 全局 bin → PNPM_HOME → BUN_INSTALL/bin。
 func (p Paths) PathSegments() []string {
-	return []string{p.Bin(), p.GlobalBin(), p.GlobalPnpmBin(), p.GlobalBunBin()}
+	return []string{p.Bin(), p.GlobalCorepackBin(), p.GlobalBin(), p.GlobalPnpmBin(), p.GlobalBunBin()}
 }
 
 // SafeJoin 把归档内的相对路径安全地拼到 base 下，拒绝越界（zip-slip / tar 绝对路径）。

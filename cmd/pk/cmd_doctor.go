@@ -159,28 +159,28 @@ func (a *app) cmdDoctor(args []string) int {
 			"pip 的用户级安装（~/.local/lib/pythonX）不归 pk 管；要隔离请用 venv（我们不改 site-packages）", nil)
 	}
 
-	// 6c. 全局包 L1/L2/L3 体检（方案 §8.5）
+	// 6c. 全局包 L1/L2/L3 体检（方案 §8.5）：npm 前缀 + pnpm/bun 的全局目录（方案 B.5），只读不改。
 	if *globals && ledger != nil {
 		nodeVersion := a.cfg.Tools["node"]
 		if nodeVersion == "" {
 			nodeVersion = ledger.Active("node")
 		}
-		prefix := a.paths.Global()
-		if a.cfg.GlobalMode == "per-version" && nodeVersion != "" {
-			prefix = filepath.Join(a.paths.Root, "global", "node-"+nodeVersion)
-		}
-		pkgs, err := env.ScanGlobals(prefix, goos())
-		if err != nil {
-			add(jsonout.SeverityWarn, "GLOBALS_SCAN_FAILED", err.Error(), map[string]any{"prefix": prefix})
-		}
-		for _, problem := range env.CheckGlobals(pkgs, nodeVersion) {
-			add(jsonout.SeverityWarn, problem.Code, problem.Message, problem.Detail)
-		}
-		for _, problem := range env.CheckShadowing(pkgs, projectBins(a.cwd())) {
-			add(jsonout.SeverityInfo, problem.Code, problem.Message, problem.Detail)
-		}
-		if len(pkgs) == 0 {
-			add(jsonout.SeverityInfo, "GLOBALS_NONE", fmt.Sprintf("全局包目录里没有包（%s）", prefix), map[string]any{"prefix": prefix})
+		for _, m := range a.globalPrefixes(nodeVersion) {
+			pkgs, err := env.ScanGlobals(m.prefix, goos())
+			if err != nil {
+				add(jsonout.SeverityWarn, "GLOBALS_SCAN_FAILED", err.Error(), map[string]any{"prefix": m.prefix, "manager": m.name})
+			}
+			for _, problem := range env.CheckGlobals(pkgs, nodeVersion) {
+				problem.Detail["manager"] = m.name // 码沿用 GLOBAL_*，来源靠 detail.manager 区分
+				add(jsonout.SeverityWarn, problem.Code, problem.Message, problem.Detail)
+			}
+			for _, problem := range env.CheckShadowing(pkgs, projectBins(a.cwd())) {
+				problem.Detail["manager"] = m.name
+				add(jsonout.SeverityInfo, problem.Code, problem.Message, problem.Detail)
+			}
+			if len(pkgs) == 0 && m.name == "npm" {
+				add(jsonout.SeverityInfo, "GLOBALS_NONE", fmt.Sprintf("全局包目录里没有包（%s）", m.prefix), map[string]any{"prefix": m.prefix})
+			}
 		}
 	}
 
@@ -468,6 +468,32 @@ func detectShellFor(goos string, getenv func(string) string) string {
 }
 
 // projectBins 读取项目 node_modules/.bin 的命令名 → 所属包（L3 命令遮蔽检测）。
+// globalPrefix 是一个包管理器的"全局包前缀"（都套 lib/node_modules 或 node_modules 布局）。
+type globalPrefix struct {
+	name   string
+	prefix string
+}
+
+// globalPrefixes 列出要体检的全局前缀：npm（含 per-version）→ pnpm（<PNPM_HOME>/global/<N>）→ bun。
+// pnpm 与 bun 的全局目录同样是 node_modules 布局，方案 B.5 要求复用同一套 GLOBAL_* 码、用 detail.manager 标来源。
+func (a *app) globalPrefixes(nodeVersion string) []globalPrefix {
+	prefix := a.paths.Global()
+	if a.cfg.GlobalMode == "per-version" && nodeVersion != "" {
+		prefix = filepath.Join(a.paths.Root, "global", "node-"+nodeVersion)
+	}
+	out := []globalPrefix{{"npm", prefix}}
+	// pnpm 的 store 版本号不固定，逐个扫，不猜
+	if entries, err := os.ReadDir(filepath.Join(prefix, "pnpm", "global")); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				out = append(out, globalPrefix{"pnpm", filepath.Join(prefix, "pnpm", "global", e.Name())})
+			}
+		}
+	}
+	// bun：<BUN_INSTALL>/install/global
+	return append(out, globalPrefix{"bun", filepath.Join(prefix, "bun", "install", "global")})
+}
+
 func projectBins(dir string) map[string]string {
 	binDir := filepath.Join(dir, "node_modules", ".bin")
 	entries, err := os.ReadDir(binDir)
