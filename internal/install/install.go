@@ -203,8 +203,12 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 	target := i.opt.Paths.ToolVersion(tool, version)
 	if existing := i.ledger.Find(tool, version); existing != nil && !i.opt.Force {
 		if _, statErr := os.Stat(target); statErr == nil {
-			return Result{Tool: tool, Version: version, Path: target, Verified: existing.Verified,
-				AlreadyInstalled: true, NPMVersion: existing.NpmVersion, NPMReplaced: existing.NpmBundled}, nil
+			res := Result{Tool: tool, Version: version, Path: target, Verified: existing.Verified,
+				AlreadyInstalled: true, NPMVersion: existing.NpmVersion, NPMReplaced: existing.NpmBundled}
+			if p.ID == "node" && i.opt.Corepack { // 已装也照样重放 corepack（用户这次显式要了）
+				res.Corepack, err = i.enableCorepack(ctx, target)
+			}
+			return res, err
 		}
 	}
 
@@ -600,7 +604,7 @@ func registryDigest(idx *provider.Index, version, archivePath, sha256 string) (s
 	return verify.AlgoSHA256, sha256
 }
 
-// newVerifier 造一个接到注入式客户端与可注入时钟上的校验器（TOFU 表在各安装路径间共享）。
+// newVerifier 造接到注入式客户端与时钟上的校验器（TOFU 表在各安装路径间共享）。
 func (i *Installer) newVerifier() *verify.Verifier {
 	v := verify.New(i.known)
 	v.Fetch = func(ctx context.Context, url string) ([]byte, error) { return i.opt.Client.Get(ctx, url) }
@@ -608,9 +612,8 @@ func (i *Installer) newVerifier() *verify.Verifier {
 	return v
 }
 
-// fetchArtifactVerified = fetchArtifact + sha256 + verifyArtifact，并含
-// "缓存坏了就删掉重下一次"的重试（而不是让用户手动清缓存）。
-// 返回（缓存路径, 实际下载 URL, 产物 sha256, 校验结果）。
+// fetchArtifactVerified = fetchArtifact + sha256 + verifyArtifact，含"缓存坏了就重下一次"；
+// 返回（缓存路径, 实际 URL, 产物 sha256, 校验结果）。
 func (i *Installer) fetchArtifactVerified(ctx context.Context, p *provider.Provider, resolved provider.Version, idx *provider.Index) (string, string, string, verify.Result, error) {
 	platform := i.opt.GOOS + "-" + i.opt.GOARCH
 	archivePath, artifactURL, fromCache, err := i.fetchArtifact(ctx, p, resolved, idx)
@@ -832,7 +835,7 @@ func (i *Installer) enableCorepack(ctx context.Context, toolDir string) (bool, e
 	return true, nil
 }
 
-// transportOf 记录清单走的是哪种传输：内网 http 源在台账里留痕（只增字段，方案 §A.4.1）。
+// transportOf 记录清单走哪种传输：内网 http 源在台账里留痕（只增字段）。
 func transportOf(p *provider.Provider) string {
 	if p.InsecureTransport {
 		return "http"

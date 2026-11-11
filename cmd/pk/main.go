@@ -191,11 +191,12 @@ func (a *app) usageFor(fs *flag.FlagSet, name string) {
 		if !printCommandHelp(a.errOut, name) {
 			fmt.Fprintf(a.errOut, "用法见 `pk help %s`\n", name)
 		}
+		fmt.Fprintln(a.errOut, "\n开关（默认值见括号）：")
+		fs.PrintDefaults()
 	}
 }
 
-// newFlagSet 建子命令的 FlagSet：错误输出走 a.errOut，Usage 指向 `pk help <name>`。
-// 每个命令原本各写三行同样的样板（NewFlagSet + SetOutput + usageFor），统一收在这里。
+// newFlagSet 建子命令的 FlagSet：错误输出走 a.errOut，Usage 打印 `pk help <name>` + flag 默认值。
 func (a *app) newFlagSet(name string) *flag.FlagSet {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(a.errOut)

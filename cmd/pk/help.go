@@ -9,7 +9,7 @@ import (
 
 // commandHelp 是 9 个命令的 `--help` 文本（方案 §12.2 第 10 条：命令要能自解释）。
 var commandHelp = map[string]string{
-	"install": `pk install [工具[@版本]]... [--frozen] [--insecure] [--force] [--force-rehash] [--quiet] [--jobs N] [--corepack|--no-corepack]
+	"install": `pk install [工具[@版本]]... [--frozen] [--insecure] [--force] [--force-rehash] [--quiet] [--corepack|--no-corepack]
 
   装工具。不带参数时按当前目录的 pk.toml 全装。
   作用域：没有 --global/--project 开关，由当前目录决定：
@@ -21,15 +21,6 @@ var commandHelp = map[string]string{
     pk install                 按 pk.toml 全装（没有 pk.toml 则报错）
     pk install node            装 pk.toml 里 pin 的 node；没有则最新稳定版
     pk install node@22         显式 spec，不受 pk.toml 影响
-  开关：
-    --frozen    严格按 pk.lock（不做解析；清单与锁不一致即失败，CI 用）
-    --insecure  允许无校验安装（标记 unverified；校验和源互相矛盾时也靠它放行）
-    --force     重装已存在的版本
-    --force-rehash  忽略本地校验表（state/known.json），重新向校验源求值并覆盖记录
-    --jobs N    接受但预留（当前固定单连接：国内 CDN 分片常更慢）
-    --corepack  装 node 后启用 corepack（写进 config.toml；只有 node ≤24 自带，25+ 明确报错）
-    --no-corepack  关闭 corepack
-    --quiet     只报错，不打印进度与结果
   退出码：0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用`,
 
 	"uninstall": `pk uninstall <工具>[@<版本>] [--force]
@@ -39,9 +30,6 @@ pk uninstall --all [--purge] [--keep-cache] [--yes]
         被引用（全局默认 / 项目锁 / 其他工具依赖）的版本需要 --force。
   全部：--all 清掉 pk 装过的一切 —— 所有运行时 + shim + shell rc / Windows 用户 Path 里的托管块，
         最后按"自己是怎么装的"给出删除 pk 二进制的命令（brew / npm / scoop / winget / 脚本）。
-        --purge      连 PK_ROOT 一起删（缓存、台账、配置）
-        --keep-cache 配合 --purge：保留 cache/，离线可重装
-        --self       连 pk 二进制自己一起删（unix 直接删；Windows 会打印要执行的命令）
         不带 --yes 只打印计划，不动任何东西；交互终端会列出版本再问一次 y/N。`,
 
 	"use": `pk use <工具>@<版本> [--project]
@@ -49,8 +37,7 @@ pk use --lock
 
   切换全局默认版本：写 config.toml、更新台账引用、把 shim 重指到该版本。
   只会切到**已安装**的版本（先 pk install）。
-  --project  不改全局，改为「固定到当前项目」：写 pk.toml + 重新生成 pk.lock
-  --lock     只按现有 pk.toml 重新生成 pk.lock（不切版本、不装东西）`,
+`,
 
 	"list": `pk list [工具] [--major N] [--available] [--refresh] [--all|--limit N] [--json]
 
@@ -59,10 +46,7 @@ pk use --lock
                 版本 ≤40 个时一版一行（带 latest / lts: <代号> / 已装 标签），
                 更多时自动换成「按大版本分组 + 多列网格」（列数按终端宽度算），
                 标记：* 最新 · l LTS · + 已装 · @ 当前默认。
-  --major N   只看某个大版本（0.x 写 0.10），默认列该大版本的全部版本。
-  --available 每个工具一行，给最新版与最近 5 个（索引 24h 缓存，离线读缓存）。
-  --refresh   忽略缓存强制回源。
-  --limit N   配合工具名：只列最近 N 个（默认 20）；--all 等于 --limit 0。`,
+`,
 
 	"which": `pk which <命令> [--json]
 
@@ -91,12 +75,9 @@ pk use --lock
 
 	"env": `pk env [--shell bash|zsh|sh|powershell] [--write] [--unset] [--completion SHELL] [--json]
 
-  输出 shell 片段（PATH 四段 + registry/共享前缀变量）。
+  输出 shell 片段（PATH 五段 + registry/共享前缀/镜像档变量）。
   默认只打印不落盘；--write 才写进 rc 的托管块（幂等，块外内容不动）。
-  --completion bash|zsh|powershell 输出补全脚本：eval "$(pk env --completion zsh)"
-  --rc PATH   指定写入的 rc 文件（默认按 $SHELL 猜）
-  --project   把 pk.toml/pk.lock 锁定的版本前置到 PATH（项目级覆盖全局默认）：
-              echo 'eval "$(pk env --project)"' > .envrc && direnv allow`,
+`,
 
 	"gc": `pk gc [--dry-run] [--cache-max 5GB] [--json]
 
@@ -112,6 +93,7 @@ pk use --lock
 func printCommandHelp(w io.Writer, cmd string) bool {
 	if text, ok := commandHelp[cmd]; ok {
 		fmt.Fprintln(w, text)
+		fmt.Fprintf(w, "\n开关与默认值：pk %s --help\n", cmd)
 		return true
 	}
 	return false

@@ -20,7 +20,7 @@ import (
 func (a *app) cmdDoctor(args []string) int {
 	fs := a.newFlagSet("doctor")
 	globals := fs.Bool("globals", false, "检查全局包（engines / 原生 ABI / 命令遮蔽）")
-	foreign := fs.Bool("foreign", false, "检测其他管理器（M5 后续）")
+	foreign := fs.Bool("foreign", false, "检测其他管理器（proto/nvm/volta/asdf/mise/fnm 等）并列版本")
 	probe := fs.Bool("probe", false, "探测镜像索引是否可达（会发 HEAD 请求）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
@@ -35,8 +35,7 @@ func (a *app) cmdDoctor(args []string) int {
 	if _, err := provider.All(); err != nil {
 		add(jsonout.SeverityErr, "PROVIDERS_BAD", err.Error(), nil)
 	}
-	add(jsonout.SeverityInfo, "PROVIDERS_DIRS", "外部清单目录（不存在即未配置）",
-		map[string]any{"dirs": provider.ExternalDirs(), "env": provider.ProvidersDirEnv})
+	add(jsonout.SeverityInfo, "PROVIDERS_DIRS", "外部清单目录（不存在即未配置）", map[string]any{"dirs": provider.ExternalDirs(), "env": provider.ProvidersDirEnv})
 	for _, is := range provider.ExternalIssues() {
 		sev := jsonout.SeverityErr
 		if is.Code == provider.IssueExternalConflict {
@@ -474,8 +473,8 @@ type globalPrefix struct {
 	prefix string
 }
 
-// globalPrefixes 列出要体检的全局前缀：npm（含 per-version）→ pnpm（<PNPM_HOME>/global/<N>）→ bun。
-// pnpm 与 bun 的全局目录同样是 node_modules 布局，方案 B.5 要求复用同一套 GLOBAL_* 码、用 detail.manager 标来源。
+// globalPrefixes 列出要体检的全局前缀：npm（含 per-version）→ pnpm（global/<N>）→ bun；
+// 三者都是 node_modules 布局，复用同一套 GLOBAL_* 码，用 detail.manager 标来源（方案 B.5）。
 func (a *app) globalPrefixes(nodeVersion string) []globalPrefix {
 	prefix := a.paths.Global()
 	if a.cfg.GlobalMode == "per-version" && nodeVersion != "" {

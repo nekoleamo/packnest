@@ -17,6 +17,7 @@ import (
 
 // Activate 把某工具某个已装版本设为全局默认：写 config.toml + 台账引用 + 重指 shim。
 func (i *Installer) Activate(tool, version string) error {
+	version = i.ResolveInstalled(tool, version)
 	in := i.ledger.Find(tool, version)
 	if in == nil {
 		return fmt.Errorf("%s@%s 还没装（`pk list` 看已装版本，先 `pk install %s@%s`）", tool, version, tool, version)
@@ -43,6 +44,32 @@ func (i *Installer) Activate(tool, version string) error {
 	i.opt.Cfg.Tools[tool] = version
 	// 3. shim 重指到该版本。
 	return i.installShims(p, in.Path)
+}
+
+// installedVersion 把说明符解析到"已装"的版本：pk use node@24 → 实际装的 24.22.3。
+// 精确命中优先；否则按 spec 在已装版本里取最优（不联网、不从索引解析）。
+func (i *Installer) ResolveInstalled(tool, specStr string) string {
+	return i.installedVersion(tool, specStr)
+}
+
+func (i *Installer) installedVersion(tool, specStr string) string {
+	if i.ledger.Find(tool, specStr) != nil {
+		return specStr
+	}
+	cands := make([]string, 0, 4)
+	for _, in := range i.ledger.Installs {
+		if in.Tool == tool {
+			cands = append(cands, in.Version)
+		}
+	}
+	sp, err := spec.Parse(specStr)
+	if err != nil {
+		return specStr
+	}
+	if best, ok := spec.Best(cands, sp); ok {
+		return best
+	}
+	return specStr
 }
 
 // ActiveVersion 返回某工具当前生效的全局默认版本（空串表示没有）。

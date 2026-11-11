@@ -37,8 +37,8 @@ func exitCodeFor(err error) int {
 // cmdInstall 安装工具（M1：node + 伴生 npm）。
 func (a *app) cmdInstall(args []string) int {
 	fs := a.newFlagSet("install")
-	frozen := fs.Bool("frozen", false, "严格按 pk.lock，不做解析（M4）")
-	insecure := fs.Bool("insecure", false, "允许无校验安装（标记 unverified）")
+	frozen := fs.Bool("frozen", false, "严格按 pk.lock，不做解析；清单与锁不一致即失败（CI 用）")
+	insecure := fs.Bool("insecure", false, "允许无校验安装（标记 unverified；校验源互相矛盾时也靠它放行）")
 	// --jobs 仍接受但已是纯占位：当前固定单连接（国内 CDN 分片往往更慢），不再打印噪音。
 	_ = fs.Int("jobs", 1, "并发下载数（预留；当前固定单连接）")
 	force := fs.Bool("force", false, "重装已存在的版本")

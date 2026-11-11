@@ -204,6 +204,7 @@ make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 | [docs/troubleshooting.md](docs/troubleshooting.md) | 故障排查（含与 proto/nvm/mise 共存） |
 | [docs/json-schema.md](docs/json-schema.md) | `--json` v1 契约（字段与问题码） |
 | [docs/publishing.md](docs/publishing.md) | 发布渠道（gitee / brew / scoop）、凭据、唯一发布者规则 |
+| [docs/verify-1.0.md](docs/verify-1.0.md) | 1.0 前实装验证记录（6 平台矩阵、发现的问题与修复） |
 
 ## 彻底卸载
 

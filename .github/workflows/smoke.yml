@@ -1,0 +1,103 @@
+# 6 平台实装 smoke（**只验证，不发布**）。
+#
+# 为什么要有它：`make check` 只能证明"编得过 + 单测绿"，装不装得上要在真机上跑一遍。
+# 本机只有 macOS（arm64 原生 + amd64 Rosetta），Linux/Windows 的运行时行为只能靠这里覆盖。
+#
+# 触发：手动（workflow_dispatch）或打 tag 时。不参与发布——发布一律在本机（见 docs/publishing.md）。
+name: smoke
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14      # darwin-arm64
+            os: darwin
+            arch: arm64
+          - runner: macos-13      # darwin-amd64
+            os: darwin
+            arch: amd64
+          - runner: ubuntu-latest # linux-amd64
+            os: linux
+            arch: amd64
+          - runner: ubuntu-24.04-arm # linux-arm64
+            os: linux
+            arch: arm64
+          - runner: windows-latest   # windows-amd64（windows-arm64 暂无公共 runner，人工确认）
+            os: windows
+            arch: amd64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: 版本号
+        id: ver
+        shell: bash
+        run: echo "v=$(cat scripts/latest)" >> "$GITHUB_OUTPUT"
+      # 注：checkout 是为了拿 scripts/latest；产物一律从"用户会用的地方"（gitee release）下
+      - uses: actions/checkout@v4
+
+      - name: 从 gitee 取发布产物（用户视角）
+        shell: bash
+        env:
+          V: ${{ steps.ver.outputs.v }}
+          OS: ${{ matrix.os }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -eu
+          base="https://gitee.com/null_593_5354/packnest/releases/download/v${V}"
+          ext=tar.gz; [ "$OS" = windows ] && ext=zip
+          name="packnest_${V}_${OS}_${ARCH}.${ext}"
+          curl -fsSL --retry 3 --max-time 300 -o "$RUNNER_TEMP/$name" "$base/$name"
+          curl -fsSL --retry 3 --max-time 60 -o "$RUNNER_TEMP/checksums.txt" "$base/checksums.txt"
+          want=$(awk -v f="$name" '$2==f {print $1; exit}' "$RUNNER_TEMP/checksums.txt")
+          if [ "$OS" = windows ]; then
+            got=$(sha256sum "$RUNNER_TEMP/$name" | cut -d' ' -f1)
+          else
+            got=$(shasum -a 256 "$RUNNER_TEMP/$name" | cut -d' ' -f1)
+          fi
+          [ -n "$want" ] && [ "$want" = "$got" ] || { echo "sha256 不符（want=$want got=$got）"; exit 4; }
+          mkdir -p "$RUNNER_TEMP/bin"
+          if [ "$OS" = windows ]; then
+            unzip -q "$RUNNER_TEMP/$name" -d "$RUNNER_TEMP/bin"
+          else
+            tar -xzf "$RUNNER_TEMP/$name" -C "$RUNNER_TEMP/bin"
+            chmod +x "$RUNNER_TEMP/bin/packnest"
+          fi
+          echo "已校验并解出 $name"
+
+      - name: 跑起来（--version / doctor / install node / 卸载零残留）
+        shell: bash
+        env:
+          PK_ROOT: ${{ runner.temp }}/pkroot
+        run: |
+          set -eu
+          ext=""; [ "${{ matrix.os }}" = windows ] && ext=".exe"
+          pk="$RUNNER_TEMP/bin/packnest$ext"
+          "$pk" --version | tee /dev/stderr | grep -q "packnest v"
+          "$pk" doctor --json > doctor.json || true
+          grep -q '"schema": 1' doctor.json
+          # 装一个真实运行时（走镜像回退链）；git-bash 不认 .cmd shim，Windows 只核对台账
+          "$pk" install node@22
+          if [ "${{ matrix.os }}" = windows ]; then
+            "$pk" list | grep -q node
+          else
+            eval "$("$pk" env --shell bash)"
+            node -v | grep -q '^v22\.'
+            npm -v
+          fi
+          # 外部 provider 清单：坏清单不影响 CLI，好清单能列出来
+          mkdir -p "$PK_ROOT/providers"
+          printf 'id = "broken"\ndisplay = "B"\n' > "$PK_ROOT/providers/broken.toml"
+          "$pk" list --json | grep -q '"schema": 1'
+          "$pk" doctor --json | grep -q PROVIDER_EXTERNAL_INVALID
+          # 零残留卸载（不删 pk 自己）
+          "$pk" uninstall --all --purge --yes
+          [ ! -d "$PK_ROOT" ] || { echo "PK_ROOT 还在：$PK_ROOT"; ls -la "$PK_ROOT"; exit 1; }

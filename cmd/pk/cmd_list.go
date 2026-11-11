@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"sort"
 	"strings"
@@ -59,7 +58,7 @@ func (a *app) cmdList(args []string) int {
 			Path:     in.Path,
 			Requires: requiresOf(p),
 			Verified: in.Verified,
-			Source:   providerSource(p),
+			Source:   sourceOf(p),
 		}
 		if in.Tool == "node" {
 			entry.NPM = &jsonout.ToolNPM{Version: in.NpmVersion, Replaced: in.NpmBundled}
@@ -122,26 +121,21 @@ func (a *app) cmdList(args []string) int {
 		a.refreshIndex = *refresh
 		return a.printAvailable()
 	}
-	printExternalFootnote(a.out, entries)
+	for _, e := range entries {
+		if e.Source == provider.SourceExternal {
+			fmt.Fprintln(a.out, "* 来自外部清单（"+strings.Join(provider.ExternalDirs(), string(os.PathListSeparator))+"）")
+			break
+		}
+	}
 	return jsonout.ExitOK
 }
 
-// providerSource 标出清单来源（GUI 与脚本据此判断"官方内嵌"还是"用户自带"）。
-func providerSource(p *provider.Provider) string {
+// sourceOf 标出清单来源（GUI 与脚本据此判断"官方内嵌"还是"用户自带"）。
+func sourceOf(p *provider.Provider) string {
 	if p == nil {
 		return ""
 	}
 	return p.Source
-}
-
-// printExternalFootnote 只在本次列表里出现外部工具时打一行脚注。
-func printExternalFootnote(w io.Writer, entries []jsonout.ToolEntry) {
-	for _, e := range entries {
-		if e.Source == provider.SourceExternal {
-			fmt.Fprintln(w, "* 来自外部清单（"+strings.Join(provider.ExternalDirs(), string(os.PathListSeparator))+"）")
-			return
-		}
-	}
 }
 
 // availableEntry 是 `list --available` 的一项。

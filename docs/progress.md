@@ -522,6 +522,12 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   阶段 0 实测净腾 **16 行**（不是方案预估的 200：`flag`/`usage` 样板只有 16 行可省，
   `fetchArtifactVerified` 抽出来后主流程与伴生 npm 包复用同一路径，但 helper 自身吃掉了省下的行）。
 
+## 实装验证
+
+`docs/verify-1.0.md` 记录 2026-11-11 的 v0.9.0 用户视角验证（5/6 平台组合自动化 + 本机 macOS 全链路），
+以及那一轮发现并修掉的三个问题（`pk use <大版本>` 报"还没装"、`--corepack` 对已装版本不重放、
+`pk help` 与 `--help` 的开关说明重复）。
+
 ## 已知缺口（按计划补齐，不是遗漏）
 
 - go 的国内索引源：npmmirror 没有 go 的产物/索引（实测），所以索引只声明官方 `?mode=json&include=all`，

@@ -53,6 +53,7 @@ func (a *app) cmdUse(args []string) int {
 	}
 	if *project {
 		// 项目级固定：核对已装 → 写 pk.toml → 重新生成 pk.lock（不改全局默认）
+		version = inst.ResolveInstalled(tool, version)
 		if in := inst.Ledger().Find(tool, version); in == nil {
 			return a.fail(fmt.Errorf("%s@%s 还没装（先 `pk install %s@%s`）", tool, version, tool, version))
 		}
