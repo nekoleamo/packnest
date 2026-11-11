@@ -514,7 +514,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - **红线：10,300 行**（`cmd/` + `internal/`，不含 `*_test.go` 与 `internal/testkit`；
   8,500 → 10,000（2026-11-10）→ 10,200 → 10,300（2026-11-11，外部 provider 与 corepack 落地后按实测上调），
   拍板记录见 `~/Documents/Plan/17-包管理器/pn-外部provider与工具链内工具-方案.md` §0.1）。
-- 现状 **10,292 行**（余量 8）：`cmd/pk` 3,256 · `internal/install` 1,437 · `internal/provider` 1,258 ·
+- 现状 **10,286 行**（余量 14）：`cmd/pk` 3,220 · `internal/install` 1,437 · `internal/provider` 1,258 ·
   `internal/testkit` 1,238 · `internal/env` 788 · `internal/store` 652 · `internal/fetch` 530。
   含 testkit 的旧口径是 11,183（testkit 是纯测试夹具，不计入门禁）。
 - ✅ 门禁已上线：`make loc`（`make check` 第 2 项，脚本 `tools/loccheck.sh`）——
@@ -537,8 +537,11 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - pnpm 12 的 tarball 只是启动器，首次运行会自己再下平台二进制（pnpm 上游行为）。方案原本假设
   「npm registry tarball 即产物」，实际多了第 4 个下载面。
   **2026-11-11 实测更正**：npmmirror 的 `/-/binary/pnpm/` 返回 `[NOT_FOUND] Binary "pnpm" not found`（没有这条路径）；
-  GitHub Releases 有 `pnpm-<os>-<arch>.tar.gz`（23–27MB 平台二进制），但**不带 SHASUMS 文件** —— 直接换过去等于
-  拿"有产物、无校验源"换"少一次下载"，违反「校验源必须与产物源解耦」，所以暂时保持现状；要做需先找到可信校验源。
+  GitHub Releases 有 `pnpm-<os>-<arch>.tar.gz`（23–27MB），但**不带 SHASUMS 文件**。
+  **可行路径（下一轮候选）**：registry 上有 `@pnpm/exe.<os>-<arch>`（实测 12.18.0 与 pnpm 版本同步，
+  `dist.integrity` 有 sha512，44MB 真二进制，tarball 4 个文件）。把 pnpm 的 artifact 换成它就能"一次装完、离线可用"，
+  但校验要读**平台包自己的** `dist.integrity`（不是 pnpm 包索引里的那个），需要新增一种 checksum 形态
+  （比如 `registry-platform`，约 20 行 + 一条验收），当前余量 14 行放不下。
 - deno 这类「上游重新发布」的版本目前只能 `--insecure`；自动化需要「同源配对校验」（官方产物 + 官方校验和成对验证、标记 weak），属 v1.1。
 - 缓存目前按 `cache/archives/<tool>-<version>-<platform>.<ext>` 命名（校验每次重算 sha256），
   未做方案里的"内容寻址 `<sha256>`"去重；功能等价（跨版本不重下），去重留到 M4 与 GC 一起做。

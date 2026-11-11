@@ -89,10 +89,6 @@ func (a *app) cmdInstall(args []string) int {
 
 	unlock, err := store.Lock(a.paths.Lock())
 	if err != nil {
-		if errors.Is(err, store.ErrLocked) {
-			fmt.Fprintln(a.errOut, "pk: 另一个 pk 正在运行（退出码 5）")
-			return jsonout.ExitLocked
-		}
 		return a.fail(err)
 	}
 	defer unlock()
@@ -173,15 +169,8 @@ func (a *app) cmdInstall(args []string) int {
 	}
 	// 项目里安装成功就刷新 pk.lock（--frozen 不动锁）。
 	if !*frozen && len(project) > 0 {
-		active := map[string]string{}
-		for tool, version := range a.cfg.Tools {
-			active[tool] = version
-		}
-		lock, err := install.BuildProjectLock(project, inst.Ledger(), active)
+		lock, err := a.writeProjectLock(project, inst)
 		if err != nil {
-			return a.fail(err)
-		}
-		if err := lock.Save(a.cwd()); err != nil {
 			return a.fail(err)
 		}
 		if !a.json {
@@ -227,10 +216,6 @@ func (a *app) cmdUninstall(args []string) int {
 
 	unlock, err := store.Lock(a.paths.Lock())
 	if err != nil {
-		if errors.Is(err, store.ErrLocked) {
-			fmt.Fprintln(a.errOut, "pk: 另一个 pk 正在运行（退出码 5）")
-			return jsonout.ExitLocked
-		}
 		return a.fail(err)
 	}
 	defer unlock()

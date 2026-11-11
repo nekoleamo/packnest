@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"runtime"
 
@@ -32,10 +31,6 @@ func (a *app) cmdUse(args []string) int {
 
 	unlock, err := store.Lock(a.paths.Lock())
 	if err != nil {
-		if errors.Is(err, store.ErrLocked) {
-			fmt.Fprintln(a.errOut, "pk: 另一个 pk 正在运行（退出码 5）")
-			return jsonout.ExitLocked
-		}
 		return a.fail(err)
 	}
 	defer unlock()
@@ -108,15 +103,8 @@ func (a *app) refreshProjectLock(inst *install.Installer) int {
 		fmt.Fprintln(a.errOut, "pk: 当前目录没有 pk.toml")
 		return jsonout.ExitFail
 	}
-	active := map[string]string{}
-	for tool, version := range a.cfg.Tools {
-		active[tool] = version
-	}
-	lock, err := install.BuildProjectLock(project, inst.Ledger(), active)
+	lock, err := a.writeProjectLock(project, inst)
 	if err != nil {
-		return a.fail(err)
-	}
-	if err := lock.Save(a.cwd()); err != nil {
 		return a.fail(err)
 	}
 	if !a.json {
@@ -151,10 +139,6 @@ func (a *app) cmdGC(args []string) int {
 
 	unlock, err := store.Lock(a.paths.Lock())
 	if err != nil {
-		if errors.Is(err, store.ErrLocked) {
-			fmt.Fprintln(a.errOut, "pk: 另一个 pk 正在运行（退出码 5）")
-			return jsonout.ExitLocked
-		}
 		return a.fail(err)
 	}
 	defer unlock()

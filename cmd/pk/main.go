@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/packnest/packnest/internal/fetch"
+	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/paths"
 	"github.com/packnest/packnest/internal/provider"
@@ -181,6 +182,10 @@ func (a *app) cmdVersion() int {
 }
 
 func (a *app) fail(err error) int {
+	if errors.Is(err, store.ErrLocked) { // 全局锁被另一个 pk 占着（方案 §错误码 5）
+		fmt.Fprintln(a.errOut, "pk: 另一个 pk 正在运行（退出码 5）")
+		return jsonout.ExitLocked
+	}
 	fmt.Fprintf(a.errOut, "pk: %v\n", err)
 	return jsonout.ExitFail
 }
@@ -194,6 +199,19 @@ func (a *app) usageFor(fs *flag.FlagSet, name string) {
 		fmt.Fprintln(a.errOut, "\n开关（默认值见括号）：")
 		fs.PrintDefaults()
 	}
+}
+
+// writeProjectLock 按 pk.toml + 台账重新生成 pk.lock（install 与 use --lock 共用同一段）。
+func (a *app) writeProjectLock(project map[string]string, inst *install.Installer) (*install.Lock, error) {
+	active := make(map[string]string, len(a.cfg.Tools))
+	for tool, version := range a.cfg.Tools {
+		active[tool] = version
+	}
+	lock, err := install.BuildProjectLock(project, inst.Ledger(), active)
+	if err != nil {
+		return nil, err
+	}
+	return lock, lock.Save(a.cwd())
 }
 
 // newFlagSet 建子命令的 FlagSet：错误输出走 a.errOut，Usage 打印 `pk help <name>` + flag 默认值。
