@@ -528,6 +528,18 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 以及那一轮发现并修掉的三个问题（`pk use <大版本>` 报"还没装"、`--corepack` 对已装版本不重放、
 `pk help` 与 `--help` 的开关说明重复）。
 
+## 剩余项（非 GUI，2026-11-11 盘点）
+
+| 项 | 状态 | 阻塞原因 |
+|---|---|---|
+| pnpm 第 4 个下载面 | ✅ 已解决（平台包 + 平台元数据校验，6 个平台包实测都存在） | — |
+| 离线重装 / 缓存被删 | ✅ 已修（TOFU 命中不问网络；只有摘要不符才删缓存） | — |
+| 内容寻址缓存（按 sha256 去重） | ⏳ 未做 | 行数余量 1，任何改动前必须先砍 |
+| L4 `dlopen` 试加载检测 | ⏳ 未做 | 同上；且属"锦上添花"，现用 gypfile/.node 判定已覆盖主要场景 |
+| 卸载编排挪进 `internal/install`（清 `cmd/pk` 3,220 warn） | ⏳ 未做 | 行数中性但 diff 大，需单独一轮 |
+| winget 正式上架 | ⏳ 未做 | 要向 microsoft/winget-pkgs 提 PR（人工），草稿在 `packaging/winget/` |
+| windows-arm64 运行时、Windows `.cmd` shim、Gatekeeper 首启 | ⏳ 人工确认 | 无公共 ARM Windows runner；项目规则允许人工确认这三项 |
+
 ## 已知缺口（按计划补齐，不是遗漏）
 
 - go 的国内索引源：npmmirror 没有 go 的产物/索引（实测），所以索引只声明官方 `?mode=json&include=all`，
