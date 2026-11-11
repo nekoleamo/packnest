@@ -283,6 +283,21 @@ doctor --globals      → 造一个 engines.node=">=99" 的全局包 → GLOBAL_
 - 顺带修 `scripts/install.sh` 的版本探测：原来写死 `gitee.com/api/v5/repos/packnest/packnest/releases/latest`（404，且 gitee API 匿名 401），
   现改为先问 `registry.npmmirror.com/packnest/latest`（公开、无需凭据），再回退官方 registry，最后才试 gitee——`curl … | sh` 这条主路径现在真能用。
 
+## 0.9.0（2026-11-11）
+
+- **外部 provider 清单**：`$PK_ROOT/providers/*.toml` + `PK_PROVIDERS_DIR`（追加、多目录）；内嵌永远赢；
+  六条安全边界（https 默认、路径不许绝对/`..`、禁 pbs、未知占位符、伴生 registry 必须存在、≤256KB）；
+  坏清单只记 issue，不影响 CLI；`pk list` 标 `*` + `--json` 的 `source`；doctor 新码
+  `PROVIDER_EXTERNAL_INVALID` / `_CONFLICT` / `PROVIDER_HTTP_URL` / `PROVIDERS_DIRS`
+- **corepack（PATH 4 → 5 段）**：`global/corepack/bin` 独立一段（provider 的 pnpm 永远优先）；
+  `COREPACK_HOME` + `COREPACK_NPM_REGISTRY`；`pk install node --corepack|--no-corepack`；
+  node 25+ 明确报错
+- **doctor**：`GO_INSTALL_NOT_IN_PATH`（不设 GOBIN）、`PIP_USER_SITE_UNMANAGED`、
+  `--globals` 覆盖 pnpm/bun 的全局目录（`detail.manager` 标来源）
+- **门禁**：`make check` 8 项（`make loc` 行数门禁上线，红线 8,500 → 10,000 → 10,200 → 10,300）
+- **发布事故与规则**：本机与 GitHub Actions 同时发布会产出两套 sha256（构建字节随机器不同），
+  0.9.0 已按"唯一发布者（本机）"修复，CI 的 publish/taps job 改为 `workflow_dispatch` 才跑
+
 ## 0.8.0（2026-11-10）
 
 **移除 deno**（上游进入生命末期，不再值得为一个单文件产物维护一整条 provider 链路）。

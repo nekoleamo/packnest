@@ -45,6 +45,17 @@ if [ "$GOT" != "$WANT" ]; then
 fi
 echo "预检 OK：清单 6 个 hash 与 checksums.txt 一致"
 
+# 线上核对：清单必须和"用户真正下载到的文件"一致。本地 dist 自洽不够 ——
+# 曾经因为 mac 与 ubuntu 各发一次而出现两套 sha256（见 docs/publishing.md「唯一发布者」）。
+# 经 make publish-manifests 调用时 verify-release 已经跑过，用 PK_SKIP_LIVE_CHECK=1 跳过重复下载。
+if [ "${PK_SKIP_LIVE_CHECK:-}" != "1" ]; then
+  sh scripts/verify-release.sh >/dev/null || {
+    echo "线上产物与本地清单不一致（先 make verify-release 看明细）；拒绝推清单" >&2
+    exit 1
+  }
+  echo "线上核对 OK：已发布产物的 sha256 与本地清单一致"
+fi
+
 # 读远端清单用 git 而不是 raw.githubusercontent：raw 有几十秒到几分钟的 CDN 缓存，
 # 会把刚推上去的正确清单误报成"旧"（首发时就这样被坑过）。
 remote_hashes() { # 读远端两处清单里的 sha256（tap 的 .rb + bucket 的 .json），排序输出

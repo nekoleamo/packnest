@@ -124,7 +124,7 @@ verify-release:
 # 渠道清单：必须先过 verify-release，否则会把错的 sha256 推进 tap/bucket。
 publish-manifests: verify-release
 	@sh scripts/gen-manifests.sh
-	@sh scripts/release-taps.sh
+	@PK_SKIP_LIVE_CHECK=1 sh scripts/release-taps.sh
 
 list-providers:
 	@go run ./cmd/pk mirror list

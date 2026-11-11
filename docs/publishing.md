@@ -197,6 +197,39 @@ curl -X PUT 'https://registry.npmmirror.com/-/package/%40packnest%2Fdarwin-arm64
 
 （npmmirror 是只读镜像，**不能**直接 publish 到它。）
 
+### ⚠️ 唯一发布者：只在这台机器发（2026-11-11 拍板）
+
+**发布者只能有一个。** 仓库里的 `.github/workflows/npm-publish.yml` 也能发（tag push 时按
+`PUBLISH_TAPS` / `PUBLISH_GITEE` 变量跑），它和本机同时发就会出事：
+
+| 谁来构建 | darwin_arm64 的 sha256（0.9.0 实测） |
+|---|---|
+| 本机 macOS（= gitee 上真正被下载到的文件） | `5b8bdf5a…` |
+| GitHub Actions ubuntu | `8cc7f131…` |
+
+同一份源码、同一份 checksums 口径，**两台机器构建出的 tar.gz/zip 字节不同**（gzip/zip 实现差异），
+于是同一个版本存在两套 sha256；而 gitee 的 `attach_files` 对同名文件**不替换**，
+最后就是「tap 里的 hash ≠ 用户下载到的文件」→ `brew install` 报 `reports different checksum`。
+0.8.0 与 0.9.0 各踩了一次（tap 上同一版本有两笔提交，相隔 42 秒～2 分钟）。
+
+现行规则：
+
+- 仓库变量 `PUBLISH_TAPS` / `PUBLISH_GITEE` 都是 **false**，且这两个 job 还额外要求
+  `workflow_dispatch` —— 即使变量被误开，tag push 也不会自动发布。
+- CI 只保留：pages（官网）、gitee-mirror（代码同步）；npm 发布看 `SKIP_NPM_PUBLISH`。
+- 发布全部在本机跑：
+
+```bash
+make check && make release              # ① 产物（可重复：同一台机器重跑 sha256 不变）
+git commit && git tag -a vX.Y.Z && git push origin main && git push origin vX.Y.Z
+sh scripts/release-gitee.sh             # ② 上传 gitee
+make publish-manifests                  # ③ verify-release → gen-manifests → release-taps（自带线上核对）
+sh scripts/release-npm.sh --stage       # ④ npm stage，之后人工 promote
+```
+
+`release-taps.sh` 现在推之前会跑一次 `verify-release`（线上产物 vs 本地清单，`PK_SKIP_LIVE_CHECK=1`
+可跳过，`make publish-manifests` 已经跑过所以会跳过）——清单和线上不一致时**拒绝推送**。
+
 ### ⚠️ 顺序与「产物必须可重复」这两件事（0.7.0 栽过一次）
 
 `make release` 现在产出的归档是**可重复的**（打包前用 `SOURCE_DATE` 钉死 mtime，tar 走
@@ -231,7 +264,7 @@ sh scripts/release-taps.sh  # ⑤ 推 homebrew tap + scoop bucket
 ## 五、发布前自检
 
 ```bash
-make check                        # 7 项门禁
+make check                        # 8 项门禁（含手写行数门禁 make loc）
 make release && ls dist/v*/
 make verify-release               # 已发布产物 vs checksums.txt（发布后必跑）
 sh scripts/release-npm.sh --dry-run                # 7 个包 manifest 都过
