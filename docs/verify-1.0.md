@@ -75,6 +75,14 @@ git-bash 没有 `/dev/stderr`、`pk doctor` 有 error 级问题时退出码是 1
 每个组合都做：sha256 校验 → `--version` → `doctor --json` → `install node@22` → 外部坏清单不影响 CLI
 → `uninstall --all --purge` 后 `PK_ROOT` 必须不存在。
 
+## 三点五、2026-11-11 第二批（内容寻址缓存 / L4 dlopen / 降级重定向）
+
+| 项 | 做法 | 实测 |
+|---|---|---|
+| 内容寻址缓存 | 产物落盘后改成 `<sha256>.<ext>`；TOFU 表里已知摘要时直接按内容找 | 同一版本重装 → 缓存命中；`node@22` 与 `node@24` 各存一份（内容不同），同内容跨版本只留一份 |
+| L4 `dlopen` 检测 | `pk doctor --globals --probe` 用 `node -e "process.dlopen({exports:{}}, file)"` 试加载 `.node`（只加载二进制、不跑包代码）；只探标了 N-API 的包，避免与非 N-API 的静态告警重复 | 造一个假原生包 + 坏 `.node` → 报 `GLOBAL_NATIVE_ABI`（detail.probe = `exit status 1`） |
+| 降级重定向 | `fetch.checkRedirect` 拒绝 https→http 与 >10 次重定向 | 单测/编译期；实际链路暂无降级源可测 |
+
 ## 四、还没覆盖的（下一轮）
 
 - **windows-arm64 运行时**（无公共 runner）、**Windows `.cmd` shim 被 PowerShell 调用**（项目规则允许人工确认）

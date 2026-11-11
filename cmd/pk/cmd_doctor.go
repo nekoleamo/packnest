@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/packnest/packnest/internal/env"
 	"github.com/packnest/packnest/internal/install"
@@ -176,6 +177,12 @@ func (a *app) cmdDoctor(args []string) int {
 			for _, problem := range env.CheckShadowing(pkgs, projectBins(a.cwd())) {
 				problem.Detail["manager"] = m.name
 				add(jsonout.SeverityInfo, problem.Code, problem.Message, problem.Detail)
+			}
+			if *probe { // --probe：真用 node 的 dlopen 试加载 .node（只加载二进制，不跑包代码）
+				for _, problem := range env.ProbeNative(pkgs, a.nodeBin(ledger), 5*time.Second) {
+					problem.Detail["manager"] = m.name
+					add(jsonout.SeverityWarn, problem.Code, problem.Message, problem.Detail)
+				}
 			}
 			if len(pkgs) == 0 && m.name == "npm" {
 				add(jsonout.SeverityInfo, "GLOBALS_NONE", fmt.Sprintf("全局包目录里没有包（%s）", m.prefix), map[string]any{"prefix": m.prefix})
@@ -471,6 +478,22 @@ func detectShellFor(goos string, getenv func(string) string) string {
 type globalPrefix struct {
 	name   string
 	prefix string
+}
+
+// nodeBin 返回当前生效 node 的真实路径（--probe 用它加载原生模块，走 shim 会多一层）。
+func (a *app) nodeBin(ledger *store.Ledger) string {
+	v := a.cfg.Tools["node"]
+	if v == "" {
+		v = ledger.Active("node")
+	}
+	if v == "" {
+		return ""
+	}
+	name := "node"
+	if goos() == "windows" {
+		name = "node.exe"
+	}
+	return filepath.Join(a.paths.ToolVersion("node", v), "bin", name)
 }
 
 // globalPrefixes 列出要体检的全局前缀：npm（含 per-version）→ pnpm（global/<N>）→ bun；

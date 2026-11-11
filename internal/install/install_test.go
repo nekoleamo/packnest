@@ -426,9 +426,9 @@ func TestUninstallClean(t *testing.T) {
 	if err != nil || len(ledger.Installs) != 0 {
 		t.Fatalf("台账应清空: %+v %v", ledger, err)
 	}
-	// 缓存必须保留（离线重装靠它）
-	if _, err := os.Stat(filepath.Join(root.CacheArchives(), "node-22.22.2-darwin-arm64.tar.gz")); err != nil {
-		t.Fatalf("缓存不该被删: %v", err)
+	// 缓存必须保留（离线重装靠它）；文件名是内容寻址的 <sha256>.tar.gz
+	if entries, err := os.ReadDir(root.CacheArchives()); err != nil || len(entries) == 0 {
+		t.Fatalf("缓存不该被删: %v %v", entries, err)
 	}
 }
 
@@ -1156,6 +1156,7 @@ func TestInstallPythonPB(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("只该下一次产物，得到 %v", entries)
 	}
+	// 内容寻址：<sha256>.tar.gz（python 的产物本身是 .tar.gz，不是 .tar.zst/.zip）
 	if !strings.HasSuffix(entries[0].Name(), ".tar.gz") {
 		t.Fatalf("应是预编译 tar.gz: %v", entries[0].Name())
 	}

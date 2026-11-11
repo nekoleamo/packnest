@@ -4,12 +4,15 @@
 package env
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/packnest/packnest/internal/spec"
 )
@@ -200,4 +203,52 @@ func CheckShadowing(pkgs []GlobalPackage, projectBins map[string]string) []Globa
 	}
 	sort.Slice(problems, func(i, j int) bool { return problems[i].Detail["bin"].(string) < problems[j].Detail["bin"].(string) })
 	return problems
+}
+
+// ProbeNative 用 node 的 process.dlopen 试加载全局包里的 .node（只加载二进制，不跑包的 JS 初始化），
+// 从而在**切 node 版本之前**就发现 ABI 不匹配（方案 §8.5 L4）。nodeBin 为空/不存在时什么都不做。
+func ProbeNative(pkgs []GlobalPackage, nodeBin string, timeout time.Duration) []GlobalProblem {
+	if nodeBin == "" {
+		return nil
+	}
+	if _, err := os.Stat(nodeBin); err != nil {
+		return nil
+	}
+	var out []GlobalProblem
+	for _, pkg := range pkgs {
+		if !pkg.Native || !pkg.NAPI {
+			continue // 纯 JS 不用试；非 N-API 的原生模块 CheckGlobals 已经静态告警过了，别重复报
+		}
+		for _, file := range nativeFiles(pkg.Path) {
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			err := exec.CommandContext(ctx, nodeBin, "-e", "process.dlopen({exports:{}}, process.argv[1])", file).Run()
+			cancel()
+			if err == nil {
+				continue
+			}
+			out = append(out, GlobalProblem{
+				Code:    "GLOBAL_NATIVE_ABI",
+				Pkg:     pkg.Name,
+				Message: fmt.Sprintf("全局包 %s 的原生模块在当前 node 上加载失败（%s）", pkg.Name, filepath.Base(file)),
+				Detail:  map[string]any{"pkg": pkg.Name, "file": file, "node": nodeBin, "probe": err.Error()},
+			})
+			break // 一个包报一次就够
+		}
+	}
+	return out
+}
+
+// nativeFiles 找出包目录下的 .node 文件（最多 8 个：大包不必全扫）。
+func nativeFiles(dir string) []string {
+	var out []string
+	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(info.Name(), ".node") && len(out) < 8 {
+			out = append(out, path)
+		}
+		return nil
+	})
+	return out
 }

@@ -71,6 +71,20 @@ type Client struct {
 }
 
 // New 返回带默认超时的客户端。
+// checkRedirect 拒绝 https → http 的降级重定向：产物摘要是从校验源算出来的，
+// 但链路被降级后，中间人可以整段替换（尤其是单校验源、本来就 weak 的产物）。
+func checkRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("重定向次数过多")
+	}
+	for _, v := range via {
+		if v.URL.Scheme == "https" && req.URL.Scheme != "https" {
+			return fmt.Errorf("拒绝 https → %s 的降级重定向（%s）", req.URL.Scheme, req.URL.Host)
+		}
+	}
+	return nil
+}
+
 func New() *Client {
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
@@ -86,7 +100,7 @@ func New() *Client {
 		ForceAttemptHTTP2:     true,
 	}
 	return &Client{
-		HTTP:      &http.Client{Transport: transport},
+		HTTP:      &http.Client{Transport: transport, CheckRedirect: checkRedirect},
 		Retries:   DefaultRetries,
 		UserAgent: "packnest/1 (cli)",
 		Now:       time.Now,

@@ -532,8 +532,14 @@ func (i *Installer) fetchArtifact(ctx context.Context, p *provider.Provider, res
 	version := resolved.Version
 	ext := extOrDefault(p, i.opt.GOOS)
 	platform := i.opt.GOOS + "-" + i.opt.GOARCH
-	cachePath := filepath.Join(i.opt.Paths.CacheArchives(),
-		fmt.Sprintf("%s-%s-%s.%s", p.ID, version, platform, ext))
+	dir := i.opt.Paths.CacheArchives()
+	// 内容寻址：TOFU 表里已知道摘要时直接找 <sha256>.<ext>（同一份字节跨版本只存一份）
+	if e, ok := i.known.Get(verify.Key(p.ID, version, platform)); ok && len(e.Digest) == 64 {
+		if cp := filepath.Join(dir, e.Digest+"."+ext); i.cacheHit(cp) {
+			return cp, urls[0], true, nil
+		}
+	}
+	cachePath := filepath.Join(dir, fmt.Sprintf("%s-%s-%s.%s", p.ID, version, platform, ext))
 
 	if st, err := os.Stat(cachePath); err == nil && st.Size() > 0 && !i.opt.Force {
 		i.recordCacheTouch(filepath.Base(cachePath), i.now())
@@ -546,6 +552,33 @@ func (i *Installer) fetchArtifact(ctx context.Context, p *provider.Provider, res
 		return "", "", false, err
 	}
 	return cachePath, source, false, nil
+}
+
+// cacheHit 判断缓存文件是否可用（存在、非空、本次没给 --force），命中时记一次 LRU。
+func (i *Installer) cacheHit(path string) bool {
+	st, err := os.Stat(path)
+	if err != nil || st.Size() == 0 || i.opt.Force {
+		return false
+	}
+	i.recordCacheTouch(filepath.Base(path), i.now())
+	i.emit(jsonout.Event{Ev: "cache", Tool: filepath.Base(path), Bytes: st.Size()})
+	return true
+}
+
+// addressed 把缓存文件改成内容寻址名 <sha256>.<ext>：同名已存在说明同内容已在缓存里，
+// 直接删掉这份重复的（跨版本/跨项目去重）。
+func (i *Installer) addressed(path, sha, ext string) string {
+	if sha == "" || strings.HasPrefix(filepath.Base(path), sha+".") {
+		return path
+	}
+	dst := filepath.Join(filepath.Dir(path), sha+"."+ext)
+	if _, err := os.Stat(dst); err == nil {
+		_ = os.Remove(path)
+	} else if err := os.Rename(path, dst); err != nil {
+		return path
+	}
+	i.recordCacheTouch(filepath.Base(dst), i.now())
+	return dst
 }
 
 // downloadFromChain 先探测再下载；探测全挂时退化到直接下载首选源。
@@ -645,7 +678,7 @@ func (i *Installer) fetchArtifactVerified(ctx context.Context, p *provider.Provi
 		}
 		return "", "", "", verify.Result{}, err
 	}
-	return archivePath, artifactURL, sha, vr, nil
+	return i.addressed(archivePath, sha, extOrDefault(p, i.opt.GOOS)), artifactURL, sha, vr, nil
 }
 
 // verifyArtifact 按清单声明的校验格式选算法与期望摘要，交给 verify 包求值。

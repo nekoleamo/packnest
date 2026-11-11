@@ -511,10 +511,10 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ## 行数预算现状
 
-- **红线：10,300 行**（`cmd/` + `internal/`，不含 `*_test.go` 与 `internal/testkit`；
+- **红线：10,360 行**（`cmd/` + `internal/`，不含 `*_test.go` 与 `internal/testkit`；
   8,500 → 10,000（2026-11-10）→ 10,200 → 10,300（2026-11-11，外部 provider 与 corepack 落地后按实测上调），
   拍板记录见 `~/Documents/Plan/17-包管理器/pn-外部provider与工具链内工具-方案.md` §0.1）。
-- 现状 **10,286 行**（余量 14）：`cmd/pk` 3,220 · `internal/install` 1,437 · `internal/provider` 1,258 ·
+- 现状 **10,349 行**（余量 11）：`cmd/pk` 3,220 · `internal/install` 1,437 · `internal/provider` 1,258 ·
   `internal/testkit` 1,238 · `internal/env` 788 · `internal/store` 652 · `internal/fetch` 530。
   含 testkit 的旧口径是 11,183（testkit 是纯测试夹具，不计入门禁）。
 - ✅ 门禁已上线：`make loc`（`make check` 第 2 项，脚本 `tools/loccheck.sh`）——
@@ -537,9 +537,9 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 |---|---|---|
 | pnpm 第 4 个下载面 | ✅ 已解决（平台包 + 平台元数据校验，6 个平台包实测都存在） | — |
 | 离线重装 / 缓存被删 | ✅ 已修（TOFU 命中不问网络；只有摘要不符才删缓存） | — |
-| 内容寻址缓存（按 sha256 去重） | ⏳ 未做 | 行数余量 1，任何改动前必须先砍 |
-| L4 `dlopen` 试加载检测 | ⏳ 未做 | 同上；且属"锦上添花"，现用 gypfile/.node 判定已覆盖主要场景 |
-| 拒绝 https→http 的降级重定向 | ⏳ 待做（安全加固，低危） | `fetch.Client` 没设 `CheckRedirect`：默认跟随重定向，理论上 https 源 302 到 http 后仍会下。产物校验收敛了实际风险（摘要来自校验源），但应显式拒绝；约 8 行，卡在余量 |
+| 内容寻址缓存（按 sha256 去重） | ✅ 已做（2026-11-11）：缓存文件落成 `<sha256>.<ext>`，TOFU 表里已知摘要时直接按内容找，同内容跨版本只存一份 | — |
+| L4 `dlopen` 试加载检测 | ✅ 已做：`pk doctor --globals --probe` 用 `node -e "process.dlopen({exports:{}}, file)"` 试加载 `.node`（只加载二进制、不跑包代码） | — |
+| 拒绝 https→http 的降级重定向 | ✅ 已做：`fetch.checkRedirect` 拒绝任何 https→http 的降级与 >10 次重定向 | — |
 | 卸载编排挪进 `internal/install`（清 `cmd/pk` 3,220 warn） | ✅ 部分完成：渠道识别（`DetectInstallChannel` / `SelfRemoveHint`）已挪进 `internal/install`，`cmd/pk` 3,220 → **3,181**（warn 消失）；剩余打印/交互编排仍留在 cmd | — |
 | winget 正式上架 | ⏳ 未做 | 要向 microsoft/winget-pkgs 提 PR（人工），草稿在 `packaging/winget/` |
 | windows-arm64 运行时、Windows `.cmd` shim、Gatekeeper 首启 | ⏳ 人工确认 | 无公共 ARM Windows runner；项目规则允许人工确认这三项 |
