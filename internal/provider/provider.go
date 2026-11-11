@@ -26,6 +26,12 @@ const (
 	ExtTgz   = "tgz"
 )
 
+// 清单来源。
+const (
+	SourceEmbedded = "embedded" // //go:embed 编进二进制的那 6 份
+	SourceExternal = "external" // 用户 / 内网自己放的 TOML
+)
+
 // 索引形态。
 const (
 	IndexJSON     = "json"     // 一次性 JSON（node index.json、npm registry 元数据）
@@ -52,6 +58,11 @@ type Provider struct {
 	ID       string   `toml:"id"`
 	Display  string   `toml:"display"`
 	Requires []string `toml:"requires"`
+	// Source / Dir / InsecureTransport 是加载期算出来的，不来自 TOML。
+	Source string `toml:"-"`
+	Dir    string `toml:"-"`
+	// InsecureTransport 表示清单里有被 PK_ALLOW_HTTP 放行的 http:// 源（校验按弱处理）。
+	InsecureTransport bool `toml:"-"`
 	// Kind 区分普通工具（binary）与 registry 上的 JS 包（registry）。
 	Kind       string               `toml:"kind"`
 	Index      IndexBlock           `toml:"index"`
@@ -118,10 +129,16 @@ var (
 	err   error
 )
 
-// All 返回全部 provider（按 ID 排序），结果缓存在进程内。
+// All 返回全部 provider（内嵌 + 外部，按 ID 排序），结果缓存在进程内。
+//
+// 外部清单出任何问题都不影响本函数的成功返回（方案 A.7）：问题记在 ExternalIssues()。
 func All() ([]*Provider, error) {
 	once.Do(func() {
-		cache, err = loadFS(providers.FS)
+		if cache, err = loadFS(providers.FS); err != nil {
+			return
+		}
+		cache = append(cache, loadExternal(ExternalDirs(), cache)...)
+		sort.Slice(cache, func(i, j int) bool { return cache[i].ID < cache[j].ID })
 	})
 	return cache, err
 }
@@ -173,6 +190,7 @@ func loadFS(fsys fs.FS) ([]*Provider, error) {
 		if p.ID != want {
 			return nil, fmt.Errorf("%s: id = %q 与文件名不一致", name, p.ID)
 		}
+		p.Source = SourceEmbedded
 		out = append(out, p)
 	}
 	if len(out) == 0 {

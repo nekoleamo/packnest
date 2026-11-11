@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"sort"
 	"strings"
 
@@ -57,6 +59,7 @@ func (a *app) cmdList(args []string) int {
 			Path:     in.Path,
 			Requires: requiresOf(p),
 			Verified: in.Verified,
+			Source:   providerSource(p),
 		}
 		if in.Tool == "node" {
 			entry.NPM = &jsonout.ToolNPM{Version: in.NpmVersion, Replaced: in.NpmBundled}
@@ -108,6 +111,9 @@ func (a *app) cmdList(args []string) int {
 			if e.Verified == "unverified" {
 				line += " [未校验]"
 			}
+			if e.Source == provider.SourceExternal {
+				line += " *"
+			}
 			fmt.Fprintln(a.out, line)
 		}
 	}
@@ -116,7 +122,26 @@ func (a *app) cmdList(args []string) int {
 		a.refreshIndex = *refresh
 		return a.printAvailable()
 	}
+	printExternalFootnote(a.out, entries)
 	return jsonout.ExitOK
+}
+
+// providerSource 标出清单来源（GUI 与脚本据此判断"官方内嵌"还是"用户自带"）。
+func providerSource(p *provider.Provider) string {
+	if p == nil {
+		return ""
+	}
+	return p.Source
+}
+
+// printExternalFootnote 只在本次列表里出现外部工具时打一行脚注。
+func printExternalFootnote(w io.Writer, entries []jsonout.ToolEntry) {
+	for _, e := range entries {
+		if e.Source == provider.SourceExternal {
+			fmt.Fprintln(w, "* 来自外部清单（"+strings.Join(provider.ExternalDirs(), string(os.PathListSeparator))+"）")
+			return
+		}
+	}
 }
 
 // availableEntry 是 `list --available` 的一项。
@@ -127,6 +152,7 @@ type availableEntry struct {
 	Recent   []string `json:"recent,omitempty"`
 	Requires []string `json:"requires"`
 	Stale    bool     `json:"stale,omitempty"`
+	Source   string   `json:"source,omitempty"`
 	Err      string   `json:"error,omitempty"`
 }
 
@@ -153,10 +179,23 @@ func (a *app) printAvailable() int {
 		if row.Stale {
 			extra += " [索引来自过期缓存]"
 		}
+		name := row.Name
+		if row.Source == provider.SourceExternal {
+			name += "*"
+		}
 		fmt.Fprintf(a.out, "  %-7s %-10s%s  近几个: %s\n",
-			row.Name, row.Latest, extra, strings.Join(row.Recent, ", "))
+			name, row.Latest, extra, strings.Join(row.Recent, ", "))
 	}
 	return jsonout.ExitOK
+}
+
+// indexLoader 造版本索引加载器（refreshIndex 为真时 0 = 每次回源，仍写缓存供 --offline 用）。
+func (a *app) indexLoader() *provider.IndexLoader {
+	ttl := provider.DefaultIndexTTL
+	if a.refreshIndex {
+		ttl = 0
+	}
+	return &provider.IndexLoader{Client: a.client, CacheDir: a.paths.CacheMeta(), TTL: ttl, Custom: toolchain.LoadPBSIndex}
 }
 
 // availableRows 拉取各工具的可用版本（失败只记录，不影响其他工具）。
@@ -165,19 +204,10 @@ func (a *app) availableRows() []availableEntry {
 	if err != nil {
 		return []availableEntry{{Name: "-", Err: err.Error()}}
 	}
-	ttl := provider.DefaultIndexTTL
-	if a.refreshIndex {
-		ttl = 0 // 0 = 每次都回源（仍会写缓存，供 --offline 用）
-	}
-	loader := &provider.IndexLoader{
-		Client:   a.client,
-		CacheDir: a.paths.CacheMeta(),
-		TTL:      ttl,
-		Custom:   toolchain.LoadPBSIndex,
-	}
+	loader := a.indexLoader()
 	rows := make([]availableEntry, 0, len(all))
 	for _, p := range all {
-		row := availableEntry{Name: p.ID, Requires: requiresOf(p)}
+		row := availableEntry{Name: p.ID, Requires: requiresOf(p), Source: p.Source}
 		idx, err := loader.Load(a.context(), p, a.cfg.Mirror)
 		if err != nil {
 			row.Err = err.Error()
@@ -223,17 +253,8 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 	}
 	installed = spec.SortDesc(installed)
 
-	ttl := provider.DefaultIndexTTL
-	if refresh {
-		ttl = 0
-	}
-	loader := &provider.IndexLoader{
-		Client:   a.client,
-		CacheDir: a.paths.CacheMeta(),
-		TTL:      ttl,
-		Custom:   toolchain.LoadPBSIndex,
-	}
-	idx, err := loader.Load(a.context(), p, a.cfg.Mirror)
+	_ = refresh // 缓存 TTL 由 a.refreshIndex 统一决定
+	idx, err := a.indexLoader().Load(a.context(), p, a.cfg.Mirror)
 	if err != nil {
 		fmt.Fprintf(a.errOut, "pk: %s 的版本索引取不到: %v\n", name, err)
 		fmt.Fprintln(a.errOut, "试一试：pk list "+name+" --refresh（强制回源）· pk mirror probe（看哪个源通）· pk mirror use cn（换档）")
@@ -317,15 +338,15 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 		fmt.Fprintln(a.out, "  已装   （本机还没装）")
 	} else {
 		for i, v := range installed {
+			label := "       "
+			if i == 0 {
+				label = "  已装 "
+			}
 			mark := " "
 			if active[name] == v {
 				mark = "*"
 			}
-			if i == 0 {
-				fmt.Fprintf(a.out, "  已装 %s %s\n", mark, v)
-			} else {
-				fmt.Fprintf(a.out, "       %s %s\n", mark, v)
-			}
+			fmt.Fprintf(a.out, "%s%s %s\n", label, mark, v)
 		}
 	}
 	if len(versions) == 0 {
@@ -416,6 +437,7 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 	return jsonout.ExitOK
 }
 
+// containsStr 判断切片里有没有某个值（列表展示到处要用）。
 func containsStr(list []string, want string) bool {
 	for _, v := range list {
 		if v == want {

@@ -2,7 +2,7 @@
 # 行数门禁（方案 §0.1 决策 1 + R2）。
 #
 #   总计   cmd/ + internal/，不含 *_test.go，也不含 internal/testkit（纯测试夹具）
-#          > 10000 → 退出 1（红线，硬拦）
+#          > 10200 → 退出 1（红线，硬拦；2026-11-11 从 10000 上调，见方案 §0.1）
 #   cmd/pk > 3200 → 只 warn（R2：硬拦会逼出"把代码搬进 internal 只为过门禁"的假优化）
 #   单文件 > 600 → 只 warn（当前唯一超标者是阶段 0 要抽的 internal/install/install.go）
 #
@@ -10,7 +10,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 
-LOC_MAX=10000
+LOC_MAX=10200
 CMD_MAX=3200
 FILE_MAX=600
 

@@ -256,7 +256,7 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 
 	i.ledger.Upsert(store.Install{
 		Tool: tool, Version: version, Path: target,
-		Source: i.opt.Profile, SHA256: res.SHA256, Verified: res.Verified,
+		Source: i.opt.Profile, SHA256: res.SHA256, Verified: res.Verified, Transport: transportOf(p),
 		NpmBundled: npmBundled, NpmVersion: npmVersion,
 		Channel: "manual",
 	})
@@ -654,17 +654,18 @@ func (i *Installer) verifyArtifact(ctx context.Context, p *provider.Provider, re
 	}
 	v := i.newVerifier()
 	req := verify.Request{
-		Tool:         p.ID,
-		Version:      version,
-		Platform:     platform,
-		Artifact:     filepath.Base(artifactURL),
-		Digest:       digest,
-		Algo:         algo,
-		SumsURLs:     sumsURLs,
-		Format:       p.Checksum.Format,
-		InlineShasum: inline,
-		Insecure:     i.opt.Insecure,
-		Rehash:       i.opt.Rehash,
+		Tool:              p.ID,
+		Version:           version,
+		Platform:          platform,
+		Artifact:          filepath.Base(artifactURL),
+		Digest:            digest,
+		Algo:              algo,
+		SumsURLs:          sumsURLs,
+		Format:            p.Checksum.Format,
+		InlineShasum:      inline,
+		Insecure:          i.opt.Insecure,
+		InsecureTransport: p.InsecureTransport,
+		Rehash:            i.opt.Rehash,
 	}
 	return v.Verify(ctx, req)
 }
@@ -775,6 +776,14 @@ func (i *Installer) installNpmPackage(ctx context.Context, npmP *provider.Provid
 		return err
 	}
 	return nil
+}
+
+// transportOf 记录清单走的是哪种传输：内网 http 源在台账里留痕（只增字段，方案 §A.4.1）。
+func transportOf(p *provider.Provider) string {
+	if p.InsecureTransport {
+		return "http"
+	}
+	return ""
 }
 
 func (i *Installer) installShims(p *provider.Provider, toolDir string) error {

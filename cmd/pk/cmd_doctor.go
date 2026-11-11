@@ -31,9 +31,27 @@ func (a *app) cmdDoctor(args []string) int {
 		issues = append(issues, jsonout.Issue{Code: code, Severity: sev, Message: msg, Detail: detail})
 	}
 
-	// 1. provider 清单（内嵌 TOML 自洽性）
+	// 1. provider 清单（内嵌 TOML 自洽性 + 外部清单）
 	if _, err := provider.All(); err != nil {
 		add(jsonout.SeverityErr, "PROVIDERS_BAD", err.Error(), nil)
+	}
+	add(jsonout.SeverityInfo, "PROVIDERS_DIRS", "外部清单目录（不存在即未配置）",
+		map[string]any{"dirs": provider.ExternalDirs(), "env": provider.ProvidersDirEnv})
+	for _, is := range provider.ExternalIssues() {
+		sev := jsonout.SeverityErr
+		if is.Code == provider.IssueExternalConflict {
+			sev = jsonout.SeverityWarn
+		}
+		add(sev, is.Code, is.Message, map[string]any{"file": is.File})
+	}
+	if all, err := provider.All(); err == nil {
+		for _, p := range all {
+			if p.Source == provider.SourceExternal && p.InsecureTransport {
+				add(jsonout.SeverityWarn, "PROVIDER_HTTP_URL",
+					p.ID+" 的清单里有 http:// 源（已由 "+provider.AllowHTTPEnv+"=1 放行，校验强度最高 weak）",
+					map[string]any{"tool": p.ID, "file": p.Dir})
+			}
+		}
 	}
 
 	// 1b. 配置可读性
@@ -86,7 +104,7 @@ func (a *app) cmdDoctor(args []string) int {
 	want := a.paths.Bin()
 	if len(segs) == 0 || segs[0] != want {
 		detail := map[string]any{"want_first": want, "hint": env.PathHint(a.paths.PathSegments())}
-		if contains2(segs, want) {
+		if containsStr(segs, want) {
 			add(jsonout.SeverityWarn, "PATH_ORDER", fmt.Sprintf("%s 不在 PATH 最前", want), detail)
 		} else {
 			add(jsonout.SeverityWarn, "PATH_MISSING", fmt.Sprintf("%s 不在 PATH 里（`pk env --shell bash` 取片段）", want), detail)
@@ -475,15 +493,6 @@ func splitPath(p string) []string {
 		}
 	}
 	return out
-}
-
-func contains2(list []string, want string) bool {
-	for _, v := range list {
-		if v == want {
-			return true
-		}
-	}
-	return false
 }
 
 // projectPathSegments 读取当前目录的 pk.toml / pk.lock，返回项目锁定版本的 bin 目录。

@@ -102,6 +102,9 @@ func (p Paths) Config() string { return p.join("config.toml") }
 // Logs 是日志目录。
 func (p Paths) Logs() string { return p.join("logs") }
 
+// Providers 是外部 provider 清单目录（$PK_ROOT/providers，缺失即跳过）。
+func (p Paths) Providers() string { return p.join("providers") }
+
 // Global 是共享全局包前缀（shared global prefix）。
 func (p Paths) Global() string { return p.join("global") }
 

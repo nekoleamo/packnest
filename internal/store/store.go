@@ -37,7 +37,8 @@ type Install struct {
 	Path        string    `json:"path"`
 	Source      string    `json:"source,omitempty"` // 镜像档名
 	SHA256      string    `json:"sha256,omitempty"`
-	Verified    string    `json:"verified,omitempty"` // strong | weak | unverified
+	Verified    string    `json:"verified,omitempty"`  // strong | weak | unverified
+	Transport   string    `json:"transport,omitempty"` // 空=全 https；http=清单里有放行的 http 源
 	CompanionOf string    `json:"companion_of,omitempty"`
 	NpmBundled  string    `json:"npm_bundled,omitempty"` // node 自带 npm 版本
 	NpmVersion  string    `json:"npm_version,omitempty"` // 实际生效的 npm 版本

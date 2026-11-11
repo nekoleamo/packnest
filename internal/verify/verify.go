@@ -228,6 +228,8 @@ type Request struct {
 	InlineShasum string
 	// Insecure 允许无校验安装（标记 unverified）。
 	Insecure bool
+	// InsecureTransport 表示产物清单里有被放行的 http:// 源：校验源也走 http 时最多只能 weak。
+	InsecureTransport bool
 	// Rehash 表示忽略本地 TOFU 记录、重新向校验源求值并覆盖记录（`--force-rehash`）。
 	// 用于上游重新发布了同一版本、或本地表被写脏的场景。
 	Rehash bool
@@ -284,7 +286,7 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 	}
 
 	// 2. 首次安装：收集所有源的期望值。
-	expected, sources, err := v.collect(ctx, req)
+	expected, sources, httpSums, err := v.collect(ctx, req)
 	if err != nil {
 		return Result{}, err
 	}
@@ -320,7 +322,7 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 	}
 
 	verified := VerifiedWeak
-	if sources >= v.minSources() {
+	if sources >= v.minSources() && !httpSums {
 		verified = VerifiedStrong
 	}
 	v.record(key, Entry{Digest: req.Digest, Algo: algo, Verified: verified, Sources: sources})
@@ -328,7 +330,7 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 }
 
 // collect 拉取全部校验和源，返回期望哈希集合与成功源数量。
-func (v *Verifier) collect(ctx context.Context, req Request) (map[string]string, int, error) {
+func (v *Verifier) collect(ctx context.Context, req Request) (map[string]string, int, bool, error) {
 	expected := map[string]string{}
 	sources := 0
 	algo := req.Algo
@@ -344,7 +346,7 @@ func (v *Verifier) collect(ctx context.Context, req Request) (map[string]string,
 				sources++
 			}
 		} else if sum != "" {
-			return nil, 0, fmt.Errorf("%w: 索引里的 sha256 格式非法: %q", ErrChecksum, req.InlineShasum)
+			return nil, 0, false, fmt.Errorf("%w: 索引里的 sha256 格式非法: %q", ErrChecksum, req.InlineShasum)
 		}
 	}
 	if req.Format == "registry-integrity" {
@@ -367,14 +369,15 @@ func (v *Verifier) collect(ctx context.Context, req Request) (map[string]string,
 					sources++
 				}
 			default:
-				return nil, 0, fmt.Errorf("%w: registry 提供的 shasum 格式非法: %q", ErrChecksum, sum)
+				return nil, 0, false, fmt.Errorf("%w: registry 提供的 shasum 格式非法: %q", ErrChecksum, sum)
 			}
 		}
 	}
 
+	httpSums := false
 	fetchFn := v.Fetch
 	if fetchFn == nil {
-		return expected, sources, nil
+		return expected, sources, false, nil
 	}
 	minSources := v.minSources()
 	for _, url := range req.SumsURLs {
@@ -385,6 +388,9 @@ func (v *Verifier) collect(ctx context.Context, req Request) (map[string]string,
 		data, err := fetchFn(ctx, url)
 		if err != nil {
 			continue // 单源失败不影响其他源（镜像缺校验和是常态）
+		}
+		if req.InsecureTransport && !strings.HasPrefix(url, "https://") {
+			httpSums = true // http 上的校验源不可信：产物与摘要可以一起被换掉（方案 §A.4.1）
 		}
 		if algo != AlgoSHA256 {
 			continue // 校验和文件都是 sha256；算法不一致时不用它
@@ -403,7 +409,7 @@ func (v *Verifier) collect(ctx context.Context, req Request) (map[string]string,
 			}
 		}
 	}
-	return expected, sources, nil
+	return expected, sources, httpSums, nil
 }
 
 func (v *Verifier) minSources() int {

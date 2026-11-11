@@ -21,6 +21,7 @@ import (
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/paths"
+	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/store"
 )
 
@@ -76,6 +77,8 @@ func run(args []string, out, errOut io.Writer) int {
 	if err != nil {
 		return a.fail(err)
 	}
+	// 外部 provider 清单目录跟着实际根目录走（--root 与 PK_ROOT 都算）。
+	provider.SetRoot(a.paths.Root)
 
 	a.client = fetch.New()
 	a.client.Offline = a.offline
