@@ -50,7 +50,7 @@ help:
 
 build:
 	@mkdir -p bin
-	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/pk
+	CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/pk
 	@echo "已构建 $(BIN)（$(VERSION)）"
 
 test:
@@ -90,7 +90,7 @@ cross:
 		os=$${p%/*}; arch=$${p#*/}; \
 		out=$(DIST)/packnest_$(VERSION)_$${os}_$${arch}; \
 		if [ "$$os" = "windows" ]; then out=$$out.exe; fi; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$out ./cmd/pk || exit 1; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -buildvcs=false -ldflags "$(LDFLAGS)" -o $$out ./cmd/pk || exit 1; \
 		printf '  %-46s %s\n' "$$out" "$$(du -h $$out | cut -f1)"; \
 	done
 	@echo "6 平台交叉编译通过（CGO 未泄漏）"
@@ -131,7 +131,8 @@ list-providers:
 # 归档必须可重复：同一版本重跑构建要得到同一个 sha256（否则重跑一次 release 就会让
 # 已发布的 tap/scoop 清单与产物对不上，0.7.0 就栽在这）。两条规则：
 #   1. 打包前把产物 mtime 钉死（SOURCE_DATE）；
-#   2. tar 走 `tar -cf - | gzip -n` 只此一种（gzip -n 不写文件名与时间戳），zip 用 -X。
+#   2. tar 走 `tar -cf - | gzip -n` 只此一种（gzip -n 不写文件名与时间戳），zip 用 -X；
+#   3. 构建带 -buildvcs=false（否则 VCS 戳记把提交号写进二进制，提交后再构建一次 hash 就变）。
 release:
 	@rm -rf $(DIST)
 	@mkdir -p $(DIST)/v$(VERSION)
@@ -141,11 +142,11 @@ release:
 		rm -rf $$stage; mkdir -p $$stage; \
 		out="$(CURDIR)/$(DIST)/v$(VERSION)"; \
 		if [ "$$os" = "windows" ]; then \
-			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$stage/packnest.exe ./cmd/pk || exit 1; \
+			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -buildvcs=false -ldflags "$(LDFLAGS)" -o $$stage/packnest.exe ./cmd/pk || exit 1; \
 			touch -t $(SOURCE_DATE) $$stage/packnest.exe; \
 			(cd $$stage && rm -f "$$out/packnest_$(VERSION)_$${os}_$${arch}.zip" && zip -q -X -o "$$out/packnest_$(VERSION)_$${os}_$${arch}.zip" packnest.exe); \
 		else \
-			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$stage/packnest ./cmd/pk || exit 1; \
+			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -buildvcs=false -ldflags "$(LDFLAGS)" -o $$stage/packnest ./cmd/pk || exit 1; \
 			touch -t $(SOURCE_DATE) $$stage/packnest; \
 			(tar -cf - -C $$stage packnest | gzip -n > "$$out/packnest_$(VERSION)_$${os}_$${arch}.tar.gz"); \
 		fi; \

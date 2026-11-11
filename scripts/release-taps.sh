@@ -26,6 +26,52 @@ VER=$(cat dist/latest 2>/dev/null || echo "")
 
 echo "owner=${OWNER} version=${VER}"
 
+# 预检（不联网）：清单里的 sha256 集合必须与 dist/v<ver>/checksums.txt 完全一致。
+# 为什么：0.8.0 的 tap 被一次"陈旧清单"覆盖，产物没变、hash 变成另一次构建的，
+# 用户 brew install 直接报 reports different checksum（Homebrew 会重下一次再报错）。
+SUMS="dist/v${VER}/checksums.txt"
+[ -f "$SUMS" ] || { echo "缺 ${SUMS}：先跑 make release && sh scripts/gen-manifests.sh" >&2; exit 1; }
+WANT=$(awk '{print tolower($1)}' "$SUMS" | sort)
+GOT=$(grep -hoE '[0-9a-f]{64}' packaging/brew/packnest.rb packaging/scoop/packnest.json | sort || true)
+if [ "$GOT" != "$WANT" ]; then
+  echo "清单与 ${SUMS} 不一致（推上去用户必踩校验失败）：" >&2
+  w=$(mktemp); g=$(mktemp)
+  printf '%s\n' "$WANT" > "$w"; printf '%s\n' "$GOT" > "$g"
+  comm -13 "$w" "$g" | sed 's/^/  只在清单里: /' >&2
+  comm -23 "$w" "$g" | sed 's/^/  只在 checksums: /' >&2
+  rm -f "$w" "$g"
+  echo "先跑 sh scripts/gen-manifests.sh 重新生成" >&2
+  exit 1
+fi
+echo "预检 OK：清单 6 个 hash 与 checksums.txt 一致"
+
+# 读远端清单用 git 而不是 raw.githubusercontent：raw 有几十秒到几分钟的 CDN 缓存，
+# 会把刚推上去的正确清单误报成"旧"（首发时就这样被坑过）。
+remote_hashes() { # 读远端两处清单里的 sha256（tap 的 .rb + bucket 的 .json），排序输出
+  tmp=$(mktemp -d)
+  for r in homebrew-packnest scoop-bucket; do
+    git clone -q --depth 1 "https://github.com/${OWNER}/$r.git" "$tmp/$r" 2>/dev/null \
+      || { rm -rf "$tmp"; return 1; }
+  done
+  grep -hoE '[0-9a-f]{64}' "$tmp/homebrew-packnest/Formula/packnest.rb" \
+    "$tmp/scoop-bucket/bucket/packnest.json" | sort
+  rm -rf "$tmp"
+}
+
+verify_pushed() { # 推完回读：远端 hash 必须与本地清单逐条一致（防"推了旧文件"）
+  i=0
+  while [ $i -lt 4 ]; do
+    if [ "$(remote_hashes 2>/dev/null | sort)" = "$WANT" ]; then
+      echo "远端核对 OK：tap + bucket 的 hash 与本地清单一致"
+      return 0
+    fi
+    i=$((i + 1)); sleep 5
+  done
+  echo "⚠ 远端清单与本地不一致（推送没生效，或推的是旧清单）" >&2
+  printf '%s\n' "$WANT" | sed 's|^|  本地 |' >&2
+  return 1
+}
+
 ensure_repo() { # $1=repo名
   if gh repo view "${OWNER}/$1" >/dev/null 2>&1; then
     echo "仓库 ${OWNER}/$1 已存在"
@@ -91,6 +137,7 @@ if [ "$DRY" -eq 1 ]; then
 else
   push_dir homebrew-packnest "$tap_dir"
   push_dir scoop-bucket "$bucket_dir"
+  verify_pushed
   echo ""
   echo "完成。用户可以："
   echo "  brew install ${OWNER}/packnest/packnest"
