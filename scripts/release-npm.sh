@@ -30,6 +30,19 @@ auto_otp() {
   if [ -n "$secret" ]; then totp_code "$secret"; fi
 }
 
+# otp_args：能出码就给 --otp，出不了码就明确提示。否则 npm 会甩一个 www.npmjs.com 的
+# “浏览器批准”链接 —— 大陆直连经常打不开，用户只看到“网站打不开”，不知道是缺 OTP。
+otp_args() {
+  code=$(auto_otp)
+  if [ -n "$code" ]; then printf '%s' "--otp $code"; return 0; fi
+  cat >&2 <<MSG
+npm：没拿到一次性密码（OTP），这次操作会要求“浏览器批准”，大陆直连 npmjs 常常打不开。
+  两种解法（任选其一，配一次以后都免打扰）：
+    ① 在凭据文件（见 docs/publishing.md「token 放哪儿」）里加一行 NPM_TOTP_SECRET=<base32 2FA 密钥>
+    ② 现在就把手机 authenticator 的 6 位码传进来：--otp 123456
+MSG
+}
+
 DIST="${DIST:-dist}"
 OUT="$DIST/npm"
 PUBLISH=0
@@ -125,8 +138,7 @@ if [ -n "$PROMOTE" ]; then
     [ -n "$ids" ] || { echo "没有 staged 版本"; exit 0; }
     for id in $ids; do
       echo "== approve ${id}"
-      otp_value=$(auto_otp); args=""
-      [ -n "$otp_value" ] && args="--otp $otp_value"
+      args=$(otp_args)
       if npm stage approve "$id" $args $USERCONFIG_FLAG --registry "$REGISTRY"; then
         echo "  ✓ $id"
       else
@@ -139,9 +151,7 @@ if [ -n "$PROMOTE" ]; then
     npm stage list $USERCONFIG_FLAG --registry "$REGISTRY"
     exit $?
   fi
-  otp_value=$(auto_otp)
-  args=""
-  [ -n "$otp_value" ] && args="--otp $otp_value"
+  args=$(otp_args)
   # shellcheck disable=SC2086
   npm stage approve "$PROMOTE" $args $USERCONFIG_FLAG --registry "$REGISTRY"
   exit $?
