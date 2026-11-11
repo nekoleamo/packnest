@@ -257,6 +257,12 @@ Issue codes are a stable contract (GUIs and scripts depend on them):
 | `CONFIG_BROKEN` / `MIRROR_PROFILE_INVALID` | config unreadable / unknown profile |
 | `MIRROR_UNREACHABLE` | index source unreachable (`--probe` only) |
 | `GO_TOOLCHAIN_NOT_LOCAL` | Go is installed but `GOTOOLCHAIN != local` |
+| `GO_INSTALL_NOT_IN_PATH` | `go install` output dir (`GOBIN`, default `~/go/bin`) is not in PATH | add it to PATH or set `GOBIN` (we never set it for you) |
+| `PIP_USER_SITE_UNMANAGED` | pip user-site installs (`~/.local/lib/pythonX`) are outside pk's scope | use a venv |
+| `PROVIDERS_DIRS` | effective external provider manifest dirs (info) | absent ⇒ no external manifests |
+| `PROVIDER_EXTERNAL_INVALID` | external manifest rejected (http not opted in / absolute path / `..` / pbs / unknown placeholder / >256KB / id ≠ filename) | fix the TOML; `pk doctor` names the file and reason |
+| `PROVIDER_EXTERNAL_CONFLICT` | external manifest duplicates an existing id and is ignored | embedded always wins; pick a new id |
+| `PROVIDER_HTTP_URL` | external manifest has `http://` sources let in by `PK_ALLOW_HTTP=1` | verification caps at `weak`; prefer https |
 | `GLOBAL_ENGINES_UNMET` / `GLOBAL_NATIVE_ABI` / `GLOBAL_SHADOWS_PROJECT` | global package checks (`--globals`) |
 | `FOREIGN_MANAGER` | proto / nvm / volta / asdf / mise / fnm / nodenv detected (read-only) |
 | `FOREIGN_SHIM_PRIORITY` | another manager's shims come before `~/.packnest/bin` and will win |

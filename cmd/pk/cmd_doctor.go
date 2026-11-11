@@ -139,6 +139,26 @@ func (a *app) cmdDoctor(args []string) int {
 		}
 	}
 
+	// 6b2. go install 的产物落在 GOBIN（默认 ~/go/bin），不在 pk 治理范围内：只提示，不改 GOBIN。
+	if ledger != nil && len(installedTools(ledger, "go")) > 0 {
+		bin := os.Getenv("GOBIN")
+		if bin == "" {
+			home, _ := os.UserHomeDir()
+			bin = filepath.Join(home, "go", "bin")
+		}
+		if !containsStr(splitPath(os.Getenv("PATH")), bin) {
+			add(jsonout.SeverityInfo, "GO_INSTALL_NOT_IN_PATH",
+				fmt.Sprintf("`go install` 的命令会落到 %s，但它不在 PATH（我们不替你设 GOBIN）", bin),
+				map[string]any{"dir": bin, "advice": "把该目录加进 PATH，或 `GOBIN=<某个已在 PATH 的目录> go install ...`"})
+		}
+	}
+
+	// 6b3. pip 用户级安装（~/.local/lib/pythonX）不在治理范围：诚实说明，不接管 site-packages。
+	if ledger != nil && len(installedTools(ledger, "python")) > 0 {
+		add(jsonout.SeverityInfo, "PIP_USER_SITE_UNMANAGED",
+			"pip 的用户级安装（~/.local/lib/pythonX）不归 pk 管；要隔离请用 venv（我们不改 site-packages）", nil)
+	}
+
 	// 6c. 全局包 L1/L2/L3 体检（方案 §8.5）
 	if *globals && ledger != nil {
 		nodeVersion := a.cfg.Tools["node"]

@@ -374,6 +374,12 @@ $ pk doctor --probe              # 探测镜像可达性（MIRROR_UNREACHABLE）
 | `LEDGER_BROKEN` / `LEDGER_RECOVERED` | 台账损坏 / 已从 `.bak` 恢复 | 前者需手工修，后者无需处理 |
 | `MIRROR_UNREACHABLE` | 索引源不可达 | `pk mirror use cn` 或 `PK_MIRROR` 指内网 |
 | `GO_TOOLCHAIN_NOT_LOCAL` | 装了 go 但 `GOTOOLCHAIN != local` | `eval "$(pk env --shell bash)"` |
+| `GO_INSTALL_NOT_IN_PATH` | `go install` 的产物目录（`GOBIN`，默认 `~/go/bin`）不在 PATH | 把该目录加进 PATH，或 `GOBIN=<已在 PATH 的目录> go install ...`（我们不替你设 GOBIN） |
+| `PIP_USER_SITE_UNMANAGED` | pip 的用户级安装（`~/.local/lib/pythonX`）不在 pk 治理范围 | 要隔离就用 venv |
+| `PROVIDERS_DIRS` | 生效的外部 provider 清单目录（info） | 不存在即未配置外部清单 |
+| `PROVIDER_EXTERNAL_INVALID` | 外部清单非法（http 未放行 / 绝对路径 / `..` / pbs / 未知占位符 / 超 256KB / id 与文件名不符） | 按提示改该 TOML，`pk doctor` 会带文件名与原因 |
+| `PROVIDER_EXTERNAL_CONFLICT` | 外部清单与内嵌（或先加载的外部清单）同 id，被忽略 | 内嵌永远赢，改个新 id |
+| `PROVIDER_HTTP_URL` | 外部清单里的 `http://` 源已由 `PK_ALLOW_HTTP=1` 放行 | 校验强度最高 `weak`；能换 https 就换 |
 | `GLOBAL_ENGINES_UNMET` | 全局包 `engines.node` 不满足当前 node | 换 node 版本或升级该包 |
 | `GLOBAL_NATIVE_ABI` | 全局包含原生模块（无 N-API 预编译） | 切回原版本或 `npm rebuild <pkg>` |
 | `GLOBAL_SHADOWS_PROJECT` | 全局命令遮蔽项目 `node_modules/.bin` | 用 `./node_modules/.bin/<cmd>` |
