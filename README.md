@@ -119,11 +119,50 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式，不�
 - **TOFU + 多源交叉验证**：首次装要求 ≥2 个源给出相同摘要（否则标 `weak`），写进 `state/known.json`；此后同版本**完全离线可验证**
 - 源之间矛盾 → 硬失败并说明"产物与哪个源一致"，`--insecure` 可放行（标 unverified，且不写入 TOFU 表）
 
+## 外部 provider 清单（长尾工具不用等发版）
+
+内嵌 TOML 只有 6 个工具；想装 zig / uv / jdk 这类长尾，自己写一份清单放进去就行 —— **清单是纯数据，不执行任何代码**。
+
+```bash
+~/.packnest/providers/zig.toml     # 文件名必须等于 id（zig.toml ↔ id = "zig"）
+PK_PROVIDERS_DIR=/opt/corp/pk:/srv/more   # 追加目录（可多个，冒号分隔；不支持指向 http(s)://）
+```
+
+加载顺序：内嵌 → `$PK_ROOT/providers` → `PK_PROVIDERS_DIR`。**内嵌永远赢**（同 id 时外部被忽略，
+`pk doctor` 报 `PROVIDER_EXTERNAL_CONFLICT`），外部之间按文件名排序、先加载的赢。
+
+外部清单的安全边界（不满足就拒绝加载该文件，`pk doctor` 报 `PROVIDER_EXTERNAL_INVALID` 并带文件名与原因）：
+
+- URL 必须是 `https://`；内网 http 源要 `PK_ALLOW_HTTP=1` 显式放行（`pk doctor` 报 `PROVIDER_HTTP_URL`）
+- `layout.single` / `bin_targets` 必须是相对路径且不含 `..`；`strip` 不许为负
+- 禁用 `index.kind = "pbs"`（python 的目录列举解析在内嵌逻辑里）
+- URL 模板只能用 `{version} {platform} {ext} {registry} {tool} {filename} {tag}`
+- `[companions]` 的 `registry` 必须指向已存在的工具 id
+- 单个清单 ≤ 256KB（防止误把二进制当清单）
+
+**校验强度按校验源算，不按产物**：产物与校验和都走 http 时最多判 `weak`（摘要可以跟着一起被换掉）；
+产物走 http 但校验和走 https 且 ≥2 源一致，仍然是 `strong`。台账里会留 `transport: "http"` 的痕。
+
+`pk list` 里外部工具带 `*`，`--json` 每条工具多一个 `"source": "embedded" | "external"`（只增字段）。
+外部清单**任何一个坏文件都不会让 CLI 起不来**：跳过它、记一条 issue，其余照常。
+
+## 工具链自带的那些东西（corepack / pip / `go install`）
+
+- **corepack**（node ≤24 自带）：`pk install node@22 --corepack` 会在 `~/.packnest/global/corepack/bin`
+  （PATH 第 2 段）装 `yarn`/`yarnpkg`/`pnpm` 的 shim，`pk install node@22 --no-corepack` 关闭（写在 `config.toml`）。
+  provider 装的 `pnpm` 永远优先。node 25+ 已移除 corepack，敲 `--corepack` 会**明确报错**并建议 `pk install pnpm`。
+  首次使用会联网拉包，走 `COREPACK_NPM_REGISTRY`（= 当前镜像档），缓存进 `~/.packnest/cache/corepack`。
+- **pip**：`pip3` 是 python 自带的，`PIP_INDEX_URL` 已由 `pk env` 导出；**用户级安装（`~/.local/lib/pythonX`）不归 pk 管**
+  （`pk doctor` 用 `PIP_USER_SITE_UNMANAGED` 说明），要隔离请用 venv。
+- **`go install`**：产物落到 `GOBIN`（默认 `~/go/bin`），**我们不替你设 GOBIN、也不加 PATH 段**；
+  它不在 PATH 时 `pk doctor` 报 `GO_INSTALL_NOT_IN_PATH`。
+
 ## 全局包（`npm i -g`）与切版本
 
 - 共享前缀 `~/.packnest/global`（`npm_config_prefix`），`globalconfig` 也引出来 → **切 node 版本不丢全局包、不丢 `npm config set -g`**
 - 包缓存在 `~/.npm`（不迁移不复制）；`global/bin` 是固定目录 → 新装全局包**无需 reshim**
 - `pk doctor --globals` 三级检测：`GLOBAL_ENGINES_UNMET`（engines 不满足）、`GLOBAL_NATIVE_ABI`（原生模块，N-API 预编译不告警）、`GLOBAL_SHADOWS_PROJECT`（命令遮蔽项目 bin）
+- 三种包管理器的全局目录都扫（`detail.manager` 标来源）：npm（`global`）、pnpm（`global/pnpm/global/<N>`）、bun（`global/bun/install/global`）
 - 想回 nvm 式行为：`global_mode = "per-version"`
 
 ## 与已有管理器共存

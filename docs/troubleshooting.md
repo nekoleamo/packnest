@@ -103,6 +103,23 @@ pk env --shell bash    # 看 PATH 五段与 registry 变量
 - `SHIM_MISSING`：跑一次任意 `pk install`/`pk use` 就会补齐 `pk` 与 `packnest` 两个入口。
 - 装了但 `which` 找不到：确认 `eval "$(pk env --shell bash)"` 已生效（`pk env --write` 可写进 rc 托管块）。
 
+## 2.5 外部 provider 清单不生效
+
+```bash
+pk doctor --json | grep -A3 PROVIDER_     # 哪个文件、什么原因
+pk list --available                       # 外部工具带 * 号
+ls ~/.packnest/providers                  # 文件名必须等于 id（zig.toml ↔ id = "zig"）
+```
+
+| 码 | 常见原因 | 处置 |
+|---|---|---|
+| `PROVIDER_EXTERNAL_INVALID` | 文件名与 `id` 不符 / URL 不是 https 且没设 `PK_ALLOW_HTTP=1` / `layout.single` 是绝对路径或含 `..` / 用了 `index.kind = "pbs"` / 模板里有未知占位符 / 文件超过 256KB | 按 `doctor` 给的原文改；`PK_ALLOW_HTTP=1` 放行的 http 源最多判 `weak` |
+| `PROVIDER_EXTERNAL_CONFLICT` | 与内嵌清单（或先加载的外部清单）同 id | 内嵌永远赢，改个新 id；清单按文件名排序，先加载的生效 |
+| `PROVIDER_HTTP_URL` | http 源已被 `PK_ALLOW_HTTP=1` 放行 | 能换 https 就换；否则接受最高 `weak` 的校验强度 |
+
+外部清单出问题**不会**让 `pk install node` 之类失败：坏文件被跳过、只记 issue。
+`PK_PROVIDERS_DIR` 是**追加**语义（可多个目录，用 `os.PathListSeparator` 分隔），不支持指向 `http(s)://`。
+
 ## 3. 全局包（`npm i -g`）相关的三个告警
 
 | 码 | 含义 | 处置 |

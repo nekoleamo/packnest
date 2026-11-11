@@ -120,6 +120,49 @@ There is only ever one copy on disk; project scope means "pinning + PATH order",
 - **TOFU + multi-source cross-check**: a first install requires ≥2 sources to agree (otherwise marked `weak`) and records the digest in `state/known.json`; afterwards that version verifies **fully offline**
 - Sources disagree → hard failure that states which source the artifact matches; `--insecure` lets it through (marked unverified, never written to the TOFU table)
 
+## External provider manifests (long-tail tools without waiting for a release)
+
+The embedded TOML set covers 6 tools. For anything else (zig / uv / jdk…), drop a manifest in —
+**manifests are pure data, nothing from them is ever executed**.
+
+```bash
+~/.packnest/providers/zig.toml     # filename must equal the id (zig.toml <-> id = "zig")
+PK_PROVIDERS_DIR=/opt/corp/pk:/srv/more   # extra dirs (multiple, path-separator; http(s):// not allowed)
+```
+
+Load order: embedded → `$PK_ROOT/providers` → `PK_PROVIDERS_DIR`. **Embedded always wins**
+(a duplicate id from outside is ignored; `pk doctor` reports `PROVIDER_EXTERNAL_CONFLICT`).
+
+Safety rules for external manifests (a violation only rejects that one file —
+`pk doctor` reports `PROVIDER_EXTERNAL_INVALID` with the filename and reason):
+
+- URLs must be `https://`; internal `http` sources require an explicit `PK_ALLOW_HTTP=1`
+  (`pk doctor` reports `PROVIDER_HTTP_URL`)
+- `layout.single` / `bin_targets` must be relative and free of `..`; `strip` must not be negative
+- `index.kind = "pbs"` is not allowed (python's directory parsing lives in the embedded logic)
+- URL templates may only use `{version} {platform} {ext} {registry} {tool} {filename} {tag}`
+- `[companions]` `registry` must point at an existing tool id
+- one manifest ≤ 256KB (so a stray binary cannot masquerade as a manifest)
+
+**Verification strength follows the checksum source, not the artifact**: if the artifact *and* the
+checksums come over http, the result caps at `weak`; artifact over http but ≥2 agreeing https
+checksum sources is still `strong`. The ledger records `transport: "http"`.
+
+`pk list` marks external tools with `*`, and `--json` adds `"source": "embedded" | "external"`
+(additive only). A broken manifest **never stops the CLI from starting**: it is skipped and recorded.
+
+## What the toolchain already ships (corepack / pip / `go install`)
+
+- **corepack** (bundled with node ≤24): `pk install node@22 --corepack` installs `yarn`/`yarnpkg`/`pnpm`
+  shims into `~/.packnest/global/corepack/bin` (PATH segment #2); `--no-corepack` turns it off
+  (stored in `config.toml`). A provider-installed `pnpm` always wins. node 25+ dropped corepack, so
+  `--corepack` there **fails loudly** and suggests `pk install pnpm`. First use fetches from the
+  registry via `COREPACK_NPM_REGISTRY` (your mirror profile); cache goes to `~/.packnest/cache/corepack`.
+- **pip**: `pip3` ships with python and `PIP_INDEX_URL` comes from `pk env`; **user-site installs
+  (`~/.local/lib/pythonX`) are out of scope** (`PIP_USER_SITE_UNMANAGED`), use a venv.
+- **`go install`**: lands in `GOBIN` (default `~/go/bin`) — **we never set GOBIN nor add a PATH segment**;
+  `pk doctor` reports `GO_INSTALL_NOT_IN_PATH` when it is not on PATH.
+
 ## Global packages (`npm i -g`) and switching versions
 
 - Shared prefix `~/.packnest/global` (`npm_config_prefix`), with `globalconfig` exported too → **switching Node loses neither global packages nor `npm config set -g`**

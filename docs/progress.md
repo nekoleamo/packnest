@@ -499,14 +499,14 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - python 的索引只声明 npmmirror（官方 GitHub 没有目录列举接口），官方只作为产物/校验和的回退源；
   若镜像索引整体不可用，只能靠 stale 缓存。
 - pnpm 12 的 tarball 只是启动器，首次运行会自己再下平台二进制（pnpm 上游行为）。方案原本假设
-  「npm registry tarball 即产物」，实际多了第 4 个下载面；M5 收口时决定是否改用 pnpm 自带二进制地址
-  （npmmirror 有 `/-/binary/pnpm/`）。
+  「npm registry tarball 即产物」，实际多了第 4 个下载面。
+  **2026-11-11 实测更正**：npmmirror 的 `/-/binary/pnpm/` 返回 `[NOT_FOUND] Binary "pnpm" not found`（没有这条路径）；
+  GitHub Releases 有 `pnpm-<os>-<arch>.tar.gz`（23–27MB 平台二进制），但**不带 SHASUMS 文件** —— 直接换过去等于
+  拿"有产物、无校验源"换"少一次下载"，违反「校验源必须与产物源解耦」，所以暂时保持现状；要做需先找到可信校验源。
 - deno 这类「上游重新发布」的版本目前只能 `--insecure`；自动化需要「同源配对校验」（官方产物 + 官方校验和成对验证、标记 weak），属 v1.1。
 - 缓存目前按 `cache/archives/<tool>-<version>-<platform>.<ext>` 命名（校验每次重算 sha256），
   未做方案里的"内容寻址 `<sha256>`"去重；功能等价（跨版本不重下），去重留到 M4 与 GC 一起做。
-- npm/pnpm 的 `layout.bin_targets`（`bin/pnpm.cjs` 等）已在清单里声明，落地逻辑随 M1/M2 的解压层实现。
-- python 产物名含 release 标签 `{tag}`，`ArtifactURL` 现在会明确报错；M3 的目录列举式索引补齐。
-- go 的国内索引源只写了官方 `?mode=json`（自带 sha256），M3 补国内源或改走 stale 缓存。
-- `pk env --write`（写 rc 的 `# managed by pk` 块）与 `mirror write`（写 `~/.npmrc`）在 M5。
-- L4 检测（`doctor --globals --probe` 用 `process.dlopen` 试加载）与 `doctor --foreign`（其他管理器）在 M5。
 - 缓存仍按 `<tool>-<version>-<platform>.<ext>` 命名，未做内容寻址去重（同版本跨平台/跨项目靠文件名命中，够用）。
+- L4 检测（`process.dlopen` 试加载全局包原生模块）未做：现在只用 `gypfile`/`.node` 文件与 `prebuilds/*napi*` 判断，
+  已能覆盖切版本失效的主要场景。
+- 外部 provider 清单的 `[companions]` 只允许指向已存在的 provider：暂不支持"外部清单 + 外部伴生包"的完整闭环（够用，先不扩）。
