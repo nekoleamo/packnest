@@ -77,7 +77,7 @@ jobs:
           ext=""; [ "${{ matrix.os }}" = windows ] && ext=".exe"
           pk="$RUNNER_TEMP/bin/packnest$ext"
           "$pk" --version | tee /dev/stderr | grep -q "packnest v"
-          "$pk" doctor --json > doctor.json || true
+          "$pk" doctor --json > doctor.json || true   # 有 error 级问题会退出 1，这里只断言内容
           grep -q '"schema": 1' doctor.json
           # 装一个真实运行时（走镜像回退链）；git-bash 不认 .cmd shim，Windows 只核对台账
           "$pk" install node@22
@@ -92,7 +92,8 @@ jobs:
           mkdir -p "$PK_ROOT/providers"
           printf 'id = "broken"\ndisplay = "B"\n' > "$PK_ROOT/providers/broken.toml"
           "$pk" list --json | grep -q '"schema": 1'
-          "$pk" doctor --json | grep -q PROVIDER_EXTERNAL_INVALID
+          "$pk" doctor --json > doctor2.json || true
+          grep -q PROVIDER_EXTERNAL_INVALID doctor2.json
           # 零残留卸载（不删 pk 自己）
           "$pk" uninstall --all --purge --yes
           [ ! -d "$PK_ROOT" ] || { echo "PK_ROOT 还在：$PK_ROOT"; ls -la "$PK_ROOT"; exit 1; }
