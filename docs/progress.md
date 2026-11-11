@@ -524,6 +524,9 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ## 实装验证
 
+smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnpm（平台包）** 并跑一次，
+5/5 组合全绿（macos-15 / macos-15-intel / ubuntu-latest / ubuntu-24.04-arm / windows-latest）。
+
 `docs/verify-1.0.md` 记录 2026-11-11 的 v0.9.0 用户视角验证（5/6 平台组合自动化 + 本机 macOS 全链路），
 以及那一轮发现并修掉的三个问题（`pk use <大版本>` 报"还没装"、`--corepack` 对已装版本不重放、
 `pk help` 与 `--help` 的开关说明重复）。
@@ -536,6 +539,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 | 离线重装 / 缓存被删 | ✅ 已修（TOFU 命中不问网络；只有摘要不符才删缓存） | — |
 | 内容寻址缓存（按 sha256 去重） | ⏳ 未做 | 行数余量 1，任何改动前必须先砍 |
 | L4 `dlopen` 试加载检测 | ⏳ 未做 | 同上；且属"锦上添花"，现用 gypfile/.node 判定已覆盖主要场景 |
+| 拒绝 https→http 的降级重定向 | ⏳ 待做（安全加固，低危） | `fetch.Client` 没设 `CheckRedirect`：默认跟随重定向，理论上 https 源 302 到 http 后仍会下。产物校验收敛了实际风险（摘要来自校验源），但应显式拒绝；约 8 行，卡在余量 |
 | 卸载编排挪进 `internal/install`（清 `cmd/pk` 3,220 warn） | ✅ 部分完成：渠道识别（`DetectInstallChannel` / `SelfRemoveHint`）已挪进 `internal/install`，`cmd/pk` 3,220 → **3,181**（warn 消失）；剩余打印/交互编排仍留在 cmd | — |
 | winget 正式上架 | ⏳ 未做 | 要向 microsoft/winget-pkgs 提 PR（人工），草稿在 `packaging/winget/` |
 | windows-arm64 运行时、Windows `.cmd` shim、Gatekeeper 首启 | ⏳ 人工确认 | 无公共 ARM Windows runner；项目规则允许人工确认这三项 |
