@@ -35,6 +35,9 @@ scoop install packnest
 curl -fsSL https://your-host/install.sh | sh -s -- --base https://your-host/packnest
 ```
 
+Outside China you can pull the very same artifacts from GitHub Releases (identical sha256):
+`curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh -s -- --base https://github.com/nekoleamo/packnest/releases/download`
+
 Installer switches: `--from gitee|base` · `--base URL` · `--version` · `--dir` · `--skip-verify` ·
 `--dry-run` (`--mirror cn|default` is still accepted but both now mean gitee). The download is
 **verified with sha256** against `checksums.txt`; a mismatch exits with code 4. The PowerShell script

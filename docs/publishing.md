@@ -37,6 +37,7 @@ cd ~/Documents/Working/packnest
 make check                              # ① 8 项门禁（含 make loc 行数红线）
 make release                            # ② 6 平台产物 + checksums.txt → dist/v<ver>/
 sh scripts/release-gitee.sh             # ③ 上传 gitee release（凭据只在本机）
+make github-release                     # ③b 同步 GitHub Releases（海外主源，gh 自带凭据）
 make verify-release                     # ④ 把线上产物拉回来对 checksums.txt（必跑）
 # ⑤ 仓库里改版本号 → commit → tag → push（两个远端 + tag）
 make publish-manifests                  # ⑥ verify-release → gen-manifests → release-taps（自带线上核对）
@@ -53,7 +54,18 @@ brew uninstall packnest && brew install nekoleamo/packnest/packnest   # 清缓�
 pk --version
 ```
 
-## 四、gitee（唯一二进制主源）
+## 三点五、GitHub Releases（海外主源，和 gitee 同一批产物）
+
+```bash
+make github-release      # 用 gh 把 dist/v<ver>/ 的 6 产物 + checksums.txt 同步到 GitHub Releases
+```
+
+为什么要有：gitee 对**海外数据中心 IP 常返回 404**（GitHub Actions runner 实测），海外用户也慢；
+`smoke.yml` 因此改从 GitHub Releases 取产物。产物仍是本机构建的同一批文件，**唯一发布者规则不变**。
+
+海外/CI 安装：`sh scripts/install.sh --base https://github.com/nekoleamo/packnest/releases/download`
+
+## 四、gitee（国内二进制主源）
 
 - `sh scripts/release-gitee.sh` 建/复用 tag 对应的 release，逐个上传 `dist/v<ver>/packnest_*` 与 `checksums.txt`；
 - 同名文件**不会**被替换：重发同一版本必须先删掉旧附件（或换版本号），否则线上还是旧字节；

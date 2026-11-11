@@ -37,16 +37,29 @@
 
 ## 三、自动化：`.github/workflows/smoke.yml`（只验证，不发布）
 
+**首次跑通：2026-11-11，5/5 组合全绿（workflow conclusion = success）**：
+`macos-15` / `macos-15-intel` / `ubuntu-latest` / `ubuntu-24.04-arm` / `windows-latest`。
+
+跑通过程中修掉的 CI 自身问题（都不是产品 bug）：macos-13 已下线（任务永远 queued）、
+Linux 上没有 `shasum`（改用 `sha256sum`）、git-bash 的 `sha256sum` 输出带前导 `\`、
+git-bash 没有 `/dev/stderr`、`pk doctor` 有 error 级问题时退出码是 1（断言要落盘再 grep）、
+**gitee 对海外数据中心 IP 返回 404**（改成从 GitHub Releases 取产物，见下）。
+
+
 `workflow_dispatch` 或打 tag 时跑，矩阵覆盖 **5/6 个平台组合**，从 gitee 拉**用户真正会下到的产物**：
 
 | runner | 平台 | 覆盖 |
 |---|---|---|
-| macos-14 | darwin-arm64 | ✅ |
-| macos-13 | darwin-amd64 | ✅ |
+| macos-15 | darwin-arm64 | ✅ |
+| macos-15-intel | darwin-amd64 | ✅ |
 | ubuntu-latest | linux-amd64 | ✅ |
 | ubuntu-24.04-arm | linux-arm64 | ✅ |
 | windows-latest | windows-amd64 | ✅（git-bash 不认 `.cmd` shim，只核对台账） |
 | — | windows-arm64 | ❌ 无公共 ARM runner，**人工确认** |
+
+产物来自 **GitHub Releases**（海外主源）：gitee 对海外数据中心 IP 常返回 404（runner 实测），
+而两个源是本机同一批构建、sha256 一致——`make verify-release` 逐条核对 gitee 那份。
+海外安装：`sh scripts/install.sh --base https://github.com/nekoleamo/packnest/releases/download`。
 
 每个组合都做：sha256 校验 → `--version` → `doctor --json` → `install node@22` → 外部坏清单不影响 CLI
 → `uninstall --all --purge` 后 `PK_ROOT` 必须不存在。

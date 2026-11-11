@@ -36,6 +36,9 @@ scoop install packnest
 curl -fsSL https://你的域名/install.sh | sh -s -- --base https://你的域名/packnest
 ```
 
+海外用户可直接从 GitHub Releases 取同一批产物（sha256 与 gitee 完全一致）：
+`curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh -s -- --base https://github.com/nekoleamo/packnest/releases/download`
+
 安装脚本开关：`--from gitee|base` · `--base URL` · `--version` · `--dir` · `--skip-verify` · `--dry-run`
 （`--mirror cn|default` 保留兼容，两者现在都走 gitee）。下载后**校验 sha256**（对 `checksums.txt`），
 对不上退出码 4。PowerShell 版参数名换成 `-Base` / `-Version` / `-Dir` / `-SkipVerify` / `-DryRun`。
