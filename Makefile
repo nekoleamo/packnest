@@ -27,7 +27,7 @@ LDFLAGS := -s -w -X main.Version=$(VERSION)
 SOURCE_DATE := 202001010000
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
-.PHONY: gitee-release help build test race check fmt loc vet cover cross fuzz bench golden accept clean dist list-providers release checksums site verify-release publish-manifests
+.PHONY: gitee-release help build test race check fmt loc vet cover cross fuzz bench golden accept clean dist list-providers release checksums site verify-release publish-manifests github-release
 
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
@@ -41,6 +41,7 @@ help:
 	@echo "make release   6 平台发布包 + checksums.txt 到 dist/"
 	@echo "make gitee-release  上传产物到 gitee release（二进制主源）"
 	@echo "    注：npm 分发渠道已于 2026-11-11 停用（见 docs/publishing.md）"
+	@echo "make github-release  同步产物到 GitHub Releases（海外主源）"
 	@echo "make site      渲染官网到 site/dist（只注入版本号，无前端工具链）"
 	@echo "make verify-release  核对已发布产物与 checksums.txt（发布后必跑）"
 	@echo "make publish-manifests  verify → 生成并推送 brew/scoop/winget 清单"
@@ -167,6 +168,10 @@ checksums:
 # 上传到 gitee release（凭据走 ~/.pi/agent/local/secrets.env 的 GITEE_TOKEN）
 gitee-release: release
 	@sh scripts/release-gitee.sh
+
+# 同步到 GitHub Releases（海外主源；产物与本机同一批，sha256 必然一致）
+github-release:
+	@sh scripts/release-github.sh
 
 clean:
 	rm -rf $(BUILD) $(DIST) $(BIN) coverage.out

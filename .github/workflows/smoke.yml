@@ -21,7 +21,7 @@ jobs:
       matrix:
         include:
           # 必需组合（公共 runner 稳定可用的三个）
-          - { runner: macos-14,       os: darwin,  arch: arm64 }
+          - { runner: macos-15,       os: darwin,  arch: arm64 }
           - { runner: ubuntu-latest,  os: linux,   arch: amd64 }
           - { runner: windows-latest, os: windows, arch: amd64 }
           # 可选组合：label 不可用时不拖红整条流水线（continue-on-error）
@@ -45,7 +45,9 @@ jobs:
           ARCH: ${{ matrix.arch }}
         run: |
           set -eu
-          base="https://gitee.com/null_593_5354/packnest/releases/download/v${V}"
+          # 用 GitHub Releases：gitee 对海外数据中心 IP 常返回 404（本 runner 实测），
+          # 两个源的产物是本机同一批构建，sha256 一致（make verify-release 会逐条核对 gitee 那份）。
+          base="https://github.com/nekoleamo/packnest/releases/download/v${V}"
           ext=tar.gz; [ "$OS" = windows ] && ext=zip
           name="packnest_${V}_${OS}_${ARCH}.${ext}"
           curl -fsSL --retry 3 --max-time 300 -o "$RUNNER_TEMP/$name" "$base/$name"
