@@ -26,7 +26,7 @@ var commandHelp = map[string]string{
     --insecure  允许无校验安装（标记 unverified；校验和源互相矛盾时也靠它放行）
     --force     重装已存在的版本
     --force-rehash  忽略本地校验表（state/known.json），重新向校验源求值并覆盖记录
-    --jobs N    预留（当前固定单连接：国内 CDN 分片常更慢）
+    --jobs N    接受但预留（当前固定单连接：国内 CDN 分片常更慢）
     --quiet     只报错，不打印进度与结果
   退出码：0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用`,
 

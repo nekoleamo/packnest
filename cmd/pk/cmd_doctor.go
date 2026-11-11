@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,9 +18,7 @@ import (
 
 // cmdDoctor 体检并给可执行建议（M0 覆盖：配置/镜像档/provider/台账/shim/PATH 顺序）。
 func (a *app) cmdDoctor(args []string) int {
-	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
-	fs.SetOutput(a.errOut)
-	a.usageFor(fs, "doctor")
+	fs := a.newFlagSet("doctor")
 	globals := fs.Bool("globals", false, "检查全局包（engines / 原生 ABI / 命令遮蔽）")
 	foreign := fs.Bool("foreign", false, "检测其他管理器（M5 后续）")
 	probe := fs.Bool("probe", false, "探测镜像索引是否可达（会发 HEAD 请求）")
@@ -204,9 +201,7 @@ func (a *app) cmdDoctor(args []string) int {
 
 // cmdEnv 输出 shell 环境片段（默认只打印，不落盘）。
 func (a *app) cmdEnv(args []string) int {
-	fs := flag.NewFlagSet("env", flag.ContinueOnError)
-	fs.SetOutput(a.errOut)
-	a.usageFor(fs, "env")
+	fs := a.newFlagSet("env")
 	shellName := fs.String("shell", "", "shell 方言: bash|zsh|sh|powershell（默认看 $SHELL）")
 	write := fs.Bool("write", false, "把托管块写进 shell rc（幂等，只改自己那一段）")
 	unset := fs.Bool("unset", false, "删掉 rc 里的托管块")

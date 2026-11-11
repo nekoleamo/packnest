@@ -471,21 +471,25 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ## 下一步（方案定稿，未实施）
 
-`~/Documents/Plan/17-包管理器/pn-外部provider与工具链内工具-方案.md`（v1 定稿，393 行）：
+`~/Documents/Plan/17-包管理器/pn-外部provider与工具链内工具-方案.md`（v1 定稿，404 行）：
 外部 provider 目录 + 工具链内自带工具（corepack / pip / `go install`）。
 已拍板：10,000 行红线 + `loc` 门禁 · corepack 走 PATH 5 段 · 外部清单默认拒 `http://`。
-执行顺序见该文档 §执行清单（**阶段 0 必须先腾 200 行预算**）。R1/R2/R3 三条建议待一句话确认。
+**阶段 0 已完成（2026-11-11）**：`loc` 门禁上线、`newFlagSet`/`fetchArtifactVerified` 抽好、
+`--jobs` 噪音删掉、文档同步。执行顺序见该文档 §执行清单。
+⚠️ 阶段 0 实测只净腾 16 行（9,945 → 9,929），方案预估的 −200 站不住；阶段 1 要 185 行、余量只有 71，
+开工前必须先定"缩范围 / 再砍 / 抬红线"三选一（决策记录写在该方案 §排期表下方）。R1/R2/R3 三条建议待确认。
 
 ## 行数预算现状
 
 - **红线：10,000 行**（`cmd/` + `internal/`，不含 `*_test.go`；2026-11-10 从 8,500 上调，拍板记录见
   `~/Documents/Plan/17-包管理器/pn-外部provider与工具链内工具-方案.md` §0.1）。
-- 现状 **9,945 行**（余量 55）：`cmd/pk` 3,181 · `internal/install` 1,366 · `internal/testkit` 1,238 ·
+- 现状 **9,929 行**（余量 71）：`cmd/pk` 3,163 · `internal/install` 1,368 · `internal/testkit` 1,238 ·
   `internal/provider` 1,070 · `internal/env` 788 · `internal/store` 650 · `internal/fetch` 530。
-  含 testkit 的旧口径是 11,183。
-- ⚠️ `make check` 目前**仍没有**行数门禁（7 项里没有 loc）；门禁脚本与阶段 0 的"砍 200 行"计划在
-  上述方案文档里，未实施。在那之前只能人工核对：
-  `find cmd internal -name '*.go' ! -name '*_test.go' | xargs wc -l | tail -1`
+  含 testkit 的旧口径是 11,183（testkit 是纯测试夹具，不计入门禁）。
+- ✅ 门禁已上线：`make loc`（`make check` 第 2 项，脚本 `tools/loccheck.sh`）——
+  总计 > 10,000 退出 1；`cmd/pk` > 3,200 与单文件 > 600 只 warn（方案 §0.1 / R2）。
+  阶段 0 实测净腾 **16 行**（不是方案预估的 200：`flag`/`usage` 样板只有 16 行可省，
+  `fetchArtifactVerified` 抽出来后主流程与伴生 npm 包复用同一路径，但 helper 自身吃掉了省下的行）。
 
 ## 已知缺口（按计划补齐，不是遗漏）
 

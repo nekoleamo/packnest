@@ -1,6 +1,6 @@
 # packnest · make 门禁（方案 §9.5）
 #
-# 一条命令 `make check` 跑完 7 项：风格/静态 → 竞态测试 → 覆盖率 →
+# 一条命令 `make check` 跑完 8 项：行数 → 风格/静态 → 竞态测试 → 覆盖率 →
 # 6 平台交叉编译 → fuzz → 性能 → --json 契约。全绿才可提交。
 #
 # `make accept` 只跑验收用例（TestAcceptance_*）——"验收是跑测试，不是人工敲命令"。
@@ -27,12 +27,13 @@ LDFLAGS := -s -w -X main.Version=$(VERSION)
 SOURCE_DATE := 202001010000
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
-.PHONY: gitee-release help build test race check fmt vet cover cross fuzz bench golden accept clean dist list-providers release checksums npm-packages npm-dry publish publish-stage stage-list promote site verify-release publish-manifests
+.PHONY: gitee-release help build test race check fmt loc vet cover cross fuzz bench golden accept clean dist list-providers release checksums npm-packages npm-dry publish publish-stage stage-list promote site verify-release publish-manifests
 
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
 	@echo "make test      零外网单测"
-	@echo "make check     7 项门禁（提交前必跑）"
+	@echo "make check     8 项门禁（提交前必跑）"
+	@echo "make loc       只看行数预算（红线 10000；cmd/pk 3200 与单文件 600 只 warn）"
 	@echo "make accept    只跑验收用例 TestAcceptance_*"
 	@echo "make cross     6 平台交叉编译到 $(DIST)/"
 	@echo "make cover     只看覆盖率明细"
@@ -59,6 +60,9 @@ test:
 # -race 需要 cgo：单二进制承诺由 cross 目标（CGO_ENABLED=0）守，这里必须开 cgo
 race:
 	CGO_ENABLED=1 go test -race -count=1 ./...
+
+loc:
+	@sh tools/loccheck.sh
 
 fmt:
 	@out="$$(gofmt -l . | grep -v '^$$' || true)"; \
@@ -105,9 +109,9 @@ fuzz:
 accept:
 	CGO_ENABLED=0 go test -count=1 -run 'TestAcceptance_' -v ./acceptance/...
 
-# ⭐ 7 项门禁，顺序即"越便宜越先"。
-check: fmt vet race cover cross fuzz bench golden
-	@echo "===== make check 全部通过（7 项）====="
+# ⭐ 8 项门禁，顺序即"越便宜越先"（loc 是纯统计，紧跟 fmt）。
+check: fmt loc vet race cover cross fuzz bench golden
+	@echo "===== make check 全部通过（8 项）====="
 
 # 官网：site/ → site/dist（版本号注入）。部署由 .github/workflows/pages.yml 负责。
 site:

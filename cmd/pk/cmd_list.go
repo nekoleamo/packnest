@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"sort"
 	"strings"
@@ -16,9 +15,7 @@ import (
 
 // cmdList 列出已装工具（--available 时附带内嵌 provider 目录）。
 func (a *app) cmdList(args []string) int {
-	fs := flag.NewFlagSet("list", flag.ContinueOnError)
-	fs.SetOutput(a.errOut)
-	a.usageFor(fs, "list")
+	fs := a.newFlagSet("list")
 	available := fs.Bool("available", false, "列出各工具的最新可用版本（索引默认 24h 缓存）")
 	refresh := fs.Bool("refresh", false, "忽略索引缓存，强制重新拉取（配合 --available / 工具名）")
 	all := fs.Bool("all", false, "配合工具名：列出全部可装版本（等于 --limit 0）")
@@ -468,9 +465,7 @@ func requiresOf(p *provider.Provider) []string {
 
 // cmdWhich 解析 shim 到真实二进制路径（调试 shim / 双名一致性的唯一手段）。
 func (a *app) cmdWhich(args []string) int {
-	fs := flag.NewFlagSet("which", flag.ContinueOnError)
-	fs.SetOutput(a.errOut)
-	a.usageFor(fs, "which")
+	fs := a.newFlagSet("which")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}

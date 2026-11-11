@@ -191,6 +191,15 @@ func (a *app) usageFor(fs *flag.FlagSet, name string) {
 	}
 }
 
+// newFlagSet 建子命令的 FlagSet：错误输出走 a.errOut，Usage 指向 `pk help <name>`。
+// 每个命令原本各写三行同样的样板（NewFlagSet + SetOutput + usageFor），统一收在这里。
+func (a *app) newFlagSet(name string) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(a.errOut)
+	a.usageFor(fs, name)
+	return fs
+}
+
 func (a *app) failUsage(err error) int {
 	if errors.Is(err, flag.ErrHelp) {
 		return jsonout.ExitOK // 子命令的 --help 是正常请求

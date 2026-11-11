@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -37,21 +36,17 @@ func exitCodeFor(err error) int {
 
 // cmdInstall 安装工具（M1：node + 伴生 npm）。
 func (a *app) cmdInstall(args []string) int {
-	fs := flag.NewFlagSet("install", flag.ContinueOnError)
-	fs.SetOutput(a.errOut)
-	a.usageFor(fs, "install")
+	fs := a.newFlagSet("install")
 	frozen := fs.Bool("frozen", false, "严格按 pk.lock，不做解析（M4）")
 	insecure := fs.Bool("insecure", false, "允许无校验安装（标记 unverified）")
-	jobs := fs.Int("jobs", 1, "并发下载数（M4；默认 1，国内 CDN 分片常更慢）")
+	// --jobs 仍接受但已是纯占位：当前固定单连接（国内 CDN 分片往往更慢），不再打印噪音。
+	_ = fs.Int("jobs", 1, "并发下载数（预留；当前固定单连接）")
 	force := fs.Bool("force", false, "重装已存在的版本")
 	rehash := fs.Bool("force-rehash", false, "忽略本地校验表，重新向校验源求值并覆盖记录")
 	quiet := fs.Bool("quiet", false, "只报错，不打印进度")
 	dryRun := fs.Bool("dry-run", false, "只解析并打印计划（版本/URL/校验方式），不下载")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
-	}
-	if *jobs != 1 {
-		fmt.Fprintln(a.errOut, "pk: 当前版本单连接下载（--jobs 预留给后续版本；国内 CDN 分片往往更慢）")
 	}
 
 	project, err := install.LoadProject(a.cwd())
@@ -187,9 +182,7 @@ func (a *app) cmdInstall(args []string) int {
 
 // cmdUninstall 台账驱动卸载。
 func (a *app) cmdUninstall(args []string) int {
-	fs := flag.NewFlagSet("uninstall", flag.ContinueOnError)
-	fs.SetOutput(a.errOut)
-	a.usageFor(fs, "uninstall")
+	fs := a.newFlagSet("uninstall")
 	force := fs.Bool("force", false, "仍被引用也删除")
 	all := fs.Bool("all", false, "清掉 pk 装过的一切（所有运行时 + shim + PATH/rc 托管块）")
 	purge := fs.Bool("purge", false, "配合 --all：连 PK_ROOT 一起删（缓存、台账、配置）")

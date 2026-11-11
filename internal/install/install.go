@@ -190,7 +190,6 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 	version := resolved.Version
 	i.emit(jsonout.Event{Ev: "resolve", Tool: tool, Version: version})
 
-	platform := i.opt.GOOS + "-" + i.opt.GOARCH
 	target := i.opt.Paths.ToolVersion(tool, version)
 	if existing := i.ledger.Find(tool, version); existing != nil && !i.opt.Force {
 		if _, statErr := os.Stat(target); statErr == nil {
@@ -212,37 +211,11 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		return res, nil
 	}
 
-	archivePath, artifactURL, fromCache, err := i.fetchArtifact(ctx, p, resolved, idx)
+	archivePath, _, sha, vr, err := i.fetchArtifactVerified(ctx, p, resolved, idx)
 	if err != nil {
 		return Result{}, err
 	}
-	res.SHA256, err = verify.SHA256File(archivePath)
-	if err != nil {
-		return Result{}, err
-	}
-
-	vr, err := i.verifyArtifact(ctx, p, resolved, platform, artifactURL, archivePath, res.SHA256, idx)
-	if err != nil && fromCache {
-		// 缓存坏了（截断/篡改）：删掉重下一次，而不是让用户手动清缓存。
-		_ = os.Remove(archivePath)
-		archivePath, artifactURL, _, ferr := i.fetchArtifact(ctx, p, resolved, idx)
-		if ferr != nil {
-			return Result{}, ferr
-		}
-		res.SHA256, err = verify.SHA256File(archivePath)
-		if err != nil {
-			return Result{}, err
-		}
-		vr, err = i.verifyArtifact(ctx, p, resolved, platform, artifactURL, archivePath, res.SHA256, idx)
-	}
-	if err != nil {
-		if !fromCache {
-			// 刚下的产物就没过校验：删掉脏缓存，下次重下（可能是投毒或截断）。
-			_ = os.Remove(archivePath)
-		}
-		return Result{}, err
-	}
-	res.Verified = vr.Verified
+	res.SHA256, res.Verified = sha, vr.Verified
 	i.emit(jsonout.Event{Ev: "verify", Tool: tool, Version: version, Mode: vr.Mode, OK: boolPtr(true)})
 
 	if i.opt.Frozen && lockedSHA != "" {
@@ -610,6 +583,50 @@ func registryDigest(idx *provider.Index, version, archivePath, sha256 string) (s
 	return verify.AlgoSHA256, sha256
 }
 
+// newVerifier 造一个接到注入式客户端与可注入时钟上的校验器（TOFU 表在各安装路径间共享）。
+func (i *Installer) newVerifier() *verify.Verifier {
+	v := verify.New(i.known)
+	v.Fetch = func(ctx context.Context, url string) ([]byte, error) { return i.opt.Client.Get(ctx, url) }
+	v.Now = i.opt.Now
+	return v
+}
+
+// fetchArtifactVerified = fetchArtifact + sha256 + verifyArtifact，并含
+// "缓存坏了就删掉重下一次"的重试（而不是让用户手动清缓存）。
+// 返回（缓存路径, 实际下载 URL, 产物 sha256, 校验结果）。
+func (i *Installer) fetchArtifactVerified(ctx context.Context, p *provider.Provider, resolved provider.Version, idx *provider.Index) (string, string, string, verify.Result, error) {
+	platform := i.opt.GOOS + "-" + i.opt.GOARCH
+	archivePath, artifactURL, fromCache, err := i.fetchArtifact(ctx, p, resolved, idx)
+	if err != nil {
+		return "", "", "", verify.Result{}, err
+	}
+	run := func() (string, verify.Result, error) {
+		sha, err := verify.SHA256File(archivePath)
+		if err != nil {
+			return "", verify.Result{}, err
+		}
+		vr, err := i.verifyArtifact(ctx, p, resolved, platform, artifactURL, archivePath, sha, idx)
+		return sha, vr, err
+	}
+	sha, vr, err := run()
+	if err != nil && fromCache {
+		_ = os.Remove(archivePath)
+		if archivePath, artifactURL, _, err = i.fetchArtifact(ctx, p, resolved, idx); err != nil {
+			return "", "", "", verify.Result{}, err
+		}
+		sha, vr, err = run()
+	}
+	if err != nil {
+		if !fromCache {
+			// 刚下的产物就没过校验：删掉脏缓存，下次重下（可能是投毒或截断）。
+			_ = os.Remove(archivePath)
+		}
+		return "", "", "", verify.Result{}, err
+	}
+	return archivePath, artifactURL, sha, vr, nil
+}
+
+// verifyArtifact 按清单声明的校验格式选算法与期望摘要，交给 verify 包求值。
 func (i *Installer) verifyArtifact(ctx context.Context, p *provider.Provider, resolved provider.Version, platform, artifactURL, archivePath, sha256 string, idx *provider.Index) (verify.Result, error) {
 	version := resolved.Version
 	sumsURLs, err := p.ChecksumURLsFor(resolved, i.opt.GOOS, i.opt.GOARCH, i.opt.Profile)
@@ -635,11 +652,7 @@ func (i *Installer) verifyArtifact(ctx context.Context, p *provider.Provider, re
 			}
 		}
 	}
-	v := verify.New(i.known)
-	v.Fetch = func(ctx context.Context, url string) ([]byte, error) {
-		return i.opt.Client.Get(ctx, url)
-	}
-	v.Now = i.opt.Now
+	v := i.newVerifier()
 	req := verify.Request{
 		Tool:         p.ID,
 		Version:      version,
@@ -681,9 +694,10 @@ func (i *Installer) applyCompanion(ctx context.Context, p *provider.Provider, no
 	var candidates []companion.Candidate
 	indexAvailable := false
 	npmP, err := i.opt.LookupProvider(c.Registry)
+	var npmIdx *provider.Index // 一次索引加载复用两处（候选版本 + shasum）
 	if err == nil {
 		if idx, err := i.loadIndex(ctx, npmP); err == nil {
-			indexAvailable = true
+			npmIdx, indexAvailable = idx, true
 			for _, v := range idx.Versions {
 				candidates = append(candidates, companion.Candidate{Version: v.Version, Engines: v.Engines["node"]})
 			}
@@ -706,11 +720,9 @@ func (i *Installer) applyCompanion(ctx context.Context, p *provider.Provider, no
 	}
 
 	npmVersion, shasum := dec.Version, ""
-	if npmP != nil {
-		if idx, err := i.loadIndex(ctx, npmP); err == nil {
-			if v, ok := idx.Find(npmVersion); ok {
-				shasum = v.Shasum
-			}
+	if npmIdx != nil {
+		if v, ok := npmIdx.Find(npmVersion); ok {
+			shasum = v.Shasum
 		}
 	}
 	if err := i.installNpmPackage(ctx, npmP, npmVersion, shasum, npmDir); err != nil {
@@ -724,33 +736,23 @@ func (i *Installer) installNpmPackage(ctx context.Context, npmP *provider.Provid
 	if npmP == nil {
 		return fmt.Errorf("找不到 npm 的 provider 清单，无法替换伴生包")
 	}
-	urls, err := npmP.ArtifactURLs(version, i.opt.GOOS, i.opt.GOARCH, i.opt.Profile)
+	// 缓存/下载走与主产物同一条路径（fetchArtifact 已含缓存命中与回退链）。
+	cachePath, _, _, err := i.fetchArtifact(ctx, npmP, provider.Version{Version: version}, nil)
 	if err != nil {
 		return err
-	}
-	ext := extOrDefault(npmP, i.opt.GOOS)
-	platform := i.opt.GOOS + "-" + i.opt.GOARCH
-	cachePath := filepath.Join(i.opt.Paths.CacheArchives(), fmt.Sprintf("npm-%s-%s.%s", version, platform, ext))
-	if st, err := os.Stat(cachePath); err != nil || st.Size() == 0 {
-		if _, _, err := i.downloadFromChain(ctx, "npm", version, urls, cachePath); err != nil {
-			return err
-		}
 	}
 	sha, err := verify.SHA256File(cachePath)
 	if err != nil {
 		return err
 	}
-	v := verify.New(i.known)
-	v.Fetch = func(ctx context.Context, url string) ([]byte, error) { return i.opt.Client.Get(ctx, url) }
-	v.Now = i.opt.Now
 	algo, digest := verify.AlgoSHA256, sha
 	if shasum != "" {
 		if d, err := verify.DigestFile(cachePath, verify.AlgoSHA1); err == nil {
 			algo, digest = verify.AlgoSHA1, d
 		}
 	}
-	if _, err := v.Verify(ctx, verify.Request{
-		Tool: "npm", Version: version, Platform: platform,
+	if _, err := i.newVerifier().Verify(ctx, verify.Request{
+		Tool: "npm", Version: version, Platform: i.opt.GOOS + "-" + i.opt.GOARCH,
 		Digest: digest, Algo: algo, Format: "registry-integrity", InlineShasum: shasum,
 		Insecure: i.opt.Insecure, Rehash: i.opt.Rehash,
 	}); err != nil {
@@ -759,7 +761,7 @@ func (i *Installer) installNpmPackage(ctx context.Context, npmP *provider.Provid
 	}
 
 	tmp := npmDir + ".tmp." + randomSuffix()
-	format, err := archive.FormatFor(ext)
+	format, err := archive.FormatFor(extOrDefault(npmP, i.opt.GOOS))
 	if err != nil {
 		return err
 	}

@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"runtime"
 
@@ -13,9 +12,7 @@ import (
 
 // cmdUse 切换全局默认版本（写 config.toml + 台账引用 + 重指 shim）。
 func (a *app) cmdUse(args []string) int {
-	fs := flag.NewFlagSet("use", flag.ContinueOnError)
-	fs.SetOutput(a.errOut)
-	a.usageFor(fs, "use")
+	fs := a.newFlagSet("use")
 	project := fs.Bool("project", false, "固定到当前项目的 pk.toml + pk.lock（默认改全局默认）")
 	lockOnly := fs.Bool("lock", false, "只按现有 pk.toml 重新生成 pk.lock（不切版本）")
 	if err := parseFlexible(fs, args); err != nil {
@@ -129,9 +126,7 @@ func (a *app) refreshProjectLock(inst *install.Installer) int {
 
 // cmdGC 回收零引用版本与超限缓存。
 func (a *app) cmdGC(args []string) int {
-	fs := flag.NewFlagSet("gc", flag.ContinueOnError)
-	fs.SetOutput(a.errOut)
-	a.usageFor(fs, "gc")
+	fs := a.newFlagSet("gc")
 	dryRun := fs.Bool("dry-run", false, "只报告不删除")
 	cacheMax := fs.String("cache-max", "", "覆盖产物缓存上限（如 20G）")
 	if err := parseFlexible(fs, args); err != nil {

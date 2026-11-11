@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -76,9 +75,7 @@ func (a *app) mirrorList() int {
 }
 
 func (a *app) mirrorProbe(args []string) int {
-	fs := flag.NewFlagSet("mirror probe", flag.ContinueOnError)
-	fs.SetOutput(a.errOut)
-	a.usageFor(fs, "mirror probe")
+	fs := a.newFlagSet("mirror probe")
 	only := fs.String("tool", "", "只探测某个工具的索引源")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
@@ -130,9 +127,7 @@ func (a *app) mirrorProbe(args []string) int {
 
 // mirrorWrite 把 registry 写进 ~/.npmrc：写前备份、只增不改（方案 §6.6）。
 func (a *app) mirrorWrite(args []string) int {
-	fs := flag.NewFlagSet("mirror write", flag.ContinueOnError)
-	fs.SetOutput(a.errOut)
-	a.usageFor(fs, "mirror write")
+	fs := a.newFlagSet("mirror write")
 	target := fs.String("file", "", "目标 npmrc（默认 ~/.npmrc）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
