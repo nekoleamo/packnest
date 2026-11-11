@@ -471,9 +471,14 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ## 行数预算现状
 
-`cmd/` + `internal/`（不含 `*_test.go`、不含 `internal/testkit` 夹具）**8465 / 8500 行**，余量 35 行。
-注意：这个数字现在靠人肉看，`make check` 的 7 项门禁里**没有行数门禁**（AGENTS.md 里的说法超前于实现）。
-下个版本要么加一条 `loc` 门禁，要么先还砍一刀（`internal/install` 1281 行、`cmd/pk` 2189 行是两个大头）。
+- **红线：10,000 行**（`cmd/` + `internal/`，不含 `*_test.go`；2026-11-10 从 8,500 上调，拍板记录见
+  `~/Documents/Plan/17-包管理器/pn-外部provider与工具链内工具-方案.md` §0.1）。
+- 现状 **9,945 行**（余量 55）：`cmd/pk` 3,181 · `internal/install` 1,366 · `internal/testkit` 1,238 ·
+  `internal/provider` 1,070 · `internal/env` 788 · `internal/store` 650 · `internal/fetch` 530。
+  含 testkit 的旧口径是 11,183。
+- ⚠️ `make check` 目前**仍没有**行数门禁（7 项里没有 loc）；门禁脚本与阶段 0 的"砍 200 行"计划在
+  上述方案文档里，未实施。在那之前只能人工核对：
+  `find cmd internal -name '*.go' ! -name '*_test.go' | xargs wc -l | tail -1`
 
 ## 已知缺口（按计划补齐，不是遗漏）
 
