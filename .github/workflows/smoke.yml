@@ -30,12 +30,12 @@ jobs:
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.optional == true }}
     steps:
+      # checkout 只是为了拿 scripts/latest（版本号的单一真源）；产物一律从发布渠道下
+      - uses: actions/checkout@v4
       - name: 版本号
         id: ver
         shell: bash
-        run: echo "v=$(cat scripts/latest)" >> "$GITHUB_OUTPUT"
-      # 注：checkout 是为了拿 scripts/latest；产物一律从"用户会用的地方"（gitee release）下
-      - uses: actions/checkout@v4
+        run: echo "v=$(tr -d ' \t\r\n' < scripts/latest)" >> "$GITHUB_OUTPUT"
 
       - name: 从 gitee 取发布产物（用户视角）
         shell: bash
