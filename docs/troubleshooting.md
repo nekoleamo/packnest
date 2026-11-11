@@ -120,6 +120,15 @@ ls ~/.packnest/providers                  # 文件名必须等于 id（zig.toml 
 外部清单出问题**不会**让 `pk install node` 之类失败：坏文件被跳过、只记 issue。
 `PK_PROVIDERS_DIR` 是**追加**语义（可多个目录，用 `os.PathListSeparator` 分隔），不支持指向 `http(s)://`。
 
+## 2.6 pnpm 装不上
+
+`pnpm` 的产物是 registry 上的平台包 `@pnpm/exe.<os>-<arch>`（真二进制）。两个已知坑：
+
+- **`pk install pnpm@10` / `@9` 会 404**：平台包从 `11.0.0-rc.3` 才开始发布。老版本请用
+  `corepack`（`pk install node@22 --corepack` 后 `corepack prepare pnpm@10 --activate`）或 `npm i -g pnpm@10`。
+- **重装同一版本报「与本地记录不一致」**：如果你在这台机器上之前用旧方式（JS tarball）装过该版本，
+  TOFU 表里是旧产物的摘要。用 `pk install pnpm@<版本> --force-rehash` 覆盖一次即可。
+
 ## 3. 全局包（`npm i -g`）相关的三个告警
 
 | 码 | 含义 | 处置 |

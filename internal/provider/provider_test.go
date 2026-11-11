@@ -99,7 +99,8 @@ func TestArtifactURLRegistryPlaceholder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ArtifactURL: %v", err)
 	}
-	if u != "https://registry.npmmirror.com/pnpm/-/pnpm-10.4.1.tgz" {
+	// pnpm 的产物是平台包 @pnpm/exe.<os>-<arch>（方案：避免"启动器再下二进制"的第 4 个下载面）
+	if u != "https://registry.npmmirror.com/@pnpm/exe.linux-x64/-/exe.linux-x64-10.4.1.tgz" {
 		t.Fatalf("registry 占位符渲染错误: %q", u)
 	}
 }
@@ -437,7 +438,7 @@ func TestEnvMirrorOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "http://nexus.local/npm/pnpm/-/pnpm-10.0.0.tgz" {
+	if got != "http://nexus.local/npm/@pnpm/exe.linux-x64/-/exe.linux-x64-10.0.0.tgz" {
 		t.Fatalf("PK_MIRROR_REGISTRY 未生效: %q", got)
 	}
 

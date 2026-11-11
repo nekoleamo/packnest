@@ -653,6 +653,21 @@ func (i *Installer) verifyArtifact(ctx context.Context, p *provider.Provider, re
 	if err != nil {
 		return verify.Result{}, err
 	}
+	if p.Checksum.Format == provider.ChecksumRegistry && len(sumsURLs) > 0 {
+		// 摘要改读平台包自己的元数据（pnpm 的 @pnpm/exe.*），否则会拿本体 tarball 的 integrity 去比
+		data, derr := i.opt.Client.Get(ctx, sumsURLs[0])
+		if derr != nil {
+			return verify.Result{}, derr
+		}
+		vs, derr := provider.ParseRegistryIndex(data)
+		if derr != nil {
+			return verify.Result{}, derr
+		}
+		idx = &provider.Index{Versions: vs}
+		if _, ok := idx.Find(version); !ok {
+			return verify.Result{}, fmt.Errorf("%s@%s 没有对应的平台包（版本号须与本体一致）", p.ID, version)
+		}
+	}
 	algo, digest := registryDigest(idx, version, archivePath, sha256)
 	inline := ""
 	if p.Checksum.Format == provider.ChecksumIndexInline {
@@ -661,7 +676,7 @@ func (i *Installer) verifyArtifact(ctx context.Context, p *provider.Provider, re
 		if f, ok := resolved.FileFor(i.opt.GOOS, i.opt.GOARCH); ok {
 			inline = f.SHA256
 		}
-	} else if p.Checksum.Format != "registry-integrity" {
+	} else if p.Checksum.Format != provider.ChecksumRegistry {
 		algo, digest = verify.AlgoSHA256, sha256
 	} else if idx != nil {
 		if v, ok := idx.Find(version); ok {

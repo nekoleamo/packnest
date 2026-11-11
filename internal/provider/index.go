@@ -416,6 +416,9 @@ func nodeEngines(engines map[string]json.RawMessage) map[string]string {
 	return out
 }
 
+// ParseRegistryIndex 解析 npm registry 元数据（外部调用方：install 取平台包的 dist.integrity）。
+func ParseRegistryIndex(data []byte) ([]Version, error) { return parseRegistryIndex(data) }
+
 // parseRegistryIndex 解析 npm registry 元数据（versions + engines + dist）。
 func parseRegistryIndex(data []byte) ([]Version, error) {
 	var doc struct {

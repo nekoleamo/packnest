@@ -88,27 +88,24 @@ type Event struct {
 }
 
 // WriteJSON 输出一个缩进 JSON 文档（人可读，也便于 golden 比对）。
-func WriteJSON(w io.Writer, v any) error {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return fmt.Errorf("序列化 JSON 失败: %w", err)
-	}
-	if _, err := w.Write(append(data, '\n')); err != nil {
-		return err
-	}
-	return nil
-}
+func WriteJSON(w io.Writer, v any) error { return writeJSON(w, v, true) }
 
 // WriteCompact 输出单行 JSON（脚本读取用）。
-func WriteCompact(w io.Writer, v any) error {
-	data, err := json.Marshal(v)
+func WriteCompact(w io.Writer, v any) error { return writeJSON(w, v, false) }
+
+func writeJSON(w io.Writer, v any, indent bool) error {
+	var data []byte
+	var err error
+	if indent {
+		data, err = json.MarshalIndent(v, "", "  ")
+	} else {
+		data, err = json.Marshal(v)
+	}
 	if err != nil {
 		return fmt.Errorf("序列化 JSON 失败: %w", err)
 	}
-	if _, err := w.Write(append(data, '\n')); err != nil {
-		return err
-	}
-	return nil
+	_, err = w.Write(append(data, '\n'))
+	return err
 }
 
 // WriteEvent 输出一行 NDJSON 事件。

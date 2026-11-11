@@ -48,7 +48,18 @@ func SharedVarsFor(mode string, p paths.Paths, npmCache, nodeVersion string) []K
 	if mode != "per-version" || nodeVersion == "" {
 		return SharedVars(p, npmCache)
 	}
-	prefix := filepath.Join(p.Root, "global", "node-"+nodeVersion)
+	return globalVars(filepath.Join(p.Root, "global", "node-"+nodeVersion), p, npmCache)
+}
+
+// SharedVars 返回共享全局包前缀相关变量（方案 §6.7 总表）。
+//
+// npmCache 为已有的 ~/.npm（存在时沿用，绝不迁移不复制）。
+func SharedVars(p paths.Paths, npmCache string) []KV {
+	return globalVars(p.Global(), p, npmCache)
+}
+
+// globalVars 是 shared 与 per-version 两种模式共用的变量表（区别只有前缀一个参数）。
+func globalVars(prefix string, p paths.Paths, npmCache string) []KV {
 	return []KV{
 		{"npm_config_prefix", prefix},
 		{"npm_config_cache", npmCache},
@@ -56,21 +67,6 @@ func SharedVarsFor(mode string, p paths.Paths, npmCache, nodeVersion string) []K
 		{"npm_config_prefer_offline", "true"},
 		{"PNPM_HOME", filepath.Join(prefix, "pnpm")},
 		{"BUN_INSTALL", filepath.Join(prefix, "bun")},
-		{"COREPACK_HOME", filepath.Join(p.Root, "cache", "corepack")},
-	}
-}
-
-// SharedVars 返回共享全局包前缀相关变量（方案 §6.7 总表）。
-//
-// npmCache 为已有的 ~/.npm（存在时沿用，绝不迁移不复制）。
-func SharedVars(p paths.Paths, npmCache string) []KV {
-	return []KV{
-		{"npm_config_prefix", p.Global()},
-		{"npm_config_cache", npmCache},
-		{"npm_config_globalconfig", p.GlobalEtc() + "/npmrc"},
-		{"npm_config_prefer_offline", "true"},
-		{"PNPM_HOME", p.GlobalPnpmBin()},
-		{"BUN_INSTALL", p.Global() + "/bun"},
 		// corepack 的缓存也进我们的根（--purge 能一起清）
 		{"COREPACK_HOME", filepath.Join(p.Root, "cache", "corepack")},
 	}

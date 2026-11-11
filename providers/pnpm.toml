@@ -11,27 +11,34 @@ default = "https://registry.npmjs.org/pnpm"
 cn      = "https://registry.npmmirror.com/pnpm"
 
 [artifact]
+# 产物用"平台包" @pnpm/exe.<os>-<arch>（registry 上的真二进制，44MB）：
+# 老的 pnpm npm 包只有 3MB 启动器，首次运行才去下平台二进制 —— 那是下载面之外的第四个下载面，
+# 还绕开了 pk 的校验。平台包的本体版本号与 pnpm 严格同步（实测 12.18.0 两边一致）。
 [artifact.urls]
-default = "{registry}/pnpm/-/pnpm-{version}.tgz"
+default = "{registry}/@pnpm/exe.{platform}/-/exe.{platform}-{version}.tgz"
 [artifact.ext]
 darwin  = "tgz"
 linux   = "tgz"
 windows = "tgz"
 [artifact.platform]
-darwin-amd64  = "any"
-darwin-arm64  = "any"
-linux-amd64   = "any"
-linux-arm64   = "any"
-windows-amd64 = "any"
-windows-arm64 = "any"
+darwin-amd64  = "darwin-x64"
+darwin-arm64  = "darwin-arm64"
+linux-amd64   = "linux-x64"
+linux-arm64   = "linux-arm64"
+windows-amd64 = "win32-x64"
+windows-arm64 = "win32-arm64"
 
 [checksum]
+# 摘要来自平台包自己的元数据（dist.integrity / sha1），install 会读 checksum.urls 取它
 format = "registry-integrity"
 mode   = "tofu-then-verify"
+[checksum.urls]
+default = "{registry}/@pnpm/exe.{platform}"
 
 [layout]
 strip = 1
 bins  = ["pnpm", "pnpx"]
+# 平台包里只有一个 pnpm 可执行文件；pnpx 由 argv[0] 分派（与 bunx 同一套路）
 [layout.bin_targets]
-pnpm = "bin/pnpm.cjs"
-pnpx = "bin/pnpx.cjs"
+pnpm = "pnpm"
+pnpx = "pnpm"

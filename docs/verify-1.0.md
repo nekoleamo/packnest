@@ -13,7 +13,8 @@
 | 2 | `pk doctor --json` | ✅ `schema:1`、`ok:true`、`PROVIDERS_DIRS` info 正常 |
 | 3 | `pk install node@22` | ✅ 22.23.5 + 伴生 npm 12.2.2（自带 10.9.9 被替换） |
 | 4 | shim 生效（`pk env` 后 `node -v` / `npm -v`） | ✅ v22.23.5 / 12.2.2，路径都在 `PK_ROOT/bin` |
-| 5 | **外部 provider（真工具）**：ripgrep 15.2.0，GitHub Releases + 每产物 `.sha256` | ✅ 装成、`rg --version` 可跑、`pk list` 带 `*` 与脚注 |
+| 5 | 「6 个工具全装一遍」：node / npm（伴生）/ **pnpm（平台包 23MB，pnpx 也可用）** / bun / go / python（pip 26.3） | ✅ 全部装成并跑通 |
+| 5b | **外部 provider（真工具）**：ripgrep 15.2.0，GitHub Releases + 每产物 `.sha256` | ✅ 装成、`rg --version` 可跑、`pk list` 带 `*` 与脚注 |
 | 6 | 坏外部清单混入 | ✅ 只记 `PROVIDER_EXTERNAL_INVALID`，`pk list` / `install node` 照常 |
 | 7 | `pk install node@24 --corepack` | ✅ `global/corepack/bin` 出现 yarn/yarnpkg/pnpm/pnpx |
 | 8 | `yarn --version`（corepack 惰性下载） | ✅ 1.22.22，走 `COREPACK_NPM_REGISTRY`（npmmirror） |

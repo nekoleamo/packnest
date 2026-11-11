@@ -47,12 +47,15 @@ type pbsFile struct {
 // pbsPattern 匹配 cpython-3.13.18+20261026-aarch64-apple-darwin-install_only.tar.gz。
 var pbsPattern = regexp.MustCompile(`^cpython-(\d+\.\d+\.\d+)\+(\d+)-(.+)-install_only\.tar\.gz$`)
 
+// dirEntry 是 npmmirror 目录列举里的一项。
+type dirEntry struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
 // versionDirs 解析 npmmirror 的目录列举，返回 release 标签（"20261026"），新的在前。
 func versionDirs(data []byte) ([]string, error) {
-	var entries []struct {
-		Name string `json:"name"`
-		Type string `json:"type"`
-	}
+	var entries []dirEntry
 	if err := json.Unmarshal(data, &entries); err != nil {
 		return nil, fmt.Errorf("目录列举不是 JSON 数组（%v）", err)
 	}
@@ -89,10 +92,7 @@ func isTag(name string) bool {
 
 // parseFiles 从 tag 目录列举里挑出 install_only 的 cpython 产物。
 func parseFiles(data []byte, tag string, platformByName map[string]string) ([]pbsFile, error) {
-	var entries []struct {
-		Name string `json:"name"`
-		Type string `json:"type"`
-	}
+	var entries []dirEntry
 	if err := json.Unmarshal(data, &entries); err != nil {
 		return nil, fmt.Errorf("tag 目录列举不是 JSON 数组（%v）", err)
 	}

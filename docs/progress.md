@@ -534,14 +534,12 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   拿不到时走 24h stale 缓存；产物与校验和可以走 aliyun/index-inline，不影响安装。
 - python 的索引只声明 npmmirror（官方 GitHub 没有目录列举接口），官方只作为产物/校验和的回退源；
   若镜像索引整体不可用，只能靠 stale 缓存。
-- pnpm 12 的 tarball 只是启动器，首次运行会自己再下平台二进制（pnpm 上游行为）。方案原本假设
-  「npm registry tarball 即产物」，实际多了第 4 个下载面。
-  **2026-11-11 实测更正**：npmmirror 的 `/-/binary/pnpm/` 返回 `[NOT_FOUND] Binary "pnpm" not found`（没有这条路径）；
-  GitHub Releases 有 `pnpm-<os>-<arch>.tar.gz`（23–27MB），但**不带 SHASUMS 文件**。
-  **可行路径（下一轮候选）**：registry 上有 `@pnpm/exe.<os>-<arch>`（实测 12.18.0 与 pnpm 版本同步，
-  `dist.integrity` 有 sha512，44MB 真二进制，tarball 4 个文件）。把 pnpm 的 artifact 换成它就能"一次装完、离线可用"，
-  但校验要读**平台包自己的** `dist.integrity`（不是 pnpm 包索引里的那个），需要新增一种 checksum 形态
-  （比如 `registry-platform`，约 20 行 + 一条验收），当前余量 14 行放不下。
+- **pnpm 已改成平台包**（2026-11-11）：产物换成 registry 上的 `@pnpm/exe.<os>-<arch>`（真二进制，~23MB），
+  不再有"启动器首次运行自己下平台二进制"的第 4 个下载面；摘要在平台包自己的元数据里
+  （`checksum.urls` 指向 `{registry}/@pnpm/exe.{platform}`，install 读它的 `dist.integrity`）。
+  ⚠️ 限制：`@pnpm/exe.*` 只从 **11.0.0-rc.3** 开始发布，所以 `pk install pnpm@10` 及更老会 404
+  （建议这类老版本用 corepack 或 `npm i -g pnpm@10`）。另：之前用 JS tarball 装过同一版本的机器，
+  TOFU 表里记的是旧摘要，重装会要求 `--force-rehash`（一次性）。
 - deno 这类「上游重新发布」的版本目前只能 `--insecure`；自动化需要「同源配对校验」（官方产物 + 官方校验和成对验证、标记 weak），属 v1.1。
 - 缓存目前按 `cache/archives/<tool>-<version>-<platform>.<ext>` 命名（校验每次重算 sha256），
   未做方案里的"内容寻址 `<sha256>`"去重；功能等价（跨版本不重下），去重留到 M4 与 GC 一起做。
