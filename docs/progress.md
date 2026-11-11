@@ -469,6 +469,13 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - 顺手修了安装脚本里 `$VAR` 紧贴中文的写法（C locale 下 bash 会把多字节字符当成变量名的一部分，
   报 `unbound variable`），全部改成 `${VAR}`；安装脚本已在 `LC_ALL=C` 下实测。
 
+## 下一步（方案定稿，未实施）
+
+`~/Documents/Plan/17-包管理器/pn-外部provider与工具链内工具-方案.md`（v1 定稿，393 行）：
+外部 provider 目录 + 工具链内自带工具（corepack / pip / `go install`）。
+已拍板：10,000 行红线 + `loc` 门禁 · corepack 走 PATH 5 段 · 外部清单默认拒 `http://`。
+执行顺序见该文档 §执行清单（**阶段 0 必须先腾 200 行预算**）。R1/R2/R3 三条建议待一句话确认。
+
 ## 行数预算现状
 
 - **红线：10,000 行**（`cmd/` + `internal/`，不含 `*_test.go`；2026-11-10 从 8,500 上调，拍板记录见
