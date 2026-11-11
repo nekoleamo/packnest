@@ -54,7 +54,8 @@ jobs:
           curl -fsSL --retry 3 --max-time 60 -o "$RUNNER_TEMP/checksums.txt" "$base/checksums.txt"
           want=$(awk -v f="$name" '$2==f {print $1; exit}' "$RUNNER_TEMP/checksums.txt")
           if command -v sha256sum >/dev/null 2>&1; then
-            got=$(sha256sum "$RUNNER_TEMP/$name" | cut -d' ' -f1)
+            # git-bash 的 sha256sum 会在哈希前加 `\`（binary 标记），先去掉再比
+            got=$(sha256sum "$RUNNER_TEMP/$name" | awk '{print $1}' | tr -d '\\')
           else
             got=$(shasum -a 256 "$RUNNER_TEMP/$name" | cut -d' ' -f1)
           fi
