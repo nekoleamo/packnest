@@ -42,6 +42,7 @@ help:
 	@echo "make gitee-release  上传产物到 gitee release（二进制主源）"
 	@echo "    注：npm 分发渠道已于 2026-11-11 停用（见 docs/publishing.md）"
 	@echo "make gui      构建 GUI（cmd/pk-desktop，需先装 pk；不计入行数门禁）"
+	@echo "make gui-frontend  重建 Vue3 前端到 frontend/dist（需要 npm）"
 	@echo "make gui-app  打包 macOS .app 到 dist/gui/（ad-hoc 签名）"
 	@echo "make gui-serve  GUI 的浏览器形态（127.0.0.1:7799）"
 	@echo "make github-release  同步产物到 GitHub Releases（海外主源）"
@@ -169,6 +170,11 @@ checksums:
 	@echo "已生成 checksums.txt：" && cat $(DIST)/checksums.txt
 
 # GUI（cmd/pk-desktop）：CLI 的可视化补充，必须先有 pk；GUI 不计入行数门禁（单列预算）
+# 前端是 Vue3+TS（frontend/），产物 frontend/dist 已随库提交；改了前端要重跑 gui-frontend
+gui-frontend:
+	@cd cmd/pk-desktop/frontend && npm ci --no-audit --no-fund && npm run build
+	@echo "前端已重建：cmd/pk-desktop/frontend/dist（记得一起提交）"
+
 gui:
 	@cd cmd/pk-desktop && go build -o ../../$(BIN)-desktop .
 	@echo "已构建 $(BIN)-desktop（需要本机已安装 pk 才能用）"

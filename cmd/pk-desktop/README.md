@@ -29,6 +29,19 @@ go build -o ../../bin/pk-desktop .
 
 没装 CLI 时页面顶部会直接给出安装命令；GUI 自己**不会**下载任何东西。
 
+## 前端
+
+Vue 3 + TypeScript + Vite（`frontend/`）：
+
+```bash
+make gui-frontend     # npm ci + vite build → frontend/dist（已随库提交，clone 后可直接 go build）
+make gui              # 构建桌面壳（embed frontend/dist）
+```
+
+- `src/api.ts` 是**唯一的契约视图**：接口形状与 `internal/pkcli` 的结构体一一对应；
+- `src/App.vue` 只做"调 /api/* + 渲染"，不含业务判断（装卸/校验语义都在 CLI）；
+- 前端产物 `frontend/dist` 提交进库，是为了让 `go build` 零依赖（不需要 npm 也能构建 GUI）。
+
 ## 为什么不用 Wails 绑定
 
 前端走 `/api/*`（普通 HTTP + NDJSON 流）而不是 Wails 的 JS 绑定，好处是：

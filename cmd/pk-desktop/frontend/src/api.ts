@@ -1,0 +1,100 @@
+// 与 internal/pkcli 的结构体一一对应；改这里就等于改 GUI 的契约视图。
+export interface Status {
+  ok: boolean;
+  reason?: string;
+  path?: string;
+  cli?: { schema: number; name: string; version: string };
+}
+export interface Tool {
+  name: string;
+  version: string;
+  active: boolean;
+  verified?: string;
+  source?: string;
+  size_bytes?: number;
+  npm?: { version: string; replaced: string };
+}
+export interface AvailableTool {
+  name: string;
+  latest: string;
+  lts?: string;
+  source?: string;
+  error?: string;
+}
+export interface Versions {
+  tool: string;
+  latest: string;
+  total: number;
+  installed: { version: string; active: boolean }[];
+  available: { version: string; lts?: string; installed?: boolean }[];
+}
+export interface Issue {
+  code: string;
+  severity: "info" | "warn" | "error";
+  message: string;
+}
+export interface Mirror {
+  current: string;
+  mirrors: { name: string; display: string; registry: string; current: boolean }[];
+}
+export interface GCResult {
+  Removed?: string[];
+  CacheRemoved?: string[];
+  FreedBytes?: number;
+  DryRun?: boolean;
+}
+export interface InstallEvent {
+  ev: string;
+  tool?: string;
+  version?: string;
+  bytes_done?: number;
+  bytes_total?: number;
+  mode?: string;
+  msg?: string;
+}
+
+async function json<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, init);
+  if (!res.ok) throw new Error((await res.text()) || res.statusText);
+  return res.json() as Promise<T>;
+}
+
+export const api = {
+  status: () => json<Status>("/api/status"),
+  tools: () => json<{ tools: Tool[] }>("/api/tools"),
+  available: () => json<{ available: AvailableTool[] }>("/api/available"),
+  versions: (tool: string) => json<Versions>(`/api/versions?tool=${encodeURIComponent(tool)}`),
+  mirrors: () => json<Mirror>("/api/mirrors"),
+  useMirror: (use: string) =>
+    json<Mirror>("/api/mirrors", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ use }) }),
+  doctor: (globals: boolean) => json<{ issues: Issue[] }>(`/api/doctor?globals=${globals ? 1 : 0}`),
+  gc: (run: boolean) => json<GCResult>("/api/gc", { method: run ? "POST" : "GET" }),
+  use: (tool: string, version: string) =>
+    json("/api/use", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tool, version }) }),
+  uninstall: (tool: string) =>
+    json("/api/uninstall", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tool }) }),
+};
+
+// install 是 NDJSON 流：progress 事件驱动进度条，done/error 收尾。
+export async function install(spec: string, onEvent: (ev: InstallEvent) => void): Promise<void> {
+  const res = await fetch(`/api/install?spec=${encodeURIComponent(spec)}`);
+  if (!res.ok || !res.body) throw new Error((await res.text()) || res.statusText);
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        onEvent(JSON.parse(line) as InstallEvent);
+      } catch {
+        /* 忽略非 JSON 行 */
+      }
+    }
+  }
+}

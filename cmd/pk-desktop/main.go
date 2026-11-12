@@ -25,8 +25,10 @@ import (
 	"github.com/packnest/packnest/cmd/pk-desktop/internal/pkcli"
 )
 
-//go:embed assets
-var assets embed.FS
+// 前端产物：Vue3 + TS（frontend/）构建到 frontend/dist，由这里嵌进二进制。
+//
+//go:embed frontend/dist
+var frontendFS embed.FS
 
 // api 是前端唯一的数据来源（不用 Wails 绑定，浏览器形态也能用）。
 type api struct {
@@ -42,7 +44,7 @@ func main() {
 	a := &api{find: pkcli.Locate}
 	mux := a.routes(*token)
 
-	sub, err := fs.Sub(assets, "assets")
+	sub, err := fs.Sub(frontendFS, "frontend/dist")
 	if err != nil {
 		log.Fatal(err)
 	}

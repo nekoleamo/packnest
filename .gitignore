@@ -10,3 +10,5 @@ coverage.out
 secrets.env
 *.token
 .npmrc.local
+# GUI 前端依赖与产物（dist 由 vite 构建，不进库；Go 侧 //go:embed 需要它在构建时存在）
+/cmd/pk-desktop/frontend/node_modules/
