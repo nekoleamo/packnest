@@ -508,14 +508,12 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 | 门禁 | `make check` 8 项全绿（含 `make loc`）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
 | 行数 | **10,472 / 10,500**（余量 28）；单文件无 >600 行 |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac 双架构 `.app`（图标就绪；ad-hoc 签名，公证不做） |
-| GUI 发布 | 独立 tag **`gui-v0.10.0`**（gitee + GitHub 各 4 产物：mac arm64/amd64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`） |
+| GUI 发布 | 独立 tag **`gui-v0.10.1`**（gitee + GitHub 各 4 产物：mac arm64/amd64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；`gui-v0.10.0` 是旧界面那版 |
 | 发布流程 | 唯一清单在 `docs/publishing.md`（「三、发布流程」第 ⑦ 步 + 「五点五、GUI 的产物」） |
 
 ### 接下来可做的（按性价比）
 
-1. **重发 GUI 产物**：`gui-v0.10.0` 里的界面还是上一版的；重发要么新 tag（`gui-v0.10.1`），
-   要么删 gitee release 重建（同名附件删不掉，命令在 `docs/publishing.md`）。
-2. **CLI 侧可选**：剩余非 GUI 项都卡在行数（内容寻址缓存已做；L4 已做；剩下 `uninstall_all.go` 编排搬进
+1. **CLI 侧可选**：剩余非 GUI 项都卡在行数（内容寻址缓存已做；L4 已做；剩下 `uninstall_all.go` 编排搬进
    `internal/install` 属于"GUI 不再需要的技术债"，可随时做也可不做）
 
 ### 已完成（2026-11-12，第三轮 GUI 界面细节，commit 见 git log）
@@ -560,7 +558,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 ## GUI 定位（2026-11-11 拍板）
 
 **GUI 交付状态（2026-11-11 收口）**：Vue3+TS+Vite 前端、Wails v3.1.0 桌面壳 + `--serve` 浏览器形态、
-托盘与单实例（占端口当互斥锁）、三平台产物已发到独立 tag `gui-v0.10.0`（gitee + GitHub）：
+托盘与单实例（占端口当互斥锁）、三平台产物已发到独立 tag `gui-v0.10.1`（gitee + GitHub）：
 mac darwin{arm64,amd64} `.app.zip`（本机构建）、windows amd64 `.zip`、linux amd64 `.tar.gz`（CI `gui-build.yml` 构建）。
 GUI 已带图标（`packaging/genicon` 生成的"巢"标记 → `.icns`/托盘模板图）、`--version`；
 签名/公证**拍板不做（2026-11-12）**：产物一律 ad-hoc 签名（`PK_SIGN_IDENTITY`/`PK_NOTARY_PROFILE` 机制保留，
@@ -568,6 +566,9 @@ GUI 已带图标（`packaging/genicon` 生成的"巢"标记 → `.icns`/托盘�
 
 **GUI 前置 ④ 已完成**：托盘（关窗口收进托盘、菜单打开/退出）、单实例（占端口当互斥锁，第二个实例直接拒绝）、
 桌面壳同时提供浏览器形态；mac/win/linux 三平台产物已随 v0.10.0 发布（mac 本机构建，win/linux 由 gui-build.yml 构建后本机上传）。
+
+**GUI 重发（2026-11-12）**：GUI 有自己的版本号（`main.go` 的 `guiVersion`），本轮升到 `0.10.1` 重发——
+四个产物文件名带 0.10.1，字节与本地/CI 一致（mac 本机构建两架构，win/linux 从 `gui-build` 拉回改名上传）。
 
 **GUI 界面细节（2026-11-11 第三轮）**：全局包体检表格化、GC 统计块+分组清单、多 spec 安装队列、
 深浅色手动切换（跟随系统/浅色/深色）。明细见文末「已完成」节。
