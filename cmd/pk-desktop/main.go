@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"github.com/packnest/packnest/cmd/pk-desktop/internal/pkcli"
 )
@@ -46,22 +47,52 @@ func main() {
 		log.Fatal(err)
 	}
 	static := application.BundledAssetFileServer(sub)
+	// 单实例：桌面壳先占用一个固定回环端口当互斥锁（零依赖）；占不到说明已经开着一个 GUI。
+	// --serve 模式下这个检查也会生效（同一个端口不能同时被两个实例监听）。
+	single := &singleInstance{}
+	if err := single.acquire(*addr); err != nil {
+		log.Fatalf("已经有一个 packnest 界面在运行（%s）：%v", *addr, err)
+	}
+	defer single.release()
+
 	if *serve {
 		if !loopback(*addr) && *token == "" {
 			log.Fatal("拒绝启动：--serve 绑到非回环地址却没有 --token（这等于把装/卸软件的接口暴露到网络）")
 		}
 		// 浏览器形态和桌面壳共用同一套接口 + 同一份静态页
 		log.Printf("pk-desktop --serve：http://%s/（需要本机已安装 pk）", *addr)
-		log.Fatal(http.ListenAndServe(*addr, withAPI(mux, static)))
+		log.Fatal(http.Serve(single.ln, withAPI(mux, static)))
 	}
+	// 桌面壳也顺带把同一个地址服务起来：单实例锁 + "浏览器里也能用"一举两得
+	go func() {
+		if loopback(*addr) || *token != "" {
+			log.Printf("同一个界面也在 http://%s/ 提供（可选用浏览器打开）", *addr)
+			_ = http.Serve(single.ln, withAPI(mux, static))
+		}
+	}()
 
 	app := application.New(application.Options{
-		Assets: application.AssetOptions{Handler: withAPI(mux, static)},
+		Name:        "packnest",
+		Description: "packnest 的可视化补充界面（需要本机已安装 pk）",
+		Assets:      application.AssetOptions{Handler: withAPI(mux, static)},
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 	})
-	app.Window.NewWithOptions(application.WebviewWindowOptions{Title: "packnest", URL: "/"})
+	win := app.Window.NewWithOptions(application.WebviewWindowOptions{Title: "packnest", URL: "/"})
+
+	// 托盘：关窗口不退出（退到托盘），菜单里能重新打开窗口或退出
+	tray := app.SystemTray.New()
+	menu := app.NewMenu()
+	menu.Add("打开 packnest").OnClick(func(*application.Context) { win.Show(); win.Focus() })
+	menu.AddSeparator()
+	menu.Add("退出").OnClick(func(*application.Context) { app.Quit() })
+	tray.SetMenu(menu)
+	// 点窗口关闭 → 隐藏，交给托盘收起（macOS 的 ⌘Q 仍然退）
+	win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		win.Hide()
+		e.Cancel()
+	})
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
@@ -343,4 +374,29 @@ func (a *api) handleUse(w http.ResponseWriter, r *http.Request) {
 // timeout 把 HTTP 请求的取消信号与超时合并（GUI 里用户点了"取消"要能真的杀掉 pk 子进程）。
 func timeout(r *http.Request, d time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(r.Context(), d)
+}
+
+// singleInstance 用"监听一个回环端口"实现单实例：跨平台、零依赖，也不需要额外的锁文件。
+type singleInstance struct{ ln net.Listener }
+
+func (s *singleInstance) acquire(addr string) error {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return err
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	ln, err := net.Listen("tcp", net.JoinHostPort(host, port))
+	if err != nil {
+		return err
+	}
+	s.ln = ln
+	return nil
+}
+
+func (s *singleInstance) release() {
+	if s.ln != nil {
+		_ = s.ln.Close()
+	}
 }

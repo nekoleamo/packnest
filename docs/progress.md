@@ -524,6 +524,9 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ## GUI 定位（2026-11-11 拍板）
 
+**GUI 前置 ④ 已完成**：托盘（关窗口收进托盘、菜单打开/退出）、单实例（占端口当互斥锁，第二个实例直接拒绝）、
+桌面壳同时提供浏览器形态；mac/win/linux 三平台产物已随 v0.10.0 发布（mac 本机构建，win/linux 由 gui-build.yml 构建后本机上传）。
+
 **GUI 前置 ③ 已完成**：可装版本/版本选择/卸载三个页面、`internal/pkcli` 的契约测试（用真 CLI 跑
 `version/list/doctor/mirror list/gc --dry-run`）、`make gui / gui-app / gui-serve / gui-test`；
 macOS `.app` 打包脚本（ad-hoc 签名，13.0+）；`--serve` 绑非回环地址时强制 `--token`。
