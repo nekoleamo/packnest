@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -12,19 +11,12 @@ import (
 	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/provider"
-	"github.com/packnest/packnest/internal/shim"
 	"github.com/packnest/packnest/internal/store"
 )
 
 // uninstallAll 清掉 pk 装过的一切（运行时、shim、PATH/rc 托管块），并按渠道告诉用户怎么删掉 pk 自己。
 func (a *app) uninstallAll(inst *install.Installer, purge, keepCache, self bool) int {
-	ledger := inst.Ledger()
-	targets := make([]string, 0, len(ledger.Installs))
-	for _, in := range ledger.Installs {
-		targets = append(targets, in.Tool+"@"+in.Version)
-	}
-	sort.Strings(targets)
-
+	plan := inst.PlanUninstallAll(install.UninstallAllOptions{Purge: purge, KeepCache: keepCache})
 	exe, _ := os.Executable()
 	ch := install.DetectInstallChannel(exe, goos())
 	// 安装脚本会记下"装到哪个目录"，比按路径猜更准（自托管/自定义 --dir 都覆盖）
@@ -37,67 +29,42 @@ func (a *app) uninstallAll(inst *install.Installer, purge, keepCache, self bool)
 		ch = install.InstallChannel{Name: name, Hint: install.SelfRemoveHint(info.Dir, goos()), Dir: info.Dir}
 	}
 
-	// 先逐条列出会删掉什么，再二次确认（--yes 跳过；非交互没有 --yes 一律不动）
+	// 先把"会删什么"列清楚，再二次确认（--yes 跳过；非交互且没有 --yes 一律不动）
 	if !a.json {
 		fmt.Fprintln(a.out, "将要删除：")
-		if len(targets) == 0 {
+		if len(plan.Tools) == 0 {
 			fmt.Fprintln(a.out, "  · 没有已装的运行时")
 		} else {
-			fmt.Fprintf(a.out, "  · %d 个已装运行时：\n", len(targets))
-			for _, t := range targets {
+			fmt.Fprintf(a.out, "  · %d 个已装运行时：\n", len(plan.Tools))
+			for _, t := range plan.Tools {
 				mark := " "
-				if strings.Contains(t, "@") {
-					parts := strings.SplitN(t, "@", 2)
-					if a.cfg.Tools[parts[0]] == parts[1] {
-						mark = "*"
-					}
+				parts := strings.SplitN(t, "@", 2)
+				if len(parts) == 2 && plan.Active[parts[0]] == parts[1] {
+					mark = "*"
 				}
 				fmt.Fprintf(a.out, "      %s %s\n", mark, t)
 			}
 			fmt.Fprintln(a.out, "    （* 是当前全局默认）")
 		}
-		fmt.Fprintf(a.out, "  · shim 目录与 PATH/rc 里的 packnest 托管块（%s）\n", a.paths.Bin())
+		fmt.Fprintf(a.out, "  · shim 目录与 PATH/rc 里的 packnest 托管块（%s）\n", plan.BinDir)
 		if purge {
 			if keepCache {
-				fmt.Fprintf(a.out, "  · %s 下除 cache/ 之外的全部内容\n", a.paths.Root)
+				fmt.Fprintf(a.out, "  · %s 下除 cache/ 之外的全部内容\n", plan.Root)
 			} else {
-				fmt.Fprintf(a.out, "  · 整个 %s（含缓存）\n", a.paths.Root)
+				fmt.Fprintf(a.out, "  · 整个 %s（含缓存）\n", plan.Root)
 			}
 		} else {
-			fmt.Fprintf(a.out, "  · 保留 %s（缓存/台账仍在；要连根删加 --purge）\n", a.paths.Root)
+			fmt.Fprintf(a.out, "  · 保留 %s（缓存/台账仍在；要连根删加 --purge）\n", plan.Root)
 		}
 		fmt.Fprintf(a.out, "\npk 二进制本身（%s 渠道）：%s\n", ch.Name, ch.Hint)
 	}
-	if !a.confirm(fmt.Sprintf("确认删除以上 %d 个运行时及其 shim/PATH 项？", len(targets))) {
+	if !a.confirm(fmt.Sprintf("确认删除以上 %d 个运行时及其 shim/PATH 项？", len(plan.Tools))) {
 		return jsonout.ExitFail
 	}
 
-	removed := make([]string, 0, len(targets))
-	failures := make([]string, 0)
-	for _, t := range targets {
-		tool, version, err := splitToolVersion(t)
-		if err != nil {
-			continue
-		}
-		// --all 是显式全清：引用关系不再拦路
-		if err := inst.Uninstall(tool, version, true); err != nil {
-			failures = append(failures, fmt.Sprintf("%s: %v", t, err))
-			continue
-		}
-		removed = append(removed, t)
-	}
-
-	// 自入口（pk / packnest）在 bin 里，留着会指向一个可能马上被删的二进制
-	for _, name := range []string{shim.SelfName, shim.AliasName} {
-		p := filepath.Join(a.paths.Bin(), name)
-		if goos() == "windows" {
-			p = shim.CmdPath(a.paths.Bin(), name)
-			_ = os.Remove(p)
-			_ = os.Remove(filepath.Join(a.paths.Bin(), name+".exe"))
-			continue
-		}
-		_ = os.Remove(p)
-	}
+	// 真正的删除（运行时 + 自入口 shim + 可选连根删）由 install 层负责，cmd 只管输出
+	res := inst.ApplyUninstallAll(plan)
+	removed, failures := res.Removed, res.Failures
 
 	// PATH / rc 里的托管块：posix 的 rc、Windows 的 profile（两份）+ 注册表用户 Path 的四段
 	unset := a.cmdEnv([]string{"--unset"})
@@ -129,29 +96,12 @@ func (a *app) uninstallAll(inst *install.Installer, purge, keepCache, self bool)
 			fmt.Fprintln(a.out, "  "+ch.Hint)
 		}
 	}
-
-	if purge {
-		root := a.paths.Root
+	if purge && !a.json {
 		if keepCache {
-			entries, _ := os.ReadDir(root)
-			for _, e := range entries {
-				if e.Name() == "cache" {
-					continue
-				}
-				if err := os.RemoveAll(filepath.Join(root, e.Name())); err != nil {
-					failures = append(failures, fmt.Sprintf("删除 %s 失败: %v", e.Name(), err))
-				}
-			}
-			if !a.json {
-				fmt.Fprintf(a.out, "已清空 %s（保留了 cache/）\n", root)
-			}
-		} else if err := os.RemoveAll(root); err != nil {
-			failures = append(failures, fmt.Sprintf("删除 %s 失败: %v", root, err))
-		} else if !a.json {
-			fmt.Fprintf(a.out, "已删除整个 %s\n", root)
+			fmt.Fprintf(a.out, "已清空 %s（保留了 cache/）\n", plan.Root)
+		} else if res.Purged {
+			fmt.Fprintf(a.out, "已删除整个 %s\n", plan.Root)
 		}
-	} else if err := inst.Finalize(); err != nil {
-		failures = append(failures, err.Error())
 	}
 
 	if a.json {

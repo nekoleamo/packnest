@@ -514,11 +514,15 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 ### 接下来可做的（= 1.1 清单，明细见 `~/Documents/Plan/17-包管理器/pn-1.1-计划.md`）
 
 1. **多连接下载**：已测 ~1.3×（48MB 文件省约 0.3s），**暂不做**；要做就整块做（Range 分片 + 拼装 + 单流回退）
-2. **卸载编排搬 `internal/install`**（`PlanUninstallAll` / `ApplyUninstallAll`）：仍挂账的可选技术债，
-   纯测试便利、净 +30 行；做之前先跑 `make accept` 全套（破坏性路径）
-3. **3 项人工确认**：步骤与通过标准已写进 `docs/verify-manual.md`，等有对应硬件时按清单走一遍
+2. **3 项人工确认**：步骤与通过标准已写进 `docs/verify-manual.md`，等有对应硬件时按清单走一遍
+3. 可选：多连接下载（已测 1.3×，暂不做）、`doctor` 新问题码、外部清单文档再扩
 
-### 1.1 已完成（2026-11-12，v1.1.0 已发）
+### 1.1 已完成（2026-11-12，v1.1.0 已发 + GUI gui-v0.10.2）
+
+- **卸载编排搬进 `internal/install`**（技术债清账）：`PlanUninstallAll`（只汇总不碰盘）/ `ApplyUninstallAll`
+  （删运行时 + 自入口 shim + purge/keepCache），cmd 只留打印、确认、`--self` 与 env 托管块；
+  单测 `TestUninstallAllPlanIsReadOnly` / `TestUninstallAllApply` / `TestUninstallAllPurge`；
+  cmd/pk 3,136 → **3,086**，总计 10,627 → 10,683（余量 17）。
 
 - **通用伴生包**：`[companions.<名>]` 不再只认 node→npm，`bundled|latest-compatible|pinned` 三种语义都生效，
   装进宿主 `<target>`（跟着宿主卸载/回收，不单独进台账）；`pinned` 必须给 `version`（缺失即清单非法）。
