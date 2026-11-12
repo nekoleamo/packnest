@@ -594,7 +594,7 @@ GUI 已带图标（`packaging/genicon` 生成的"巢"标记 → `.icns`/托盘�
 将来想发 Developer ID 就设两个环境变量）；代价是 macOS 首次启动要用户在"隐私与安全性"里手动放行。
 
 **GUI 前置 ④ 已完成**：托盘（关窗口收进托盘、菜单打开/退出）、单实例（占端口当互斥锁，第二个实例直接拒绝）、
-桌面壳同时提供浏览器形态；mac/win/linux 三平台产物已随 v0.10.0 发布（mac 本机构建，win/linux 由 gui-build.yml 构建后本机上传）。
+桌面壳同时提供浏览器形态；三平台产物已随 **gui-v0.10.1** 发布（mac 本机构建，win/linux 由 gui-build.yml 构建后本机上传）。
 
 **GUI 重发（2026-11-12）**：GUI 有自己的版本号（`main.go` 的 `guiVersion`），本轮升到 `0.10.1` 重发——
 产物文件名带 0.10.1，字节与本地/CI 一致（mac 本机构建，win/linux 从 `gui-build` 拉回改名上传）。
