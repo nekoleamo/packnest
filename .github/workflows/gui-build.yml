@@ -56,7 +56,9 @@ jobs:
           ( cd cmd/pk-desktop && CGO_ENABLED=1 GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
               go build -trimpath -ldflags "-s -w" -o "../../out/pk-desktop$ext" . )
           if [ "${{ matrix.os }}" = windows ]; then
-            ( cd out && zip -q -X "packnest-desktop_${V}_windows_${{ matrix.arch }}.zip" "pk-desktop.exe" )
+            # git-bash 里没有 zip：改用 PowerShell 的 Compress-Archive
+            powershell -NoProfile -Command "Compress-Archive -Path 'out/pk-desktop.exe' -DestinationPath 'out/packnest-desktop_${V}_windows_${{ matrix.arch }}.zip' -Force"
+            rm -f out/pk-desktop.exe
           else
             tar -czf "out/packnest-desktop_${V}_linux_${{ matrix.arch }}.tar.gz" -C out pk-desktop
           fi
