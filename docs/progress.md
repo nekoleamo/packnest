@@ -500,24 +500,40 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ## 下一步（新会话从这里接）
 
-### 已完成（截至 2026-11-12，commit 27bfaec）
+### 已完成（截至 2026-11-12，v1.0.0）
 
 | 线 | 状态 |
 |---|---|
-| CLI | v0.10.0 已发（gitee + GitHub + brew tap + scoop）；外部 provider、corepack（PATH 5 段）、内容寻址缓存、L4 dlopen、降级重定向加固、pnpm 平台包 全部落地 |
+| CLI | **v1.0.0 已发（2026-11-12）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、9 个命令 |
 | 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
-| 行数 | **10,472 / 10,500**（余量 28）；单文件无 >600 行 |
+| 行数 | **10,491 / 10,500**（余量 9）；`cmd/pk` 3,136 / 3,200；单文件无 >600 行 |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
 | GUI 发布 | 独立 tag **`gui-v0.10.1`**（gitee + GitHub 各 3 产物：mac arm64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；mac intel 已放弃，`gui-v0.10.0` 是旧界面那版 |
 | 发布流程 | 唯一清单在 `docs/publishing.md`（「三、发布流程」第 ⑦ 步 + 「五点五、GUI 的产物」） |
 
-### 接下来可做的（按性价比）
+### 接下来可做的（= 1.1 清单，明细见 `~/Documents/Plan/17-包管理器/pn-1.1-计划.md`）
 
-1. **CLI 0.10.0 → 1.0.0**（契约已冻结，`docs/verify-1.0.md` 还是 v0.9.0 那轮记录，发版前重跑一轮用户视角验证）
-2. **CLI 侧可选**：剩余非 GUI 项都卡在行数（内容寻址缓存已做；L4 已做；剩下 `uninstall_all.go` 编排搬进
-   `internal/install` 属于"GUI 不再需要的技术债"，可随时做也可不做）
+1. **deno 同源配对校验**（deno 上游重新发布同一版本时可自动接受并标 weak；现在只能 `--insecure`）—— 需先抬行数红线
+2. **通用伴生包**：`applyCompanion` 目前硬编码 `Companions["npm"]`，其它键只解析不生效
+3. **外部清单 `{filename}` 回退**：`github-releases` 索引没有文件清单时渲染成空串（见「已知缺口」）
+4. **多连接下载**：先做基准证明收益再实现（国内 CDN 分片实测往往更慢）；`--jobs` 已在 1.0.0 删除
+5. 卸载编排搬 `internal/install`（可选技术债）、GUI 差异页（`which`/`env`/`mirror write`）、3 项人工确认
 
-### 已完成（2026-11-12，第三轮 GUI 界面细节，commit 见 git log）
+## v1.0.0 发布记录（2026-11-12）
+
+**口径**：契约（`--json` schema 1）与命令面（9 个）**冻结不动**，只做收尾、验证与发版；新功能一律进 1.1。
+
+| 项 | 结果 |
+|---|---|
+| 收尾改动 | 删掉 `--jobs` 空壳开关（接受却不生效，误导）；`pk uninstall node@22` 现在和 `use`/`install` 一样先解析到已装版本；`corepack enable` 前清悬空 shim（gc 回收 node 版本后会把 yarn 链断） |
+| 用户视角验证 | 用 1.0.0 候选二进制在隔离 `PK_ROOT=/tmp/pkv10` 跑 17 项全链路（6 工具、外部 provider 真工具 ripgrep、坏清单、corepack、gc、项目锁、`uninstall --all --purge` 零残留），记录见 `docs/verify-1.0.md`；真机 `~/.packnest` 与 shell rc 一行未动 |
+| 门禁 | 本地 `make check` 8 项全绿；`.github/workflows/ci.yml`（check + gui-contract）绿 |
+| 产物 | 6 平台 tar.gz/zip + `checksums.txt`，本地构建可重复；`make verify-release` 线上 6 个 sha256 全对 |
+| smoke | 打 tag 后重跑 `smoke.yml`：5 个 runner 装的都是真 `packnest v1.0.0`，`--version`/doctor/装 node/卸载零残留 全过 |
+| 渠道 | gitee release、GitHub Releases、brew tap（`nekoleamo/homebrew-packnest`）、scoop bucket 均已同步，远端 hash 核对一致 |
+| 顺手修 | 发布当天发现 `ci.yml` 的浅克隆导致 `VERSION=$(git describe)` 退化成短 SHA（GUI 版本门禁把它判成"太旧"）→ checkout 加 `fetch-depth: 0` |
+
+### GUI 界面细节记录（2026-11-11 第二轮 / 2026-11-12 第三轮）
 
 - **全局包体检表格化**：`GLOBAL_*` 的问题（`detail` 里有 pkg/needs/have/file/bin）进单独一张表
   （包 / 问题 / 详情 / 级别），其余 issue 一行一条（消息 + 淡色 code 尾巴，code 仍可见便于报障）。
@@ -643,6 +659,8 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
   `pk install pnpm@10` 会在解析后**立刻报错并给建议**（corepack 或 `npm i -g pnpm@10`），不再去撞 404。另：之前用 JS tarball 装过同一版本的机器，
   TOFU 表里记的是旧摘要，重装会要求 `--force-rehash`（一次性）。
 - deno 这类「上游重新发布」的版本目前只能 `--insecure`；自动化需要「同源配对校验」（官方产物 + 官方校验和成对验证、标记 weak），属 v1.1。
+- 外部清单的 `checksum.urls` 用 `{filename}` 时，`github-releases`（无文件清单）索引拿不到文件名 → 渲染成空串 → 报"拿不到校验和"。
+  绕过：`format = "per-artifact"` 不写 `checksum.urls`（自动取 `<产物URL>.sha256`），或模板改用 `{version}`/`{platform}`。正解留 1.1。
 - **伴生包只实现 node→npm 一种**（2026-11-12 校对）：`internal/install/companion.go` 的 `applyCompanion`
   硬编码取 `Companions["npm"]`，其它 `[companions]` 键**只被解析与校验、安装时不生效**。
   清单校验侧已允许外部清单的 companions 指向另一个外部 provider（含前向引用，
