@@ -88,7 +88,7 @@ git-bash 没有 `/dev/stderr`、`pk doctor` 有 error 级问题时退出码是 1
 - **windows-arm64 运行时**（无公共 runner）、**Windows `.cmd` shim 被 PowerShell 调用**（项目规则允许人工确认）
 - **macOS Gatekeeper 首启**（brew 装出来的包在首次运行时的提示）
 - 校验强度：`node@22` 走 cn 档只有 1 个校验源 → 落 `weak`（设计如此，非 bug；要 `strong` 得让官方源也通）
-- 缓存不做内容寻址（同版本跨平台重复下载，已在 `docs/progress.md` 记录）
+- ~~缓存不做内容寻址~~ ✅ 2026-11-11 已做（见 §三点五）
 - pnpm 第 4 个下载面：**已解决**（2026-11-11），产物换成 `@pnpm/exe.<os>-<arch>`；
   6 个平台的包（darwin-x64/arm64、linux-x64/arm64、win32-x64/arm64）实测都存在 12.19.0，
   Windows 包内是 `package/pnpm.exe`（与 `bin_targets` 一致）。限制：`@pnpm/exe.*` 从 11.0.0-rc.3 起才有

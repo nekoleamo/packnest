@@ -76,13 +76,13 @@ $ pk install node@22.22.2
 装好 node@22.22.2 → /Users/you/.packnest/tools/node/22.22.2 (npm 12.2.2 ← 自带 11.19.0)
 ```
 
-### 1.2 支持的 7 个工具
+### 1.2 支持的 6 个工具
 
 | 工具 | 说明 |
 |---|---|
 | `node` | 装完自动把自带 npm 换成「最新兼容版」（按 `engines.node` 反查，排除预发布） |
 | `npm` | 一般不用单独装，它是 node 的伴生包 |
-| `pnpm` | 需要 node：`pk install node` 之后再装（我们不会隐式装运行时） |
+| `pnpm` | 需要 node：`pk install node` 之后再装（不隐式装运行时）。产物是 registry 上的 **平台包** `@pnpm/exe.<os>-<arch>`（真二进制，装完即可离线用）；平台包从 pnpm **11** 才有，更老的版本请用 corepack 或 `npm i -g pnpm@10` |
 | `bun` | 自带运行时的单二进制 |
 | `go` | 装完 `pk env` 会带 `GOTOOLCHAIN=local`（否则 go 自己会再下一套工具链） |
 | `python` | 只装 python-build-standalone 预编译版，永不源码编译 |
@@ -367,7 +367,7 @@ $ pk doctor
 ```bash
 $ pk doctor --json               # 机器可读（issues 数组 + severity 决定退出码）
 $ pk doctor --globals            # 全局包三级检测
-$ pk doctor --globals --probe    # 额外用当前 node 逐个 dlopen 试加载（会执行包代码）
+$ pk doctor --globals --probe    # 额外用当前 node 的 process.dlopen 试加载 .node（只加载二进制，不执行包的 JS）
 $ pk doctor --foreign            # 列出 proto/nvm/volta/asdf/mise/fnm 的 node 版本 + PATH 抢占告警
 $ pk doctor --probe              # 探测镜像可达性（MIRROR_UNREACHABLE）
 ```

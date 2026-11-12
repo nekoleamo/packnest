@@ -85,7 +85,10 @@ $ pk install                    # install everything declared in ./pk.toml
 `node` · `npm` · `pnpm` · `bun` · `go` · `python`
 
 `npm` is not installed on its own: it is a companion of Node, paired by exact Node version. `pnpm`
-requires Node to be present first — runtimes are never installed implicitly.
+requires Node to be present first — runtimes are never installed implicitly. Its artifact is the
+registry **platform package** `@pnpm/exe.<os>-<arch>` (a real binary, usable offline right after
+install); those platform packages exist from pnpm **11** onwards — for older versions use corepack or
+`npm i -g pnpm@10`.
 
 ### 1.3 Offline install
 

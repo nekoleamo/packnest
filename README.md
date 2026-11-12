@@ -253,7 +253,7 @@ Windows 上系统不允许删除正在运行的 exe，会打印出要你执行�
 - `--jobs` 目前仅预留（单连接下载）
 - python 的索引只声明 npmmirror（官方 GitHub 无目录列举接口）；go 的索引只声明官方 `?mode=json&include=all`，拉不到时用 24h stale 缓存
 - pnpm 12 的 registry tarball 只是启动器，首次运行会自己再下平台二进制（pnpm 上游行为）
-- 缓存按 `<tool>-<version>-<platform>.<ext>` 命名（跨版本不重下，但未做内容寻址去重）
+- 缓存按内容寻址：`cache/archives/<sha256>.<ext>`（TOFU 表里已知摘要时直接按内容找，同内容跨版本只存一份）
 - 项目内自动覆盖全局版本需要 direnv（`pk env --project`）；未装 direnv 时 `node` 仍解析到全局默认
 - GUI（Wails v3.1.0）未开工，按方案排在 CLI 冻结之后
 

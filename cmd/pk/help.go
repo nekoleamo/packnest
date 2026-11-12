@@ -73,6 +73,10 @@ pk use --lock
     GLOBAL_ENGINES_UNMET / GLOBAL_NATIVE_ABI / GLOBAL_SHADOWS_PROJECT（--globals）
     FOREIGN_MANAGER                   检测到 proto/nvm/mise 等其他管理器（--foreign 列出版本）
     FOREIGN_SHIM_PRIORITY             别人的 shim 排在 pk 前面，会抢走 node
+    PROVIDERS_DIRS                    生效的外部清单目录（info）
+    PROVIDER_EXTERNAL_INVALID / _CONFLICT / PROVIDER_HTTP_URL  外部清单问题
+    GO_INSTALL_NOT_IN_PATH            go install 的产物目录不在 PATH（info）
+    PIP_USER_SITE_UNMANAGED           pip 用户级安装不在治理范围（info）
   退出码：有 error 级问题时为 1。`,
 
 	"env": `pk env [--shell bash|zsh|sh|powershell] [--write] [--unset] [--completion SHELL] [--json]

@@ -17,8 +17,8 @@
 
 | 命令 | 形状 | 稳定字段 |
 |---|---|---|
-| `pk list --json` | `list.golden.json` | `tools[].{name,version,active,path,npm{version,replaced},requires,verified,size_bytes}` |
-| `pk list --available --json` | 内联结构 | `mirror`、`available[].{name,latest,lts,recent,requires,stale,error}`（与 `tools` 同时给） |
+| `pk list --json` | `list.golden.json` | `tools[].{name,version,active,path,npm{version,replaced},requires,verified,size_bytes,source}`；`source ∈ embedded/external`（`omitempty`，老客户端忽略即可） |
+| `pk list --available --json` | 内联结构 | `mirror`、`available[].{name,latest,lts,recent,requires,stale,source,error}`（与 `tools` 同时给） |
 | `pk doctor --json` | `doctor.golden.json` | `ok`、`issues[].{code,severity,message,detail}`；`severity ∈ info/warn/error` |
 | `pk version --json` | `version.golden.json` | `name,version,go,os,arch` |
 | `pk which --json` | `which.golden.json` | `name,path,shim` |
@@ -63,7 +63,14 @@ GUI 只需要：读 `schema` 判契约版本；进度条用 `download.bytes`；"
 | `MIRROR_AUTO` | info | 档位为 auto，首次安装会探测并缓存 6h |
 | `GO_TOOLCHAIN_NOT_LOCAL` | warn | 装了 go 但 `GOTOOLCHAIN != local`（会多下一次工具链） |
 | `GLOBAL_ENGINES_UNMET` | warn | 全局包 `engines.node` 不满足当前 node |
-| `GLOBAL_NATIVE_ABI` | warn | 全局包含原生模块且无 N-API 预编译（切版本会失效） |
+| `GLOBAL_NATIVE_ABI` | warn | 全局包含原生模块且无 N-API 预编译（切版本会失效）；`--globals --probe` 下还会用 `process.dlopen` 实测（只加载二进制，`detail.probe` 带失败原因） |
 | `GLOBAL_SHADOWS_PROJECT` | info | 全局命令名遮蔽项目 `node_modules/.bin` |
 | `SHIM_MISSING` / `SHIM_BROKEN` / `SHIM_PLAIN` | warn/info | 自身双名 shim 状态 |
 | `FOREIGN_MANAGER` | info | 检测到 proto/nvm/mise 等（只提示，不自动改） |
+| `FOREIGN_SHIM_PRIORITY` | warn | 别人的 shim 排在 `~/.packnest/bin` 前面 |
+| `PROVIDERS_DIRS` | info | 生效的外部清单目录（`detail.dirs`） |
+| `PROVIDER_EXTERNAL_INVALID` | error | 外部清单非法（http 未放行 / 绝对路径 / `..` / pbs / 未知占位符 / 超 256KB / id 与文件名不符），`detail.file` 指向该文件 |
+| `PROVIDER_EXTERNAL_CONFLICT` | warn | 外部清单与内嵌（或先加载的外部清单）同 id，被忽略 |
+| `PROVIDER_HTTP_URL` | warn | 外部清单用了 `PK_ALLOW_HTTP=1` 放行的 http 源（校验强度最高 `weak`）；`detail.transport` 记进台账 |
+| `GO_INSTALL_NOT_IN_PATH` | info | `go install` 的产物目录（`GOBIN`，默认 `~/go/bin`）不在 PATH |
+| `PIP_USER_SITE_UNMANAGED` | info | pip 用户级安装（`~/.local/lib/pythonX`）不在 pk 治理范围 |

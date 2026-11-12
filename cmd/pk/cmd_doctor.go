@@ -21,7 +21,7 @@ func (a *app) cmdDoctor(args []string) int {
 	fs := a.newFlagSet("doctor")
 	globals := fs.Bool("globals", false, "检查全局包（engines / 原生 ABI / 命令遮蔽）")
 	foreign := fs.Bool("foreign", false, "检测其他管理器（proto/nvm/volta/asdf/mise/fnm 等）并列版本")
-	probe := fs.Bool("probe", false, "探测镜像索引是否可达（会发 HEAD 请求）")
+	probe := fs.Bool("probe", false, "探测镜像可达性；配合 --globals 还会用 node 实测 dlopen 原生模块")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
