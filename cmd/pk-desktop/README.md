@@ -58,7 +58,16 @@ open dist/gui/packnest.app
 ```
 
 - `LSMinimumSystemVersion = 13.0`（Wails v3 的目标）；`CFBundleIdentifier = io.packnest.desktop`
-- 分发要额外做 Developer ID 签名 + notarize；Linux 需要 GTK4/WebKitGTK 6.0，Windows 需要 WebView2（都还没接构建）
+- 图标由 `packaging/genicon`（纯标准库）生成 → `assets/icon.png` 与 `assets/tray-template.png`，
+  打包时用 `sips`/`iconutil` 转成 `icon.icns`
+- **签名/公证**：默认 ad-hoc（本机自用）。分发时给两个环境变量即可，凭据不进仓库：
+  ```bash
+  PK_SIGN_IDENTITY="Developer ID Application: 你的名字 (TEAMID)" \
+  PK_NOTARY_PROFILE="notary" \                      # xcrun notarytool store-credentials 建一次
+  make gui-app
+  ```
+  有 Developer ID 就带 hardened runtime 签名；设了 profile 会自动 `notarytool submit --wait` + `stapler staple`
+- 运行时依赖：Linux 需要 GTK4 + WebKitGTK 6.0，Windows 需要 WebView2（Win10+ 一般自带）
 
 ## 从发布页安装（用户视角）
 

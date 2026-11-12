@@ -13,10 +13,12 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io/fs"
 	"log"
 	"net"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -30,16 +32,32 @@ import (
 //go:embed frontend/dist
 var frontendFS embed.FS
 
+// 图标：packaging/genicon 生成（纯标准库画的"巢"标记）。
+//
+//go:embed assets/icon.png
+var appIcon []byte
+
+//go:embed assets/tray-template.png
+var trayTemplate []byte
+
+// guiVersion 是 GUI 自己的版本（与 CLI 解耦；CLI 版本靠 pkcli 的启动门禁检查）。
+const guiVersion = "0.1.0"
+
 // api 是前端唯一的数据来源（不用 Wails 绑定，浏览器形态也能用）。
 type api struct {
 	find func(extra ...string) (*pkcli.Client, pkcli.Info, error)
 }
 
 func main() {
+	showVersion := flag.Bool("version", false, "打印 GUI 版本并退出")
 	serve := flag.Bool("serve", false, "只起 HTTP（用浏览器打开，不建桌面窗口）")
 	addr := flag.String("addr", "127.0.0.1:7799", "--serve 时监听的地址")
 	token := flag.String("token", "", "非回环地址时必须给：访问 /api/* 要带 ?token= 或 Authorization: Bearer")
 	flag.Parse()
+	if *showVersion {
+		fmt.Printf("pk-desktop %s（Wails v3.1.0，需要 pk CLI）\n", guiVersion)
+		return
+	}
 
 	a := &api{find: pkcli.Locate}
 	mux := a.routes(*token)
@@ -76,15 +94,25 @@ func main() {
 	app := application.New(application.Options{
 		Name:        "packnest",
 		Description: "packnest 的可视化补充界面（需要本机已安装 pk）",
+		Icon:        appIcon,
 		Assets:      application.AssetOptions{Handler: withAPI(mux, static)},
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
 	})
-	win := app.Window.NewWithOptions(application.WebviewWindowOptions{Title: "packnest", URL: "/"})
+	winOpts := application.WebviewWindowOptions{Title: "packnest", URL: "/"}
+	if runtime.GOOS == "linux" { // Linux 的窗口图标在 LinuxWindow 里；macOS 走 .app bundle，Windows 用 exe 资源
+		winOpts.Linux = application.LinuxWindow{Icon: appIcon}
+	}
+	win := app.Window.NewWithOptions(winOpts)
 
 	// 托盘：关窗口不退出（退到托盘），菜单里能重新打开窗口或退出
 	tray := app.SystemTray.New()
+	if runtime.GOOS == "darwin" {
+		tray.SetTemplateIcon(trayTemplate) // 模板图标由系统反色，深浅菜单栏都清楚
+	} else {
+		tray.SetIcon(appIcon)
+	}
 	menu := app.NewMenu()
 	menu.Add("打开 packnest").OnClick(func(*application.Context) { win.Show(); win.Focus() })
 	menu.AddSeparator()

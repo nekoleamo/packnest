@@ -99,6 +99,9 @@ sh scripts/release-gui.sh --version 0.10.0 --from-dir /tmp/gui
 GUI 会频繁重发，单独一个 release 才能整体删掉重建。下载地址形如
 `https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.10.0/packnest-desktop_0.10.0_darwin_arm64.app.zip`。
 
+分发前签名（可选）：`PK_SIGN_IDENTITY`（Developer ID Application: …）+ `PK_NOTARY_PROFILE`（notarytool profile），
+详见 `cmd/pk-desktop/README.md`；两者都不设就是 ad-hoc，用户首次启动需在「隐私与安全性」放行。
+
 ⚠️ gitee 的 release API 不返回附件 id，**已上传的同名附件删不掉**（只能在网页上删）；
 `release-gui.sh` 上传前会查同名并跳过，避免重复累积。
 
