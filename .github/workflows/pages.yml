@@ -31,6 +31,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # 版本号从 tag 取，所以要完整历史
+          # 只给 fetch-depth 不够：actions/checkout 默认 fetch-tags: false，
+          # main 分支推送跑出来的 clone 里一个 tag 都没有 → git describe 退化成短 SHA → 站点显示 vdev（2026-11-12 实测）
+          fetch-tags: true
       - name: 渲染站点（注入版本号）
         run: sh scripts/build-site.sh
       - uses: actions/configure-pages@v5

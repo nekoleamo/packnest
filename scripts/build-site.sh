@@ -9,12 +9,18 @@
 set -eu
 cd "$(dirname "$0")/.."
 
+# 版本号优先级：显式 PK_VERSION → git tag → 仓库里的 scripts/latest → dist/latest → dev。
+# scripts/latest 是发版时由 `make release` 写、并且随库提交的，**没有 tag 的 clone 也能拿到正确版本**
+# （2026-11-12：CI 的 clone 没 tag，站点一度渲染成 vdev）。
 VER="${PK_VERSION:-}"
 if [ -z "$VER" ]; then
   VER=$(git describe --tags --always 2>/dev/null | sed -n 's/^v\{0,1\}\([0-9][0-9.]*\).*/\1/p')
 fi
 if [ -z "$VER" ]; then
-  VER=$(cat dist/latest 2>/dev/null | tr -d ' \t\r\n' || true)
+  VER=$(tr -d ' \t\r\n' < scripts/latest 2>/dev/null || true)
+fi
+if [ -z "$VER" ]; then
+  VER=$(tr -d ' \t\r\n' < dist/latest 2>/dev/null || true)
 fi
 [ -n "$VER" ] || VER=dev
 
