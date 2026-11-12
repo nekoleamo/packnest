@@ -115,7 +115,10 @@ sh cmd/pk-desktop/packaging/build-macos.sh 0.10.0 arm64   # → dist/gui/packnes
 打包逻辑只有一处（`cmd/pk-desktop/packaging/build-macos.sh`）：图标（`sips`/`iconutil` → `icon.icns`）、
 `Info.plist` 版本注入、签名都在里面；`release-gui.sh` 只是循环两个架构 + 打 zip + 上传。
 
-### 签名与公证（分发必做）
+### 签名与公证（2026-11-12 拍板：不做）
+
+产物一律 **ad-hoc 签名**（别人首次打开要在「隐私与安全性」放行）。机制保留，将来想发 Developer ID
+只需设两个环境变量、不改代码：
 
 ```bash
 xcrun notarytool store-credentials notary        # 一次：填 Apple ID / 团队 / app 专用密码
@@ -125,7 +128,7 @@ sh cmd/pk-desktop/packaging/build-macos.sh 0.10.0 arm64
 ```
 
 - 有 `PK_SIGN_IDENTITY` → 硬化运行时 + 时间戳签名；有 `PK_NOTARY_PROFILE` → `notarytool submit --wait` + `stapler staple`
-- 都不设 → ad-hoc（本机自用；别人首次打开要在「隐私与安全性」放行）
+- 都不设 → ad-hoc（**当前默认**）
 
 ### Windows / Linux
 

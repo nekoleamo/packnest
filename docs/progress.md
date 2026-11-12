@@ -507,14 +507,14 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 | CLI | v0.10.0 已发（gitee + GitHub + brew tap + scoop）；外部 provider、corepack（PATH 5 段）、内容寻址缓存、L4 dlopen、降级重定向加固、pnpm 平台包 全部落地 |
 | 门禁 | `make check` 8 项全绿（含 `make loc`）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
 | 行数 | **10,472 / 10,500**（余量 28）；单文件无 >600 行 |
-| GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac 双架构 `.app`（图标/签名/公证就绪） |
+| GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac 双架构 `.app`（图标就绪；ad-hoc 签名，公证不做） |
 | GUI 发布 | 独立 tag **`gui-v0.10.0`**（gitee + GitHub 各 4 产物：mac arm64/amd64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`） |
 | 发布流程 | 唯一清单在 `docs/publishing.md`（「三、发布流程」第 ⑦ 步 + 「五点五、GUI 的产物」） |
 
 ### 接下来可做的（按性价比）
 
-1. **GUI 发版收尾**：有 Developer ID 就 `PK_SIGN_IDENTITY=… PK_NOTARY_PROFILE=… make gui-app`；Linux 各发行版
-   GTK4/WebKitGTK 包名清单写进 `cmd/pk-desktop/README.md`
+1. **重发 GUI 产物**：`gui-v0.10.0` 里的界面还是上一版的；重发要么新 tag（`gui-v0.10.1`），
+   要么删 gitee release 重建（同名附件删不掉，命令在 `docs/publishing.md`）。
 2. **CLI 侧可选**：剩余非 GUI 项都卡在行数（内容寻址缓存已做；L4 已做；剩下 `uninstall_all.go` 编排搬进
    `internal/install` 属于"GUI 不再需要的技术债"，可随时做也可不做）
 
@@ -530,6 +530,9 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   `frontend/index.html` 里先跑一次同步脚本，避免首帧白闪。
 - 顺手修的三处：镜像档下拉补上 `auto`（原先 `current=auto` 不在 `mirrors[]` 里 → 下拉空白）、
   版本下拉默认选最新（原先 `reverse()` 后默认落在 0.1.14 这种最老版本）、体检长消息不再溢出卡片。
+- **Linux 运行时依赖清单**：各发行版包名（Debian/Ubuntu `libgtk-4-1 libwebkitgtk-6.0-4`、Fedora `gtk4 webkitgtk6.0`、
+  Arch `gtk4 webkitgtk-6.0`、Alpine `gtk4.0 webkit2gtk-6.0`）写进 `cmd/pk-desktop/README.md`，并注明
+  4.1 不够、老发行版（Debian 11 / Ubuntu 20.04）改用 `--serve` 浏览器形态。包名是查各发行版包索引核过的。
 - 验法：临时 `PK_ROOT=/tmp/pkroot17` 装 node@20/22 + pnpm、手造带 `engines`/`gypfile` 的假全局包，
   用 `--serve` + headless Chrome 截图核对了表格/摘要/队列的两种配色（不动用户真实 `~/.packnest`）。
 
@@ -560,8 +563,8 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 托盘与单实例（占端口当互斥锁）、三平台产物已发到独立 tag `gui-v0.10.0`（gitee + GitHub）：
 mac darwin{arm64,amd64} `.app.zip`（本机构建）、windows amd64 `.zip`、linux amd64 `.tar.gz`（CI `gui-build.yml` 构建）。
 GUI 已带图标（`packaging/genicon` 生成的"巢"标记 → `.icns`/托盘模板图）、`--version`；
-签名/公证**已支持**（`PK_SIGN_IDENTITY` + `PK_NOTARY_PROFILE`，不设则 ad-hoc）——只差用户手里有 Developer ID 证书。
-**还差**：Windows WebView2 / Linux GTK4+WebKitGTK 的运行时分发说明（各发行版包名不同）。
+签名/公证**拍板不做（2026-11-12）**：产物一律 ad-hoc 签名（`PK_SIGN_IDENTITY`/`PK_NOTARY_PROFILE` 机制保留，
+将来想发 Developer ID 就设两个环境变量）；代价是 macOS 首次启动要用户在"隐私与安全性"里手动放行。
 
 **GUI 前置 ④ 已完成**：托盘（关窗口收进托盘、菜单打开/退出）、单实例（占端口当互斥锁，第二个实例直接拒绝）、
 桌面壳同时提供浏览器形态；mac/win/linux 三平台产物已随 v0.10.0 发布（mac 本机构建，win/linux 由 gui-build.yml 构建后本机上传）。

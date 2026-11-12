@@ -9,10 +9,10 @@
 |---|---|
 | 已装工具列表 / 设为默认 / 卸载（含 `weak`/未校验/npm 徽标、复制安装路径） | `pk list --json`、`pk use …`、`pk uninstall … --yes` |
 | 可装版本 / 版本选择（全部版本 + 本地过滤） | `pk list --available --json`、`pk list <tool> --json [--all]` |
-| 安装 + 进度条 | `pk install <spec> --json`（NDJSON 流，`progress` 事件驱动进度条） |
+| 安装队列（多条 spec 依次装，每行独立进度）+ 深浅色切换（跟随系统/浅色/深色） | `pk install <spec> --json`（逐条复用同一条 NDJSON 流） |
 | 镜像档切换 + **各源探测** | `pk mirror list --json`、`pk mirror use <name>`、`pk mirror probe --json`（延迟/可达性表格） |
-| 磁盘回收 | `pk gc --json`（GET = 预演，POST = 真删） |
-| 体检（含"实测原生模块"= `--probe`） | `pk doctor --json [--globals] [--probe]` |
+| 磁盘回收（统计块 + 分组清单，预演"将删"/真删"已删"） | `pk gc --json`（GET = 预演，POST = 真删） |
+| 体检（含"实测原生模块"= `--probe`；全局包问题单独一张表） | `pk doctor --json [--globals] [--probe]` |
 
 ## 跑起来
 
@@ -48,7 +48,7 @@ make gui              # 构建桌面壳（embed frontend/dist）
 
 - 桌面壳与 `--serve` 共用一套代码，浏览器里也能验收；
 - 契约就是 `docs/json-schema.md`，不需要生成前端绑定；
-- 前端可以用任何框架（现在是零依赖的 vanilla，后续换 Vue3 时只换 `assets/`）。
+- 前端可以用任何框架（现在是 Vue 3 + TS，换框架只动 `frontend/` 与重建 `dist/`）。
 
 ## 打包（macOS）
 
@@ -60,14 +60,28 @@ open dist/gui/packnest.app
 - `LSMinimumSystemVersion = 13.0`（Wails v3 的目标）；`CFBundleIdentifier = io.packnest.desktop`
 - 图标由 `packaging/genicon`（纯标准库）生成 → `assets/icon.png` 与 `assets/tray-template.png`，
   打包时用 `sips`/`iconutil` 转成 `icon.icns`
-- **签名/公证**：默认 ad-hoc（本机自用）。分发时给两个环境变量即可，凭据不进仓库：
+- **签名/公证：拍板不做（2026-11-12）**。产物一律 ad-hoc（别人首次打开要手动放行）。
+  机制保留，将来想发 Developer ID 只需设两个环境变量，不改代码：
   ```bash
   PK_SIGN_IDENTITY="Developer ID Application: 你的名字 (TEAMID)" \
   PK_NOTARY_PROFILE="notary" \                      # xcrun notarytool store-credentials 建一次
   make gui-app
   ```
   有 Developer ID 就带 hardened runtime 签名；设了 profile 会自动 `notarytool submit --wait` + `stapler staple`
-- 运行时依赖：Linux 需要 GTK4 + WebKitGTK 6.0，Windows 需要 WebView2（Win10+ 一般自带）
+- 运行时依赖：Linux 需要 **GTK4 + WebKitGTK 6.0**，Windows 需要 WebView2（Win10+ 一般自带）。
+  各发行版包名（2026-11-12 实测对应发行版的包索引）：
+
+  | 发行版 | 安装命令 |
+  |---|---|
+  | Debian 12+ / Ubuntu 22.04+ | `sudo apt install libgtk-4-1 libwebkitgtk-6.0-4` |
+  | Fedora | `sudo dnf install gtk4 webkitgtk6.0` |
+  | Arch / Manjaro | `sudo pacman -S gtk4 webkitgtk-6.0` |
+  | Alpine（edge/community） | `sudo apk add gtk4.0 webkit2gtk-6.0` |
+
+  注意区分 **WebKitGTK 6.0**（GTK4，包名 `libwebkitgtk-6.0-4` / `webkitgtk6.0` / `webkitgtk-6.0`）
+  与旧的 4.1（`libwebkit2gtk-4.1-0`，GTK3）：**4.1 不够**，Wails v3 要 6.0。
+  缺 6.0 的老发行版（Debian 11、Ubuntu 20.04、CentOS 7）不用装依赖，改用浏览器形态：
+  `pk-desktop --serve --addr 127.0.0.1:7799` 然后开浏览器访问同一个地址（同一套 `/api/*`，功能一致）。
 
 ## 从发布页安装（用户视角）
 
@@ -82,7 +96,7 @@ https://github.com/nekoleamo/packnest/releases/download/gui-v0.10.0/<文件名>
 |---|---|---|
 | macOS | `packnest-desktop_<ver>_darwin_{arm64,amd64}.app.zip` | 解压后 `open packnest.app`（ad-hoc 签名：首次启动需在"隐私与安全性"里放行） |
 | Windows | `packnest-desktop_<ver>_windows_amd64.zip` | 解压得到 `pk-desktop.exe`，双击即可（需要 WebView2 运行时） |
-| Linux | `packnest-desktop_<ver>_linux_amd64.tar.gz` | 解压得到 `pk-desktop`，运行即可（需要 GTK4 + WebKitGTK 6.0） |
+| Linux | `packnest-desktop_<ver>_linux_amd64.tar.gz` | 解压得到 `pk-desktop`，运行即可（需要 GTK4 + WebKitGTK 6.0，包名见上表；没有就 `--serve` 走浏览器） |
 
 Windows/Linux 的产物由 CI 的 `gui-build.yml` 构建（本机只有 macOS），发布时用
 `release-gui.sh --from-dir` 上传，字节与 CI 完全一致。
