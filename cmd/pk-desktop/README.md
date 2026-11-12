@@ -7,7 +7,8 @@
 
 | 界面 | 背后调用 |
 |---|---|
-| 已装工具列表 / 设为默认 | `pk list --json`、`pk use <tool>@<version> --json` |
+| 已装工具列表 / 设为默认 / 卸载 | `pk list --json`、`pk use <tool>@<version> --json`、`pk uninstall <tool> --yes` |
+| 可装版本 / 版本选择 | `pk list --available --json`、`pk list <tool> --json` |
 | 安装 + 进度条 | `pk install <spec> --json`（NDJSON 流，`progress` 事件驱动进度条） |
 | 镜像档切换 | `pk mirror list --json`、`pk mirror use <name>` |
 | 磁盘回收 | `pk gc --json`（GET = 预演，POST = 真删） |
@@ -38,5 +39,9 @@ go build -o ../../bin/pk-desktop .
 
 ## 测试
 
-`internal/pkcli` 有单测：用假 `pk` 脚本验证定位/版本门禁/事件流/退出码 5（`go test ./internal/pkcli`）。
+`internal/pkcli` 有单测：
+
+- `pkcli_test.go`：假 `pk` 脚本覆盖定位 / schema 与版本门禁 / NDJSON 事件流 / 退出码 5；
+- `contract_test.go`：拿**真实的** `bin/pk` 跑 `version/list/doctor/mirror list/gc --dry-run`，
+  断言 GUI 侧结构体还能解析（契约漂移先在这里红；用临时 `PK_ROOT`，不碰用户状态）。
 `cmd/pk-desktop` 不参与 `make loc`（GUI 单列预算）。

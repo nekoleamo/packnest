@@ -82,6 +82,9 @@ func (a *api) routes() *http.ServeMux {
 	mux.HandleFunc("/api/gc", a.handleGC)
 	mux.HandleFunc("/api/install", a.handleInstall) // NDJSON 流：一行一个 CLI 事件
 	mux.HandleFunc("/api/use", a.handleUse)
+	mux.HandleFunc("/api/available", a.handleAvailable)
+	mux.HandleFunc("/api/uninstall", a.handleUninstall)
+	mux.HandleFunc("/api/versions", a.handleVersions)
 	return mux
 }
 
@@ -210,6 +213,63 @@ func (a *api) handleInstall(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		_ = enc.Encode(map[string]any{"ev": "error", "msg": err.Error()})
 	}
+}
+
+// handleUninstall：卸载某工具的全部版本（前端已确认过，这里直接传 --yes）。
+func (a *api) handleUninstall(w http.ResponseWriter, r *http.Request) {
+	cl, ok := a.client(w)
+	if !ok {
+		return
+	}
+	var body struct{ Tool string }
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Tool == "" {
+		http.Error(w, "需要 {\"tool\":\"node\"}", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := timeout(r, 300*time.Second)
+	defer cancel()
+	if err := cl.UninstallTool(ctx, body.Tool); err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, map[string]any{"ok": true})
+}
+
+// handleAvailable：每个工具的最新可装版本（索引 24h 缓存，不刷新）。
+func (a *api) handleAvailable(w http.ResponseWriter, r *http.Request) {
+	cl, ok := a.client(w)
+	if !ok {
+		return
+	}
+	ctx, cancel := timeout(r, 120*time.Second)
+	defer cancel()
+	rows, err := cl.Available(ctx)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, map[string]any{"available": rows})
+}
+
+// handleVersions：某个工具的可装 / 已装版本（GUI 的版本选择器）。
+func (a *api) handleVersions(w http.ResponseWriter, r *http.Request) {
+	cl, ok := a.client(w)
+	if !ok {
+		return
+	}
+	tool := r.URL.Query().Get("tool")
+	if tool == "" {
+		http.Error(w, "需要 ?tool=node", http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := timeout(r, 120*time.Second)
+	defer cancel()
+	v, err := cl.ToolVersions(ctx, tool, 40)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, v)
 }
 
 func (a *api) handleUse(w http.ResponseWriter, r *http.Request) {

@@ -34,7 +34,20 @@ async function loadTools() {
       await api("/api/use", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tool: t.name, version: t.version }) });
       await loadTools();
     };
+    const del = document.createElement("button");
+    del.textContent = "卸载";
+    del.style.marginLeft = "6px";
+    del.onclick = async () => {
+      if (!confirm(`卸载 ${t.name} 的全部版本？`)) return;
+      await api("/api/gc").catch(() => {}); // 占位：确保 API 可用
+      const res = await fetch(`/api/available`); // no-op 保活
+      await res.text();
+      const u = await fetch(`/api/uninstall`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tool: t.name }) });
+      if (!u.ok) alert(await u.text());
+      await loadTools();
+    };
     td.appendChild(btn);
+    td.appendChild(del);
     tr.appendChild(td);
     tb.appendChild(tr);
   }
@@ -97,6 +110,42 @@ async function gc(run) {
   if (run) await loadTools();
 }
 
+// 可装版本：先拿"每个工具最新版"，再按工具取最近 40 个版本
+async function loadAvailable() {
+  const { available } = await (await api("/api/available")).json();
+  const pick = $("toolPick");
+  pick.innerHTML = "";
+  for (const t of available) {
+    if (t.error) continue;
+    const o = document.createElement("option");
+    o.value = t.name; o.textContent = t.name + (t.latest ? " · " + t.latest : "");
+    pick.appendChild(o);
+  }
+  await loadVersions();
+}
+
+async function loadVersions() {
+  const tool = $("toolPick").value;
+  const vp = $("versionPick");
+  vp.innerHTML = "";
+  if (!tool) return;
+  const v = await (await api(`/api/versions?tool=${encodeURIComponent(tool)}`)).json();
+  for (const a of (v.available || []).slice().reverse()) {
+    const o = document.createElement("option");
+    o.value = a.version;
+    o.textContent = a.version + (a.installed ? "（已装）" : "") + (a.lts ? " · lts " + a.lts : "");
+    vp.appendChild(o);
+  }
+}
+
+$("toolPick").onchange = loadVersions;
+$("installPicked").onclick = async () => {
+  const tool = $("toolPick").value, ver = $("versionPick").value;
+  if (!tool || !ver) return;
+  $("spec").value = `${tool}@${ver}`;
+  await install();
+  await loadAvailable();
+};
 $("installBtn").onclick = install;
 $("refreshBtn").onclick = () => { loadTools(); loadDoctor(); };
 $("mirrorBtn").onclick = async () => {
@@ -109,6 +158,6 @@ $("gcRun").onclick = () => { if (confirm("执行 GC 会删除零引用版本与�
 
 (async () => {
   if (await loadStatus()) {
-    await Promise.all([loadTools(), loadMirrors(), loadDoctor()]);
+    await Promise.all([loadTools(), loadMirrors(), loadDoctor(), loadAvailable()]);
   }
 })();
