@@ -10,12 +10,15 @@
 set -eu
 cd "$(dirname "$0")/.."            # → cmd/pk-desktop
 VER="${1:-$(cat ../../dist/latest 2>/dev/null || echo 0.0.0)}"
+ARCH="${2:-$(uname -m)}"      # arm64 / amd64（交叉编译用 clang -arch，macOS 上可行）
+CC_ARCH=arm64; [ "$ARCH" = "amd64" ] && CC_ARCH=x86_64
 APP="../../dist/gui/packnest.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-MACOSX_DEPLOYMENT_TARGET=13.0 CGO_ENABLED=1 go build -trimpath -ldflags "-s -w" \
-  -o "$APP/Contents/MacOS/pk-desktop" .
+MACOSX_DEPLOYMENT_TARGET=13.0 CGO_ENABLED=1 GOOS=darwin GOARCH="$ARCH" \
+  CC="clang -arch $CC_ARCH" \
+  go build -trimpath -ldflags "-s -w" -o "$APP/Contents/MacOS/pk-desktop" .
 sed "s/__VERSION__/$VER/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
 
 # 应用图标（Finder/Dock）：PNG → iconset → icns，只用 macOS 自带的 sips/iconutil

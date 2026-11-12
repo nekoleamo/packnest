@@ -55,15 +55,8 @@ for arch in arm64 amd64; do
   if [ "${build_gui}" = "0" ]; then break; fi
   app="$DIST/gui/packnest.app"
   rm -rf "$app"
-  ( cd cmd/pk-desktop && \
-    MACOSX_DEPLOYMENT_TARGET=13.0 CGO_ENABLED=1 GOOS=darwin GOARCH="$arch" \
-    CC="clang -arch $([ "$arch" = amd64 ] && echo x86_64 || echo arm64)" \
-    go build -trimpath -ldflags "-s -w" -o "$OLDPWD/$app/Contents/MacOS/pk-desktop" . 2>/dev/null ) || {
-      echo "构建 $arch 失败" >&2; exit 1; }
-  mkdir -p "$app/Contents/Resources"
-  sed "s/__VERSION__/${VER}/g" cmd/pk-desktop/packaging/macos/Info.plist > "$app/Contents/Info.plist"
-  chmod +x "$app/Contents/MacOS/pk-desktop"
-  codesign --force --deep --sign - "$app" >/dev/null 2>&1 || true
+  # 打包逻辑只有一处：cmd/pk-desktop/packaging/build-macos.sh（图标 / Info.plist / 签名都在里面）
+  ( cd cmd/pk-desktop && sh packaging/build-macos.sh "$VER" "$arch" >/dev/null )
   out="$DIST/gui/packnest-desktop_${VER}_darwin_${arch}.app.zip"
   rm -f "$out"
   ( cd "$DIST/gui" && zip -q -r -X "$(basename "$out")" packnest.app )
@@ -77,14 +70,18 @@ if [ "$DRY" -eq 1 ]; then echo "dry-run：没有上传"; exit 0; fi
 TOKEN_FILE="${PK_SECRETS_FILE:-$HOME/.pi/agent/local/secrets.env}"
 TOKEN="${GITEE_TOKEN:-$(secret_from_file "$TOKEN_FILE" GITEE_TOKEN GITEE_ACCESS_TOKEN)}"
 api="https://gitee.com/api/v5/repos/$GITEE_REPO"
-rel_id=$(curl -s "$api/releases/tags/$TAG" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("id") or "")' 2>/dev/null)
+rel_id=$(curl -s "$api/releases/tags/$TAG" | python3 -c 'import sys,json
+try: print((json.load(sys.stdin) or {}).get("id") or "")
+except Exception: print("")' 2>/dev/null || true)
 if [ -z "$rel_id" ]; then
   # 不存在就建：GUI 单独一个 release，之后要整体重发可以先删掉它（API 支持删 release）
   code=$(curl -s -o /tmp/gitee-gui-rel.json -w '%{http_code}' -X POST "$api/releases" \
     --data-urlencode "access_token=$TOKEN" --data-urlencode "tag_name=$TAG" \
     --data-urlencode "name=$TAG" --data-urlencode "body=packnest GUI ${VER} (requires pk CLI)" \
     --data-urlencode "target_commitish=main")
-  rel_id=$(python3 -c 'import json;print(json.load(open("/tmp/gitee-gui-rel.json")).get("id") or "")' 2>/dev/null)
+  rel_id=$(python3 -c 'import json
+try: print((json.load(open("/tmp/gitee-gui-rel.json")) or {}).get("id") or "")
+except Exception: print("")' 2>/dev/null || true)
   echo "  建 GUI release $TAG → $code (id=$rel_id)"
   rm -f /tmp/gitee-gui-rel.json
 fi

@@ -527,8 +527,9 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 **GUI 交付状态（2026-11-11 收口）**：Vue3+TS+Vite 前端、Wails v3.1.0 桌面壳 + `--serve` 浏览器形态、
 托盘与单实例（占端口当互斥锁）、三平台产物已发到独立 tag `gui-v0.10.0`（gitee + GitHub）：
 mac darwin{arm64,amd64} `.app.zip`（本机构建）、windows amd64 `.zip`、linux amd64 `.tar.gz`（CI `gui-build.yml` 构建）。
-**还差**：Developer ID 签名 + notarize（现在 ad-hoc）、Windows WebView2 / Linux GTK4+WebKitGTK 的运行时分发说明、
-托盘图标美化。
+GUI 已带图标（`packaging/genicon` 生成的"巢"标记 → `.icns`/托盘模板图）、`--version`；
+签名/公证**已支持**（`PK_SIGN_IDENTITY` + `PK_NOTARY_PROFILE`，不设则 ad-hoc）——只差用户手里有 Developer ID 证书。
+**还差**：Windows WebView2 / Linux GTK4+WebKitGTK 的运行时分发说明（各发行版包名不同）。
 
 **GUI 前置 ④ 已完成**：托盘（关窗口收进托盘、菜单打开/退出）、单实例（占端口当互斥锁，第二个实例直接拒绝）、
 桌面壳同时提供浏览器形态；mac/win/linux 三平台产物已随 v0.10.0 发布（mac 本机构建，win/linux 由 gui-build.yml 构建后本机上传）。
