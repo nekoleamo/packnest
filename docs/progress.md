@@ -532,7 +532,11 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   用例：`TestOnSyncDir`、`TestDoctorNewCodes_1_2`。
 - **外部清单字段级文档**：新增 `docs/providers.md`（每个字段的合法值、四种索引形态、校验格式、伴生包、占位符、排错），
   README 与官网都指向它。
-- 行数红线 10,700 → **11,100**（本轮实测驱动）。
+- 行数红线 10,700 → **11,100**（本轮实测驱动）；落地后 10,993 / 11,100。
+- 发布：tag **v1.2.0**（gitee + GitHub + brew tap + scoop 同步，verify-release 6 产物 sha256 全对，
+  smoke 5/5 装的都是真 1.2.0，`install.sh --dir` 端到端装出 1.2.0 并跑通 install/doctor/uninstall 零残留）。
+- 顺手修：`smoke.yml` 的版本号改成先查**线上最新 release**再回退 `scripts/latest` —— 否则"刚发完版但还没推
+  scripts/latest"时会装到上一个版本（本轮连踩两次，第一次 smoke 装的是 1.1.0）。
 
 ### 1.1 已完成（2026-11-12，v1.1.0 已发 + GUI gui-v0.10.2）
 
