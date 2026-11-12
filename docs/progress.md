@@ -498,15 +498,37 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - 顺手修了安装脚本里 `$VAR` 紧贴中文的写法（C locale 下 bash 会把多字节字符当成变量名的一部分，
   报 `unbound variable`），全部改成 `${VAR}`；安装脚本已在 `LC_ALL=C` 下实测。
 
-## 下一步（方案定稿，未实施）
+## 下一步（新会话从这里接）
 
-`~/Documents/Plan/17-包管理器/pn-外部provider与工具链内工具-方案.md`（v1 定稿，404 行）：
-外部 provider 目录 + 工具链内自带工具（corepack / pip / `go install`）。
-已拍板：10,000 行红线 + `loc` 门禁 · corepack 走 PATH 5 段 · 外部清单默认拒 `http://`。
-**阶段 0 已完成（2026-11-11）**：`loc` 门禁上线、`newFlagSet`/`fetchArtifactVerified` 抽好、
-`--jobs` 噪音删掉、文档同步。执行顺序见该文档 §执行清单。
-⚠️ 阶段 0 实测只净腾 16 行（9,945 → 9,929），方案预估的 −200 站不住；阶段 1 要 185 行、余量只有 71，
-开工前必须先定"缩范围 / 再砍 / 抬红线"三选一（决策记录写在该方案 §排期表下方）。R1/R2/R3 三条建议待确认。
+### 已完成（截至 2026-11-12，commit 27bfaec）
+
+| 线 | 状态 |
+|---|---|
+| CLI | v0.10.0 已发（gitee + GitHub + brew tap + scoop）；外部 provider、corepack（PATH 5 段）、内容寻址缓存、L4 dlopen、降级重定向加固、pnpm 平台包 全部落地 |
+| 门禁 | `make check` 8 项全绿（含 `make loc`）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
+| 行数 | **10,472 / 10,500**（余量 28）；单文件无 >600 行 |
+| GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac 双架构 `.app`（图标/签名/公证就绪） |
+| GUI 发布 | 独立 tag **`gui-v0.10.0`**（gitee + GitHub 各 4 产物：mac arm64/amd64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`） |
+| 发布流程 | 唯一清单在 `docs/publishing.md`（「三、发布流程」第 ⑦ 步 + 「五点五、GUI 的产物」） |
+
+### 接下来可做的（按性价比）
+
+1. **GUI 界面细节继续**（后端接口已就绪，只改 `frontend/src/App.vue` + `make gui-frontend`）：
+   - 全局包体检**表格化**（现在只有一行行文本，`issues[].detail` 里有 pkg/needs/have/path 可用）
+   - GC 结果**可视化**（现在直接打印 JSON 原文：`Removed/CacheRemoved/KeptRef/FreedBytes`）
+   - **安装队列**（多个 spec 依次装，复用 `/api/install` 的 NDJSON 流）
+   - 深浅色手动切换（目前跟随系统）
+2. **GUI 发版收尾**：有 Developer ID 就 `PK_SIGN_IDENTITY=… PK_NOTARY_PROFILE=… make gui-app`；Linux 各发行版
+   GTK4/WebKitGTK 包名清单写进 `cmd/pk-desktop/README.md`
+3. **CLI 侧可选**：剩余非 GUI 项都卡在行数（内容寻址缓存已做；L4 已做；剩下 `uninstall_all.go` 编排搬进
+   `internal/install` 属于"GUI 不再需要的技术债"，可随时做也可不做）
+
+### 提醒（别重犯）
+
+- `make loc` 是硬红线，任何新功能前先 `make loc`；减行只能靠**合并小文件**（拆文件是净增）
+- gitee release **同名附件删不掉也换不了** → 重发只能删 release 重建（命令在 `docs/publishing.md`）
+- 发布只在本机（唯一发布者）：CI 只构建不发布，win/linux GUI 用 `gh run download` 拉回再 `--from-dir` 上传
+- GUI 改了前端必须 `make gui-frontend`（`frontend/dist` 提交进库，否则 Go 里是旧 UI）
 
 ## 行数预算现状
 
