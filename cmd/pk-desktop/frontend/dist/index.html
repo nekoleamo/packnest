@@ -4,8 +4,21 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>packnest</title>
-    <script type="module" crossorigin src="/assets/index-aNdloqoh.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-Bpeqol1H.css">
+    <!-- 首帧配色：Vue 挂载前先按 localStorage / 系统偏好定下 data-theme，避免白闪 -->
+    <script>
+      (() => {
+        const t = localStorage.getItem("pk-theme") || "auto";
+        const dark = t === "dark" || (t === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      })();
+    </script>
+    <style>
+      html { background: #fff; color-scheme: light; }
+      html[data-theme="dark"] { background: #161616; color-scheme: dark; }
+      body { margin: 0; }
+    </style>
+    <script type="module" crossorigin src="/assets/index-CB_vll2d.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Cz5G9JL8.css">
   </head>
   <body>
     <div id="app"></div>

@@ -513,15 +513,25 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ### 接下来可做的（按性价比）
 
-1. **GUI 界面细节继续**（后端接口已就绪，只改 `frontend/src/App.vue` + `make gui-frontend`）：
-   - 全局包体检**表格化**（现在只有一行行文本，`issues[].detail` 里有 pkg/needs/have/path 可用）
-   - GC 结果**可视化**（现在直接打印 JSON 原文：`Removed/CacheRemoved/KeptRef/FreedBytes`）
-   - **安装队列**（多个 spec 依次装，复用 `/api/install` 的 NDJSON 流）
-   - 深浅色手动切换（目前跟随系统）
-2. **GUI 发版收尾**：有 Developer ID 就 `PK_SIGN_IDENTITY=… PK_NOTARY_PROFILE=… make gui-app`；Linux 各发行版
+1. **GUI 发版收尾**：有 Developer ID 就 `PK_SIGN_IDENTITY=… PK_NOTARY_PROFILE=… make gui-app`；Linux 各发行版
    GTK4/WebKitGTK 包名清单写进 `cmd/pk-desktop/README.md`
-3. **CLI 侧可选**：剩余非 GUI 项都卡在行数（内容寻址缓存已做；L4 已做；剩下 `uninstall_all.go` 编排搬进
+2. **CLI 侧可选**：剩余非 GUI 项都卡在行数（内容寻址缓存已做；L4 已做；剩下 `uninstall_all.go` 编排搬进
    `internal/install` 属于"GUI 不再需要的技术债"，可随时做也可不做）
+
+### 已完成（2026-11-12，第三轮 GUI 界面细节，commit 见 git log）
+
+- **全局包体检表格化**：`GLOBAL_*` 的问题（`detail` 里有 pkg/needs/have/file/bin）进单独一张表
+  （包 / 问题 / 详情 / 级别），其余 issue 一行一条（消息 + 淡色 code 尾巴，code 仍可见便于报障）。
+- **GC 结果可视化**：四个统计块（版本 / 缓存 / 释放空间 / 仍被引用）+ 分组清单；预演写"将删"、
+  真删才是"已删"，顶部另有"预演结果（未删除）"徽标。
+- **安装队列**：多条 spec 依次跑，复用同一个 `/api/install` NDJSON 流；每行独立进度条与状态，
+  一条失败不影响后续（原因留在该行，可单独 ✕ 移出）；"装这个版本"直接进队并开跑。
+- **深浅色手动切换**：跟随系统 / 浅色 / 深色，存 `localStorage[pk-theme]`；`<html data-theme>` 由 JS 定，
+  `frontend/index.html` 里先跑一次同步脚本，避免首帧白闪。
+- 顺手修的三处：镜像档下拉补上 `auto`（原先 `current=auto` 不在 `mirrors[]` 里 → 下拉空白）、
+  版本下拉默认选最新（原先 `reverse()` 后默认落在 0.1.14 这种最老版本）、体检长消息不再溢出卡片。
+- 验法：临时 `PK_ROOT=/tmp/pkroot17` 装 node@20/22 + pnpm、手造带 `engines`/`gypfile` 的假全局包，
+  用 `--serve` + headless Chrome 截图核对了表格/摘要/队列的两种配色（不动用户真实 `~/.packnest`）。
 
 ### 提醒（别重犯）
 
@@ -555,6 +565,9 @@ GUI 已带图标（`packaging/genicon` 生成的"巢"标记 → `.icns`/托盘�
 
 **GUI 前置 ④ 已完成**：托盘（关窗口收进托盘、菜单打开/退出）、单实例（占端口当互斥锁，第二个实例直接拒绝）、
 桌面壳同时提供浏览器形态；mac/win/linux 三平台产物已随 v0.10.0 发布（mac 本机构建，win/linux 由 gui-build.yml 构建后本机上传）。
+
+**GUI 界面细节（2026-11-11 第三轮）**：全局包体检表格化、GC 统计块+分组清单、多 spec 安装队列、
+深浅色手动切换（跟随系统/浅色/深色）。明细见文末「已完成」节。
 
 **GUI 界面细节（2026-11-11 第二轮）**：镜像页的"探测各源"表格（host+末段/状态/延迟）、体检页的
 "实测原生模块（--probe）"开关、版本选择的"全部版本 + 本地过滤"、已装行的 weak/未校验/npm 徽标与

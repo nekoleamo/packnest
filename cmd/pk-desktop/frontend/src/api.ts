@@ -33,6 +33,8 @@ export interface Issue {
   code: string;
   severity: "info" | "warn" | "error";
   message: string;
+  // 结构随 code 变：GLOBAL_* 带 pkg/needs/have/path/file/bin，PATH_* 带 want/path 等
+  detail?: Record<string, unknown>;
 }
 export interface Mirror {
   current: string;
@@ -41,6 +43,7 @@ export interface Mirror {
 export interface GCResult {
   Removed?: string[];
   CacheRemoved?: string[];
+  KeptRef?: string[];
   FreedBytes?: number;
   DryRun?: boolean;
 }
