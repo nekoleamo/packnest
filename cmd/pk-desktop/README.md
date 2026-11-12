@@ -47,6 +47,19 @@ open dist/gui/packnest.app
 - `LSMinimumSystemVersion = 13.0`（Wails v3 的目标）；`CFBundleIdentifier = io.packnest.desktop`
 - 分发要额外做 Developer ID 签名 + notarize；Linux 需要 GTK4/WebKitGTK 6.0，Windows 需要 WebView2（都还没接构建）
 
+## 从发布页安装（用户视角）
+
+release 里有独立产物（需要先装 CLI）：
+
+| 平台 | 文件 | 用法 |
+|---|---|---|
+| macOS | `packnest-desktop_<ver>_darwin_{arm64,amd64}.app.zip` | 解压后 `open packnest.app`（ad-hoc 签名：首次启动需在"隐私与安全性"里放行） |
+| Windows | `packnest-desktop_<ver>_windows_amd64.zip` | 解压得到 `pk-desktop.exe`，双击即可（需要 WebView2 运行时） |
+| Linux | `packnest-desktop_<ver>_linux_amd64.tar.gz` | 解压得到 `pk-desktop`，运行即可（需要 GTK4 + WebKitGTK 6.0） |
+
+Windows/Linux 的产物由 CI 的 `gui-build.yml` 构建（本机只有 macOS），发布时用
+`release-gui.sh --from-dir` 上传，字节与 CI 完全一致。
+
 ## 安全边界
 
 - `--serve` 默认只绑 `127.0.0.1`；

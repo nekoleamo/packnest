@@ -80,6 +80,25 @@ make github-release      # 用 gh 把 dist/v<ver>/ 的 6 产物 + checksums.txt 
 - `sh scripts/release-taps.sh` 会推这两个仓库，推完回读核对（用 `git clone`，不用有 CDN 缓存的 raw）；
 - winget 渠道已于 2026-11-11 放弃（不再生成草稿，也不再向 winget-pkgs 提 PR）。
 
+## 五点五、GUI（pk-desktop）的产物
+
+GUI 是**独立产物**（需要 cgo + 各平台 WebView 工具链），但发布仍守"本机唯一发布者"：
+
+```bash
+# ① macOS：本机双架构打包并上传（.app.zip，ad-hoc 签名）
+sh scripts/release-gui.sh --version 0.10.0
+
+# ② Windows / Linux：CI（gui-build.yml）构建，下载回来再上传（字节与 CI 一致）
+gh run download <run-id> -n gui-windows-amd64 -D /tmp/gui -R nekoleamo/packnest
+gh run download <run-id> -n gui-linux-amd64   -D /tmp/gui -R nekoleamo/packnest
+sh scripts/release-gui.sh --version 0.10.0 --from-dir /tmp/gui
+```
+
+产物命名：`packnest-desktop_<ver>_<os>_<arch>.{app.zip,zip,tar.gz}`，与 CLI 产物同挂在同一个 release 下。
+
+⚠️ gitee 的 release API 不返回附件 id，**已上传的同名附件删不掉**（只能在网页上删）；
+`release-gui.sh` 上传前会查同名并跳过，避免重复累积。
+
 ## 六、官网
 
 `make site` 渲染 `site/` → `site/dist`（只注入版本号），GitHub Pages 由 `pages.yml` 部署；

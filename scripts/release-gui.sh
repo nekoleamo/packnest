@@ -65,14 +65,29 @@ TOKEN="${GITEE_TOKEN:-$(secret_from_file "$TOKEN_FILE" GITEE_TOKEN GITEE_ACCESS_
 api="https://gitee.com/api/v5/repos/$GITEE_REPO"
 rel_id=$(curl -s "$api/releases/tags/v$VER" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("id") or "")' 2>/dev/null)
 [ -n "$rel_id" ] || { echo "gitee 上没有 v$VER 的 release（先发 CLI 版本）" >&2; exit 3; }
-for f in "$DIST/gui/packnest-desktop_${VER}"_*.app.zip; do
+# gitee 的 release API 不提供附件 id（只有名字 + URL），**删不掉**已上传的附件：
+# 所以上传前先查一遍，同名直接跳过，避免同名重复累积。
+existing=$(curl -s "$api/releases/tags/v$VER" | python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print(""); raise SystemExit
+print("\n".join(a.get("name","") for a in d.get("assets", [])))')
+for f in "$DIST/gui/packnest-desktop_${VER}"_*.zip "$DIST/gui/packnest-desktop_${VER}"_*.tar.gz; do
+  [ -f "$f" ] || continue
+  if printf '%s\n' "$existing" | grep -qx "$(basename "$f")"; then
+    printf '  gitee  %-46s 已存在，跳过\n' "$(basename "$f")"
+    continue
+  fi
   code=$(curl -s -o /tmp/gitee-gui.json -w '%{http_code}' -X POST "$api/releases/$rel_id/attach_files" \
     -F "access_token=$TOKEN" -F "file=@$f")
   printf '  gitee  %-46s %s\n' "$(basename "$f")" "$code"
 done
 rm -f /tmp/gitee-gui.json
 if command -v gh >/dev/null 2>&1; then
-  gh release upload "v$VER" --repo "$GH_REPO" --clobber "$DIST/gui/packnest-desktop_${VER}"_*.app.zip
+  gh release upload "v$VER" --repo "$GH_REPO" --clobber \
+    "$DIST/gui/packnest-desktop_${VER}"_*.zip "$DIST/gui/packnest-desktop_${VER}"_*.tar.gz
   echo "已上传 GitHub Releases"
 fi
 echo "完成。用户：下载 zip → 解压 → open packnest.app（首次启动 macOS 会问权限）"
