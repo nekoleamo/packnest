@@ -7,6 +7,7 @@ import (
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/mirror"
 	"github.com/packnest/packnest/internal/provider"
+	"github.com/packnest/packnest/internal/spec"
 	"github.com/packnest/packnest/internal/verify"
 	"os"
 	"path/filepath"
@@ -26,9 +27,10 @@ func (i *Installer) fetchArtifact(ctx context.Context, p *provider.Provider, res
 	ext := extOrDefault(p, i.opt.GOOS)
 	platform := i.opt.GOOS + "-" + i.opt.GOARCH
 	dir := i.opt.Paths.CacheArchives()
-	// 内容寻址：TOFU 表里已知道摘要时直接找 <sha256>.<ext>（同一份字节跨版本只存一份）
-	if e, ok := i.known.Get(verify.Key(p.ID, version, platform)); ok && len(e.Digest) == 64 {
-		if cp := filepath.Join(dir, e.Digest+"."+ext); i.cacheHit(cp) {
+	// 内容寻址：TOFU 里已知摘要就按内容找（同内容跨版本只存一份）；--insecure 的"源矛盾"安装
+	// 不写 TOFU，退回台账里的 SHA256，避免重复下载。
+	if sha := i.knownDigest(p.ID, version, platform); sha != "" {
+		if cp := filepath.Join(dir, sha+"."+ext); i.cacheHit(cp) {
 			return cp, urls[0], true, nil
 		}
 	}
@@ -56,6 +58,17 @@ func (i *Installer) cacheHit(path string) bool {
 	i.recordCacheTouch(filepath.Base(path), i.now())
 	i.emit(jsonout.Event{Ev: "cache", Tool: filepath.Base(path), Bytes: st.Size()})
 	return true
+}
+
+// knownDigest 返回这个版本已知的产物摘要：优先 TOFU 表，其次台账（--insecure 放行的安装只在台账里）。
+func (i *Installer) knownDigest(tool, version, platform string) string {
+	if e, ok := i.known.Get(verify.Key(tool, version, platform)); ok && len(e.Digest) == 64 {
+		return e.Digest
+	}
+	if in := i.ledger.Find(tool, version); in != nil && len(in.SHA256) == 64 {
+		return in.SHA256
+	}
+	return ""
 }
 
 // addressed 把缓存文件改成内容寻址名 <sha256>.<ext>：同名已存在说明同内容已在缓存里，
@@ -245,3 +258,19 @@ func extOrDefault(p *provider.Provider, goos string) string {
 }
 
 // readNpmVersion 读 package.json 的 version。
+
+// checkMinVersion 拦住"产物形态换了、老版本没有对应产物"（pnpm 平台包从 11 起），并给可执行建议。
+func checkMinVersion(p *provider.Provider, version string) error {
+	if p.Artifact.MinVersion == "" {
+		return nil
+	}
+	v, err := spec.ParseVersion(version)
+	if err != nil {
+		return nil // 版本解析不了就交给后面的流程报错
+	}
+	if min, err := spec.ParseVersion(p.Artifact.MinVersion); err == nil && v.LessThan(min) {
+		return fmt.Errorf("%s 只支持 %s 及以上（产物地址换了形态）；更老的版本请用 corepack 或 `npm i -g %s@%s`",
+			p.ID, p.Artifact.MinVersion, p.ID, version)
+	}
+	return nil
+}

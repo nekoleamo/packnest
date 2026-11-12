@@ -11,6 +11,7 @@ import (
 	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/store"
 	"github.com/packnest/packnest/internal/testkit"
+	"github.com/packnest/packnest/internal/verify"
 )
 
 // TestContentAddressedCacheDedupes：两个工具发布**同样的字节**时，缓存里只留一份 <sha256>.zip。
@@ -61,5 +62,20 @@ func TestContentAddressedCacheDedupes(t *testing.T) {
 	}
 	if zips != 1 {
 		t.Fatalf("同样字节只该留一份缓存，实际 %d 份: %v", zips, entries)
+	}
+}
+
+// TestCacheLookupViaLedger：--insecure 因"源矛盾"放行的安装不写 TOFU，但台账有 SHA256，
+// 缓存仍要能按内容命中（否则每次重装都重下）。
+func TestCacheLookupViaLedger(t *testing.T) {
+	inst, ft, cache := cachedInstaller(t, true) // 离线客户端 + 缓存里已有产物
+	sha, err := verify.DigestFile(cache, verify.AlgoSHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 只写台账（模拟 --insecure 放行后的状态），不写 TOFU
+	inst.ledger.Upsert(store.Install{Tool: ft.Provider.ID, Version: "1.0.0", Path: "/tmp/x", SHA256: sha})
+	if got := inst.knownDigest(ft.Provider.ID, "1.0.0", "darwin-arm64"); got != sha {
+		t.Fatalf("knownDigest 应回落到台账: %q", got)
 	}
 }
