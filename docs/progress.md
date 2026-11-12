@@ -522,6 +522,11 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   装进宿主 `<target>`（跟着宿主卸载/回收，不单独进台账）；`pinned` 必须给 `version`（缺失即清单非法）。
 - **同源配对校验**：跨源分裂（同 host 认新摘要 + 别 host 给旧摘要）时按 `weak` 接受上游重发并改写 TOFU，
   `verify` 事件 `msg` 说明原因；同源一家之言仍硬失败。
+- **GUI 补充 which / env / mirror write 页面**（9 命令的界面缺口补齐，GUI 侧不计入主线行数）。
+- **多连接下载基准（先测再决定）**：npmmirror 上 48MB 的 node tar.gz，单流 1.14–1.23s（≈32–36 MB/s），
+  2/4/8 段并行 0.72–1.03s → **约 1.3× 收益**（4 段最稳，8 段无进一步收益）。
+  结论：收益有但不值当在这个点改下载主路径（每 48MB 省约 0.3s，代价是 Range 分片 + 拼装 + 校验路径的分支），
+  若日后要做得整块实现并保留单流回退。
 - 行数红线 10,500 → **10,700**（本次两项能力的实测驱动），`make loc` 现在 **10,627 / 10,700**；
 - 发布：tag **v1.1.0**（gitee + GitHub + brew tap + scoop 同步，`verify-release` 6 产物 sha256 全对；smoke 5 runner 装的都是真 `packnest v1.1.0`，全绿）。
 
@@ -648,7 +653,7 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 | 拒绝 https→http 的降级重定向 | ✅ 已做：`fetch.checkRedirect` 拒绝任何 https→http 的降级与 >10 次重定向 | — |
 | 卸载编排挪进 `internal/install`（清 `cmd/pk` 3,220 warn） | ✅ 部分完成：渠道识别（`DetectInstallChannel` / `SelfRemoveHint`）已挪进 `internal/install`，`cmd/pk` 3,220 → **3,181**（warn 消失）；剩余打印/交互编排仍留在 cmd | — |
 | winget 渠道 | ❌ 已放弃（2026-11-11 拍板）：不再生成草稿、不提 PR；`packaging/winget/` 与渠道识别已删 | — |
-| windows-arm64 运行时、Windows `.cmd` shim、Gatekeeper 首启 | ⏳ 人工确认 | 无公共 ARM Windows runner；项目规则允许人工确认这三项 |
+| windows-arm64 运行时、Windows `.cmd` shim、Gatekeeper 首启 | ⏳ 人工确认（步骤与通过标准见 `docs/verify-manual.md`） | 无公共 ARM Windows runner；ad-hoc 签名首启只能真人放行 |
 
 ## 已知缺口（按计划补齐，不是遗漏）
 
