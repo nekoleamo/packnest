@@ -28,6 +28,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # VERSION 来自 git describe：浅克隆会退化成短 SHA
       # ubuntu-latest 自带 gcc，race 检测要 cgo 才跑得起来（交叉编译那几步仍是 CGO_ENABLED=0）
       - uses: actions/setup-go@v5
         with:
@@ -41,6 +43,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # VERSION 来自 git describe：浅克隆会退化成短 SHA
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
