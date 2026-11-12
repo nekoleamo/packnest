@@ -55,7 +55,7 @@ v22.23.4
 ## 1. install — 安装运行时
 
 ```bash
-pk install [工具[@版本]]... [--dry-run] [--frozen] [--insecure] [--force] [--force-rehash] [--quiet] [--corepack|--no-corepack]
+pk install [工具[@版本]]... [--dry-run] [--frozen] [--insecure] [--force] [--force-rehash] [--quiet] [--jobs N] [--corepack|--no-corepack]
 ```
 
 ### 1.1 版本写法
@@ -377,6 +377,9 @@ $ pk doctor --probe              # 探测镜像可达性（MIRROR_UNREACHABLE）
 | code | 含义 | 处置 |
 |---|---|---|
 | `PATH_ORDER` / `PATH_MISSING` | bin 目录不在最前 / 不在 PATH | `pk env --write && source ~/.zshrc` |
+| `ROOT_ON_SYNC_DIR` | `PK_ROOT` 在云同步目录（OneDrive / Dropbox / iCloud / Google Drive / 坚果云）里：同步进程会和 pk 抢文件 | 换到本机盘，或 `--root <本地目录>` |
+| `LEDGER_SCHEMA_NEWER` | 台账 schema 比本程序新（旧版 pk 打开了新版写过的数据） | 升级 pk：`brew upgrade packnest` 或重跑安装脚本 |
+| `SHIM_ALIAS_MISMATCH` | `pk` / `packnest` 两个入口指向不同文件 | `pk install` 或 `pk uninstall --all` 后重装 |
 | `LEDGER_BROKEN` / `LEDGER_RECOVERED` | 台账损坏 / 已从 `.bak` 恢复 | 前者需手工修，后者无需处理 |
 | `MIRROR_UNREACHABLE` | 索引源不可达 | `pk mirror use cn` 或 `PK_MIRROR` 指内网 |
 | `GO_TOOLCHAIN_NOT_LOCAL` | 装了 go 但 `GOTOOLCHAIN != local` | `eval "$(pk env --shell bash)"` |

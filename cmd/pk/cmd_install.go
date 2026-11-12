@@ -40,6 +40,7 @@ func (a *app) cmdInstall(args []string) int {
 	fs := a.newFlagSet("install")
 	frozen := fs.Bool("frozen", false, "严格按 pk.lock，不做解析；清单与锁不一致即失败（CI 用）")
 	insecure := fs.Bool("insecure", false, "允许无校验安装（标记 unverified；校验源互相矛盾时也靠它放行）")
+	jobs := fs.Int("jobs", 0, "多连接下载的并发段数（默认 1；PK_JOBS 可设默认。产物 ≥8MB 且源支持 Range 才生效）")
 	force := fs.Bool("force", false, "重装已存在的版本")
 	rehash := fs.Bool("force-rehash", false, "忽略本地校验表，重新向校验源求值并覆盖记录")
 	quiet := fs.Bool("quiet", false, "只报错，不打印进度")
@@ -48,6 +49,10 @@ func (a *app) cmdInstall(args []string) int {
 	noCorepack := fs.Bool("no-corepack", false, "关闭 corepack（写进 config.toml）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
+	}
+
+	if *jobs > 1 {
+		a.client.Jobs = *jobs // 多连接下载（只在冷启动 + 支持 Range + ≥8MB 时生效）
 	}
 
 	// corepack 是全局开关（方案 B2-2）：翻一下就落盘，之后装/切带 corepack 的 node 自动重放。

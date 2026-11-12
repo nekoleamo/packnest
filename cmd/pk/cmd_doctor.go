@@ -70,6 +70,12 @@ func (a *app) cmdDoctor(args []string) int {
 	if _, err := os.Stat(a.paths.Root); err != nil {
 		add(jsonout.SeverityInfo, "ROOT_ABSENT", "还没有安装过任何工具（目录不存在）", map[string]any{"root": a.paths.Root})
 	}
+	// 3a. 根目录落在云同步盘：同步进程会和 pk 抢文件（锁失效、台账可能被回滚成旧版本）
+	if env.OnSyncDir(a.paths.Root) {
+		add(jsonout.SeverityWarn, "ROOT_ON_SYNC_DIR",
+			fmt.Sprintf("%s 在云同步目录里：同步进程会与 pk 抢文件（锁可能失效、台账可能被回滚）", a.paths.Root),
+			map[string]any{"root": a.paths.Root, "advice": "换到本机盘：PK_ROOT=~/.packnest，或 `pk --root <本机路径>`"})
+	}
 
 	// 4. 台账自洽
 	ledger, recovered, err := store.LoadLedgerWithRecovery(a.paths.Ledger())
@@ -83,11 +89,22 @@ func (a *app) cmdDoctor(args []string) int {
 		for _, msg := range ledger.Validate() {
 			add(jsonout.SeverityErr, "LEDGER_INCONSISTENT", msg, nil)
 		}
+		// 台账 schema 比本程序新：多半是用旧版 pk 打开了新版写过的数据（降级运行）
+		if ledger.Schema > store.LedgerSchema {
+			add(jsonout.SeverityErr, "LEDGER_SCHEMA_NEWER",
+				fmt.Sprintf("台账 schema 是 %d，本程序只支持到 %d：先升级 pk 再操作", ledger.Schema, store.LedgerSchema),
+				map[string]any{"schema": ledger.Schema, "supported": store.LedgerSchema,
+					"advice": "brew upgrade packnest，或重跑安装脚本拿最新版"})
+		}
 	}
 
 	// 5. 自身双名 shim
+	selfTarget := map[string]string{}
 	for _, name := range []string{shim.SelfName, shim.AliasName} {
 		path, isShim, err := shim.Resolve(a.paths.Bin(), name, goos())
+		if err == nil && path != "" {
+			selfTarget[name] = path
+		}
 		switch {
 		case err != nil:
 			add(jsonout.SeverityWarn, "SHIM_BROKEN", fmt.Sprintf("%s: %v", name, err), map[string]any{"name": name})
@@ -95,6 +112,15 @@ func (a *app) cmdDoctor(args []string) int {
 			add(jsonout.SeverityWarn, "SHIM_MISSING", fmt.Sprintf("缺少 %s 入口（`pk install` 会补齐）", name), map[string]any{"name": name})
 		case !isShim:
 			add(jsonout.SeverityInfo, "SHIM_PLAIN", fmt.Sprintf("%s 是普通文件，不是我们建的入口", name), map[string]any{"name": name, "path": path})
+		}
+	}
+
+	// 5a. pk 与 packnest 指向不同二进制：双名入口被别的安装覆盖了一半
+	if pkPath, ok := selfTarget[shim.SelfName]; ok {
+		if aliasPath, ok2 := selfTarget[shim.AliasName]; ok2 && pkPath != aliasPath {
+			add(jsonout.SeverityWarn, "SHIM_ALIAS_MISMATCH",
+				fmt.Sprintf("pk 与 packnest 指向不同的文件：%s / %s", pkPath, aliasPath),
+				map[string]any{"pk": pkPath, "packnest": aliasPath, "advice": "`pk install` 或 `pk uninstall --all` 后重装，让两个入口重指"})
 		}
 	}
 

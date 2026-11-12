@@ -106,6 +106,10 @@
     <dd>首次安装要求<b>至少两个源给出相同摘要</b>并写进 TOFU 表，之后同一版本完全离线可验证；源之间矛盾时硬失败，并告诉你产物与哪个源一致。</dd>
     <dt>卸载</dt>
     <dd>台账是唯一事实源：只删自己记录过的目录，切版本靠 shim 原子重指，卸载回到零残留；<b><code>pk uninstall --all --self</code> 连 pk 自己一起清</b>（Windows 上延时删除）。</dd>
+    <dt>长尾工具</dt>
+    <dd>内嵌 6 个 provider，其余靠 <b>自写 TOML 清单</b>（<code>~/.packnest/providers/&lt;id&gt;.toml</code>）：索引、产物、校验、布局、伴生包全在清单里声明，纯数据不执行代码；字段见 <a href="https://github.com/nekoleamo/packnest/blob/main/docs/providers.md">docs/providers.md</a>。</dd>
+    <dt>下载</dt>
+    <dd>Range 续传 + 单流默认；<code>--jobs N</code> 开多连接分片（≥8MB、源支持 Range 才生效，异常自动退回单流）。实测 48MB 的 node 包：单流 1.46s → 8 段 0.84s。</dd>
     <dt>体积</dt>
     <dd>单个 Go 二进制，<code>CGO_ENABLED=0</code>，六平台构建，只依赖两个第三方库（semver、toml）。</dd>
   </dl>

@@ -504,9 +504,9 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 | 线 | 状态 |
 |---|---|
-| CLI | **v1.1.0 已发（2026-11-12）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、9 个命令 |
+| CLI | **v1.2.0 已发（2026-11-12）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、9 个命令 |
 | 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
-| 行数 | **10,491 / 10,500**（余量 9）；`cmd/pk` 3,136 / 3,200；单文件无 >600 行 |
+| 行数 | **10,984 / 11,100**（余量 116）；`cmd/pk` 3,118 / 3,200；单文件无 >600 行 |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
 | GUI 发布 | 独立 tag **`gui-v0.10.2`**（gitee + GitHub 各 3 产物：mac arm64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；mac intel 已放弃，`gui-v0.10.1` 是补差异页之前那版 |
 | 发布流程 | 唯一清单在 `docs/publishing.md`（「三、发布流程」第 ⑦ 步 + 「五点五、GUI 的产物」） |
@@ -519,6 +519,20 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
    要不要发 `1.1.1` 补丁由你定
 3. **可选增强**（都不阻塞）：多连接下载（已测 ~1.3×，**暂不做**，要做就整块做 Range 分片 + 拼装 + 单流回退）、
    `pk doctor` 新问题码、外部清单的字段级文档（现在 README 只有安全边界与示例）
+
+### 1.2 已完成（2026-11-12，v1.2.0）
+
+- **多连接下载**：`pk install --jobs N` / `PK_JOBS=N`，分片走**独立 HTTP/1.1 连接**（HTTP/2 下所有分片共用一条 TCP、
+  受同一套流控，实测反而更慢 —— 这是第一版没收益的原因）；只在「冷启动 + 源支持 Range + ≥8MB」时启用，
+  任一异常整体退回单流；有 `.part` 续传现场时不走分片。实测 48MB node 包：单流 1.46s → 4 段 0.93s → 8 段 0.84s。
+  用例：`TestParallelDownloadSplits` / `TestParallelFallsBackWithoutRange` / `TestParallelSkipsWhenResuming`；
+  真网基准 `TestParallelDownloadRealWorld`（`-tags nettest`，不进门禁）。
+- **doctor 三个新问题码**：`ROOT_ON_SYNC_DIR`（PK_ROOT 在 OneDrive/Dropbox/iCloud/坚果云 → 锁与台账不可靠）、
+  `LEDGER_SCHEMA_NEWER`（旧版 pk 打开新台账）、`SHIM_ALIAS_MISMATCH`（pk 与 packnest 指向不同文件）。
+  用例：`TestOnSyncDir`、`TestDoctorNewCodes_1_2`。
+- **外部清单字段级文档**：新增 `docs/providers.md`（每个字段的合法值、四种索引形态、校验格式、伴生包、占位符、排错），
+  README 与官网都指向它。
+- 行数红线 10,700 → **11,100**（本轮实测驱动）。
 
 ### 1.1 已完成（2026-11-12，v1.1.0 已发 + GUI gui-v0.10.2）
 

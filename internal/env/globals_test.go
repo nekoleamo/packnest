@@ -243,3 +243,25 @@ func TestWriteManagedBlock(t *testing.T) {
 		t.Fatal("没有块时应返回空")
 	}
 }
+
+// TestOnSyncDir：云同步目录上的 PK_ROOT 要能识别出来（锁与原子 rename 在同步盘都不可靠）。
+func TestOnSyncDir(t *testing.T) {
+	yes := []string{
+		"/Users/me/OneDrive/packnest",
+		"/Users/me/Library/Mobile Documents/com~apple~CloudDocs/.packnest",
+		`C:\Users\me\Dropbox\packnest`,
+		"/home/me/Google Drive/pk",
+		"/Users/me/坚果云/.packnest",
+	}
+	no := []string{"/Users/me/.packnest", "/opt/pk", `D:\AI\packnest`, "/home/me/onedrive-backup-local"}
+	for _, p := range yes {
+		if !OnSyncDir(p) {
+			t.Errorf("%q 应判为同步盘", p)
+		}
+	}
+	for _, p := range no {
+		if OnSyncDir(p) {
+			t.Errorf("%q 不该判为同步盘", p)
+		}
+	}
+}

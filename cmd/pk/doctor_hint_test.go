@@ -68,3 +68,47 @@ func writeFakeLedger(t *testing.T, root, tool, version string) {
 		t.Fatal(err)
 	}
 }
+
+// TestDoctorNewCodes_1_2：1.2 新增的三个问题码（同步盘根目录 / 台账 schema 过新 / 双名入口不一致）。
+func TestDoctorNewCodes_1_2(t *testing.T) {
+	// ① PK_ROOT 在云同步目录里
+	root := filepath.Join(t.TempDir(), "OneDrive", "pkroot")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// warn 级不改变退出码（doctor 只有 error 级才退出 1）
+	if code, out, _ := execCLI(t, "--root", root, "--json", "doctor"); code != 0 || !strings.Contains(out, "ROOT_ON_SYNC_DIR") {
+		t.Fatalf("同步盘根目录应报 ROOT_ON_SYNC_DIR: %d %q", code, out)
+	}
+
+	// ② 台账 schema 比程序新（降级运行）
+	root2 := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root2, "state"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root2, "state", "installs.json"), []byte(`{"schema":99,"installs":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, out, _ := execCLI(t, "--root", root2, "--json", "doctor"); code != 1 || !strings.Contains(out, "LEDGER_SCHEMA_NEWER") {
+		t.Fatalf("台账 schema 过新应报 LEDGER_SCHEMA_NEWER: %d %q", code, out)
+	}
+
+	// ③ pk 与 packnest 指向不同的文件
+	root3 := t.TempDir()
+	bin := filepath.Join(root3, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"pk", "packnest"} {
+		target := filepath.Join(root3, name+"-target")
+		if err := os.WriteFile(target, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, filepath.Join(bin, name)); err != nil {
+			t.Skipf("这个平台不支持软链: %v", err)
+		}
+	}
+	if code, out, _ := execCLI(t, "--root", root3, "--json", "doctor"); code != 0 || !strings.Contains(out, "SHIM_ALIAS_MISMATCH") {
+		t.Fatalf("双名入口不一致应报 SHIM_ALIAS_MISMATCH: %d %q", code, out)
+	}
+}

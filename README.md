@@ -119,7 +119,10 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式，不�
 
 ## 下载与校验
 
-- 下载：Range 续传（`.part` + `.part.meta`）、ETag/304、超时分档（连接 5s / 首字节 8s）、单源最多重试 2 次；**单连接**（国内 CDN 分片常更慢，实测没收益）
+- 下载：Range 续传（`.part` + `.part.meta`）、ETag/304、超时分档（连接 5s / 首字节 8s）、单源最多重试 2 次；
+  **默认单流**，`--jobs N`（或 `PK_JOBS=N`）开多连接分片：只在「冷启动 + 源支持 Range + 产物 ≥8MB」时生效，
+  任何异常自动退回单流。实测（npmmirror 48MB node 包）单流 1.46s → 8 段 0.84s（≈1.7×）；
+  分片走独立 HTTP/1.1 连接（HTTP/2 下所有分片共用一条 TCP、受同一套流控，反而更慢）
 - 校验：`SHASUMS256.txt` / 每产物 `.sha256sum` / registry integrity（sha1 或 sha512 SRI）/ go 索引内联 sha256
 - **TOFU + 多源交叉验证**：首次装要求 ≥2 个源给出相同摘要（否则标 `weak`），写进 `state/known.json`；此后同版本**完全离线可验证**
 - 源之间矛盾 → 硬失败并说明"产物与哪个源一致"，`--insecure` 可放行（标 unverified，且不写入 TOFU 表）
@@ -130,6 +133,7 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式，不�
 ## 外部 provider 清单（长尾工具不用等发版）
 
 内嵌 TOML 只有 6 个工具；想装 zig / uv / jdk 这类长尾，自己写一份清单放进去就行 —— **清单是纯数据，不执行任何代码**。
+每个字段的合法值与示例见 **[docs/providers.md](docs/providers.md)**。
 
 ```bash
 ~/.packnest/providers/zig.toml     # 文件名必须等于 id（zig.toml ↔ id = "zig"）
@@ -219,6 +223,7 @@ make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 | [docs/json-schema.md](docs/json-schema.md) | `--json` v1 契约（字段与问题码） |
 | [docs/publishing.md](docs/publishing.md) | 发布渠道（gitee / brew / scoop）、凭据、唯一发布者规则 |
 | [docs/verify-1.0.md](docs/verify-1.0.md) | 1.0 前实装验证记录（6 平台矩阵、发现的问题与修复） |
+| [docs/providers.md](docs/providers.md) | **外部清单的字段级说明**：`[index]/[artifact]/[checksum]/[layout]/[companions]/[toolchain]` 每个字段的合法值与占位符 |
 | [docs/verify-manual.md](docs/verify-manual.md) | 需要人工确认的三项（Windows ARM64 运行时、`.cmd` shim、macOS Gatekeeper 首启）的步骤与通过标准 |
 | [cmd/pk-desktop/README.md](cmd/pk-desktop/README.md) | **GUI（可视化补充）**：必须先装 CLI，子进程调 `pk --json`；`--serve` 浏览器形态与 macOS `.app` 打包 |
 

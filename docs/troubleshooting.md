@@ -103,6 +103,17 @@ pk env --shell bash    # 看 PATH 五段与 registry 变量
 - `SHIM_MISSING`：跑一次任意 `pk install`/`pk use` 就会补齐 `pk` 与 `packnest` 两个入口。
 - 装了但 `which` 找不到：确认 `eval "$(pk env --shell bash)"` 已生效（`pk env --write` 可写进 rc 托管块）。
 
+## 2.4 下载慢 / 老断流
+
+- **开多连接**：`pk install node@22 --jobs 8`（或 `PK_JOBS=8` 环境变量）。只在「冷启动 + 源支持 Range +
+  产物 ≥8MB」时生效，任何异常都会自动退回单流，不用担心中途坏掉。实测 npmmirror 上 48MB 的 node 包：
+  单流 1.46s → 8 段 0.84s（≈1.7×）。
+- 分片走独立 HTTP/1.1 连接（HTTP/2 下所有分片共用一条 TCP、受同一套流控，实测反而更慢），
+  所以公司代理只允许 HTTP/2 时可能看不到收益 —— 那就继续用单流。
+- **断点续传**：中断后重跑同一条命令即可（`.part` 留在缓存目录，源支持 Range 就从断点接着下，
+  不支持就自动从头来）。`pk gc` 不会删未完成的 `.part`。
+- **换档**：`pk mirror probe` 看哪个源快，`pk mirror use cn` 或 `PK_MIRROR_NODE_INDEX=<url>` 指向内网源。
+
 ## 2.5 外部 provider 清单不生效
 
 ```bash

@@ -575,3 +575,33 @@ func TestGetIndexAcceptHeader(t *testing.T) {
 		t.Fatalf("Accept = %q", got)
 	}
 }
+
+// TestCheckRedirect：https → http 的降级重定向必须拒绝（中间人可以整段替换产物），同时限重定向上限。
+func TestCheckRedirect(t *testing.T) {
+	mk := func(raw string) *http.Request {
+		req, err := http.NewRequest(http.MethodGet, raw, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return req
+	}
+	httpsReq := func() []*http.Request { return []*http.Request{mk("https://a.example/x")} }
+
+	if err := checkRedirect(mk("https://b.example/x"), httpsReq()); err != nil {
+		t.Fatalf("https → https 应放行: %v", err)
+	}
+	if err := checkRedirect(mk("http://b.example/x"), httpsReq()); err == nil {
+		t.Fatal("https → http 的降级重定向应被拒绝")
+	}
+	// 本来就是 http（内网 PK_ALLOW_HTTP 场景）：不进行降级判定
+	if err := checkRedirect(mk("http://b.example/x"), []*http.Request{mk("http://a.example/x")}); err != nil {
+		t.Fatalf("http → http 不该拦: %v", err)
+	}
+	hop := make([]*http.Request, 10)
+	for i := range hop {
+		hop[i] = mk("https://hop.example/x")
+	}
+	if err := checkRedirect(mk("https://b.example/x"), hop); err == nil {
+		t.Fatal("超过 10 次重定向应报错")
+	}
+}

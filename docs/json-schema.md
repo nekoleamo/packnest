@@ -57,6 +57,9 @@ GUI（作为 CLI 的可视化补充，走子进程 + `--json`）只需要：读 
 | code | severity | 含义 / 处置 |
 |---|---|---|
 | `PATH_ORDER` / `PATH_MISSING` | warn | bin 目录不在 PATH 最前 / 不在 PATH |
+| `ROOT_ON_SYNC_DIR` | warn | `PK_ROOT` 在云同步目录里（锁可能失效、台账可能被回滚） |
+| `LEDGER_SCHEMA_NEWER` | error | 台账 schema 比本程序支持的新（降级运行），先升级 pk |
+| `SHIM_ALIAS_MISMATCH` | warn | `pk` 与 `packnest` 指向不同文件 |
 | `LEDGER_BROKEN` | error | 台账与 `.bak` 都坏（可手工修或删掉重装） |
 | `LEDGER_RECOVERED` | warn | 主台账坏，已用 `.bak` 恢复 |
 | `LEDGER_INCONSISTENT` | error | 台账记录的目录不存在等 |

@@ -27,7 +27,7 @@ import (
 )
 
 // Version 是 CLI 版本（渠道发布号由构建注入）。
-var Version = "1.1.0"
+var Version = "1.2.0"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -83,6 +83,7 @@ func run(args []string, out, errOut io.Writer) int {
 
 	a.client = fetch.New()
 	a.client.Offline = a.offline
+	a.client.Jobs = fetch.JobsFromEnv(os.Getenv) // PK_JOBS 作默认值，--jobs 会覆盖
 
 	// 配置坏了不让所有命令瘫痪：doctor 要把问题报出来，其余命令直接失败。
 	a.cfg, a.cfgErr = store.LoadConfig(a.paths.Config())

@@ -107,6 +107,10 @@
     <dd>The first install requires <b>at least two sources to agree on the digest</b> and records it in a TOFU table; every later install of that version verifies fully offline. If sources disagree it fails hard and tells you which source the artifact actually matches.</dd>
     <dt>Uninstall</dt>
     <dd>The ledger is the only source of truth: only directories it recorded are removed, version switches are atomic shim re-points, and uninstalls leave zero residue. <b><code>pk uninstall --all --self</code> removes pk itself too</b> (delayed delete on Windows).</dd>
+    <dt>Long tail</dt>
+    <dd>Six providers are embedded; everything else comes from your own TOML manifest (<code>~/.packnest/providers/&lt;id&gt;.toml</code>) — index, artifact, checksums, layout and companion packages are declarative data, no code executed. Field reference: <a href="https://github.com/nekoleamo/packnest/blob/main/docs/providers.md">docs/providers.md</a>.</dd>
+    <dt>Downloads</dt>
+    <dd>Range resume, single stream by default; <code>--jobs N</code> shards the download (needs ≥8MB and Range support, falls back to one stream on any trouble). Measured on a 48MB node tarball: 1.46s → 0.84s with 8 shards.</dd>
     <dt>Footprint</dt>
     <dd>One Go binary with <code>CGO_ENABLED=0</code>, built for six targets, depending on exactly two third-party libraries (semver, toml).</dd>
   </dl>
