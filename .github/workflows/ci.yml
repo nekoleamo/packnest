@@ -1,0 +1,53 @@
+# 门禁工作流：把本机 `make check` 的 8 项搬到云端（本机仍是唯一发布者，这里只验证不改产物）。
+#
+# 为什么要有它：2026-11-12 盘点发现 4 个 workflow 里没有一个跑门禁，
+# loc/覆盖率/fuzz/交叉编译/golden 全靠"本机记得跑"，换个机器或忘了跑就漏。
+#
+# 两个 job：
+#   check        —— `make check`（gofmt+vet / 行数 / race+覆盖率 / 6 平台交叉 / fuzz 30s / bench / golden）
+#   gui-contract —— GUI 侧的 `internal/pkcli` 测试（含用真 pk 校验 `--json` 契约），
+#                   只测那个包，所以不需要 GTK4/WebKitGTK（那是 gui-build 的事）
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      # ubuntu-latest 自带 gcc，race 检测要 cgo 才跑得起来（交叉编译那几步仍是 CGO_ENABLED=0）
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+      - name: make check（8 项门禁）
+        run: make check
+
+  gui-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+          cache-dependency-path: cmd/pk-desktop/go.sum
+      # contract_test 用仓库根的 bin/pk 跑真 CLI（没构建就 skip，等于白测 —— 这里先构建）
+      - name: 构建 CLI
+        run: make build
+      - name: GUI 契约测试
+        run: cd cmd/pk-desktop && PK_BIN="$(pwd)/../../bin/pk" go test ./internal/pkcli/...

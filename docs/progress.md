@@ -634,6 +634,7 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
   `pk install pnpm@10` 会在解析后**立刻报错并给建议**（corepack 或 `npm i -g pnpm@10`），不再去撞 404。另：之前用 JS tarball 装过同一版本的机器，
   TOFU 表里记的是旧摘要，重装会要求 `--force-rehash`（一次性）。
 - deno 这类「上游重新发布」的版本目前只能 `--insecure`；自动化需要「同源配对校验」（官方产物 + 官方校验和成对验证、标记 weak），属 v1.1。
-- L4 检测（`process.dlopen` 试加载全局包原生模块）未做：现在只用 `gypfile`/`.node` 文件与 `prebuilds/*napi*` 判断，
-  已能覆盖切版本失效的主要场景。
-- 外部 provider 清单的 `[companions]` 只允许指向已存在的 provider：暂不支持"外部清单 + 外部伴生包"的完整闭环（够用，先不扩）。
+- **伴生包只实现 node→npm 一种**（2026-11-12 校对）：`internal/install/companion.go` 的 `applyCompanion`
+  硬编码取 `Companions["npm"]`，其它 `[companions]` 键**只被解析与校验、安装时不生效**。
+  清单校验侧已允许外部清单的 companions 指向另一个外部 provider（含前向引用，
+  `TestExternalCompanionForwardRef`）；缺的是安装侧泛化（把 registry/target/mode 的参数换成按 key 走）。
