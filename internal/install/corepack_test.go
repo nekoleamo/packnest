@@ -62,3 +62,32 @@ func TestEnableCorepackDefaultRunner(t *testing.T) {
 		t.Fatalf("缺 corepack 应报错并给建议: %v", err)
 	}
 }
+
+// TestPruneDanglingShims：gc 回收 node 版本后旧 corepack shim 会悬空，
+// 悬空的软链必须被清掉（否则下一次 corepack enable 在 realpath 上中断）。
+func TestPruneDanglingShims(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 的 shim 是 .cmd，不是软链")
+	}
+	dir := t.TempDir()
+	live := filepath.Join(dir, "live.js")
+	if err := os.WriteFile(live, []byte("\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(live, filepath.Join(dir, "yarn")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "gone.js"), filepath.Join(dir, "pnpm")); err != nil {
+		t.Fatal(err)
+	}
+	pruneDanglingShims(dir)
+	if _, err := os.Lstat(filepath.Join(dir, "pnpm")); !os.IsNotExist(err) {
+		t.Fatalf("悬空软链应被删掉: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(dir, "yarn")); err != nil {
+		t.Fatalf("有效软链不该被动: %v", err)
+	}
+	if _, err := os.Lstat(live); err != nil {
+		t.Fatalf("普通文件不该被动: %v", err)
+	}
+}

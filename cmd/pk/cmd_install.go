@@ -40,8 +40,6 @@ func (a *app) cmdInstall(args []string) int {
 	fs := a.newFlagSet("install")
 	frozen := fs.Bool("frozen", false, "严格按 pk.lock，不做解析；清单与锁不一致即失败（CI 用）")
 	insecure := fs.Bool("insecure", false, "允许无校验安装（标记 unverified；校验源互相矛盾时也靠它放行）")
-	// --jobs 仍接受但已是纯占位：当前固定单连接（国内 CDN 分片往往更慢），不再打印噪音。
-	_ = fs.Int("jobs", 1, "并发下载数（预留；当前固定单连接）")
 	force := fs.Bool("force", false, "重装已存在的版本")
 	rehash := fs.Bool("force-rehash", false, "忽略本地校验表，重新向校验源求值并覆盖记录")
 	quiet := fs.Bool("quiet", false, "只报错，不打印进度")
@@ -248,14 +246,16 @@ func (a *app) cmdUninstall(args []string) int {
 	if version == "" {
 		return a.uninstallTool(inst, tool, *force)
 	}
-	if err := inst.Uninstall(tool, version, *force); err != nil {
+	// 与 pk use / pk install 一致：node@22 这类说明符先在已装版本里解析，否则会误报"不在台账里"
+	resolved := inst.ResolveInstalled(tool, version)
+	if err := inst.Uninstall(tool, resolved, *force); err != nil {
 		return a.fail(err)
 	}
 	if err := inst.Finalize(); err != nil {
 		return a.fail(err)
 	}
 	if !a.json {
-		fmt.Fprintf(a.out, "已卸载 %s@%s（缓存保留，离线可重装）\n", tool, version)
+		fmt.Fprintf(a.out, "已卸载 %s@%s（缓存保留，离线可重装）\n", tool, resolved)
 	}
 	return jsonout.ExitOK
 }

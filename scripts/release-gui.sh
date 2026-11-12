@@ -1,7 +1,7 @@
 #!/bin/sh
 # 构建并上传 **GUI（pk-desktop）** 的 mac 产物到已发布的 release（gitee + GitHub）。
 #
-#   sh scripts/release-gui.sh [--dry-run] [--version 0.10.0]
+#   sh scripts/release-gui.sh [--dry-run] [--version 0.10.1]
 #
 # 只做 macOS：Windows/Linux 需要各自的 WebView 工具链（见 cmd/pk-desktop/README.md），
 # 由 CI 的 gui-build 任务产出后再下载，用同一条路径上传（保持"本机唯一发布者"）。

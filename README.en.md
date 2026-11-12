@@ -117,7 +117,7 @@ There is only ever one copy on disk; project scope means "pinning + PATH order",
 
 ## Downloads and verification
 
-- Downloads: Range resume (`.part` + `.part.meta`), ETag/304, split timeouts (connect 5s / first byte 8s), at most 2 retries per source; **single connection by default** (CDN sharding is usually slower in China; `--jobs` is reserved)
+- Downloads: Range resume (`.part` + `.part.meta`), ETag/304, split timeouts (connect 5s / first byte 8s), at most 2 retries per source; **single connection** (CDN range sharding measured slower than one stream in China)
 - Checksums: `SHASUMS256.txt` / per-artifact `.sha256sum` / registry integrity (sha1 or sha512 SRI) / inline sha256 from the Go index
 - **TOFU + multi-source cross-check**: a first install requires ≥2 sources to agree (otherwise marked `weak`) and records the digest in `state/known.json`; afterwards that version verifies **fully offline**
 - Sources disagree → hard failure that states which source the artifact matches; `--insecure` lets it through (marked unverified, never written to the TOFU table)
@@ -257,7 +257,6 @@ pk only writes `~/.packnest` plus its own managed blocks, so nothing else is lef
 
 ## Known limitations
 
-- `--jobs` is reserved (downloads are single-connection today)
 - The Python index only declares npmmirror (upstream GitHub has no directory listing); the Go index only declares the official `?mode=json&include=all` and falls back to a 24h stale cache
 - pnpm 12's registry tarball is only a launcher — the first run downloads the platform binary itself (upstream behaviour)
 - The cache is named `<tool>-<version>-<platform>.<ext>` (no content-addressed dedup yet)

@@ -140,6 +140,7 @@ func (i *Installer) enableCorepack(ctx context.Context, toolDir string) (bool, e
 	if err := os.MkdirAll(bin, 0o755); err != nil {
 		return false, err
 	}
+	pruneDanglingShims(bin) // gc 回收过 node 版本后旧 shim 会悬空，corepack enable 会因 realpath 失败中断
 	run := i.opt.RunCommand
 	if run == nil {
 		run = func(ctx context.Context, name string, args ...string) error {
@@ -160,6 +161,18 @@ func (i *Installer) enableCorepack(ctx context.Context, toolDir string) (bool, e
 	}
 	i.emit(jsonout.Event{Ev: "corepack", Tool: "node", Version: filepath.Base(filepath.Dir(toolDir)), Source: bin})
 	return true, nil
+}
+
+// pruneDanglingShims 删掉 shim 目录里指向已不存在文件的软链（Windows 的 .cmd 不是软链，自然跳过）。
+func pruneDanglingShims(dir string) {
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if p := filepath.Join(dir, e.Name()); e.Type()&os.ModeSymlink != 0 {
+			if _, err := os.Stat(p); err != nil { // Stat 跟随软链：悬空即报错
+				_ = os.Remove(p)
+			}
+		}
+	}
 }
 
 // transportOf 记录清单走哪种传输：内网 http 源在台账里留痕（只增字段）。

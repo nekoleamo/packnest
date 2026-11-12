@@ -1,9 +1,65 @@
-# 1.0 前实装验证记录（2026-11-11，v0.9.0）
+# 实装验证记录（v1.0.0，2026-11-12）
+
+> 目的：`make check` 只证明"编得过 + 单测绿"，装不装得上、卸不卸得干净必须在真机上跑。
+> 本轮用 **1.0.0 候选二进制**（`VERSION=1.0.0 make build`）在隔离 `PK_ROOT=/tmp/pkv10` 里跑用户视角全链路；
+> 真实 `~/.packnest` 与用户 shell rc 一行未动。
+
+## 一、本机实测（macOS 26 / arm64）
+
+| # | 项目 | 结果 |
+|---|---|---|
+| 1 | `pk --version` / `version --json` | ✅ `packnest v1.0.0 (go1.27.3, darwin/arm64)`、`schema: 1` |
+| 2 | `pk install node@22` | ✅ 22.23.5 + 伴生 npm 12.2.2（自带 10.9.9 被替换），事件流 `download → companion → done` |
+| 3 | `pk env` + 双名 shim | ✅ `node -v`/`npm -v` 跑通，`node` 与 `pk` 都在 `<PK_ROOT>/bin` |
+| 4 | 六工具全装：node/npm(伴生)/pnpm(平台包)/bun/go/python | ✅ 全部装成并跑出真版本（pnpm 12.20.0、bun 1.4.4、go 1.27.4、Python 3.15.2、pip 26.3）；总耗时 < 40s |
+| 5 | `pk use` / `pk which` | ✅ `use node@22` 写全局默认并重指 shim；`which node` 指到 `tools/node/22.23.5/bin/node` |
+| 6 | **外部 provider（真工具）**：自己写 `rg.toml`（GitHub Releases + per-artifact 校验） | ✅ `pk install rg@latest` → 15.2.0，`pk list` 带 `*` 与来源脚注，`rg --version` 可跑 |
+| 7 | 坏外部清单混入 | ✅ `pk doctor` 报 `PROVIDER_EXTERNAL_INVALID` 并逐条指出缺什么（`artifact.ext` 缺 darwin → 补；`artifact.platform` 缺 windows-amd64 → 补；`checksum.format` 非法 → 补），CLI/其它工具照常可用 |
+| 8 | `pk doctor --json` | ✅ `ok: true`；只剩 `PROVIDERS_DIRS`/`MIRROR_AUTO` info 与 `PATH_MISSING`（未 source 时的预期）/`GO_TOOLCHAIN_NOT_LOCAL`/`PIP_USER_SITE_UNMANAGED` |
+| 9 | `pk env --write` 幂等 | ✅ 只写自己的 `# >>> packnest >>>` 块，二次写入块数仍为 1；备份 `<rc>.pk.bak` |
+| 10 | `pk mirror write` | ✅ 只改 `registry=` 一行（官方 → npmmirror），先备份 `npmrc.pk.bak` |
+| 11 | `pk install node@24 --corepack` + `yarn` | ✅ `global/corepack/bin` 出现 pnpm/pnpx/yarn/yarnpkg；`yarn --version` = 1.22.22（corepack 惰性下载走 npmmirror） |
+| 12 | `pk gc --dry-run` / `pk gc` | ✅ 预演与实际一致（回收 1 个零引用版本 188.6 MB，保留 6 项引用） |
+| 13 | 告警解耦：卸载后再装回 | ✅ `pk install node@22 --offline` 命中缓存，`node -v` 正常 |
+| 14 | **项目级**：`pk use node@22 --project` | ✅ 生成 `pk.toml`（`[tools] node = "22.23.5"`）+ `pk.lock`（含 `companion_of = "node@22.23.5"`，不写 URL） |
+| 15 | `pk env --project` + `pk install --frozen` | ✅ 项目版本前置到 PATH 最前；`--frozen` 按锁重放成功 |
+| 16 | `pk uninstall --all --yes --purge` | ✅ 5 个运行时全清 + shim/rc 托管块/Path 清理，**`PK_ROOT` 整个删除（零残留）**；渠道识别为 `manual` 并给出"删掉这个文件"的最后一步 |
+| 17 | 用户 shell 未被波及 | ✅ 真实 `~/.zshrc` 无 packnest 块、无 `.pk.bak` 产生（本轮 rc 测试都写在 `/tmp`） |
+
+## 二、验证中发现并修掉的两个 bug（都在 1.0.0 里）
+
+1. **`pk uninstall node@22`（大版本说明符）报"不在台账里"** —— `use`/`install` 都支持大版本说明符，
+   卸载却只认精确版本，用户按直觉敲就撞上。
+   修法：`cmdUninstall` 先 `inst.ResolveInstalled(tool, version)` 再删（与 `pk use` 同一条解析路径）。
+   验收：`TestUninstallResolvesMajorSpec`；实测 `pk uninstall node@22` → `已卸载 node@22.23.5`。
+2. **`corepack enable` 被悬空软链打断** —— `pk gc` 回收某 node 版本后，`global/corepack/bin` 里指向它的
+   yarn/pnpm shim 变悬空；下次装 node 时 `corepack enable` 在 `realpath` 上失败（打一屏栈，安装本身仍成功）。
+   修法：`enableCorepack` 前先 `pruneDanglingShims`（只删悬空软链，Windows 的 `.cmd` 自然跳过）。
+   验收：`TestPruneDanglingShims`；实测 gc 掉 node@24 后 `install node@22 --corepack` 自动把 yarn 指回 22.23.5。
+
+## 三、发现但**不在 1.0.0 修**的一个限制（写进 1.1 计划）
+
+外部清单里 `checksum.urls` 用 `{filename}` 占位符时，`github-releases` / 无文件清单的索引拿不到文件名 →
+渲染成空串 → 抓 `.../.sha256` 404 → 报"拿不到校验和（所有源都不可用）"。
+**绕过**：`format = "per-artifact"` 时**不用写** `checksum.urls`（自动按 `<产物URL>.sha256` 取，实测可用），
+或把模板写成 `{version}`/`{platform}` 而不用 `{filename}`。
+正解是让 `{filename}` 在缺索引元数据时回落到产物文件名（或让空渲染直接报清单非法），留 1.1 做
+（见 `~/Documents/Plan/17-包管理器/pn-1.1-计划.md`）。
+
+## 四、自动化覆盖
+
+- `make check` 8 项（gofmt+vet / 行数 / race+覆盖率 / 6 平台交叉 / fuzz 30s / bench / golden）——
+  **已上云**：`.github/workflows/ci.yml` 的 `check` job；
+- GUI 契约：`ci.yml` 的 `gui-contract` job 用真 `pk` 跑 `cmd/pk-desktop/internal/pkcli`；
+- 真机装一遍：`smoke.yml` 5/5 组合（macos-15 / macos-15-intel / ubuntu-latest / ubuntu-24.04-arm / windows-latest）；
+- CRC 之外的 3 项仍靠人工确认：Windows ARM64 运行时、PowerShell 调 `.cmd` shim、macOS Gatekeeper 首启。
+
+## 附：v0.9.0 轮记录（2026-11-11，原文保留）
 
 > 目的：`make check` 只证明"编得过 + 单测绿"，装不装得上、卸不卸得干净必须在真机上跑。
 > 这份文件记录**用户视角**的验证结果、发现的问题与修复，以及还没覆盖的部分。
 
-## 一、本机实测（macOS 26 / arm64，隔离 `PK_ROOT`）
+### 一、本机实测（macOS 26 / arm64，隔离 `PK_ROOT`）
 
 全部在 `/tmp/pkv` 里跑（`PK_ROOT=/tmp/pkv/root`），不碰真实 `~/.packnest`。
 
@@ -24,7 +80,7 @@
 | 12 | linux/amd64、linux/arm64 产物结构 | ✅ ELF、**statically linked**（CGO 未泄漏）、mtime 钉在 2020-01-01（可重复构建） |
 | 13 | windows/amd64、windows/arm64 产物结构 | ✅ 单 `packnest.exe`、mtime 钉死；`install.ps1` 用 PowerShell 7.4.6 解析器校验 0 错误 + `-DryRun` 两个通道输出正确 |
 
-## 二、发现的问题（本轮已修）
+### 二、发现的问题（本轮已修）
 
 1. **`pk use node@22` 报"还没装"** —— 只认精确版本，大版本/范围说明符直接失败。
    实际用户流程是 `pk install node@22` 再 `pk use node@22`，这条路径必踩。
@@ -36,7 +92,7 @@
    修法：help 文本只留语义与示例，开关列表由 `flag` 定义生成（`fs.PrintDefaults()`），
    `pk help <cmd>` 尾部提示 `pk <cmd> --help`；顺带把 4 处过期的 flag 描述（"（M4）"/"（M5 后续）"）更新。
 
-## 二点五、第二轮 review 又抓到的两个 bug（pnpm 平台包引入的回归）
+### 二点五、第二轮 review 又抓到的两个 bug（pnpm 平台包引入的回归）
 
 4. **离线重装必失败**：pnpm 的平台包元数据是**每次**都去拉的（在 `verifyArtifact` 里），
    于是 `pk install pnpm --offline` 报「离线模式下禁止访问网络」——TOFU 表里明明记过这个版本。
@@ -46,7 +102,7 @@
    修法：只有**摘要不符**才删/重下，离线与网络失败一律保留缓存。
    回归用例：`internal/install/cache_offline_test.go`（两个）。
 
-## 三、自动化：`.github/workflows/smoke.yml`（只验证，不发布）
+### 三、自动化：`.github/workflows/smoke.yml`（只验证，不发布）
 
 **首次跑通：2026-11-11，5/5 组合全绿（workflow conclusion = success）**：
 `macos-15` / `macos-15-intel` / `ubuntu-latest` / `ubuntu-24.04-arm` / `windows-latest`。
@@ -56,8 +112,7 @@ Linux 上没有 `shasum`（改用 `sha256sum`）、git-bash 的 `sha256sum` 输�
 git-bash 没有 `/dev/stderr`、`pk doctor` 有 error 级问题时退出码是 1（断言要落盘再 grep）、
 **gitee 对海外数据中心 IP 返回 404**（改成从 GitHub Releases 取产物，见下）。
 
-
-`workflow_dispatch` 或打 tag 时跑，矩阵覆盖 **5/6 个平台组合**，从 gitee 拉**用户真正会下到的产物**：
+`workflow_dispatch` 或打 tag 时跑，矩阵覆盖 **5/6 个平台组合**，从 GitHub Releases 拉**用户真正会下到的产物**：
 
 | runner | 平台 | 覆盖 |
 |---|---|---|
@@ -67,35 +122,3 @@ git-bash 没有 `/dev/stderr`、`pk doctor` 有 error 级问题时退出码是 1
 | ubuntu-24.04-arm | linux-arm64 | ✅ |
 | windows-latest | windows-amd64 | ✅（git-bash 不认 `.cmd` shim，只核对台账） |
 | — | windows-arm64 | ❌ 无公共 ARM runner，**人工确认** |
-
-产物来自 **GitHub Releases**（海外主源）：gitee 对海外数据中心 IP 常返回 404（runner 实测），
-而两个源是本机同一批构建、sha256 一致——`make verify-release` 逐条核对 gitee 那份。
-海外安装：`sh scripts/install.sh --base https://github.com/nekoleamo/packnest/releases/download`。
-
-每个组合都做：sha256 校验 → `--version` → `doctor --json` → `install node@22` → 外部坏清单不影响 CLI
-→ `uninstall --all --purge` 后 `PK_ROOT` 必须不存在。
-
-## 三点五、2026-11-11 第二批（内容寻址缓存 / L4 dlopen / 降级重定向）
-
-| 项 | 做法 | 实测 |
-|---|---|---|
-| 内容寻址缓存 | 产物落盘后改成 `<sha256>.<ext>`；TOFU 表里已知摘要时直接按内容找 | 同一版本重装 → 缓存命中；`node@22` 与 `node@24` 各存一份（内容不同），同内容跨版本只留一份 |
-| L4 `dlopen` 检测 | `pk doctor --globals --probe` 用 `node -e "process.dlopen({exports:{}}, file)"` 试加载 `.node`（只加载二进制、不跑包代码）；只探标了 N-API 的包，避免与非 N-API 的静态告警重复 | 造一个假原生包 + 坏 `.node` → 报 `GLOBAL_NATIVE_ABI`（detail.probe = `exit status 1`） |
-| 降级重定向 | `fetch.checkRedirect` 拒绝 https→http 与 >10 次重定向 | 单测/编译期；实际链路暂无降级源可测 |
-
-## 四、还没覆盖的（下一轮）
-
-- **windows-arm64 运行时**（无公共 runner）、**Windows `.cmd` shim 被 PowerShell 调用**（项目规则允许人工确认）
-- **macOS Gatekeeper 首启**（brew 装出来的包在首次运行时的提示）
-- 校验强度：`node@22` 走 cn 档只有 1 个校验源 → 落 `weak`（设计如此，非 bug；要 `strong` 得让官方源也通）
-- ~~缓存不做内容寻址~~ ✅ 2026-11-11 已做（见 §三点五）
-- pnpm 第 4 个下载面：**已解决**（2026-11-11），产物换成 `@pnpm/exe.<os>-<arch>`；
-  6 个平台的包（darwin-x64/arm64、linux-x64/arm64、win32-x64/arm64）实测都存在 12.19.0，
-  Windows 包内是 `package/pnpm.exe`（与 `bin_targets` 一致）。限制：`@pnpm/exe.*` 从 11.0.0-rc.3 起才有
-
-## 五、1.0 出口条件（建议）
-
-- [ ] smoke 矩阵 5 个组合全绿（含本轮 workflow 首次跑通）
-- [ ] windows-arm64 + Windows shim + Gatekeeper 三项人工确认一次，结果写回本文件
-- [ ] 行数预算留出 ≥30 行余量（当前 **10,299 / 10,300，余量 1**，任何改动前必须先砍）
-- [ ] `docs/progress.md` 的"已知缺口"里不再有"用户可感知"的条目

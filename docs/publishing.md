@@ -44,11 +44,11 @@ make publish-manifests                  # ⑥ verify-release → gen-manifests �
 
 # ⑦ GUI（可选，独立 tag gui-v<ver>；见「五点五」）
 make gui-test                           # 先跑 GUI 契约测试（用真 bin/pk 校验 --json）
-sh scripts/release-gui.sh --version 0.10.0
+sh scripts/release-gui.sh --version 0.10.1
 #    三平台的 Windows/Linux 由 CI gui-build.yml 构建后下载回来，再用 --from-dir 上传
 gh run download <run-id> -n gui-windows-amd64 -D /tmp/gui -R nekoleamo/packnest
 gh run download <run-id> -n gui-linux-amd64   -D /tmp/gui -R nekoleamo/packnest
-sh scripts/release-gui.sh --version 0.10.0 --from-dir /tmp/gui
+sh scripts/release-gui.sh --version 0.10.1 --from-dir /tmp/gui
 ```
 
 **顺序不能乱**：清单里的 sha256 必须指向**已经发布**的那批产物。`make publish-manifests` 依赖
@@ -109,7 +109,7 @@ GUI 是**独立产物**（需要 cgo + 各平台 WebView 工具链），但有�
 ```bash
 sh scripts/release-gui.sh --version 0.10.1            # 构建 arm64 .app.zip 并上传
 # 只打包不上传：
-sh cmd/pk-desktop/packaging/build-macos.sh 0.10.0 arm64   # → dist/gui/packnest.app
+sh cmd/pk-desktop/packaging/build-macos.sh 0.10.1 arm64   # → dist/gui/packnest.app
 ```
 
 打包逻辑只有一处（`cmd/pk-desktop/packaging/build-macos.sh`）：图标（`sips`/`iconutil` → `icon.icns`）、
@@ -125,7 +125,7 @@ sh cmd/pk-desktop/packaging/build-macos.sh 0.10.0 arm64   # → dist/gui/packnes
 xcrun notarytool store-credentials notary        # 一次：填 Apple ID / 团队 / app 专用密码
 PK_SIGN_IDENTITY="Developer ID Application: 你的名字 (TEAMID)" \
 PK_NOTARY_PROFILE="notary" \
-sh cmd/pk-desktop/packaging/build-macos.sh 0.10.0 arm64
+sh cmd/pk-desktop/packaging/build-macos.sh 0.10.1 arm64
 ```
 
 - 有 `PK_SIGN_IDENTITY` → 硬化运行时 + 时间戳签名；有 `PK_NOTARY_PROFILE` → `notarytool submit --wait` + `stapler staple`
@@ -144,7 +144,7 @@ gitee 不允许替换同名附件，所以**先删 release 再重建**：
 # 取 id：curl -s "https://gitee.com/api/v5/repos/<owner>/<repo>/releases/tags/gui-v0.10.0"
 curl -s -X DELETE "https://gitee.com/api/v5/repos/<owner>/<repo>/releases/<id>?access_token=$GITEE_TOKEN"
 gh release delete gui-v0.10.0 --repo nekoleamo/packnest --yes
-sh scripts/release-gui.sh --version 0.10.0             # 重建 + 上传
+sh scripts/release-gui.sh --version 0.10.1             # 重建 + 上传
 ```
 
 ## 六、官网

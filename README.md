@@ -119,7 +119,7 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式，不�
 
 ## 下载与校验
 
-- 下载：Range 续传（`.part` + `.part.meta`）、ETag/304、超时分档（连接 5s / 首字节 8s）、单源最多重试 2 次；**单连接默认**（国内 CDN 分片常更慢，`--jobs` 目前仅预留）
+- 下载：Range 续传（`.part` + `.part.meta`）、ETag/304、超时分档（连接 5s / 首字节 8s）、单源最多重试 2 次；**单连接**（国内 CDN 分片常更慢，实测没收益）
 - 校验：`SHASUMS256.txt` / 每产物 `.sha256sum` / registry integrity（sha1 或 sha512 SRI）/ go 索引内联 sha256
 - **TOFU + 多源交叉验证**：首次装要求 ≥2 个源给出相同摘要（否则标 `weak`），写进 `state/known.json`；此后同版本**完全离线可验证**
 - 源之间矛盾 → 硬失败并说明"产物与哪个源一致"，`--insecure` 可放行（标 unverified，且不写入 TOFU 表）
@@ -254,7 +254,6 @@ Windows 上系统不允许删除正在运行的 exe，会打印出要你执行�
 
 ## 已知限制
 
-- `--jobs` 目前仅预留：接受该开关但固定单连接（国内 CDN 分片往往更慢），删不删看是否需要那个选项面
 - python 的索引只声明 npmmirror（官方 GitHub 无目录列举接口）；go 的索引只声明官方 `?mode=json&include=all`，拉不到时用 24h stale 缓存
 - pnpm 走 registry 平台包 `@pnpm/exe.<os>-<arch>`（真二进制），不再有"启动器首次运行自己下平台二进制"的下载面；代价是它只从 **11.0.0** 起发布，`pk install pnpm@10` 会立即报错并建议 corepack
 - 缓存按内容寻址：`cache/archives/<sha256>.<ext>`（TOFU 表里已知摘要时直接按内容找，同内容跨版本只存一份）

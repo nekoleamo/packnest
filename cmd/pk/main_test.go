@@ -1385,3 +1385,16 @@ func TestSelfRemoveScript(t *testing.T) {
 		t.Error("应该是可执行的 .cmd（@echo off 开头）")
 	}
 }
+
+// TestUninstallResolvesMajorSpec：`pk uninstall node@22` 应像 `pk use node@22` 一样
+// 先在已装版本里解析，而不是直接报"不在台账里"（2026-11-12 验证时发现的不一致）。
+func TestUninstallResolvesMajorSpec(t *testing.T) {
+	root := t.TempDir()
+	writeFakeLedger(t, root, "node", "22.22.2")
+	if code, _, errOut := execCLI(t, "--root", root, "uninstall", "node@22", "--yes"); code != 0 {
+		t.Fatalf("node@22 应解析到已装的 22.22.2，得到 %d %q", code, errOut)
+	}
+	if code, out, _ := execCLI(t, "--root", root, "list", "--json"); code != 0 || strings.Contains(out, "22.22.2") {
+		t.Fatalf("卸载后台账里不该再有该版本: %d %q", code, out)
+	}
+}
