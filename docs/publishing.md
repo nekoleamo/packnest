@@ -73,6 +73,14 @@ make github-release      # 用 gh 把 dist/v<ver>/ 的 6 产物 + checksums.txt 
 
 海外/CI 安装：`sh scripts/install.sh --base https://github.com/nekoleamo/packnest/releases/download`
 
+⚠️ 两个实测踩过的坑（2026-11-13，v1.3.1）：
+
+- **release 不能停在 draft**：`/releases/latest` 看不到 draft，`smoke.yml` 会退而安装**上一个版本**
+  （v1.3.1 的 smoke 因此装了 v1.3.0）。`release-github.sh` 现在建完强制 `--draft=false`；手动建 release 后
+  务必确认 `gh release list` 里没有 `Draft`。
+- **别删已经发过产物的 tag**：gitee 的 release 附件挂在 tag 上，删 tag 会让所有附件 404
+  （1.3.1 挪 tag 到修好的提交后就是这样）。正确做法是**重跑** `sh scripts/release-gitee.sh` 重传附件。
+
 ## 四、gitee（国内二进制主源）
 
 - `sh scripts/release-gitee.sh` 建/复用 tag 对应的 release，逐个上传 `dist/v<ver>/packnest_*` 与 `checksums.txt`；

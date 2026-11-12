@@ -560,8 +560,14 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   README、官网中英文、`--json` golden 三份。
 - 发布：tag **v1.3.1**（gitee + GitHub + brew tap + scoop + 官网同批）；`verify-release` 6 产物 sha256 全对。
   （v1.3.0 发完 8 分钟内被 smoke 的 windows-latest 抓到回归：`uninstall --all` 删 PK_ROOT 时
-  `state/lock` 被本进程 handle 占住 → 报“零残留失败”，`uninstall --all` 退出 1。修法是把锁文件
-  改成 `CreateFile` + `FILE_SHARE_DELETE` 打开，锁本身仍是 `LockFileEx`；1.3.1 复跑 smoke 全绿。）
+  `state/lock` 被本进程 handle 占住 → 报“零残留失败”、退出 1。修法：锁文件改成
+  `CreateFile` + `FILE_SHARE_DELETE` 打开，锁本身仍是 `LockFileEx`。）
+- 发布链路顺手补的两个坑：① `scripts/release-github.sh` 建的 release 若是 draft，
+  `/releases/latest` 看不到它 → smoke 会退而装**上一个版本**（1.3.1 就装了 1.3.0），
+  现在建完强制 `--draft=false`；② 删远端 tag 会连带 gitee release 的附件失效（全 404），
+  必须重跑 `sh scripts/release-gitee.sh` 重传。
+- 1.3.1 验收：smoke 5/5 全绿且日志里是 `packnest v1.3.1`（5 个平台）；`brew upgrade packnest`
+  从 tap 装到 1.3.1、`packnest --version` 正确；官网中英文 `class="ver"` 都是 v1.3.1。
   官网 section 标题同时从 0.8rem 的纯大写小标签提到 1.4rem，补上缺失的中等字阶（impeccable 的
   `flat-type-hierarchy` 之前对整站命中）。
 

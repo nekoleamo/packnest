@@ -40,6 +40,8 @@ if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
   gh release create "$TAG" --repo "$REPO" --title "$TAG" \
     --notes "packnest ${VER}（6 平台产物 + checksums.txt；海外主源，国内请用 gitee）" >/dev/null
 fi
+# 兜底：release 是 draft 时 /releases/latest 看不到它，smoke 会退而装上一个版本（1.3.1 踩过）
+gh release edit "$TAG" --repo "$REPO" --draft=false >/dev/null
 gh release upload "$TAG" --repo "$REPO" --clobber \
   "$DIR"/packnest_* "$DIR"/checksums.txt
 echo "完成：https://github.com/${REPO}/releases/tag/${TAG}"

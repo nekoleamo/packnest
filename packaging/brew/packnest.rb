@@ -5,28 +5,28 @@
 class Packnest < Formula
   desc "国内网络开箱可用的多语言运行时安装器（node/pnpm/bun/go/python）"
   homepage "https://gitee.com/null_593_5354/packnest"
-  version "1.3.0"
+  version "1.3.1"
   license "MIT"
 
   on_macos do
     on_arm do
-      url "https://gitee.com/null_593_5354/packnest/releases/download/v1.3.0/packnest_1.3.0_darwin_arm64.tar.gz"
-      sha256 "f78e44ad6fef4b06330e1bbbac713234f901f35d912d741b5ad2f18eebe09aea"
+      url "https://gitee.com/null_593_5354/packnest/releases/download/v1.3.1/packnest_1.3.1_darwin_arm64.tar.gz"
+      sha256 "4436a1ab72e70d946354f7d9bb02a564ebf92bbf793dd36375772f01a7d765a1"
     end
     on_intel do
-      url "https://gitee.com/null_593_5354/packnest/releases/download/v1.3.0/packnest_1.3.0_darwin_amd64.tar.gz"
-      sha256 "bcd29ab5f799b24eb8a50831023ba845b79df6af2506a7a177325a5ac345a0bf"
+      url "https://gitee.com/null_593_5354/packnest/releases/download/v1.3.1/packnest_1.3.1_darwin_amd64.tar.gz"
+      sha256 "7fbfd90d4d261f779737858d884cd9f67b8272ca93ced3efdfebec2c8f4dee40"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://gitee.com/null_593_5354/packnest/releases/download/v1.3.0/packnest_1.3.0_linux_arm64.tar.gz"
-      sha256 "9a8965281dc8b06f2680efc631f49495abc9aacff7a1f50f79130af74a20a7a5"
+      url "https://gitee.com/null_593_5354/packnest/releases/download/v1.3.1/packnest_1.3.1_linux_arm64.tar.gz"
+      sha256 "30eaa3344408399c37af17d87fd7f02886b69ba432f77f0433012038738c58e5"
     end
     on_intel do
-      url "https://gitee.com/null_593_5354/packnest/releases/download/v1.3.0/packnest_1.3.0_linux_amd64.tar.gz"
-      sha256 "7c80f83e60726b3ce31057852031612053103fca491c3acf45a37bf5e3423124"
+      url "https://gitee.com/null_593_5354/packnest/releases/download/v1.3.1/packnest_1.3.1_linux_amd64.tar.gz"
+      sha256 "8329b950bab50bdbec3dd71ec8a900dd99ba647d79ee92d46ab5a90508aed0bb"
     end
   end
 
