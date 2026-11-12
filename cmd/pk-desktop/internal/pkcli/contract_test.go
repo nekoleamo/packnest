@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // TestContractAgainstRealCLI：用仓库构建出来的真 pk 跑一遍 docs/json-schema.md 里的只读命令，
@@ -38,7 +39,7 @@ func TestContractAgainstRealCLI(t *testing.T) {
 	if _, err := cl.List(ctx); err != nil { // 空台账也要能解析（数组契约）
 		t.Fatalf("list: %v", err)
 	}
-	if _, err := cl.Doctor(ctx, false); err != nil {
+	if _, err := cl.Doctor(ctx, false, false); err != nil {
 		t.Fatalf("doctor: %v", err)
 	}
 	if _, err := cl.Mirrors(ctx); err != nil {
@@ -55,3 +56,32 @@ func TestContractAgainstRealCLI(t *testing.T) {
 
 // CompilePK 只是确保测试里引用了 exec（未来要构建临时二进制时用得上）。
 var _ = exec.Command
+
+// TestProbeContract：`pk mirror probe --json` 的结构（GUI 的"镜像体检"表）。
+func TestProbeContract(t *testing.T) {
+	bin := os.Getenv("PK_BIN")
+	if bin == "" {
+		cand, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "bin", "pk"))
+		if err == nil {
+			bin = cand
+		}
+	}
+	if _, err := os.Stat(bin); err != nil {
+		t.Skip("没找到 pk 二进制（先 make build，或设 PK_BIN）")
+	}
+	cl := &Client{Path: bin, Env: append(os.Environ(), "PK_ROOT="+t.TempDir())}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	rows, err := cl.Probe(ctx, "node")
+	if err != nil {
+		t.Fatalf("probe: %v", err)
+	}
+	if len(rows) == 0 {
+		t.Fatal("probe 应该至少返回一条源")
+	}
+	for _, r := range rows {
+		if r.URL == "" {
+			t.Fatalf("probe 结果缺 url: %+v", r)
+		}
+	}
+}

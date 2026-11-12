@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { api, install, type InstallEvent, type Issue, type Mirror, type Tool, type AvailableTool } from "./api";
+import { api, install, type InstallEvent, type Issue, type Mirror, type ProbeEntry, type Tool, type AvailableTool } from "./api";
 
 const status = ref<{ ok: boolean; reason?: string; path?: string; version?: string }>({ ok: false });
 const tools = ref<Tool[]>([]);
@@ -12,6 +12,13 @@ const spec = ref("node@22");
 const tool = ref("");
 const picked = ref("");
 const globals = ref(false);
+const deepProbe = ref(false);
+const allVersions = ref(false);
+const verFilter = ref("");
+const probeTool = ref("");
+const probeRows = ref<ProbeEntry[]>([]);
+const probing = ref(false);
+const err = ref("");
 const log = ref("");
 const busy = ref(false);
 const percent = ref(0);
@@ -42,15 +49,48 @@ async function loadAvailable() {
 }
 async function loadVersions() {
   if (!tool.value) return;
-  const v = await api.versions(tool.value);
+  const v = await api.versions(tool.value, allVersions.value);
   versions.value = (v.available ?? []).slice().reverse();
   picked.value = versions.value[0]?.version ?? "";
 }
+
+// 版本过滤：本地过滤已加载的列表（--all 时是全部版本）
+const shownVersions = computed(() => {
+  const q = verFilter.value.trim();
+  if (!q) return versions.value;
+  return versions.value.filter((v) => v.version.includes(q));
+});
 async function loadMirrors() {
   mirror.value = await api.mirrors();
 }
 async function loadDoctor() {
-  issues.value = (await api.doctor(globals.value)).issues ?? [];
+  err.value = "";
+  try {
+    issues.value = (await api.doctor(globals.value, deepProbe.value)).issues ?? [];
+  } catch (e) {
+    err.value = String(e);
+  }
+}
+
+async function runProbe() {
+  probing.value = true;
+  err.value = "";
+  try {
+    probeRows.value = (await api.probe(probeTool.value || undefined)).results ?? [];
+  } catch (e) {
+    err.value = String(e);
+  } finally {
+    probing.value = false;
+  }
+}
+
+async function copyPath(p?: string) {
+  if (!p) return;
+  try {
+    await navigator.clipboard.writeText(p);
+  } catch {
+    /* 浏览器/壳里可能没有剪贴板权限 */
+  }
 }
 
 async function doInstall(target?: string) {
@@ -98,6 +138,17 @@ async function runGC(run: boolean) {
   gcOut.value = JSON.stringify(await api.gc(run), null, 2);
   if (run) await loadTools();
 }
+function shortURL(u: string) {
+  // 只显示 host + 末段，避免长 URL 撑破表格
+  try {
+    const x = new URL(u);
+    const tail = x.pathname.split("/").filter(Boolean).slice(-2).join("/");
+    return x.host + "/" + tail;
+  } catch {
+    return u;
+  }
+}
+
 function fmtMB(n?: number) {
   return n ? (n / (1 << 20)).toFixed(1) + " MB" : "—";
 }
@@ -119,6 +170,7 @@ onMounted(async () => {
   </header>
 
   <main v-if="status.ok">
+    <p v-if="err" class="err">⚠ {{ err }}</p>
     <section>
       <h2>已装工具</h2>
       <div class="row">
@@ -130,8 +182,10 @@ onMounted(async () => {
         <select v-model="tool" @change="loadVersions">
           <option v-for="a in available" :key="a.name" :value="a.name">{{ a.name }} · {{ a.latest }}</option>
         </select>
+        <label class="hint"><input type="checkbox" v-model="allVersions" @change="loadVersions" /> 全部版本</label>
+        <input v-model="verFilter" placeholder="过滤版本" size="8" />
         <select v-model="picked">
-          <option v-for="v in versions" :key="v.version" :value="v.version">
+          <option v-for="v in shownVersions" :key="v.version" :value="v.version">
             {{ v.version }}{{ v.installed ? "（已装）" : "" }}{{ v.lts ? " · lts " + v.lts : "" }}
           </option>
         </select>
@@ -148,7 +202,11 @@ onMounted(async () => {
             <td class="dim">{{ t.source || "embedded" }}</td>
             <td>{{ fmtMB(t.size_bytes) }}</td>
             <td>
+              <span v-if="t.verified === 'weak'" class="badge weak" title="只有 1 个校验源">weak</span>
+              <span v-if="t.verified === 'unverified'" class="badge bad" title="未校验">未校验</span>
+              <span v-if="t.npm?.version" class="badge" :title="'自带 ' + (t.npm.replaced || '?')">npm {{ t.npm.version }}</span>
               <button :disabled="t.active" @click="setDefault(t)">{{ t.active ? "当前默认" : "设为默认" }}</button>
+              <button @click="copyPath(t.path)" title="复制安装路径">路径</button>
               <button class="danger" @click="removeTool(t)">卸载</button>
             </td>
           </tr>
@@ -167,10 +225,26 @@ onMounted(async () => {
         <button @click="switchMirror">切换</button>
       </div>
 
+      <div class="row">
+        <input v-model="probeTool" placeholder="只探某个工具（留空=全部）" size="18" />
+        <button :disabled="probing" @click="runProbe">{{ probing ? "探测中…" : "探测各源" }}</button>
+      </div>
+      <table v-if="probeRows.length">
+        <thead><tr><th>源</th><th>状态</th><th>延迟</th></tr></thead>
+        <tbody>
+          <tr v-for="(p, i) in probeRows" :key="i">
+            <td class="mono">{{ shortURL(p.url) }}</td>
+            <td :class="p.ok ? 'ok' : 'bad'">{{ p.ok ? p.status : p.err || "失败" }}</td>
+            <td>{{ p.latency_ms }} ms</td>
+          </tr>
+        </tbody>
+      </table>
+
       <h2 style="margin-top: 16px">体检</h2>
       <div class="row">
         <button @click="loadDoctor">运行 pk doctor</button>
         <label class="hint"><input type="checkbox" v-model="globals" @change="loadDoctor" /> 含全局包</label>
+        <label class="hint"><input type="checkbox" v-model="deepProbe" @change="loadDoctor" /> 实测原生模块（--probe）</label>
       </div>
       <div v-if="!issues.length" class="hint">没有发现问题</div>
       <div v-for="(i, n) in issues" :key="n" class="issue">
@@ -232,5 +306,11 @@ input, select { font: inherit; padding: 6px 9px; border-radius: 7px; border: 1px
 .hint { color: var(--dim); font-size: 12px; }
 pre { white-space: pre-wrap; word-break: break-all; font: 12px/1.5 ui-monospace, Menlo, monospace; color: var(--dim); margin: 8px 0 0; max-height: 180px; overflow: auto; }
 .issue { display: flex; gap: 8px; font-size: 13px; padding: 3px 0; }
+.badge { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); margin-right: 6px; }
+.badge.weak { color: #b45309; border-color: #b45309; }
+.badge.bad { color: var(--danger); border-color: var(--danger); }
+.mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.ok { color: var(--accent); } .bad { color: var(--danger); }
+.err { grid-column: 1 / -1; margin: 0; padding: 8px 12px; border: 1px solid var(--danger); border-radius: 8px; color: var(--danger); font-size: 13px; }
 .sev-warn { color: #b45309; } .sev-error { color: var(--danger); } .sev-info { color: var(--dim); }
 </style>

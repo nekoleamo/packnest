@@ -9,6 +9,7 @@ export interface Tool {
   name: string;
   version: string;
   active: boolean;
+  path?: string;
   verified?: string;
   source?: string;
   size_bytes?: number;
@@ -43,6 +44,13 @@ export interface GCResult {
   FreedBytes?: number;
   DryRun?: boolean;
 }
+export interface ProbeEntry {
+  url: string;
+  ok: boolean;
+  status: number;
+  latency_ms: number;
+  err?: string;
+}
 export interface InstallEvent {
   ev: string;
   tool?: string;
@@ -55,19 +63,31 @@ export interface InstallEvent {
 
 async function json<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init);
-  if (!res.ok) throw new Error((await res.text()) || res.statusText);
+  if (!res.ok) throw new Error(friendly(res.status, await res.text()));
   return res.json() as Promise<T>;
+}
+
+// friendly 把 HTTP 状态翻译成用户能懂的提示（409 = CLI 的退出码 5：另一个 pk 正在运行）。
+export function friendly(status: number, text: string): string {
+  if (status === 412) return "找不到 pk：GUI 需要先安装 CLI";
+  if (status === 409) return "另一个 pk 正在运行，稍后再试";
+  if (status === 401) return "需要 token（--serve 绑了非回环地址）";
+  return text || `HTTP ${status}`;
 }
 
 export const api = {
   status: () => json<Status>("/api/status"),
   tools: () => json<{ tools: Tool[] }>("/api/tools"),
   available: () => json<{ available: AvailableTool[] }>("/api/available"),
-  versions: (tool: string) => json<Versions>(`/api/versions?tool=${encodeURIComponent(tool)}`),
+  versions: (tool: string, all = false) =>
+    json<Versions>(`/api/versions?tool=${encodeURIComponent(tool)}${all ? "&all=1" : ""}`),
   mirrors: () => json<Mirror>("/api/mirrors"),
   useMirror: (use: string) =>
     json<Mirror>("/api/mirrors", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ use }) }),
-  doctor: (globals: boolean) => json<{ issues: Issue[] }>(`/api/doctor?globals=${globals ? 1 : 0}`),
+  doctor: (globals: boolean, probe: boolean) =>
+    json<{ issues: Issue[] }>(`/api/doctor?globals=${globals ? 1 : 0}&probe=${probe ? 1 : 0}`),
+  probe: (tool?: string) =>
+    json<{ results: ProbeEntry[] }>(`/api/probe${tool ? "?tool=" + encodeURIComponent(tool) : ""}`),
   gc: (run: boolean) => json<GCResult>("/api/gc", { method: run ? "POST" : "GET" }),
   use: (tool: string, version: string) =>
     json("/api/use", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tool, version }) }),

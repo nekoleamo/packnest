@@ -55,10 +55,14 @@ type doctorDoc struct {
 }
 
 // Doctor 返回体检结果（GUI 的"告警页"直接渲染这个）。
-func (c *Client) Doctor(ctx context.Context, globals bool) ([]Issue, error) {
+// probe=true 时还会用 node 实测 dlopen 原生模块（只加载二进制，不跑包代码）。
+func (c *Client) Doctor(ctx context.Context, globals, probe bool) ([]Issue, error) {
 	args := []string{"doctor"}
 	if globals {
 		args = append(args, "--globals")
+	}
+	if probe {
+		args = append(args, "--probe")
 	}
 	args = append(args, "--json")
 	// doctor 有 error 级问题时退出码是 1，但输出仍是合法 JSON：这里要吃掉退出码
@@ -216,10 +220,13 @@ type Versions struct {
 	} `json:"available"`
 }
 
-// ToolVersions 取某个工具的可装/已装版本。
-func (c *Client) ToolVersions(ctx context.Context, tool string, limit int) (Versions, error) {
+// ToolVersions 取某个工具的可装/已装版本；all=true 时不截断（等于 --limit 0）。
+func (c *Client) ToolVersions(ctx context.Context, tool string, limit int, all bool) (Versions, error) {
 	args := []string{"list", tool}
-	if limit > 0 {
+	switch {
+	case all:
+		args = append(args, "--all")
+	case limit > 0:
 		args = append(args, "--limit", strconv.Itoa(limit))
 	}
 	var v Versions
@@ -230,4 +237,32 @@ func (c *Client) ToolVersions(ctx context.Context, tool string, limit int) (Vers
 // UninstallTool 卸载某工具的全部版本（GUI 必须自己先确认；CLI 需要 --yes）。
 func (c *Client) UninstallTool(ctx context.Context, tool string) error {
 	return c.runJSON(ctx, &struct{}{}, "uninstall", tool, "--yes")
+}
+
+// ProbeEntry 是 `pk mirror probe --json` 的一条探测结果。
+type ProbeEntry struct {
+	URL       string `json:"url"`
+	OK        bool   `json:"ok"`
+	Status    int    `json:"status"`
+	LatencyMS int64  `json:"latency_ms"`
+	Err       string `json:"err"`
+}
+
+// Probe 并行探测各镜像源（GUI 的"镜像体检"直接渲染这张表）。
+func (c *Client) Probe(ctx context.Context, tool string) ([]ProbeEntry, error) {
+	args := []string{"mirror", "probe"}
+	if tool != "" {
+		args = append(args, "--tool", tool)
+	}
+	var doc struct {
+		Schema  int          `json:"schema"`
+		Results []ProbeEntry `json:"results"`
+	}
+	if err := c.runJSON(ctx, &doc, args...); err != nil {
+		return nil, err
+	}
+	if doc.Results == nil {
+		return []ProbeEntry{}, nil
+	}
+	return doc.Results, nil
 }

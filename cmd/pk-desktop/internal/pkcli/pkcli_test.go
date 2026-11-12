@@ -84,7 +84,7 @@ if [ "$1" = doctor ]; then echo '{"schema":1,"ok":false,"issues":[{"code":"PATH_
 	if err != nil || tools == nil || len(tools) != 0 {
 		t.Fatalf("空列表应为 []（契约）: %v %+v", err, tools)
 	}
-	issues, err := cl.Doctor(context.Background(), false)
+	issues, err := cl.Doctor(context.Background(), false, false)
 	if err != nil || len(issues) != 1 || issues[0].Code != "PATH_MISSING" {
 		t.Fatalf("doctor 退出码 1 但 JSON 合法时不该报错: %v %+v", err, issues)
 	}

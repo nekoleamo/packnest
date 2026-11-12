@@ -41,6 +41,14 @@ make github-release                     # ③b 同步 GitHub Releases（海外�
 make verify-release                     # ④ 把线上产物拉回来对 checksums.txt（必跑）
 # ⑤ 仓库里改版本号 → commit → tag → push（两个远端 + tag）
 make publish-manifests                  # ⑥ verify-release → gen-manifests → release-taps（自带线上核对）
+
+# ⑦ GUI（可选，独立 tag gui-v<ver>；见「五点五」）
+make gui-test                           # 先跑 GUI 契约测试（用真 bin/pk 校验 --json）
+sh scripts/release-gui.sh --version 0.10.0
+#    三平台的 Windows/Linux 由 CI gui-build.yml 构建后下载回来，再用 --from-dir 上传
+gh run download <run-id> -n gui-windows-amd64 -D /tmp/gui -R nekoleamo/packnest
+gh run download <run-id> -n gui-linux-amd64   -D /tmp/gui -R nekoleamo/packnest
+sh scripts/release-gui.sh --version 0.10.0 --from-dir /tmp/gui
 ```
 
 **顺序不能乱**：清单里的 sha256 必须指向**已经发布**的那批产物。`make publish-manifests` 依赖
@@ -82,28 +90,58 @@ make github-release      # 用 gh 把 dist/v<ver>/ 的 6 产物 + checksums.txt 
 
 ## 五点五、GUI（pk-desktop）的产物
 
-GUI 是**独立产物**（需要 cgo + 各平台 WebView 工具链），但发布仍守"本机唯一发布者"：
+GUI 是**独立产物**（需要 cgo + 各平台 WebView 工具链），但有两条硬规则：
+
+1. **必须先装 CLI**：GUI 只通过子进程调 `pk <cmd> --json` 干活（`docs/progress.md` 的"GUI 定位"）；
+2. **发布仍守"本机唯一发布者"**：CI 只构建、不发布；上传动作全部在本机（mac 本机构建，
+   Windows/Linux 下载 CI 产物后原样上传，字节与 CI 一致）。
+
+### 产物与 tag 约定
+
+| 项 | 约定 |
+|---|---|
+| tag | `gui-v<cliVer>`（**不是** CLI 的 `v<cliVer>`） |
+| 文件 | `packnest-desktop_<ver>_<os>_<arch>.{app.zip,zip,tar.gz}` |
+| 为什么单独 tag | gitee 的 release API 不返回附件 id，同名附件**删不掉也换不了**；GUI 会频繁重发，单独一个 release 才能整体删掉重建（`DELETE /releases/{id}`） |
+
+### 本机打包（macOS，双架构）
 
 ```bash
-# ① macOS：本机双架构打包并上传（.app.zip，ad-hoc 签名）
-sh scripts/release-gui.sh --version 0.10.0
-
-# ② Windows / Linux：CI（gui-build.yml）构建，下载回来再上传（字节与 CI 一致）
-gh run download <run-id> -n gui-windows-amd64 -D /tmp/gui -R nekoleamo/packnest
-gh run download <run-id> -n gui-linux-amd64   -D /tmp/gui -R nekoleamo/packnest
-sh scripts/release-gui.sh --version 0.10.0 --from-dir /tmp/gui
+sh scripts/release-gui.sh --version 0.10.0            # 构建 arm64+amd64 .app.zip 并上传
+# 只打包不上传：
+sh cmd/pk-desktop/packaging/build-macos.sh 0.10.0 arm64   # → dist/gui/packnest.app
 ```
 
-产物命名：`packnest-desktop_<ver>_<os>_<arch>.{app.zip,zip,tar.gz}`，挂在**独立的 tag `gui-v<cliVer>`** 下
-（不是 CLI 的 `v<cliVer>`）：gitee 的 release API 不返回附件 id，**同名附件删不掉也换不了**；
-GUI 会频繁重发，单独一个 release 才能整体删掉重建。下载地址形如
-`https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.10.0/packnest-desktop_0.10.0_darwin_arm64.app.zip`。
+打包逻辑只有一处（`cmd/pk-desktop/packaging/build-macos.sh`）：图标（`sips`/`iconutil` → `icon.icns`）、
+`Info.plist` 版本注入、签名都在里面；`release-gui.sh` 只是循环两个架构 + 打 zip + 上传。
 
-分发前签名（可选）：`PK_SIGN_IDENTITY`（Developer ID Application: …）+ `PK_NOTARY_PROFILE`（notarytool profile），
-详见 `cmd/pk-desktop/README.md`；两者都不设就是 ad-hoc，用户首次启动需在「隐私与安全性」放行。
+### 签名与公证（分发必做）
 
-⚠️ gitee 的 release API 不返回附件 id，**已上传的同名附件删不掉**（只能在网页上删）；
-`release-gui.sh` 上传前会查同名并跳过，避免重复累积。
+```bash
+xcrun notarytool store-credentials notary        # 一次：填 Apple ID / 团队 / app 专用密码
+PK_SIGN_IDENTITY="Developer ID Application: 你的名字 (TEAMID)" \
+PK_NOTARY_PROFILE="notary" \
+sh cmd/pk-desktop/packaging/build-macos.sh 0.10.0 arm64
+```
+
+- 有 `PK_SIGN_IDENTITY` → 硬化运行时 + 时间戳签名；有 `PK_NOTARY_PROFILE` → `notarytool submit --wait` + `stapler staple`
+- 都不设 → ad-hoc（本机自用；别人首次打开要在「隐私与安全性」放行）
+
+### Windows / Linux
+
+由 `.github/workflows/gui-build.yml` 构建（Linux 需 GTK4 + WebKitGTK 6.0，Windows 需 WebView2 运行时），
+产物只进 workflow artifact，下载后用 `--from-dir` 上传。
+
+### 重发同一版本
+
+gitee 不允许替换同名附件，所以**先删 release 再重建**：
+
+```bash
+# 取 id：curl -s "https://gitee.com/api/v5/repos/<owner>/<repo>/releases/tags/gui-v0.10.0"
+curl -s -X DELETE "https://gitee.com/api/v5/repos/<owner>/<repo>/releases/<id>?access_token=$GITEE_TOKEN"
+gh release delete gui-v0.10.0 --repo nekoleamo/packnest --yes
+sh scripts/release-gui.sh --version 0.10.0             # 重建 + 上传
+```
 
 ## 六、官网
 

@@ -180,6 +180,7 @@ func (a *api) routes(token string) *http.ServeMux {
 	mux.HandleFunc("/api/tools", a.handleTools)
 	mux.HandleFunc("/api/doctor", a.handleDoctor)
 	mux.Handle("/api/mirrors", guard(token, http.HandlerFunc(a.handleMirrors)))
+	mux.Handle("/api/probe", guard(token, http.HandlerFunc(a.handleProbe)))
 	mux.Handle("/api/gc", guard(token, http.HandlerFunc(a.handleGC)))
 	mux.Handle("/api/install", guard(token, http.HandlerFunc(a.handleInstall))) // NDJSON 流：一行一个 CLI 事件
 	mux.Handle("/api/use", guard(token, http.HandlerFunc(a.handleUse)))
@@ -248,7 +249,8 @@ func (a *api) handleDoctor(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := timeout(r, 90*time.Second)
 	defer cancel()
-	issues, err := cl.Doctor(ctx, r.URL.Query().Get("globals") == "1")
+	q := r.URL.Query()
+	issues, err := cl.Doctor(ctx, q.Get("globals") == "1", q.Get("probe") == "1")
 	if err != nil {
 		httpErr(w, err)
 		return
@@ -282,6 +284,22 @@ func (a *api) handleMirrors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, m)
+}
+
+// handleProbe：并行探测镜像源（会发 HEAD 请求，慢，单独一个接口）。
+func (a *api) handleProbe(w http.ResponseWriter, r *http.Request) {
+	cl, ok := a.client(w)
+	if !ok {
+		return
+	}
+	ctx, cancel := timeout(r, 120*time.Second)
+	defer cancel()
+	rows, err := cl.Probe(ctx, r.URL.Query().Get("tool"))
+	if err != nil {
+		httpErr(w, err)
+		return
+	}
+	writeJSON(w, map[string]any{"results": rows})
 }
 
 func (a *api) handleGC(w http.ResponseWriter, r *http.Request) {
@@ -374,7 +392,7 @@ func (a *api) handleVersions(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := timeout(r, 120*time.Second)
 	defer cancel()
-	v, err := cl.ToolVersions(ctx, tool, 40)
+	v, err := cl.ToolVersions(ctx, tool, 40, r.URL.Query().Get("all") == "1")
 	if err != nil {
 		httpErr(w, err)
 		return

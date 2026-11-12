@@ -7,12 +7,12 @@
 
 | 界面 | 背后调用 |
 |---|---|
-| 已装工具列表 / 设为默认 / 卸载 | `pk list --json`、`pk use <tool>@<version> --json`、`pk uninstall <tool> --yes` |
-| 可装版本 / 版本选择 | `pk list --available --json`、`pk list <tool> --json` |
+| 已装工具列表 / 设为默认 / 卸载（含 `weak`/未校验/npm 徽标、复制安装路径） | `pk list --json`、`pk use …`、`pk uninstall … --yes` |
+| 可装版本 / 版本选择（全部版本 + 本地过滤） | `pk list --available --json`、`pk list <tool> --json [--all]` |
 | 安装 + 进度条 | `pk install <spec> --json`（NDJSON 流，`progress` 事件驱动进度条） |
-| 镜像档切换 | `pk mirror list --json`、`pk mirror use <name>` |
+| 镜像档切换 + **各源探测** | `pk mirror list --json`、`pk mirror use <name>`、`pk mirror probe --json`（延迟/可达性表格） |
 | 磁盘回收 | `pk gc --json`（GET = 预演，POST = 真删） |
-| 体检 | `pk doctor --json [--globals]` |
+| 体检（含"实测原生模块"= `--probe`） | `pk doctor --json [--globals] [--probe]` |
 
 ## 跑起来
 
