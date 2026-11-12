@@ -513,8 +513,10 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ### 接下来可做的（= 1.1 清单，明细见 `~/Documents/Plan/17-包管理器/pn-1.1-计划.md`）
 
-1. **多连接下载**：先做基准证明收益再实现（国内 CDN 分片实测往往更慢）；`--jobs` 已在 1.0.0 删除
-2. 卸载编排搬 `internal/install`（可选技术债）、GUI 差异页（`which`/`env`/`mirror write`）、3 项人工确认
+1. **多连接下载**：已测 ~1.3×（48MB 文件省约 0.3s），**暂不做**；要做就整块做（Range 分片 + 拼装 + 单流回退）
+2. **卸载编排搬 `internal/install`**（`PlanUninstallAll` / `ApplyUninstallAll`）：仍挂账的可选技术债，
+   纯测试便利、净 +30 行；做之前先跑 `make accept` 全套（破坏性路径）
+3. **3 项人工确认**：步骤与通过标准已写进 `docs/verify-manual.md`，等有对应硬件时按清单走一遍
 
 ### 1.1 已完成（2026-11-12，v1.1.0 已发）
 
