@@ -79,7 +79,7 @@ $PROFILE                    # which profile actually loads
 pk which node          # where the shim actually points
 pk list                # * marks the current global default
 pk use node@22.22.2    # switch (only between installed versions)
-pk env --shell bash    # inspect the PATH segments and registry variables
+pk env --shell bash    # inspect the five PATH segments and registry variables
 ```
 
 - `PATH_ORDER`: `~/.packnest/bin` must come **first** on PATH, otherwise the system Node or another
@@ -87,6 +87,32 @@ pk env --shell bash    # inspect the PATH segments and registry variables
 - `SHIM_MISSING`: any `pk install` / `pk use` recreates both `pk` and `packnest` entries.
 - Installed but `which` finds nothing: make sure `eval "$(pk env --shell bash)"` is active
   (`pk env --write` puts it into the managed rc block).
+
+## 2.5 External provider manifests are ignored
+
+```bash
+pk doctor --json | grep -A3 PROVIDER_     # which file, and why
+pk list --available                       # external tools are marked with *
+ls ~/.packnest/providers                  # filename must equal the id (zig.toml <-> id = "zig")
+```
+
+| code | common cause | fix |
+|---|---|---|
+| `PROVIDER_EXTERNAL_INVALID` | filename != `id` / URL not https without `PK_ALLOW_HTTP=1` / `layout.single` absolute or containing `..` / `index.kind = "pbs"` / unknown placeholder / file > 256KB | fix per the message; http sources let in by `PK_ALLOW_HTTP=1` can only reach `weak` |
+| `PROVIDER_EXTERNAL_CONFLICT` | duplicate id against the embedded set (or an earlier external file) | embedded always wins; pick a new id |
+| `PROVIDER_HTTP_URL` | http sources are in use (opted in) | prefer https; otherwise accept verification capped at `weak` |
+
+A broken external manifest **never** breaks `pk install node`: the file is skipped and recorded as an issue.
+`PK_PROVIDERS_DIR` is **additive** (multiple dirs via the path separator) and may not point at `http(s)://`.
+
+## 2.6 pnpm cannot be installed
+
+`pnpm` installs the registry **platform package** `@pnpm/exe.<os>-<arch>` (a real binary). Two known traps:
+
+- **`pk install pnpm@10` / `@9` returns 404**: platform packages start at `11.0.0-rc.3`. For older versions use
+  corepack (`pk install node@22 --corepack`, then `corepack prepare pnpm@10 --activate`) or `npm i -g pnpm@10`.
+- **Reinstalling the same version reports a digest mismatch**: if this machine installed that version the old
+  way (JS tarball), the TOFU table holds the old digest. Re-run with `pk install pnpm@<version> --force-rehash`.
 
 ## 3. The three global-package warnings
 
