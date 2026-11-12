@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/packnest/packnest/internal/fetch"
@@ -89,5 +90,23 @@ func TestFetchVerifiedTOFUSkipsNetwork(t *testing.T) {
 	}
 	if sha != digest || vr.Mode != "tofu" {
 		t.Fatalf("应走 TOFU: sha=%s mode=%s", sha, vr.Mode)
+	}
+}
+
+// TestCheckMinVersion：产物形态换了的老版本必须**在解析后立刻**报错并给建议，而不是撞产物 404。
+func TestCheckMinVersion(t *testing.T) {
+	p := &provider.Provider{ID: "pnpm", Artifact: provider.ArtifactBlock{MinVersion: "11.0.0"}}
+	err := checkMinVersion(p, "10.4.1")
+	if err == nil || !strings.Contains(err.Error(), "11.0.0") || !strings.Contains(err.Error(), "npm i -g pnpm@10.4.1") {
+		t.Fatalf("应报最低版本并给建议: %v", err)
+	}
+	if err := checkMinVersion(p, "11.0.0"); err != nil {
+		t.Fatalf("等于下限应放行: %v", err)
+	}
+	if err := checkMinVersion(p, "12.19.0"); err != nil {
+		t.Fatalf("高于下限应放行: %v", err)
+	}
+	if err := checkMinVersion(&provider.Provider{ID: "x"}, "1.0.0"); err != nil {
+		t.Fatalf("没声明下限就不管: %v", err)
 	}
 }

@@ -195,6 +195,9 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		}
 	}
 	version := resolved.Version
+	if err := checkMinVersion(p, version); err != nil {
+		return Result{}, err
+	}
 	i.emit(jsonout.Event{Ev: "resolve", Tool: tool, Version: version})
 
 	target := i.opt.Paths.ToolVersion(tool, version)
@@ -515,6 +518,23 @@ func (i *Installer) loadIndex(ctx context.Context, p *provider.Provider) (*provi
 		return nil, fmt.Errorf("%w: %v", ErrNetwork, err)
 	}
 	return idx, nil
+}
+
+// checkMinVersion 拦住"产物形态换了、老版本没有对应产物"的情况（pnpm 的平台包从 11 才有），
+// 给可执行建议而不是让用户去撞产物 404。
+func checkMinVersion(p *provider.Provider, version string) error {
+	if p.Artifact.MinVersion == "" {
+		return nil
+	}
+	v, err := spec.ParseVersion(version)
+	if err != nil {
+		return nil // 版本解析不了就交给后面的流程报错
+	}
+	if min, err := spec.ParseVersion(p.Artifact.MinVersion); err == nil && v.LessThan(min) {
+		return fmt.Errorf("%s 只支持 %s 及以上（产物地址换了形态）；更老的版本请用 corepack 或 `npm i -g %s@%s`",
+			p.ID, p.Artifact.MinVersion, p.ID, version)
+	}
+	return nil
 }
 
 func transportOf(p *provider.Provider) string {

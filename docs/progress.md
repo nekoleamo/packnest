@@ -553,8 +553,8 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 - **pnpm 已改成平台包**（2026-11-11）：产物换成 registry 上的 `@pnpm/exe.<os>-<arch>`（真二进制，~23MB），
   不再有"启动器首次运行自己下平台二进制"的第 4 个下载面；摘要在平台包自己的元数据里
   （`checksum.urls` 指向 `{registry}/@pnpm/exe.{platform}`，install 读它的 `dist.integrity`）。
-  ⚠️ 限制：`@pnpm/exe.*` 只从 **11.0.0-rc.3** 开始发布，所以 `pk install pnpm@10` 及更老会 404
-  （建议这类老版本用 corepack 或 `npm i -g pnpm@10`）。另：之前用 JS tarball 装过同一版本的机器，
+  ⚠️ 限制：`@pnpm/exe.*` 只从 **11.0.0-rc.3** 开始发布。清单里用 `min_version = "11.0.0"` 声明下限，
+  `pk install pnpm@10` 会在解析后**立刻报错并给建议**（corepack 或 `npm i -g pnpm@10`），不再去撞 404。另：之前用 JS tarball 装过同一版本的机器，
   TOFU 表里记的是旧摘要，重装会要求 `--force-rehash`（一次性）。
 - deno 这类「上游重新发布」的版本目前只能 `--insecure`；自动化需要「同源配对校验」（官方产物 + 官方校验和成对验证、标记 weak），属 v1.1。
 - L4 检测（`process.dlopen` 试加载全局包原生模块）未做：现在只用 `gypfile`/`.node` 文件与 `prebuilds/*napi*` 判断，

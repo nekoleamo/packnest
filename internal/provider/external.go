@@ -66,7 +66,12 @@ func loadExternal(dirs []string, embedded []*Provider) []*Provider {
 	for _, p := range embedded {
 		taken[p.ID] = true
 	}
-	out := make([]*Provider, 0, 4)
+	type pending struct {
+		path, dir string
+		p         *Provider
+	}
+	// 第一遍：解析 + 查重（不校验 companions —— 它可能指向还没加载的另一个外部文件）
+	var files []pending
 	for _, dir := range dirs {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
@@ -78,7 +83,7 @@ func loadExternal(dirs []string, embedded []*Provider) []*Provider {
 				continue
 			}
 			path := filepath.Join(dir, name)
-			p, msg := readExternal(path, name, taken)
+			p, msg := readExternal(path, name)
 			switch {
 			case msg == "" && taken[p.ID]:
 				issues = append(issues, Issue{IssueExternalConflict, path,
@@ -87,16 +92,25 @@ func loadExternal(dirs []string, embedded []*Provider) []*Provider {
 				issues = append(issues, Issue{IssueExternalInvalid, path, msg})
 			default:
 				taken[p.ID] = true
-				p.Source, p.Dir = SourceExternal, dir
-				out = append(out, p)
+				files = append(files, pending{path: path, dir: dir, p: p})
 			}
 		}
+	}
+	// 第二遍：此时 taken 含全部可用 id，再校验 companions 与安全边界
+	out := make([]*Provider, 0, len(files))
+	for _, f := range files {
+		if err := validateExternal(f.p, taken); err != nil {
+			issues = append(issues, Issue{IssueExternalInvalid, f.path, err.Error()})
+			continue
+		}
+		f.p.Source, f.p.Dir = SourceExternal, f.dir
+		out = append(out, f.p)
 	}
 	return out
 }
 
 // readExternal 读并校验一个外部清单；msg 非空表示不可用。
-func readExternal(path, name string, known map[string]bool) (*Provider, string) {
+func readExternal(path, name string) (*Provider, string) {
 	st, err := os.Stat(path)
 	if err != nil {
 		return nil, err.Error()
@@ -111,9 +125,6 @@ func readExternal(path, name string, known map[string]bool) (*Provider, string) 
 	p, err := Parse(data)
 	if err == nil && p.ID != strings.TrimSuffix(name, ".toml") {
 		err = fmt.Errorf("id = %q 与文件名不一致", p.ID)
-	}
-	if err == nil {
-		err = validateExternal(p, known)
 	}
 	if err != nil {
 		return nil, err.Error()

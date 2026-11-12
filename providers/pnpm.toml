@@ -14,6 +14,8 @@ cn      = "https://registry.npmmirror.com/pnpm"
 # 产物用"平台包" @pnpm/exe.<os>-<arch>（registry 上的真二进制，44MB）：
 # 老的 pnpm npm 包只有 3MB 启动器，首次运行才去下平台二进制 —— 那是下载面之外的第四个下载面，
 # 还绕开了 pk 的校验。平台包的本体版本号与 pnpm 严格同步（实测 12.18.0 两边一致）。
+# 平台包从 pnpm 11.0.0-rc.3 才开始发布：更老的版本直接报错（而不是撞 404）
+min_version = "11.0.0"
 [artifact.urls]
 default = "{registry}/@pnpm/exe.{platform}/-/exe.{platform}-{version}.tgz"
 [artifact.ext]

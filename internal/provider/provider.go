@@ -90,6 +90,9 @@ type ArtifactBlock struct {
 	Ext map[string]string `toml:"ext"`
 	// Platform 是 "<goos>-<goarch>" → 产物命名里的平台串。
 	Platform map[string]string `toml:"platform"`
+	// MinVersion 是最低可安装版本（产物地址换了形态时用，例如 pnpm 的平台包从 11 才有）。
+	// 低于它的版本在解析后立刻报错，给可执行建议，而不是让用户撞 404。
+	MinVersion string `toml:"min_version"`
 }
 
 // ChecksumBlock 描述校验和来源。校验源必须与产物源解耦（方案 §6.4）。

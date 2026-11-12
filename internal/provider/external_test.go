@@ -195,3 +195,49 @@ func TestExternalHTTPOptInMarkInsecure(t *testing.T) {
 		t.Fatal("http 源必须标记 InsecureTransport（校验强度要降级）")
 	}
 }
+
+// TestExternalCompanionForwardRef：外部清单的 [companions] 可以指向**后面才加载**的另一个外部清单
+// （两遍加载：先收集全部 id，再校验 companions）。
+func TestExternalCompanionForwardRef(t *testing.T) {
+	root := t.TempDir()
+	// aaa.toml 引用 zzz.toml 里定义的 npm 风格 provider（按文件名排序，zzz 在后）
+	writeManifest(t, root, "aaa.toml", `id = "aaa"
+display = "A"
+kind = "binary"
+[index]
+kind = "dirlist"
+[index.urls]
+default = "https://example.invalid/aaa/"
+[artifact]
+[artifact.urls]
+default = "https://example.invalid/aaa/{version}/aaa-{platform}.tar.gz"
+[artifact.ext]
+darwin = "tar.gz"
+linux = "tar.gz"
+windows = "tar.gz"
+[artifact.platform]
+darwin-arm64 = "darwin-arm64"
+linux-amd64 = "linux-amd64"
+windows-amd64 = "windows-amd64"
+[checksum]
+format = "gnu-sums"
+mode = "tofu-then-verify"
+[checksum.urls]
+default = "https://example.invalid/aaa/SHASUMS256.txt"
+[layout]
+bins = ["aaa"]
+[companions.web]
+mode = "pinned"
+registry = "zzz"
+target = "lib/web"
+`)
+	writeManifest(t, root, "zzz.toml", strings.ReplaceAll(strings.ReplaceAll(externalTOML("https://example.invalid"), `id = "demo"`, `id = "zzz"`), "demo", "zzz"))
+	useRoot(t, root)
+
+	if _, err := Get("aaa"); err != nil {
+		t.Fatalf("前向引用的 companions 不该被拒: %v", err)
+	}
+	for _, is := range ExternalIssues() {
+		t.Fatalf("不该有 issue: %+v", is)
+	}
+}

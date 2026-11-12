@@ -109,7 +109,7 @@ A broken external manifest **never** breaks `pk install node`: the file is skipp
 
 `pnpm` installs the registry **platform package** `@pnpm/exe.<os>-<arch>` (a real binary). Two known traps:
 
-- **`pk install pnpm@10` / `@9` returns 404**: platform packages start at `11.0.0-rc.3`. For older versions use
+- **`pk install pnpm@10` / `@9` fails fast** (rejected right after resolution, no 404 hunt): platform packages start at `11.0.0-rc.3`. For older versions use
   corepack (`pk install node@22 --corepack`, then `corepack prepare pnpm@10 --activate`) or `npm i -g pnpm@10`.
 - **Reinstalling the same version reports a digest mismatch**: if this machine installed that version the old
   way (JS tarball), the TOFU table holds the old digest. Re-run with `pk install pnpm@<version> --force-rehash`.
