@@ -4,42 +4,57 @@ package store
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
-	"time"
+	"syscall"
+	"unsafe"
 )
 
 // ErrLocked 表示等不到全局锁（退出码 5）。
 var ErrLocked = errors.New("另一个 pk 正在运行（state/lock 被占用）")
 
-// staleAfter 是锁文件被视为"断电残留"的阈值。
-const staleAfter = time.Hour
+// LockFileEx/UnlockFileEx 直接从 kernel32 取（std 的 syscall 没有绑定，引 x/sys 会多一个第三方依赖）。
+var (
+	kernel32        = syscall.NewLazyDLL("kernel32.dll")
+	procLockFileEx  = kernel32.NewProc("LockFileEx")
+	procUnlockFilex = kernel32.NewProc("UnlockFileEx")
+)
 
-// Lock 取全局锁：Windows 上没有 flock（syscall.LockFileEx 需要 x/sys），
-// 用 O_CREATE|O_EXCL 独占创建 + 1 小时残留清理实现。
+const (
+	lockfileExclusiveLock   = 0x00000002
+	lockfileFailImmediately = 0x00000001
+	// errLockViolation / errIOPending：std 的 syscall 未导出这两个常量（见 internal/syscall/windows）。
+	errLockViolation syscall.Errno = 33
+	errIOPending     syscall.Errno = 997
+)
+
+// Lock 取全局锁：Windows 上用 LockFileEx 做真内核锁（独占 + 拿不到立刻失败）。
 //
-// shortcut: 独占创建不是内核锁，极端并发下两个进程可能都拿到锁（窗口 <1 次 CreateFile）；
-// 天花板是单用户 CLI（安装低频），升级路径 = 引入 x/sys 调 LockFileEx（会加一个依赖，暂不做）。
+// 早先用 O_CREATE|O_EXCL + 1 小时残留清理，两个进程仍可能同时拿到（窗口 <1 次 CreateFile），
+// 而且超过 1 小时的下载会被后来者误判成残留、删掉活锁。锁文件本身留在磁盘上无害，无需清理。
 func Lock(path string) (func(), error) {
 	if dir := filepath.Dir(path); dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("创建锁目录失败: %w", err)
 		}
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
-		if st, statErr := os.Stat(path); statErr == nil && time.Since(st.ModTime()) > staleAfter {
-			_ = os.Remove(path)
-			f, err = os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
-		}
+		return nil, fmt.Errorf("打开锁文件失败: %w", err)
 	}
-	if err != nil {
-		if os.IsExist(err) {
+	ol := new(syscall.Overlapped) // 必须活到解锁：地址会被内核记住
+	r, _, errno := procLockFileEx.Call(f.Fd(),
+		lockfileExclusiveLock|lockfileFailImmediately, 0, 1, 0, uintptr(unsafe.Pointer(ol)))
+	if r == 0 {
+		f.Close()
+		if errno == errLockViolation || errno == errIOPending {
 			return nil, ErrLocked
 		}
-		return nil, err
+		return nil, fmt.Errorf("取全局锁失败: %w", errno)
 	}
-	_, _ = f.WriteString(time.Now().UTC().Format(time.RFC3339) + "\n")
-	_ = f.Close()
-	return func() { _ = os.Remove(path) }, nil
+	return func() {
+		_, _, _ = procUnlockFilex.Call(f.Fd(), 0, 1, 0, uintptr(unsafe.Pointer(ol)))
+		_ = f.Close()
+	}, nil
 }

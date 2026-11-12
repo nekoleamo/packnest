@@ -70,6 +70,8 @@ type Options struct {
 	RunCommand func(ctx context.Context, name string, args ...string) error
 	// CorepackBin 是 corepack 的 shim 目录；默认真实的 GlobalCorepackBin()（测试注入临时目录）。
 	CorepackBin string
+	// KeepVersions > 0 时，gc 对每个工具保留最新的 N 个版本（`pk gc --keep N`）。
+	KeepVersions int
 }
 
 // Result 是一次安装的结果。

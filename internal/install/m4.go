@@ -88,6 +88,8 @@ type GCResult struct {
 	CacheRemoved []string
 	// KeptRef 是因为仍有引用而保留的版本。
 	KeptRef []string
+	// KeptRecent 是因为 `--keep N` 而保留的版本。
+	KeptRecent []string
 	// FreedBytes 是释放的字节数。
 	FreedBytes int64
 	DryRun     bool
@@ -99,10 +101,16 @@ type GCResult struct {
 // 必须有 --force 才删，`gc` 永远只清"零引用"的。
 func (i *Installer) GC(ctx context.Context, cacheMax int64, dryRun, force bool) (GCResult, error) {
 	res := GCResult{DryRun: dryRun}
+	recent := i.keepRecentSet()
 
 	// 1. 零引用版本。
 	var keep []store.Install
 	for _, in := range i.ledger.Installs {
+		if recent[in.Tool+"@"+in.Version] {
+			res.KeptRecent = append(res.KeptRecent, in.Tool+"@"+in.Version)
+			keep = append(keep, in)
+			continue
+		}
 		if len(in.References) > 0 && !force {
 			for _, ref := range in.References {
 				res.KeptRef = append(res.KeptRef, fmt.Sprintf("%s@%s (%s)", in.Tool, in.Version, ref.Kind))
@@ -146,7 +154,32 @@ func (i *Installer) GC(ctx context.Context, cacheMax int64, dryRun, force bool) 
 	sort.Strings(res.Removed)
 	sort.Strings(res.CacheRemoved)
 	sort.Strings(res.KeptRef)
+	sort.Strings(res.KeptRecent)
 	return res, nil
+}
+
+// keepRecentSet 返回 `--keep N` 要保留的 "tool@version" 集合（每个工具的最新 N 个）。
+func (i *Installer) keepRecentSet() map[string]bool {
+	n := i.opt.KeepVersions
+	if n <= 0 {
+		return nil
+	}
+	byTool := map[string][]string{}
+	for _, in := range i.ledger.Installs {
+		byTool[in.Tool] = append(byTool[in.Tool], in.Version)
+	}
+	out := map[string]bool{}
+	for tool, versions := range byTool {
+		for _, v := range spec.SortDesc(versions) {
+			if n == 0 {
+				break
+			}
+			out[tool+"@"+v] = true
+			n--
+		}
+		n = i.opt.KeepVersions // 每个工具各自算
+	}
+	return out
 }
 
 // pruneEmptyDirs 自下而上删空目录（遇到非空立即停，绝不强删）。

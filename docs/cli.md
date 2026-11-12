@@ -146,7 +146,12 @@ pk install node@22 --quiet      # 只报错，不打印进度
 pk install node@22 --insecure   # 允许无校验安装（标 unverified，不写 TOFU 表）
 pk install node@22 --force-rehash   # 忽略本地 TOFU 记录，重新向校验源求值并覆盖（上游重发过时用）
 pk install node@22 --json       # NDJSON 事件流（GUI/脚本用）
+pk install node@22 --jobs 1     # 强制单流（默认是自适应分段；PK_JOBS=N 可改默认）
 ```
+
+**多连接默认开着（1.3 起）**：产物 ≥8MB、冷启动（没有 `.part` 续传现场）、源支持 `Range` 时，按大小自适应取 2~8 段
+（每段约 8MB）；`.part` 续传、不支持 `Range`、任一异常都整体退回单流。`--jobs 1` 可强制单流，
+`--jobs N` 固定段数，`PK_JOBS=N` 改默认值。
 
 ---
 
@@ -448,11 +453,13 @@ $ pk gc --dry-run
   pnpm@12.18.0 (global)
 
 $ pk gc                          # 真删零引用版本 + 把缓存压到 cache_max（默认 5GB，LRU）
+$ pk gc --keep 2                 # 每个工具保留最新 2 个版本（其余零引用的才回收）
 $ pk gc --cache-max 20G          # 临时放宽缓存上限
 $ pk gc --json
 ```
 
 - 只删台账里的记录；被引用的（全局默认 / 项目锁 / 工具依赖）一律保留
+- `--keep N` 按**语义化版本**排序保留（不是字符串比较：`20.10.0` 比 `20.9.0` 新）
 - 缓存按最近使用时间（`state/cache.json`）淘汰
 - 启动时还会自动清扫崩溃残留（`*.tmp.*` / `*.old` / `*.part`，只清 24h 以上的）
 

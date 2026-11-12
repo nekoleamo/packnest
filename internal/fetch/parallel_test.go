@@ -121,9 +121,9 @@ func TestParallelSkipsWhenResuming(t *testing.T) {
 	}
 }
 
-// TestJobsFromEnv：PK_JOBS 只认 >1 的整数（其它值一律当 1，别让拼错的变量把下载切成奇怪段数）。
+// TestJobsFromEnv：PK_JOBS 只认 >0 的整数；没设/非法值返回 0（自适应），显式 1 才是单流。
 func TestJobsFromEnv(t *testing.T) {
-	cases := map[string]int{"": 1, "4": 4, "1": 1, "0": 1, "-3": 1, "abc": 1, " 8 ": 8}
+	cases := map[string]int{"": 0, "4": 4, "1": 1, "0": 0, "-3": 0, "abc": 0, " 8 ": 8}
 	for val, want := range cases {
 		got := JobsFromEnv(func(string) string { return val })
 		if got != want {

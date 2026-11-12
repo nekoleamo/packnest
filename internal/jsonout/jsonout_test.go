@@ -43,6 +43,7 @@ func TestListGolden(t *testing.T) {
 			NPM: &ToolNPM{Version: "12.2.2", Replaced: "11.20.0"}, Requires: []string{}},
 		{Name: "pnpm", Version: "10.4.1", Active: false, Requires: []string{"node"}},
 	})
+	out.Outdated = []OutdatedEntry{{Name: "node", Installed: "26.13.0", Latest: "26.14.0", Advice: "pk install node@latest"}}
 	checkGolden(t, "list.golden.json", out)
 }
 
@@ -52,6 +53,7 @@ func TestDoctorGolden(t *testing.T) {
 			Detail: map[string]any{"pkg": "vite", "needs": "^24", "have": "22.22.2"}},
 		{Code: "PATH_ORDER", Severity: SeverityErr, Message: "bin 目录不在 PATH 最前"},
 	})
+	out.Fixed = []string{"重写 shell 的 PATH 托管块（`pk env --write`，幂等）"}
 	checkGolden(t, "doctor.golden.json", out)
 }
 

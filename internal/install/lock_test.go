@@ -423,3 +423,31 @@ func TestSaveProjectTool(t *testing.T) {
 		t.Fatalf("[tools] 段未追加:\n%s", raw)
 	}
 }
+
+// TestGCKeepRecent：`--keep N` 按语义化版本（不是字符串）保留每个工具最新的 N 个，更旧的零引用版本才回收。
+func TestGCKeepRecent(t *testing.T) {
+	inst := newInstaller(t, nil, func(o *Options) { o.KeepVersions = 2 })
+	ctx := context.Background()
+	// 直接造台账（零引用）：20.9.0 与 20.10.0 是"字符串比较会排错"的一组
+	for _, v := range []string{"20.9.0", "20.10.0", "20.11.0"} {
+		dir := inst.opt.Paths.ToolVersion("node", v)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		inst.ledger.Upsert(store.Install{Tool: "node", Version: v, Path: dir})
+	}
+
+	res, err := inst.GC(ctx, 1<<40, false, false)
+	if err != nil {
+		t.Fatalf("GC: %v", err)
+	}
+	if len(res.Removed) != 1 || res.Removed[0] != "node@20.9.0" {
+		t.Fatalf("--keep 2 应只回收最旧的 20.9.0: %v", res.Removed)
+	}
+	if len(res.KeptRecent) != 2 {
+		t.Fatalf("应报告两个被 --keep 保留的版本: %v", res.KeptRecent)
+	}
+	if inst.ledger.Find("node", "20.10.0") == nil || inst.ledger.Find("node", "20.11.0") == nil {
+		t.Fatalf("台账不该丢被保留的版本: %+v", inst.ledger.Installs)
+	}
+}

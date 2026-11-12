@@ -118,6 +118,7 @@ func (a *app) cmdGC(args []string) int {
 	fs := a.newFlagSet("gc")
 	dryRun := fs.Bool("dry-run", false, "只报告不删除")
 	cacheMax := fs.String("cache-max", "", "覆盖产物缓存上限（如 20G）")
+	keepN := fs.Int("keep", 0, "每个工具保留最新的 N 个版本（默认不保留，只清零引用）")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -145,7 +146,7 @@ func (a *app) cmdGC(args []string) int {
 
 	inst, err := install.New(install.Options{
 		Paths: a.paths, Client: a.client, Cfg: a.cfg, Profile: a.cfg.Mirror,
-		Offline: a.offline, GOOS: runtime.GOOS, GOARCH: runtime.GOARCH,
+		Offline: a.offline, GOOS: runtime.GOOS, GOARCH: runtime.GOARCH, KeepVersions: *keepN,
 	})
 	if err != nil {
 		return a.failWith(err)
@@ -165,7 +166,8 @@ func (a *app) cmdGC(args []string) int {
 			Schema int `json:"schema"`
 			install.GCResult
 			CacheMax int64 `json:"cache_max_bytes"`
-		}{Schema: jsonout.SchemaVersion, GCResult: res, CacheMax: limit})
+			Keep     int   `json:"keep,omitempty"`
+		}{Schema: jsonout.SchemaVersion, GCResult: res, CacheMax: limit, Keep: *keepN})
 	}
 	mode := "已回收"
 	if *dryRun {
@@ -178,6 +180,9 @@ func (a *app) cmdGC(args []string) int {
 	}
 	for _, path := range res.CacheRemoved {
 		fmt.Fprintf(a.out, "  缓存 %s\n", path)
+	}
+	if len(res.KeptRecent) > 0 {
+		fmt.Fprintf(a.out, "保留（--keep %d 的新版本）：%d 个\n", *keepN, len(res.KeptRecent))
 	}
 	if len(res.KeptRef) > 0 {
 		fmt.Fprintf(a.out, "保留（仍被引用）：%d 项\n", len(res.KeptRef))

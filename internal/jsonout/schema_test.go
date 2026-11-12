@@ -34,6 +34,7 @@ func TestContractGCJSON(t *testing.T) {
 		Removed      []string `json:"Removed"`
 		CacheRemoved []string `json:"CacheRemoved"`
 		KeptRef      []string `json:"KeptRef"`
+		KeptRecent   []string `json:"KeptRecent,omitempty"`
 		FreedBytes   int64    `json:"FreedBytes"`
 		DryRun       bool     `json:"DryRun"`
 	}
@@ -41,10 +42,12 @@ func TestContractGCJSON(t *testing.T) {
 		Schema int `json:"schema"`
 		gcResult
 		CacheMax int64 `json:"cache_max_bytes"`
+		Keep     int   `json:"keep,omitempty"`
 	}{
 		Schema:   SchemaVersion,
-		gcResult: gcResult{Removed: []string{"node@20.18.1"}, CacheRemoved: []string{"/u/.packnest/cache/archives/bun-1.0.0.tar.gz"}, KeptRef: []string{}, FreedBytes: 1048576, DryRun: false},
+		gcResult: gcResult{Removed: []string{"node@20.18.1"}, CacheRemoved: []string{"/u/.packnest/cache/archives/bun-1.0.0.tar.gz"}, KeptRef: []string{}, KeptRecent: []string{"node@22.23.4"}, FreedBytes: 1048576, DryRun: false},
 		CacheMax: 5368709120,
+		Keep:     2,
 	})
 }
 

@@ -54,9 +54,19 @@ type ToolEntry struct {
 }
 
 // ListOutput 是 `pk list --json` 的输出。
+// Outdated 是“有新版可装”的提示：只读索引缓存（不联网），没缓存就没提示。
 type ListOutput struct {
-	Schema int         `json:"schema"`
-	Tools  []ToolEntry `json:"tools"`
+	Schema   int             `json:"schema"`
+	Tools    []ToolEntry     `json:"tools"`
+	Outdated []OutdatedEntry `json:"outdated,omitempty"`
+}
+
+// OutdatedEntry 是一条可升级提示（Installed/Latest 都是实际版本号，不用大版本号比较）。
+type OutdatedEntry struct {
+	Name      string `json:"name"`
+	Installed string `json:"installed"`
+	Latest    string `json:"latest"`
+	Advice    string `json:"advice,omitempty"`
 }
 
 // Issue 是 `pk doctor --json` 的一条问题。
@@ -67,11 +77,12 @@ type Issue struct {
 	Detail   map[string]any `json:"detail,omitempty"`
 }
 
-// DoctorOutput 是 `pk doctor --json` 的输出。
+// DoctorOutput 是 `pk doctor --json` 的输出（Fixed = `--fix` 实际做过的动作）。
 type DoctorOutput struct {
-	Schema int     `json:"schema"`
-	OK     bool    `json:"ok"`
-	Issues []Issue `json:"issues"`
+	Schema int      `json:"schema"`
+	OK     bool     `json:"ok"`
+	Issues []Issue  `json:"issues"`
+	Fixed  []string `json:"fixed,omitempty"`
 }
 
 // Event 是 `pk install --json` 的 NDJSON 事件。

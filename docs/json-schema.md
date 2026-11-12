@@ -17,12 +17,12 @@
 
 | 命令 | 形状 | 稳定字段 |
 |---|---|---|
-| `pk list --json` | `list.golden.json` | `tools[].{name,version,active,path,npm{version,replaced},requires,verified,size_bytes,source}`；`source ∈ embedded/external`（`omitempty`，老客户端忽略即可） |
+| `pk list --json` | `list.golden.json` | `tools[].{name,version,active,path,npm{version,replaced},requires,verified,size_bytes,source}`；`source ∈ embedded/external`（`omitempty`）；`outdated[].{name,installed,latest,advice}`（1.3 新增，只读索引缓存，没缓存就省略） |
 | `pk list --available --json` | 内联结构 | `mirror`、`available[].{name,latest,lts,recent,requires,stale,source,error}`（与 `tools` 同时给） |
-| `pk doctor --json` | `doctor.golden.json` | `ok`、`issues[].{code,severity,message,detail}`；`severity ∈ info/warn/error` |
+| `pk doctor --json` | `doctor.golden.json` | `ok`、`issues[].{code,severity,message,detail}`；`severity ∈ info/warn/error`；`fixed[]`（1.3 新增，`--fix` 实际做过的动作，`omitempty`） |
 | `pk version --json` | `version.golden.json` | `name,version,go,os,arch` |
 | `pk which --json` | `which.golden.json` | `name,path,shim` |
-| `pk gc --json` | `gc.golden.json` | `Removed,CacheRemoved,KeptRef,FreedBytes,DryRun,cache_max_bytes` |
+| `pk gc --json` | `gc.golden.json` | `Removed,CacheRemoved,KeptRef,KeptRecent,FreedBytes,DryRun,cache_max_bytes,keep`（`KeptRecent`/`keep` 是 1.3 的 `--keep N`，`omitempty`） |
 | `pk use --json` | 内联结构 | `tool,version,config` |
 | `pk mirror list --json` | 内联结构 | `current`、`mirrors[].{name,display,registry,current}` |
 | `pk mirror probe --json` | 内联结构 | `results[].{url,ok,status,latency_ms,checked_at,err}` |

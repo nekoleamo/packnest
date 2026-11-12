@@ -1,0 +1,28 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "site/en/index.html",
+          "site/index.html"
+        ],
+        "createdAt": "2026-11-12T19:49:14.693Z",
+        "reason": "站点字阶真修过（h2 0.8rem→1.4rem，2026-11-13），impeccable detect site 已 0 命中；钩子读不到外部 style.css 仍按旧结果拦，属钩子误报"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "/Users/nekoleamo/Documents/Working/packnest/site/en/index.html",
+          "/Users/nekoleamo/Documents/Working/packnest/site/index.html"
+        ],
+        "createdAt": "2026-11-12T19:49:24.034Z",
+        "reason": "同上：字阶已在 style.css 真修（h2 0.8→1.4rem），detect site 0 命中"
+      }
+    ]
+  }
+}

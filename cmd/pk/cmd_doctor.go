@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"io"
+
 	"github.com/packnest/packnest/internal/env"
 	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/jsonout"
@@ -22,6 +24,7 @@ func (a *app) cmdDoctor(args []string) int {
 	globals := fs.Bool("globals", false, "检查全局包（engines / 原生 ABI / 命令遮蔽）")
 	foreign := fs.Bool("foreign", false, "检测其他管理器（proto/nvm/volta/asdf/mise/fnm 等）并列版本")
 	probe := fs.Bool("probe", false, "探测镜像可达性；配合 --globals 还会用 node 实测 dlopen 原生模块")
+	fix := fs.Bool("fix", false, "自动修可自动修的问题（PATH 托管块、pk/packnest 入口），并打印做了什么")
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -250,6 +253,9 @@ func (a *app) cmdDoctor(args []string) int {
 	}
 
 	out := jsonout.NewDoctor(issues)
+	if *fix {
+		out.Fixed = a.fixIssues(issues)
+	}
 	if a.json {
 		if err := jsonout.WriteJSON(a.out, out); err != nil {
 			return a.fail(err)
@@ -261,11 +267,52 @@ func (a *app) cmdDoctor(args []string) int {
 		for _, is := range issues {
 			fmt.Fprintf(a.out, "  [%-5s] %-22s %s\n", is.Severity, is.Code, is.Message)
 		}
+		if *fix {
+			if len(out.Fixed) == 0 {
+				fmt.Fprintln(a.out, "没有可自动修的问题（其余项需要人工处理）")
+			}
+			for _, line := range out.Fixed {
+				fmt.Fprintf(a.out, "  已修 %s\n", line)
+			}
+			fmt.Fprintln(a.out, "重跑 `pk doctor` 复核；新开窗口后 PATH 生效")
+		}
 	}
 	if !out.OK {
 		return jsonout.ExitFail
 	}
 	return jsonout.ExitOK
+}
+
+// fixIssues 只修能安全自愈的两类：PATH 托管块（复用 `pk env --write`）与 pk/packnest 入口。
+// 其余问题（锁、镜像不可达、台账损坏等）绝不自动改。
+func (a *app) fixIssues(issues []jsonout.Issue) []string {
+	needPath, needShim, done := false, false, []string{}
+	for _, is := range issues {
+		switch is.Code {
+		case "PATH_ORDER", "PATH_MISSING":
+			needPath = true
+		case "SHIM_MISSING", "SHIM_BROKEN", "SHIM_ALIAS_MISMATCH":
+			needShim = true
+		}
+	}
+	if needShim {
+		if err := a.ensureSelfShims(); err != nil {
+			done = append(done, "重建 pk/packnest 入口失败: "+err.Error())
+		} else {
+			done = append(done, "重建 pk/packnest 入口（指向当前二进制）")
+		}
+	}
+	if needPath {
+		// cmdEnv 会往 a.out 写人看的文案（--json 时还会写 JSON）：调到静默呈再调，避免污染 doctor 输出。
+		out, j := a.out, a.json
+		a.out, a.json = io.Discard, false
+		code := a.cmdEnv([]string{"--write"})
+		a.out, a.json = out, j
+		if code == jsonout.ExitOK {
+			done = append(done, "重写 shell 的 PATH 托管块（`pk env --write`，幂等）")
+		}
+	}
+	return done
 }
 
 type globalPrefix struct {

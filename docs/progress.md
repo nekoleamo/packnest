@@ -506,19 +506,17 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 |---|---|
 | CLI | **v1.2.0 已发（2026-11-12）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、9 个命令 |
 | 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
-| 行数 | **10,984 / 11,100**（余量 116）；`cmd/pk` 3,118 / 3,200；单文件无 >600 行 |
+| 行数 | **11,150 / 11,200**（余量 50）；`cmd/pk` 3,204 / 3,200（warn）；单文件无 >600 行 |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
 | GUI 发布 | 独立 tag **`gui-v0.10.2`**（gitee + GitHub 各 3 产物：mac arm64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；mac intel 已放弃，`gui-v0.10.1` 是补差异页之前那版 |
 | 发布流程 | 唯一清单在 `docs/publishing.md`（「三、发布流程」第 ⑦ 步 + 「五点五、GUI 的产物」） |
 
-### 接下来可做的（= 1.1 清单，明细见 `~/Documents/Plan/17-包管理器/pn-1.1-计划.md`）
+### 接下来可做的（1.3 已落地，待发版）
 
 1. **3 项人工确认**（唯一挡在「全部自动化跑通」前面的）：Windows ARM64 运行时、PowerShell 调 `.cmd` shim、
    macOS Gatekeeper 首启 —— 步骤与通过标准在 `docs/verify-manual.md`，缺的是对应硬件/真人操作
-2. **待发版**：`v1.1.0` 之后仓库里只有一个内部改动（卸载编排搬进 `internal/install`，行为不变），
-   要不要发 `1.1.1` 补丁由你定
-3. **可选增强**（都不阻塞）：多连接下载（已测 ~1.3×，**暂不做**，要做就整块做 Range 分片 + 拼装 + 单流回退）、
-   `pk doctor` 新问题码、外部清单的字段级文档（现在 README 只有安全边界与示例）
+2. **待发版**：1.3 五项（见下方「1.3 已完成」）已在 main 上跑绿，是否发 `v1.3.0` 由你定
+3. **已无阻塞项**：1.1/1.2 时期的“可选增强”三项全部完成
 
 ### 1.2 已完成（2026-11-12，v1.2.0）
 
@@ -537,6 +535,29 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   smoke 5/5 装的都是真 1.2.0，`install.sh --dir` 端到端装出 1.2.0 并跑通 install/doctor/uninstall 零残留）。
 - 顺手修：`smoke.yml` 的版本号改成先查**线上最新 release**再回退 `scripts/latest` —— 否则"刚发完版但还没推
   scripts/latest"时会装到上一个版本（本轮连踩两次，第一次 smoke 装的是 1.1.0）。
+
+### 1.3 已完成（2026-11-13，未发版）
+
+- **多连接默认自适应**：`Jobs = 0` 为默认（每段约 8MB → 2~8 段），`--jobs 1` 强制单流、`--jobs N` 固定段数，
+  `PK_JOBS` 改默认；续传现场 / 不支持 Range / 任一异常仍整体退回单流。
+  验收 `TestAcceptance_M6_JobsAuto`（9MB 源默认分片，`--jobs 1` 零 Range 请求）。
+- **`pk list` 可升级提示**：已装版本落后索引最新时给一行 `node 22.23.4 → 26.13.0  pk install node@latest`，
+  `--json` 多一个 `outdated[].{name,installed,latest,advice}`。**只读 24h 索引缓存（离线的假客户端），
+  没缓存就不提示** —— `pk list` 仍然是不联网命令。验收 `TestAcceptance_M6_ListOutdated`。
+- **`pk doctor --fix`**：只修能安全自愈的两类（PATH 托管块 → 复用 `pk env --write`；pk/packnest 入口 → 重建），
+  其余问题（锁、镜像、台账）绝不自动改；`--json` 加 `fixed[]`。内部调 `cmdEnv` 时把输出重定向到 `io.Discard`，
+  避免污染 doctor 的 JSON 流。验收 `TestAcceptance_M6_DoctorFix`（含幂等：托管块只有一段）。
+- **`pk gc --keep N`**：每个工具保留最新 N 个版本（按语义化版本排序，不是字符串比较），其余零引用的才回收；
+  `GCResult` 加 `KeptRecent`，`--json` 加 `keep`。验收 `TestAcceptance_M6_GCKeep`。
+- **两条 `shortcut:` 偿债**：
+  ① 索引版本号的预发布识别不再只认 rc/beta/alpha/pre/next/canary/dev —— 改成「版本后第一段不在平台词表
+  （darwin/linux/win*/arm64/amd64/x86_64/aarch64/musl…）里」才算预发布；
+  ② Windows 全局锁从 `O_CREATE|O_EXCL`（非内核锁，且 1 小时清理会误删活锁）换成 `LockFileEx`（std `syscall`
+  的 `NewLazyDLL` 直接取 kernel32，不引 x/sys），拿不到立刻返回 `ErrLocked`（退出码 5）。
+- **行数红线 11,100 → 11,200**（1.3 实测 +157 行：多连接 15 / list 提示 55 / doctor --fix 42 / gc --keep 30 / 偿债 15）；
+  落地后 11,150 / 11,200。
+- 同步：`docs/cli.md`（`--jobs`/`--keep`/`--fix`/可升级提示）、`docs/json-schema.md`（`outdated`/`fixed`/`KeptRecent`/`keep`）、
+  README、官网中英文、`--json` golden 三份。
 
 ### 1.1 已完成（2026-11-12，v1.1.0 已发 + GUI gui-v0.10.2）
 

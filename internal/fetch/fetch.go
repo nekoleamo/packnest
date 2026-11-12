@@ -68,7 +68,8 @@ type Client struct {
 	Now func() time.Time
 	// IndexTimeout 是单次索引拉取的总超时；<=0 用 DefaultIndexTimeout。
 	IndexTimeout time.Duration
-	// Jobs 是多连接下载的并发段数（`pk install --jobs N` / PK_JOBS）；<=1 走单流。
+	// Jobs 是多连接下载的并发段数（`pk install --jobs N` / PK_JOBS）：
+	// 0 = 自适应（按产物大小取 2~8 段，默认）、1 = 强制单流、>1 = 固定段数。
 	// 只在冷启动（没有 .part 续传现场）、服务器支持 Range、产物 ≥8MB 时生效。
 	Jobs int
 }
@@ -321,7 +322,7 @@ func (c *Client) Download(ctx context.Context, url, dst string) (int64, error) {
 	metaPath := partPath + ".meta"
 
 	// 冷启动（没有续传现场）才试多连接：并行拿不到就静默回落到下面的单流路径。
-	if c.Jobs > 1 {
+	if c.Jobs != 1 {
 		if _, err := os.Stat(partPath); os.IsNotExist(err) {
 			if n, ok, _ := c.parallelDownload(ctx, url, dst); ok {
 				return n, nil

@@ -34,6 +34,9 @@ func (c *Client) parallelDownload(ctx context.Context, url, dst string) (int64, 
 		return 0, false, nil
 	}
 	n := c.Jobs
+	if n <= 0 { // 自适应：每段约 8MB，2~8 段（48MB 包取 4~6 段是最优区）
+		n = min(max(int(size/parallelMinBytes), 2), 8)
+	}
 	if maxN := int(size / shardMinBytes); n > maxN {
 		n = maxN
 	}
@@ -234,12 +237,12 @@ func concatFiles(dst string, parts []string) error {
 	return nil
 }
 
-// JobsFromEnv 读 PK_JOBS 作为默认并发段数（`--jobs` 会覆盖它）。
+// JobsFromEnv 读 PK_JOBS 作为默认并发段数（`--jobs` 会覆盖它）；没设时返回 0 = 自适应。
 func JobsFromEnv(getenv func(string) string) int {
 	if v := strings.TrimSpace(getenv("PK_JOBS")); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 1 {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			return n
 		}
 	}
-	return 1
+	return 0
 }

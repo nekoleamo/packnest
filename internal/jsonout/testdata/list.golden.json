@@ -20,5 +20,13 @@
         "node"
       ]
     }
+  ],
+  "outdated": [
+    {
+      "name": "node",
+      "installed": "26.13.0",
+      "latest": "26.14.0",
+      "advice": "pk install node@latest"
+    }
   ]
 }

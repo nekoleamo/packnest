@@ -7,7 +7,11 @@
     "/u/.packnest/cache/archives/bun-1.0.0.tar.gz"
   ],
   "KeptRef": [],
+  "KeptRecent": [
+    "node@22.23.4"
+  ],
   "FreedBytes": 1048576,
   "DryRun": false,
-  "cache_max_bytes": 5368709120
+  "cache_max_bytes": 5368709120,
+  "keep": 2
 }

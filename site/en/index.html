@@ -110,7 +110,7 @@
     <dt>Long tail</dt>
     <dd>Six providers are embedded; everything else comes from your own TOML manifest (<code>~/.packnest/providers/&lt;id&gt;.toml</code>) — index, artifact, checksums, layout and companion packages are declarative data, no code executed. Field reference: <a href="https://github.com/nekoleamo/packnest/blob/main/docs/providers.md">docs/providers.md</a>.</dd>
     <dt>Downloads</dt>
-    <dd>Range resume, single stream by default; <code>--jobs N</code> shards the download (needs ≥8MB and Range support, falls back to one stream on any trouble). Measured on a 48MB node tarball: 1.46s → 0.84s with 8 shards.</dd>
+    <dd>Range resume plus <b>parallel sharding by default</b> (≥8MB, cold start, Range-capable source; 2–8 shards picked by size, any trouble falls back to one stream; <code>--jobs 1</code> forces a single stream). Measured on a 48MB node tarball: 1.46s → 0.84s with 8 shards.</dd>
     <dt>Footprint</dt>
     <dd>One Go binary with <code>CGO_ENABLED=0</code>, built for six targets, depending on exactly two third-party libraries (semver, toml).</dd>
   </dl>
@@ -139,12 +139,12 @@
       <tr><td>install</td><td>installs a tool; with no argument installs everything in the local <code>pk.toml</code> and refreshes <code>pk.lock</code></td></tr>
       <tr><td>uninstall</td><td><code>tool@version</code> one; <code>tool</code> every version (lists them, then asks); <code>--all</code> everything (<code>--purge</code> the root, <code>--self</code> the binary)</td></tr>
       <tr><td>use</td><td>switches the global default; <code>--project</code> pins it for the current project</td></tr>
-      <tr><td>list</td><td>installed tools with disk usage; <code>pk list node</code> browses every installable version (<code>--major 22</code> / <code>--all</code>)</td></tr>
+      <tr><td>list</td><td>installed tools with disk usage, plus an upgrade hint when a newer release exists (from the index cache, never networked); <code>pk list node</code> browses every installable version (<code>--major 22</code> / <code>--all</code>)</td></tr>
       <tr><td>which</td><td>resolves a shim back to the real binary path</td></tr>
       <tr><td>mirror</td><td>four subcommands — <code>list</code> / <code>probe</code> / <code>use</code> / <code>write</code> — manage mirror profiles</td></tr>
-      <tr><td>doctor</td><td>checks PATH, ledger, mirrors, global packages and other version managers</td></tr>
+      <tr><td>doctor</td><td>checks PATH, ledger, mirrors, global packages and other version managers; <code>--fix</code> repairs the PATH managed block and the pk/packnest entries</td></tr>
       <tr><td>env</td><td>prints a shell snippet; <code>--write</code> updates the managed block (on Windows the user Path registry value, immune to ExecutionPolicy)</td></tr>
-      <tr><td>gc</td><td>reclaims unreferenced versions and over-limit cache</td></tr>
+      <tr><td>gc</td><td>reclaims unreferenced versions and over-limit cache; <code>--keep 2</code> keeps the newest two per tool</td></tr>
     </tbody>
   </table>
   <p class="after">Global flags: <code>--json</code> (the only contract for GUIs and scripts) · <code>--offline</code> · <code>--yes</code> · <code>--root</code>. Fixed exit codes: 0 ok / 1 generic / 2 usage / 3 network / 4 checksum / 5 locked.</p>

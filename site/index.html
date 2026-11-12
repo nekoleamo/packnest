@@ -109,7 +109,7 @@
     <dt>长尾工具</dt>
     <dd>内嵌 6 个 provider，其余靠 <b>自写 TOML 清单</b>（<code>~/.packnest/providers/&lt;id&gt;.toml</code>）：索引、产物、校验、布局、伴生包全在清单里声明，纯数据不执行代码；字段见 <a href="https://github.com/nekoleamo/packnest/blob/main/docs/providers.md">docs/providers.md</a>。</dd>
     <dt>下载</dt>
-    <dd>Range 续传 + 单流默认；<code>--jobs N</code> 开多连接分片（≥8MB、源支持 Range 才生效，异常自动退回单流）。实测 48MB 的 node 包：单流 1.46s → 8 段 0.84s。</dd>
+    <dd>Range 续传 + <b>默认多连接</b>（≥8MB、冷启动、源支持 Range 时按大小自适应 2~8 段，异常自动退回单流；<code>--jobs 1</code> 可强制单流）。实测 48MB 的 node 包：单流 1.46s → 8 段 0.84s。</dd>
     <dt>体积</dt>
     <dd>单个 Go 二进制，<code>CGO_ENABLED=0</code>，六平台构建，只依赖两个第三方库（semver、toml）。</dd>
   </dl>
@@ -138,12 +138,12 @@
       <tr><td>install</td><td>装工具；无参数时按当前目录的 <code>pk.toml</code> 全装并刷新 <code>pk.lock</code></td></tr>
       <tr><td>uninstall</td><td><code>工具@版本</code> 删一个；<code>工具</code> 删该工具全部版本（先列版本再确认）；<code>--all</code> 清掉一切（<code>--purge</code> 连根删、<code>--self</code> 连自己）</td></tr>
       <tr><td>use</td><td>切换全局默认版本；<code>--project</code> 固定到当前项目</td></tr>
-      <tr><td>list</td><td>已装工具与占用空间；<code>pk list node</code> 看单个工具的全部可装版本（<code>--major 22</code> / <code>--all</code>）</td></tr>
+      <tr><td>list</td><td>已装工具与占用空间，版本落后时提示可升级（只读索引缓存、不联网）；<code>pk list node</code> 看单个工具的全部可装版本（<code>--major 22</code> / <code>--all</code>）</td></tr>
       <tr><td>which</td><td>把 shim 解析回真实二进制路径</td></tr>
       <tr><td>mirror</td><td><code>list</code> / <code>probe</code> / <code>use</code> / <code>write</code> 四个子命令管理镜像档</td></tr>
-      <tr><td>doctor</td><td>体检 PATH、台账、镜像、全局包、其他版本管理器</td></tr>
+      <tr><td>doctor</td><td>体检 PATH、台账、镜像、全局包、其他版本管理器；<code>--fix</code> 自动修 PATH 托管块与 pk/packnest 入口</td></tr>
       <tr><td>env</td><td>输出 shell 片段；<code>--write</code> 写进托管块（Windows 走注册表用户 Path，不受执行策略限制）</td></tr>
-      <tr><td>gc</td><td>回收零引用版本与超限缓存</td></tr>
+      <tr><td>gc</td><td>回收零引用版本与超限缓存；<code>--keep 2</code> 每个工具保留最新 2 个</td></tr>
     </tbody>
   </table>
   <p class="after">全局开关 <code>--json</code>（GUI 与脚本的唯一契约）· <code>--offline</code> · <code>--yes</code> · <code>--root</code>；退出码固定 0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用。</p>

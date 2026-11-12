@@ -63,7 +63,16 @@ pk use node@22.23.4         # 切换全局默认版本
 pk use node@22.22.2 --project   # 固定到当前项目（写 pk.toml + pk.lock，不动全局）
 pk env --shell zsh          # 输出 PATH/registry 片段；--write 写进 rc 托管块
 pk doctor                   # 环境体检（PATH / 台账 / 镜像 / 全局包 / 其他管理器）
+pk doctor --fix             # 顺手修能自动修的两类：PATH 托管块、pk/packnest 入口（其余只报不改）
 pk gc --dry-run             # 零引用版本与超限缓存的回收预演
+pk gc --keep 2              # 每个工具保留最新 2 个版本，其余零引用的才回收
+```
+
+`pk list` 已装版本落后索引最新时会多一段可升级提示（只读 24h 索引缓存、不联网）：
+
+```bash
+可升级（索引缓存；详情 `pk list --available`）:
+  node   22.23.4 → 26.13.0   pk install node@latest
 ```
 
 命令面固定 9 个：`install` · `uninstall`（`<工具>[@<版本>]` / `--all`）· `use` · `list`（`[工具]` / `--available`）·
@@ -120,8 +129,9 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式，不�
 ## 下载与校验
 
 - 下载：Range 续传（`.part` + `.part.meta`）、ETag/304、超时分档（连接 5s / 首字节 8s）、单源最多重试 2 次；
-  **默认单流**，`--jobs N`（或 `PK_JOBS=N`）开多连接分片：只在「冷启动 + 源支持 Range + 产物 ≥8MB」时生效，
-  任何异常自动退回单流。实测（npmmirror 48MB node 包）单流 1.46s → 8 段 0.84s（≈1.7×）；
+  **多连接默认开着**：产物 ≥8MB、冷启动、源支持 Range 时按大小自适应取 2~8 段（每段约 8MB），
+  任何异常（含 `.part` 续传现场、源不支持 Range）都自动退回单流；`--jobs 1` 强制单流、`--jobs N` 固定段数、`PK_JOBS=N` 改默认。
+  实测（npmmirror 48MB node 包）单流 1.46s → 8 段 0.84s（≈1.7×）；
   分片走独立 HTTP/1.1 连接（HTTP/2 下所有分片共用一条 TCP、受同一套流控，反而更慢）
 - 校验：`SHASUMS256.txt` / 每产物 `.sha256sum` / registry integrity（sha1 或 sha512 SRI）/ go 索引内联 sha256
 - **TOFU + 多源交叉验证**：首次装要求 ≥2 个源给出相同摘要（否则标 `weak`），写进 `state/known.json`；此后同版本**完全离线可验证**

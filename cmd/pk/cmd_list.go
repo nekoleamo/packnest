@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/shim"
@@ -86,7 +87,9 @@ func (a *app) cmdList(args []string) int {
 				Available []availableEntry    `json:"available"`
 			}{jsonout.SchemaVersion, a.cfg.Mirror, entries, rows})
 		}
-		return a.emit(jsonout.NewList(entries))
+		out := jsonout.NewList(entries)
+		out.Outdated = a.outdated(entries)
+		return a.emit(out)
 	}
 
 	switch {
@@ -120,6 +123,12 @@ func (a *app) cmdList(args []string) int {
 	if *available {
 		a.refreshIndex = *refresh
 		return a.printAvailable()
+	}
+	if hints := a.outdated(entries); len(hints) > 0 {
+		fmt.Fprintln(a.out, "可升级（索引缓存；详情 `pk list --available`）:")
+		for _, h := range hints {
+			fmt.Fprintf(a.out, "  %-6s %s → %s   %s\n", h.Name, h.Installed, h.Latest, h.Advice)
+		}
 	}
 	for _, e := range entries {
 		if e.Source == provider.SourceExternal {
@@ -223,6 +232,31 @@ func (a *app) availableRows() []availableEntry {
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+// outdated 算“已装最大版本 vs 索引最新”：只读索引缓存（离线假客户端，零网络），没缓存不提示。
+func (a *app) outdated(entries []jsonout.ToolEntry) []jsonout.OutdatedEntry {
+	byTool := map[string][]string{}
+	for _, e := range entries {
+		byTool[e.Name] = append(byTool[e.Name], e.Version)
+	}
+	cacheOnly := &provider.IndexLoader{Client: &fetch.Client{Offline: true}, CacheDir: a.paths.CacheMeta(), TTL: provider.DefaultIndexTTL}
+	var out []jsonout.OutdatedEntry
+	for name, versions := range byTool {
+		p, err := provider.Get(name)
+		if err != nil {
+			continue
+		}
+		if idx, err := cacheOnly.Load(a.context(), p, a.cfg.Mirror); err == nil {
+			latest, ok := idx.Latest()
+			cur := spec.SortDesc(versions)[0]
+			if ok && cur != latest.Version && spec.SortDesc([]string{cur, latest.Version})[0] == latest.Version {
+				out = append(out, jsonout.OutdatedEntry{Name: name, Installed: cur, Latest: latest.Version, Advice: "pk install " + name + "@latest"})
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
 // listToolVersions 打印某一个工具的全部可装版本 + 本机已装（`pk list node`）。

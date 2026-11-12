@@ -17,5 +17,8 @@
       "severity": "error",
       "message": "bin 目录不在 PATH 最前"
     }
+  ],
+  "fixed": [
+    "重写 shell 的 PATH 托管块（`pk env --write`，幂等）"
   ]
 }

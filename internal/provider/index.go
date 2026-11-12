@@ -320,11 +320,16 @@ func parseLTS(raw json.RawMessage) string {
 }
 
 // versionPattern 从目录名/标签里抠出语义化版本（"bun-v1.4.4/" → 1.4.4）。
-//
-// shortcut: 预发布后缀只认常见前缀（rc/beta/alpha/pre/next/canary/dev）。
-// 全面按 semver 解析会把 "node-v22.22.2-darwin-arm64.tar.gz" 的 "-darwin-arm64.tar.gz"
-// 当成预发布；升级路径 = 由 provider 声明文件名字段名再解析（M3 做 go/python 时是否需要）。
-var versionPattern = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)(?:-((?:rc|beta|alpha|pre|preview|next|canary|dev)(?:\.[0-9A-Za-z]+)*))?`)
+// 版本后面的 -xxx 可能是预发布标记（rc.1/beta.2），也可能是平台词（darwin/arm64），
+// 所以先全部抠下来，再按 platformWords 判定（不再靠“只认几个前缀”的名单）。
+var versionPattern = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*))?`)
+
+// platformWords 是文件名里常见的平台/架构词：出现在版本后的第一段就不是预发布。
+var platformWords = map[string]bool{
+	"darwin": true, "linux": true, "windows": true, "win32": true, "win64": true,
+	"arm64": true, "amd64": true, "x64": true, "x86": true, "x86_64": true,
+	"aarch64": true, "armv7l": true, "armv6l": true, "i686": true, "musl": true,
+}
 
 // extractVersion 从任意名字里取第一个版本号（取不到返回空串）。
 func extractVersion(name string) string {
@@ -333,7 +338,8 @@ func extractVersion(name string) string {
 		return ""
 	}
 	v := m[1] + "." + m[2] + "." + m[3]
-	if m[4] != "" {
+	suffix := strings.Split(m[4], ".")[0] // "rc.1" → "rc"
+	if m[4] != "" && !platformWords[strings.ToLower(suffix)] {
 		v += "-" + m[4]
 	}
 	return v
