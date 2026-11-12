@@ -30,12 +30,23 @@ jobs:
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.optional == true }}
     steps:
-      # checkout 只是为了拿 scripts/latest（版本号的单一真源）；产物一律从发布渠道下
+      # checkout 只是为了 scripts/latest 兜底；产物一律从发布渠道下
       - uses: actions/checkout@v4
       - name: 版本号
         id: ver
         shell: bash
-        run: echo "v=$(tr -d ' \t\r\n' < scripts/latest)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 以"线上最新 release"为准：用 scripts/latest 会在"刚发完版但还没推 scripts/latest"时
+          # 装到上一个版本（2026-11-12 连踩两次），所以先查 GitHub Releases，查不到才回退仓库文件。
+          v="$(gh api "repos/${{ github.repository }}/releases/latest" -q .tag_name 2>/dev/null | sed 's/^v//' || true)"
+          if [ -z "$v" ]; then
+            v="$(tr -d ' \t\r\n' < scripts/latest)"
+            echo "::warning::线上没有 release，回退 scripts/latest=$v"
+          fi
+          echo "v=$v" >> "$GITHUB_OUTPUT"
+          echo "将验证版本：$v"
 
       - name: 从 gitee 取发布产物（用户视角）
         shell: bash
