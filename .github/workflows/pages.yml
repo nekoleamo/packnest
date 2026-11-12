@@ -6,15 +6,12 @@
 # 之后每次改 site/ 推 main 就自动发布；也在 Actions 页手动 Run workflow 触发。
 name: pages
 
+# 版本号是 `git describe` 算出来的，所以**不能**用 paths 过滤：
+# 只改代码/只打 tag 时站点也得重渲染，否则官网会一直挂着上一个版本（2026-11-12 踩过：线上还是 1.0.1）。
+# 每次 main 推送与 `v*` tag 都重建一次，成本约 30s（Pages 免费额度完全够）。
 on:
   push:
     branches: [main]
-    paths:
-      - 'site/**'
-      - 'scripts/build-site.sh'
-      - 'scripts/latest' # 发版会改它（版本号的单一真源之一）
-      - '.github/workflows/pages.yml'
-    # 版本号是 git describe 出来的：**发版（打 tag）也要重新渲染**，否则站点会一直挂着上一个版本
     tags: ['v*']
   workflow_dispatch:
 

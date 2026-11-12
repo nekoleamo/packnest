@@ -41,7 +41,7 @@ api="https://gitee.com/api/v5/repos/$REPO"
 # 1) 建 release（已存在则复用）
 rel_id=$(curl -s -X POST "$api/releases" \
   -d "access_token=$TOKEN" -d "tag_name=$TAG" -d "name=$TAG" \
-  -d "body=packnest ${VERSION}（6 平台产物 + checksums.txt）" -d "target_commitish=main" \
+  --data-urlencode "body=packnest ${VERSION}（6 平台产物 + checksums.txt）" -d "target_commitish=main" \
   | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d.get("id") or "")' 2>/dev/null)
 if [ -z "$rel_id" ]; then
   rel_id=$(curl -s "$api/releases/tags/$TAG" \

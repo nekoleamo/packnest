@@ -150,8 +150,9 @@ sh scripts/release-gui.sh --version 0.10.1             # 重建 + 上传
 ## 六、官网
 
 `make site` 渲染 `site/` → `site/dist`（只注入版本号，来源是 `git describe` 的 tag），GitHub Pages 由 `pages.yml` 部署；
-`pages.yml` 会在 **`site/**` / `scripts/latest` 变更**与**打 `v*` tag** 时重跑 —— 否则发版后站点会一直挂着上一个版本
-（2026-11-12 实测踩过：改了代码与 tag 但没动 `site/`，线上还显示 1.0.1；若怀疑缓存，手动 `gh workflow run pages.yml`）。
+`pages.yml` 在**每次推 main**与**打 `v*` tag**时都会重跑（不用 paths 过滤 —— 版本号是 `git describe` 算的，
+只改代码/只打 tag 时也得重建，否则站点会一直挂着上一个版本；2026-11-12 实测踩过：线上还显示 1.0.1）。
+手动重建：`gh workflow run pages.yml --repo nekoleamo/packnest`。
 站点里的安装命令与渠道矩阵要和本文件保持一致（npm 那条已删）。
 
 ## 七、为什么不再发 npm
