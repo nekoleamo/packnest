@@ -508,7 +508,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 | 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
 | 行数 | **10,491 / 10,500**（余量 9）；`cmd/pk` 3,136 / 3,200；单文件无 >600 行 |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
-| GUI 发布 | 独立 tag **`gui-v0.10.1`**（gitee + GitHub 各 3 产物：mac arm64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；mac intel 已放弃，`gui-v0.10.0` 是旧界面那版 |
+| GUI 发布 | 独立 tag **`gui-v0.10.2`**（gitee + GitHub 各 3 产物：mac arm64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；mac intel 已放弃，`gui-v0.10.1` 是补差异页之前那版 |
 | 发布流程 | 唯一清单在 `docs/publishing.md`（「三、发布流程」第 ⑦ 步 + 「五点五、GUI 的产物」） |
 
 ### 接下来可做的（= 1.1 清单，明细见 `~/Documents/Plan/17-包管理器/pn-1.1-计划.md`）
@@ -545,7 +545,14 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 | 顺手修 | 发布当天发现 `ci.yml` 的浅克隆导致 `VERSION=$(git describe)` 退化成短 SHA（GUI 版本门禁把它判成"太旧"）→ checkout 加 `fetch-depth: 0` |
 | 1.0.1 补丁（同日） | 外部清单 `checksum.urls` 里的 `{filename}` 在无文件清单的索引（`github-releases`/`dirlist`）上回落到产物 URL 末段；实测 `rg.toml` 用 `{version}/{filename}.sha256` 直接装成（`weak`）。同时更正文档：`checksum.urls` 仍必填。6 产物 + tap/bucket 已同步 |
 
-### GUI 界面细节记录（2026-11-11 第二轮 / 2026-11-12 第三轮）
+### GUI 界面细节记录（2026-11-11 第二轮 / 2026-11-12 第三、四轮）
+
+**第四轮（gui-v0.10.2，补 9 命令的界面缺口）**
+- **环境页**：`which`（命令名 → 真实路径，标"pk 入口 / 真实文件"）、`env`（PATH 五段按优先级列表 + 13 个环境变量，
+  只读、带"项目级（pk.lock）"开关、可一键复制 `eval` 片段）；
+- **镜像档页**补「写入 ~/.npmrc」按钮（二次确认 + 显示"新写入/已替换"，只改 registry 一行、写前备份）；
+- 新增 `GET /api/which`、`GET /api/env`、`POST /api/mirror-write` 三个接口；`/api/mirror-write` 走 token 守卫与 POST。
+
 
 - **全局包体检表格化**：`GLOBAL_*` 的问题（`detail` 里有 pkg/needs/have/file/bin）进单独一张表
   （包 / 问题 / 详情 / 级别），其余 issue 一行一条（消息 + 淡色 code 尾巴，code 仍可见便于报障）。

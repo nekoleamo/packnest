@@ -92,8 +92,8 @@ open dist/gui/packnest.app
 release 里有独立产物（需要先装 CLI），挂在 **`gui-v<版本>`** 这个 tag 下：
 
 ```
-https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.10.1/<文件名>
-https://github.com/nekoleamo/packnest/releases/download/gui-v0.10.1/<文件名>
+https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.10.2/<文件名>
+https://github.com/nekoleamo/packnest/releases/download/gui-v0.10.2/<文件名>
 ```
 
 | 平台 | 文件 | 用法 |
