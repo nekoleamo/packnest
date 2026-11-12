@@ -192,3 +192,17 @@ make verify-release               # 线上 vs 本地清单（发布后必跑）
 sh scripts/release-taps.sh --dry-run   # 只打印将要推送的清单文件
 brew install nekoleamo/packnest/packnest   # 渠道实装一次（先 brew uninstall）
 ```
+
+### 账号 2FA（2026-11-13）
+
+GitHub 对贡献者账号强制 2FA；未开启会在宽限期后**无法访问 GitHub.com**。发布链路全部是 token/密钥认证，
+不靠交互登录，开启 2FA 后行为不变（只有 `gh auth login` 重授权、改密码、增删 SSH key 这类真敏感操作要输一次 TOTP）。
+开启后跑一次三条自检：
+
+```bash
+gh auth status                     # 应仍显示 Logged in（keyring），scopes 含 repo / workflow
+git ls-remote origin -q >/dev/null  # HTTPS + 凭据助手通道
+gitee + curl 不受影响，可跑 make verify-release 顺带确认整链路
+```
+
+（最后一行不是命令：`make verify-release` 走 gitee + curl，与 GitHub 账号无关，顺手确认整条链路。）
