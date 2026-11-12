@@ -43,8 +43,8 @@ curl -fsSL https://你的域名/install.sh | sh -s -- --base https://你的域�
 （`--mirror cn|default` 保留兼容，两者现在都走 gitee）。下载后**校验 sha256**（对 `checksums.txt`），
 对不上退出码 4。PowerShell 版参数名换成 `-Base` / `-Version` / `-Dir` / `-SkipVerify` / `-DryRun`。
 
-图形界面（可选，**必须先装 CLI**）在同一个 release 里：
-macOS 下 `packnest-desktop_<版本>_darwin_arm64.app.zip` → 解压 → `open packnest.app`；
+图形界面（可选，**必须先装 CLI**）在单独 tag `gui-v<版本>` 的 release 里：
+macOS 下载 `packnest-desktop_<版本>_darwin_arm64.app.zip` → 解压 → `open packnest.app`；
 Windows/Linux 见 `cmd/pk-desktop/README.md`。
 
 > npm 分发渠道已于 2026-11-11 停用：npm 的 stage/approve 要 2FA，而且云端与本地构建出的归档字节不同，

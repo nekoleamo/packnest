@@ -94,7 +94,10 @@ gh run download <run-id> -n gui-linux-amd64   -D /tmp/gui -R nekoleamo/packnest
 sh scripts/release-gui.sh --version 0.10.0 --from-dir /tmp/gui
 ```
 
-产物命名：`packnest-desktop_<ver>_<os>_<arch>.{app.zip,zip,tar.gz}`，与 CLI 产物同挂在同一个 release 下。
+产物命名：`packnest-desktop_<ver>_<os>_<arch>.{app.zip,zip,tar.gz}`，挂在**独立的 tag `gui-v<cliVer>`** 下
+（不是 CLI 的 `v<cliVer>`）：gitee 的 release API 不返回附件 id，**同名附件删不掉也换不了**；
+GUI 会频繁重发，单独一个 release 才能整体删掉重建。下载地址形如
+`https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.10.0/packnest-desktop_0.10.0_darwin_arm64.app.zip`。
 
 ⚠️ gitee 的 release API 不返回附件 id，**已上传的同名附件删不掉**（只能在网页上删）；
 `release-gui.sh` 上传前会查同名并跳过，避免重复累积。

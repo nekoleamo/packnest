@@ -6,7 +6,11 @@
 # 只做 macOS：Windows/Linux 需要各自的 WebView 工具链（见 cmd/pk-desktop/README.md），
 # 由 CI 的 gui-build 任务产出后再下载，用同一条路径上传（保持"本机唯一发布者"）。
 #
-# 产物：dist/gui/packnest-desktop_<ver>_darwin_{arm64,amd64}.app.zip（内部是 packnest.app）
+# 产物：dist/gui/packnest-desktop_<ver>_<os>_<arch>.{app.zip,zip,tar.gz}
+#
+# 挂在**独立的 release tag**（默认 `gui-v<cliVer>`）而不是 CLI 的 `v<cliVer>`：
+# gitee 的 release API 不返回附件 id，同名附件**删不掉也换不了**；GUI 会频繁重发，
+# 用一个可整体删除重建的 tag 才不会把旧产物留在同一个 release 里。
 set -eu
 DIST="${DIST:-dist}"
 GITEE_REPO="${PK_GITEE_REPO:-null_593_5354/packnest}"
@@ -14,17 +18,27 @@ GH_REPO="${PK_GH_REPO:-nekoleamo/packnest}"
 DRY=0
 VER=""
 FROM=""   # --from-dir：上传 CI 构建好的产物（不再本机重编）
+TAG=""    # 默认 gui-v<ver>；GUI 单独一个 release，便于整体重建
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1; shift ;;
     --version) VER="$2"; shift 2 ;;
     --from-dir) FROM="$2"; shift 2 ;;
+    --tag) TAG="$2"; shift 2 ;;
     *) echo "未知参数: $1" >&2; exit 2 ;;
   esac
 done
 [ -n "$VER" ] || VER=$(cat "$DIST/latest")
+[ -n "$TAG" ] || TAG="gui-v$VER"
 
 mkdir -p "$DIST/gui"
+if [ -n "$FROM" ]; then
+  if [ "$(cd "$FROM" && pwd)" = "$(cd "$DIST/gui" && pwd)" ]; then
+    echo "产物已在 $DIST/gui，跳过拷贝"
+    FROM=""
+    build_gui=0
+  fi
+fi
 if [ -n "$FROM" ]; then
   # CI（gui-build.yml）已经构建好三平台产物：拷进来直接上传，字节与 CI 一致
   echo "使用预构建产物：${FROM}"
@@ -63,11 +77,21 @@ if [ "$DRY" -eq 1 ]; then echo "dry-run：没有上传"; exit 0; fi
 TOKEN_FILE="${PK_SECRETS_FILE:-$HOME/.pi/agent/local/secrets.env}"
 TOKEN="${GITEE_TOKEN:-$(secret_from_file "$TOKEN_FILE" GITEE_TOKEN GITEE_ACCESS_TOKEN)}"
 api="https://gitee.com/api/v5/repos/$GITEE_REPO"
-rel_id=$(curl -s "$api/releases/tags/v$VER" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("id") or "")' 2>/dev/null)
-[ -n "$rel_id" ] || { echo "gitee 上没有 v$VER 的 release（先发 CLI 版本）" >&2; exit 3; }
+rel_id=$(curl -s "$api/releases/tags/$TAG" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("id") or "")' 2>/dev/null)
+if [ -z "$rel_id" ]; then
+  # 不存在就建：GUI 单独一个 release，之后要整体重发可以先删掉它（API 支持删 release）
+  code=$(curl -s -o /tmp/gitee-gui-rel.json -w '%{http_code}' -X POST "$api/releases" \
+    --data-urlencode "access_token=$TOKEN" --data-urlencode "tag_name=$TAG" \
+    --data-urlencode "name=$TAG" --data-urlencode "body=packnest GUI ${VER} (requires pk CLI)" \
+    --data-urlencode "target_commitish=main")
+  rel_id=$(python3 -c 'import json;print(json.load(open("/tmp/gitee-gui-rel.json")).get("id") or "")' 2>/dev/null)
+  echo "  建 GUI release $TAG → $code (id=$rel_id)"
+  rm -f /tmp/gitee-gui-rel.json
+fi
+[ -n "$rel_id" ] || { echo "gitee 上建/找 release $TAG 失败（token 权限？）" >&2; exit 3; }
 # gitee 的 release API 不提供附件 id（只有名字 + URL），**删不掉**已上传的附件：
 # 所以上传前先查一遍，同名直接跳过，避免同名重复累积。
-existing=$(curl -s "$api/releases/tags/v$VER" | python3 -c '
+existing=$(curl -s "$api/releases/tags/$TAG" | python3 -c '
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -86,8 +110,21 @@ for f in "$DIST/gui/packnest-desktop_${VER}"_*.zip "$DIST/gui/packnest-desktop_$
 done
 rm -f /tmp/gitee-gui.json
 if command -v gh >/dev/null 2>&1; then
-  gh release upload "v$VER" --repo "$GH_REPO" --clobber \
+  # GitHub API 偶尔 EOF：建 release / 上传都重试几次
+  n=0
+  until gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; do
+    n=$((n + 1)); [ "$n" -le 5 ] || break
+    gh release create "$TAG" --repo "$GH_REPO" --title "$TAG" \
+      --notes "packnest GUI ${VER} (requires pk CLI)" >/dev/null 2>&1 && break
+    sleep 8
+  done
+  n=0
+  until gh release upload "$TAG" --repo "$GH_REPO" --clobber \
     "$DIST/gui/packnest-desktop_${VER}"_*.zip "$DIST/gui/packnest-desktop_${VER}"_*.tar.gz
-  echo "已上传 GitHub Releases"
+  do
+    n=$((n + 1)); [ "$n" -le 5 ] || break
+    sleep 8
+  done
+  echo "已上传 GitHub Releases（${TAG}）"
 fi
 echo "完成。用户：下载 zip → 解压 → open packnest.app（首次启动 macOS 会问权限）"
