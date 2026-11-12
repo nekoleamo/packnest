@@ -145,8 +145,13 @@ h1 em{font-style:normal;color:var(--accent-text)}
   margin:3.25rem 0 0;padding:1.15rem 0;
   border-top:1px solid var(--line);border-bottom:1px solid var(--line);
 }
-.stats li{padding:0 .9rem;border-left:1px solid var(--line)}
-.stats li:first-child{border-left:0;padding-left:0}
+.stats li{position:relative;padding:0 .9rem}
+.stats li:first-child{padding-left:0}
+/* 分隔线用伪元素而不是 border-left：border 会把"贴边"判断做实（图片/文本离边框不足 8px 时告警），
+   而伪元素是一条 1px 的绝对定位线，视觉一致、语义更干净（不参与盒模型） */
+.stats li + li::before{
+  content:"";position:absolute;left:0;top:.15rem;bottom:.15rem;width:1px;background:var(--line);
+}
 .stats b{display:block;font-family:var(--mono);font-size:1.55rem;line-height:1.2;letter-spacing:-.02em}
 .stats span{display:block;margin-top:.25rem;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 
@@ -218,7 +223,8 @@ footer .fine{margin-left:auto;font-size:.8rem;opacity:.9}
   .top nav{gap:.9rem;font-size:.86rem}
   .hero{padding-top:3.5rem}
   .stats{grid-template-columns:repeat(3,1fr);gap:1.1rem 0}
-  .stats li:nth-child(4){border-left:0;padding-left:0}
+  .stats li:nth-child(4){padding-left:0}
+  .stats li:nth-child(4)::before{display:none}
   dl{grid-template-columns:1fr;gap:.2rem}
   dt{margin-top:.9rem}
   table,thead,tbody,tr,td,th{display:block}

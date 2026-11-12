@@ -12,3 +12,27 @@ secrets.env
 .npmrc.local
 # GUI 前端依赖与产物（dist 由 vite 构建，不进库；Go 侧 //go:embed 需要它在构建时存在）
 /cmd/pk-desktop/frontend/node_modules/
+
+# impeccable-ignore-start
+# Ephemeral output, runtime state, and per-dev overrides.
+# The **/ prefix covers .impeccable at the repo root or in a nested workspace.
+# Shared artifacts stay tracked: config.json, live/config.json,
+# design.json, surfaces/*.md, critique/*.md.
+**/.impeccable/config.local.json
+**/.impeccable/hook.cache.json
+**/.impeccable/hook.pending.json
+**/.impeccable/*.png
+**/.impeccable/review/
+**/.impeccable/questions/
+**/.impeccable/live/server.json
+**/.impeccable/live/sessions/
+**/.impeccable/live/previews/
+**/.impeccable/live/annotations/
+**/.impeccable/live/cache/
+**/.impeccable/live/manual-edit-apply-transaction.json
+**/.impeccable/live/manual-edit-events.jsonl
+**/.impeccable/live/manual-edit-evidence/
+**/.impeccable/live/pending-manual-edits.json
+**/.impeccable/live/deferred-svelte-component-accepts.json
+**/.impeccable/live/*.png
+# impeccable-ignore-end
