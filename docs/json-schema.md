@@ -29,7 +29,7 @@
 | `pk env --json` | 内联结构 | `shell,path[],env[].{key,value},script_hint` |
 | `pk list <工具> --json` | 内联结构 | `tool,latest,lts,total,installed[].{version,active},available[].{version,lts,installed},stale` |
 | `pk uninstall <工具> --json`（不带版本 = 删全部） | 内联结构 | `tool,removed[]`，失败时带 `error` |
-| `pk uninstall --all --json` | 内联结构 | `removed[],purged,root,channel,self_hint,failures[]`（`channel ∈ brew/npm/scoop/winget/script/script-posix/script-windows/manual`） |
+| `pk uninstall --all --json` | 内联结构 | `removed[],purged,root,channel,self_hint,failures[]`（`channel ∈ brew/npm/scoop/script/script-posix/script-windows/manual`） |
 | `pk env --write --json` | 内联结构 | `rc`（首个）、`rcs[]`（全部；Windows 上 5.1 与 7 两份都写）、`block` |
 | `pk env --unset --json` | 无输出 | 只返回退出码（清理是幂等的） |
 

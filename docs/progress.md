@@ -394,7 +394,7 @@ Windows 实测 `pk uninstall --all --yes --purge --self` 之后的两个残留�
 | shim | 随单个卸载清理 | 一起清，连 `pk`/`packnest` 自入口 |
 | shell rc / Windows 用户 Path | `pk env --unset` | `--all` 里自动带上（含注册表 Path 四段） |
 | 缓存/台账/配置 | 无 | `--purge`（连根删）、`--keep-cache`（只留缓存） |
-| pk 二进制本身 | 无提示 | 按可执行文件路径**识别渠道**（brew / npm / scoop / winget / 脚本 / 手动），
+| pk 二进制本身 | 无提示 | 按可执行文件路径**识别渠道**（brew / npm / scoop / 脚本 / 手动；winget 渠道已于 2026-11-11 放弃），
 给出确切命令，如 `brew uninstall packnest && brew untap nekoleamo/packnest` |
 
 - 不带 `--yes` 只打印计划（删了什么、保留什么、pk 自己怎么删），不动磁盘；
@@ -479,7 +479,6 @@ Windows 实测反馈驱动的三条修复（详见下面「list 的三个问题�
 |---|---|---|
 | Homebrew tap | formula 的 sha256 来自**另一次构建**（tar/gzip 写入 mtime，同版本重建就变），与 gitee 上的产物对不上 | 从 `dist/checksums.txt`（已与线上产物逐条核对）重推 tap；`brew install` 实测通过，装出的二进制与发布产物 sha256 一致 |
 | Scoop bucket | 同样问题，两个架构的 hash 都不对；另外 `autoupdate` 的 URL 把 `v0.7.0` 钉死了（升版本后会 404） | 重推 manifest（hash 已对）；`gen-manifests.sh` 模板改成 `v$version` |
-| winget | 清单 hash 与线上 zip 一致 | 无需改（仍是草稿，等提交到 winget-pkgs） |
 | npm（官方 + npmmirror） | 7 个包的 `dist.integrity`/`dist.shasum` 两侧完全一致；`npm i -g` 两个源各实测一次 | 无需改 |
 | curl 一行（gitee） | **完全不校验哈希**就装 | 安装前拉 `checksums.txt` 对 sha256，不符退出码 4；`--skip-verify` 才能放行 |
 | `--from npm` / `--mirror cn` | 同样不校验 | 对 registry 的 `dist.shasum` 校验 sha1 |
@@ -542,7 +541,7 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 | L4 `dlopen` 试加载检测 | ✅ 已做：`pk doctor --globals --probe` 用 `node -e "process.dlopen({exports:{}}, file)"` 试加载 `.node`（只加载二进制、不跑包代码） | — |
 | 拒绝 https→http 的降级重定向 | ✅ 已做：`fetch.checkRedirect` 拒绝任何 https→http 的降级与 >10 次重定向 | — |
 | 卸载编排挪进 `internal/install`（清 `cmd/pk` 3,220 warn） | ✅ 部分完成：渠道识别（`DetectInstallChannel` / `SelfRemoveHint`）已挪进 `internal/install`，`cmd/pk` 3,220 → **3,181**（warn 消失）；剩余打印/交互编排仍留在 cmd | — |
-| winget 正式上架 | ⏳ 未做 | 要向 microsoft/winget-pkgs 提 PR（人工），草稿在 `packaging/winget/` |
+| winget 渠道 | ❌ 已放弃（2026-11-11 拍板）：不再生成草稿、不提 PR；`packaging/winget/` 与渠道识别已删 | — |
 | windows-arm64 运行时、Windows `.cmd` shim、Gatekeeper 首启 | ⏳ 人工确认 | 无公共 ARM Windows runner；项目规则允许人工确认这三项 |
 
 ## 已知缺口（按计划补齐，不是遗漏）

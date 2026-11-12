@@ -1158,7 +1158,6 @@ func TestDetectInstallChannel(t *testing.T) {
 		{"/opt/homebrew/lib/node_modules/packnest/bin/pk.js", "darwin", "npm"},
 		{`C:\Users\me\AppData\Roaming\npm\node_modules\packnest\bin\pk.js`, "windows", "npm"},
 		{`C:\Users\me\scoop\apps\packnest\current\pk.exe`, "windows", "scoop"},
-		{`C:\Users\me\AppData\Local\Microsoft\WinGet\Packages\packnest\pk.exe`, "windows", "winget"},
 		{`C:\Users\me\AppData\Local\packnest\bin\pk.exe`, "windows", "script-windows"},
 		{"/home/me/.local/bin/pk", "linux", "script-posix"},
 		{"/home/me/.packnest/bin/pk", "linux", "script-posix"},

@@ -230,7 +230,7 @@ pk uninstall --all --yes --purge --keep-cache   # keep cache/ only
 `--all` does four things: removes every tool directory from the ledger, deletes the shims in
 `~/.packnest/bin`, strips the `# >>> packnest >>>` block from your shell rc (on Windows also the four
 directories pk added to the **user Path registry value**), and finally prints the exact command to
-remove the binary itself based on how it was installed (brew / npm / scoop / winget / script).
+remove the binary itself based on how it was installed (brew / npm / scoop / script).
 Without `--yes` it only prints the plan.
 
 | Channel | Command |
@@ -238,7 +238,6 @@ Without `--yes` it only prints the plan.
 | Homebrew | `brew uninstall packnest && brew untap nekoleamo/packnest` |
 | npm | `npm uninstall -g packnest` |
 | Scoop | `scoop uninstall packnest && scoop bucket rm nekoleamo` |
-| winget | `winget uninstall nekoleamo.packnest` |
 | curl script (macOS/Linux) | `rm -f ~/.local/bin/pk ~/.local/bin/packnest` (default dir; use yours if you passed `--dir`) |
 | iwr script (Windows) | `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\packnest\bin"` |
 | self-hosted / manual | delete that file |

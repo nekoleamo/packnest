@@ -1,7 +1,7 @@
-# 发布指南（gitee / brew tap / scoop / winget / 官网）
+# 发布指南（gitee / brew tap / scoop / 官网）
 
 > npm 分发渠道已于 **2026-11-11 停用**（原因见文末「为什么不再发 npm」）。
-> 现在的发布链路只有一条：**本机**构建 → gitee release → 渠道清单（brew tap / scoop bucket / winget 草稿）。
+> 现在的发布链路只有一条：**本机**构建 → gitee release → 渠道清单（brew tap / scoop bucket）。
 
 ## 一、唯一发布者：只在这台机器发
 
@@ -78,7 +78,7 @@ make github-release      # 用 gh 把 dist/v<ver>/ 的 6 产物 + checksums.txt 
   `dist/v<ver>/checksums.txt` 生成，**别手改**）；
 - 仓库：`nekoleamo/homebrew-packnest`（`Formula/packnest.rb`）、`nekoleamo/scoop-bucket`（`bucket/packnest.json`）；
 - `sh scripts/release-taps.sh` 会推这两个仓库，推完回读核对（用 `git clone`，不用有 CDN 缓存的 raw）；
-- winget 只生成草稿（`packaging/winget/`），提交到 microsoft/winget-pkgs 需手动。
+- winget 渠道已于 2026-11-11 放弃（不再生成草稿，也不再向 winget-pkgs 提 PR）。
 
 ## 六、官网
 

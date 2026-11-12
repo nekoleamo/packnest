@@ -7,7 +7,7 @@ import (
 
 // InstallChannel 说明"这个 pk 二进制是怎么装进来的" —— 不同渠道要用不同的命令才能删干净。
 type InstallChannel struct {
-	Name string // brew / npm / scoop / winget / script-posix / script-windows / manual
+	Name string // brew / npm / scoop / script-posix / script-windows / manual
 	Hint string // 给用户照抄的命令
 	Dir  string // 已知的安装目录（来自 state/install.json）
 }
@@ -28,7 +28,7 @@ func SelfRemoveHint(dir, goos string) string {
 
 func DetectInstallChannel(exePath, goos string) InstallChannel {
 	// 手工归一化：filepath.ToSlash 在非 Windows 上不会把 "\\" 转成 "/"，
-	// 而渠道判断必须是跨平台的（同一套规则要能识别 cnpm/scoop/winget 的路径）。
+	// 而渠道判断必须是跨平台的（同一套规则要能识别 cnpm/scoop 的路径）。
 	p := strings.ToLower(strings.ReplaceAll(exePath, `\`, "/"))
 	switch {
 	case strings.Contains(p, "/cellar/packnest/") || strings.Contains(p, "/homebrew/cellar/packnest/"):
@@ -37,8 +37,6 @@ func DetectInstallChannel(exePath, goos string) InstallChannel {
 		return InstallChannel{Name: "npm", Hint: "npm uninstall -g packnest"}
 	case strings.Contains(p, "/scoop/apps/packnest/"):
 		return InstallChannel{Name: "scoop", Hint: "scoop uninstall packnest && scoop bucket rm nekoleamo"}
-	case strings.Contains(p, "/winget/packages/") || strings.Contains(p, "/microsoft/winget/"):
-		return InstallChannel{Name: "winget", Hint: "winget uninstall nekoleamo.packnest"}
 	case goos == "windows" && strings.Contains(p, "/packnest/bin/"):
 		return InstallChannel{Name: "script-windows", Hint: `删除 "%LOCALAPPDATA%\packnest\bin"（pk env --unset 会把 PATH 项一并去掉）`}
 	case goos != "windows" && (strings.Contains(p, "/.local/bin/") || strings.Contains(p, "/.packnest/bin/")):
