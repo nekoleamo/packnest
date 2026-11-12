@@ -43,7 +43,7 @@
 | `progress` | `tool,version,bytes_done,bytes_total` | 下载字节进度（约 200ms 一次，`bytes_total` 未知时为 0；GUI 画进度条用） |
 | `cache` | `tool,version,bytes` | 缓存命中（0 网络） |
 | `download` | `tool,version,bytes,source` | 实际下载（`source` 是最终使用的 URL） |
-| `verify` | `tool,version,mode,ok` | `mode ∈ tofu/network/insecure` |
+| `verify` | `tool,version,mode,ok,msg` | `mode ∈ tofu/network/insecure`；`msg` 只在"上游重新发布按同源配对接受"时出现 |
 | `companion` | `tool,version,msg` | 伴生包替换（`msg` 形如 `replaced 11.20.0`） |
 | `done` | `tool,version,path` | 落盘完成 |
 | `uninstall` | `tool,version` | 卸载完成 |

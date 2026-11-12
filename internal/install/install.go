@@ -230,7 +230,7 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		return Result{}, err
 	}
 	res.SHA256, res.Verified = sha, vr.Verified
-	i.emit(jsonout.Event{Ev: "verify", Tool: tool, Version: version, Mode: vr.Mode, OK: boolPtr(true)})
+	i.emit(jsonout.Event{Ev: "verify", Tool: tool, Version: version, Mode: vr.Mode, OK: boolPtr(true), Msg: vr.Note})
 
 	if i.opt.Frozen && lockedSHA != "" {
 		if err := verifyLockedSHA(archivePath, lockedSHA); err != nil {
@@ -262,6 +262,10 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		return Result{}, err
 	}
 	res.NPMVersion, res.NPMReplaced = npmVersion, npmBundled
+
+	if err := i.applyGenericCompanions(ctx, p, version, tmpDir); err != nil {
+		return Result{}, err
+	}
 
 	if err := archive.Replace(target, tmpDir); err != nil {
 		return Result{}, err

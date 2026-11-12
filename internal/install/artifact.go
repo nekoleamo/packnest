@@ -254,6 +254,7 @@ func (i *Installer) verifyArtifact(ctx context.Context, p *provider.Provider, re
 		Version:           version,
 		Platform:          platform,
 		Artifact:          filepath.Base(artifactURL),
+		ArtifactURL:       artifactURL,
 		Digest:            digest,
 		Algo:              algo,
 		SumsURLs:          sumsURLs,

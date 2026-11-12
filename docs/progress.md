@@ -513,10 +513,16 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ### 接下来可做的（= 1.1 清单，明细见 `~/Documents/Plan/17-包管理器/pn-1.1-计划.md`）
 
-1. **deno 同源配对校验**（deno 上游重新发布同一版本时可自动接受并标 weak；现在只能 `--insecure`）—— 需先抬行数红线
-2. **通用伴生包**：`applyCompanion` 目前硬编码 `Companions["npm"]`，其它键只解析不生效
-3. **多连接下载**：先做基准证明收益再实现（国内 CDN 分片实测往往更慢）；`--jobs` 已在 1.0.0 删除
-4. 卸载编排搬 `internal/install`（可选技术债）、GUI 差异页（`which`/`env`/`mirror write`）、3 项人工确认
+1. **多连接下载**：先做基准证明收益再实现（国内 CDN 分片实测往往更慢）；`--jobs` 已在 1.0.0 删除
+2. 卸载编排搬 `internal/install`（可选技术债）、GUI 差异页（`which`/`env`/`mirror write`）、3 项人工确认
+
+### 1.1 已完成（2026-11-12）
+
+- **通用伴生包**：`[companions.<名>]` 不再只认 node→npm，`bundled|latest-compatible|pinned` 三种语义都生效，
+  装进宿主 `<target>`（跟着宿主卸载/回收，不单独进台账）；`pinned` 必须给 `version`（缺失即清单非法）。
+- **同源配对校验**：跨源分裂（同 host 认新摘要 + 别 host 给旧摘要）时按 `weak` 接受上游重发并改写 TOFU，
+  `verify` 事件 `msg` 说明原因；同源一家之言仍硬失败。
+- 行数红线 10,500 → **10,700**（本次两项能力的实测驱动），`make loc` 现在 10,627 / 10,700。
 
 ## v1.0.0 发布记录（2026-11-12）
 
@@ -568,17 +574,14 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ## 行数预算现状
 
-- **红线：10,450 行**（`cmd/` + `internal/`，不含 `*_test.go` 与 `internal/testkit`；
-  8,500 → 10,000（2026-11-10）→ 10,200 → 10,300（2026-11-11，外部 provider 与 corepack 落地后按实测上调），
-  拍板记录见 `~/Documents/Plan/17-包管理器/pn-外部provider与工具链内工具-方案.md` §0.1）。
-- 现状 **10,414 行**（余量 36）；单文件最大 590 行（`cmd/pk/cmd_list.go`），已无 >600 的 warn：`cmd/pk` 3,220 · `internal/install` 1,437 · `internal/provider` 1,258 ·
-  `internal/testkit` 1,238 · `internal/env` 788 · `internal/store` 652 · `internal/fetch` 530。
-  含 testkit 的旧口径是 11,183（testkit 是纯测试夹具，不计入门禁）。
-- ✅ 门禁已上线：`make loc`（`make check` 第 2 项，脚本 `tools/loccheck.sh`）——
-  总计 > 10,450 退出 1；`cmd/pk` > 3,200 与单文件 > 600 只 warn（方案 §0.1 / R2）。
-  **2026-11-11 起全部 warn 清零**：`cmd/pk` 3,132（<3,200），单文件最大 590 行（`cmd/pk/cmd_list.go`）。
-  阶段 0 实测净腾 **16 行**（不是方案预估的 200：`flag`/`usage` 样板只有 16 行可省，
-  `fetchArtifactVerified` 抽出来后主流程与伴生 npm 包复用同一路径，但 helper 自身吃掉了省下的行）。
+- **红线：10,700 行**（`cmd/` + `internal/`，不含 `*_test.go` 与 `internal/testkit`）：
+  8,500 → 10,000（2026-11-10）→ 10,200 → 10,300（外部 provider 与 corepack 落地后按实测上调）→
+  10,360 → 10,450 → 10,500（GUI 前置换来的 `--json` progress 事件与契约字段）→
+  **10,700（2026-11-12 拍板：1.1 的通用伴生包 + deno 同源配对校验）**。
+  每次上调都写进 `AGENTS.md` 硬约束表与 `~/Documents/Plan/17-包管理器/pn-1.1-计划.md` §三。
+- 现状 **10,500 行**（余量 200）；`cmd/pk` 3,136 / 3,200；单文件无 >600 行。
+- ✅ 门禁：`make loc`（`make check` 第 2 项，`tools/loccheck.sh`）——总计 > 红线退出 1；
+  `cmd/pk` > 3,200 与单文件 > 600 只 warn。
 
 ## GUI 定位（2026-11-11 拍板）
 
@@ -658,10 +661,12 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
   ⚠️ 限制：`@pnpm/exe.*` 只从 **11.0.0-rc.3** 开始发布。清单里用 `min_version = "11.0.0"` 声明下限，
   `pk install pnpm@10` 会在解析后**立刻报错并给建议**（corepack 或 `npm i -g pnpm@10`），不再去撞 404。另：之前用 JS tarball 装过同一版本的机器，
   TOFU 表里记的是旧摘要，重装会要求 `--force-rehash`（一次性）。
-- deno 这类「上游重新发布」的版本目前只能 `--insecure`；自动化需要「同源配对校验」（官方产物 + 官方校验和成对验证、标记 weak），属 v1.1。
+- ✅ **同源配对校验已做（1.1 通用层，2026-11-12）**：TOFU 记录与实际不符时，若「与产物同 host 的校验源认可新摘要」
+  且「另一个 host 的源仍给旧摘要」（跨源分裂 = 上游重发的特征），按 `weak` 接受并改写记录，`verify` 事件 `msg` 说明原因；
+  同源一家之言仍硬失败（可能镜像被换），`--force-rehash` 仍是显式覆盖口。验收 `TestVerifySameOriginRepublish` / `TestVerifyNoSameOriginStillFails`。
 - ✅ 外部清单 `checksum.urls` 的 `{filename}` 在无文件清单的索引上（`github-releases`/`dirlist`）已回落到产物 URL 末段（1.0.1，
   `TestFilenamePlaceholderFallsBackToArtifactName`）。注意 `checksum.urls` 仍然必填（缺了清单非法）。
-- **伴生包只实现 node→npm 一种**（2026-11-12 校对）：`internal/install/companion.go` 的 `applyCompanion`
-  硬编码取 `Companions["npm"]`，其它 `[companions]` 键**只被解析与校验、安装时不生效**。
-  清单校验侧已允许外部清单的 companions 指向另一个外部 provider（含前向引用，
-  `TestExternalCompanionForwardRef`）；缺的是安装侧泛化（把 registry/target/mode 的参数换成按 key 走）。
+- ✅ **通用伴生包已做（1.1，2026-11-12）**：`applyGenericCompanions` 按 key 走 `registry`/`target`/`mode`，
+  `bundled` 跳过、`latest-compatible` 取该 provider 最新版、`pinned` 读 `version`；装进宿主 `<target>`，
+  跟着宿主一起卸载/回收（不单独进台账）。node→npm 仍是 `applyCompanion` 的 engines 反查特例。
+  验收 `TestGenericCompanionInstalled`、`TestCompanionPinnedNeedsVersion`。

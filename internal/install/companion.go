@@ -124,6 +124,56 @@ func (i *Installer) installNpmPackage(ctx context.Context, npmP *provider.Provid
 	return nil
 }
 
+// applyGenericCompanions 处理除 npm 之外的 [companions]（1.1：伴生包不再只认 node→npm）。
+//
+// 语义：把 registry 指向的 provider 装进 <工具根>/<target>（和 node 里的 npm 一样属于宿主的一部分，
+// 因此不单独写台账 —— 卸载/回收宿主时它跟着一起走）。mode = bundled 表示产物自带、不动。
+func (i *Installer) applyGenericCompanions(ctx context.Context, p *provider.Provider, version, treeDir string) error {
+	for key, c := range p.Companions {
+		if key == "npm" || c.Mode == "bundled" {
+			continue // npm 有 engines 反查语义，走 applyCompanion
+		}
+		want := c.Version
+		cp, err := i.opt.LookupProvider(c.Registry)
+		if err != nil {
+			return fmt.Errorf("%s 的伴生包 %s 找不到清单 %q: %w", p.ID, key, c.Registry, err)
+		}
+		if want == "" {
+			idx, ierr := i.loadIndex(ctx, cp)
+			if ierr != nil {
+				return fmt.Errorf("伴生包 %s 的版本索引不可用: %w", key, ierr)
+			}
+			latest, ok := idx.Latest()
+			if !ok {
+				return fmt.Errorf("伴生包 %s 的索引里没有可用版本", key)
+			}
+			want = latest.Version
+		}
+		cachePath, _, _, err := i.fetchArtifact(ctx, cp, provider.Version{Version: want}, nil)
+		if err != nil {
+			return err
+		}
+		dst := filepath.Join(treeDir, filepath.FromSlash(companionTarget(c.Target, i.opt.GOOS)))
+		format, err := archive.FormatFor(extOrDefault(cp, i.opt.GOOS))
+		if err == nil {
+			tmp := dst + ".tmp." + randomSuffix()
+			err = archive.Extract(cachePath, tmp, format, archive.Layout{Strip: cp.Layout.Strip, Bins: cp.Layout.Bins, BinTargets: cp.Layout.BinTargets}, i.opt.GOOS)
+			if err == nil {
+				err = archive.Replace(dst, tmp)
+			}
+			if err != nil {
+				_ = os.RemoveAll(tmp)
+				return fmt.Errorf("伴生包 %s 落地失败: %w", key, err)
+			}
+		}
+		if err != nil {
+			return err
+		}
+		i.emit(jsonout.Event{Ev: "companion", Tool: key, Version: want, Msg: "into " + c.Target})
+	}
+	return nil
+}
+
 // enableCorepack 把该 node 自带的 corepack 的 shim 指到独立目录（方案 B2-2）。
 //
 // node 25+ 已移除 corepack —— 这种情况必须明确报错，而不是静默跳过：

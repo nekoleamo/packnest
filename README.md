@@ -123,6 +123,9 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式，不�
 - 校验：`SHASUMS256.txt` / 每产物 `.sha256sum` / registry integrity（sha1 或 sha512 SRI）/ go 索引内联 sha256
 - **TOFU + 多源交叉验证**：首次装要求 ≥2 个源给出相同摘要（否则标 `weak`），写进 `state/known.json`；此后同版本**完全离线可验证**
 - 源之间矛盾 → 硬失败并说明"产物与哪个源一致"，`--insecure` 可放行（标 unverified，且不写入 TOFU 表）
+- **上游重新发布**（同一版本产物被上游换了）：本地 TOFU 记录与实际不符时不再直接要求 `--force-rehash` ——
+  只要「与产物同 host 的校验源认可新摘要」且「另一个 host 的源还在给旧摘要」（跨源分裂），就按 `weak` 接受并改写记录，
+  事件流里 `verify` 的 `msg` 会说明原因；只有同源一家之言时仍然硬失败（那可能就是镜像被换）
 
 ## 外部 provider 清单（长尾工具不用等发版）
 
@@ -144,7 +147,9 @@ PK_PROVIDERS_DIR=/opt/corp/pk:/srv/more   # 追加目录（可多个，冒号分
 - URL 模板只能用 `{version} {platform} {ext} {registry} {tool} {filename} {tag}`
 - 校验和：`checksum.urls` 必填（`registry-integrity` / `index-inline` 例外，摘要在索引里）；
   `{filename}` 在没有文件清单的索引（`github-releases` / `dirlist`）上会回落成产物 URL 的末段
-- `[companions]` 的 `registry` 必须指向已存在的工具 id
+- `[companions.<名>]` 的 `registry` 必须指向已存在的工具 id；`mode = bundled|latest-compatible|pinned`，
+  `target` 是相对工具根目录的落地位置（node 的 npm 走 `latest-compatible` + engines 反查，属于特例）；
+  `pinned` 要同时写 `version`，否则清单非法。伴生包是宿主的一部分：跟着宿主一起卸载/回收，不单独进台账
 - 单个清单 ≤ 256KB（防止误把二进制当清单）
 
 **校验强度按校验源算，不按产物**：产物与校验和都走 http 时最多判 `weak`（摘要可以跟着一起被换掉）；
@@ -260,7 +265,7 @@ Windows 上系统不允许删除正在运行的 exe，会打印出要你执行�
 - pnpm 走 registry 平台包 `@pnpm/exe.<os>-<arch>`（真二进制），不再有"启动器首次运行自己下平台二进制"的下载面；代价是它只从 **11.0.0** 起发布，`pk install pnpm@10` 会立即报错并建议 corepack
 - 缓存按内容寻址：`cache/archives/<sha256>.<ext>`（TOFU 表里已知摘要时直接按内容找，同内容跨版本只存一份）
 - 项目内自动覆盖全局版本需要 direnv（`pk env --project`）；未装 direnv 时 `node` 仍解析到全局默认
-- `[companions]` 只实现 node→npm（其它键解析但不生效）；GUI（`pk-desktop`）是 CLI 的补充界面，必先装 `pk`，只发 macOS arm64
+- `[companions]` 通用：node→npm 走 engines 反查，其它键按 `bundled|latest-compatible|pinned` 装进宿主的 `<target>`（1.1）；GUI（`pk-desktop`）是 CLI 的补充界面，必先装 `pk`，只发 macOS arm64
 
 ## 许可证
 

@@ -502,3 +502,23 @@ func TestFilenamePlaceholderFallsBackToArtifactName(t *testing.T) {
 		t.Fatalf("校验和 URL = %v，期望 %s", urls, want)
 	}
 }
+
+// TestCompanionPinnedNeedsVersion：mode = "pinned" 必须同时给 version，否则清单非法（别让它静默退化成 latest）。
+func TestCompanionPinnedNeedsVersion(t *testing.T) {
+	p := &Provider{
+		ID: "x", Display: "x", Index: IndexBlock{Kind: IndexDirList, URLs: map[string]string{"default": "https://e/"}},
+		Artifact: ArtifactBlock{URLs: map[string]string{"default": "https://e/{version}.tar.gz"}, Ext: map[string]string{"darwin": "tar.gz", "linux": "tar.gz", "windows": "zip"}, Platform: map[string]string{"darwin-arm64": "a", "linux-amd64": "b", "windows-amd64": "c"}},
+		Checksum: ChecksumBlock{Format: ChecksumGNUSums, Mode: "tofu-then-verify", URLs: map[string]string{"default": "https://e/sums"}},
+		Layout:   LayoutBlock{Bins: []string{"x"}},
+		Companions: map[string]Companion{
+			"cc": {Mode: "pinned", Registry: "cc", Target: "lib/cc"},
+		},
+	}
+	if err := p.Validate(); err == nil || !strings.Contains(err.Error(), "version") {
+		t.Fatalf("pinned 缺 version 应报错，实际: %v", err)
+	}
+	p.Companions["cc"] = Companion{Mode: "pinned", Registry: "cc", Target: "lib/cc", Version: "1.2.3"}
+	if err := p.Validate(); err != nil {
+		t.Fatalf("补上 version 后应合法: %v", err)
+	}
+}

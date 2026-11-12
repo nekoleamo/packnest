@@ -115,11 +115,12 @@ type LayoutBlock struct {
 	BinTargets map[string]string `toml:"bin_targets"`
 }
 
-// Companion 描述伴生包（node ↔ npm）。
+// Companion 描述伴生包（node ↔ npm，以及外部清单自定义的任意伴生包）。
 type Companion struct {
-	Mode     string `toml:"mode"`     // bundled | latest-compatible | pinned
-	Registry string `toml:"registry"` // 索引来源 provider id（npm）
-	Target   string `toml:"target"`   // 相对工具根目录的目标路径
+	Mode     string `toml:"mode"`              // bundled | latest-compatible | pinned
+	Registry string `toml:"registry"`          // 索引来源 provider id（npm）
+	Target   string `toml:"target"`            // 相对工具根目录的目标路径
+	Version  string `toml:"version,omitempty"` // 仅 mode = "pinned" 时用
 }
 
 // ToolchainBlock 描述装完必须写进环境的东西（go 的 GOTOOLCHAIN）。
@@ -290,6 +291,9 @@ func (p *Provider) Validate() error {
 		}
 		if c.Registry == "" || c.Target == "" {
 			return fmt.Errorf("%s: companions.%s 缺少 registry/target", p.ID, name)
+		}
+		if c.Mode == "pinned" && c.Version == "" {
+			return fmt.Errorf("%s: companions.%s 是 pinned，需同时给 version", p.ID, name)
 		}
 	}
 	return nil

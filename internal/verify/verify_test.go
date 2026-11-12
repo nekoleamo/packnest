@@ -458,3 +458,53 @@ func TestVerifyRehashStillRejectsMismatch(t *testing.T) {
 		t.Fatalf("产物与源不符必须失败: %v", err)
 	}
 }
+
+// TestVerifySameOriginRepublish：上游重新发布了同一版本（产物与同源校验和一起变），
+// 同源配对应当接受并标 weak，同时改写 TOFU 表（而不是硬失败要求 --force-rehash）。
+func TestVerifySameOriginRepublish(t *testing.T) {
+	old, cur := testkit.Sha256Hex([]byte("v1")), testkit.Sha256Hex([]byte("v2"))
+	ff := &fakeFetcher{files: map[string][]byte{
+		"https://mirror.example/x.sha256":   []byte(old + "  x.tar.gz\n"),
+		"https://upstream.example/x.sha256": []byte(cur + "  x.tar.gz\n"),
+	}}
+	v := New(&Known{Schema: KnownSchema, Entries: map[string]Entry{
+		"x@1.0.0/linux-amd64": {Digest: old, Algo: AlgoSHA256, Verified: VerifiedStrong, Sources: 2},
+	}})
+	v.Fetch = ff.fetch
+	res, err := v.Verify(context.Background(), Request{
+		Tool: "x", Version: "1.0.0", Platform: "linux-amd64", Artifact: "x.tar.gz",
+		ArtifactURL: "https://upstream.example/download/x.tar.gz",
+		Digest:      cur, Format: "gnu-sums",
+		SumsURLs: []string{"https://mirror.example/x.sha256", "https://upstream.example/x.sha256"},
+	})
+	if err != nil {
+		t.Fatalf("同源配对应放行: %v", err)
+	}
+	if res.Verified != VerifiedWeak || res.Mode != "network" || res.Note == "" {
+		t.Fatalf("应 weak/network 并带说明: %+v", res)
+	}
+	if entry, _ := v.Known.Get("x@1.0.0/linux-amd64"); entry.Digest != cur || entry.Verified != VerifiedWeak {
+		t.Fatalf("TOFU 应改写成新摘要且标 weak: %+v", entry)
+	}
+}
+
+// TestVerifyNoSameOriginStillFails：只有异构镜像源时，摘要和本地记录不符依旧硬失败。
+func TestVerifyNoSameOriginStillFails(t *testing.T) {
+	old, cur := testkit.Sha256Hex([]byte("v1")), testkit.Sha256Hex([]byte("v2"))
+	ff := &fakeFetcher{files: map[string][]byte{
+		"https://mirror.example/x.sha256": []byte(cur + "  x.tar.gz\n"),
+	}}
+	v := New(&Known{Schema: KnownSchema, Entries: map[string]Entry{
+		"x@1.0.0/linux-amd64": {Digest: old, Algo: AlgoSHA256, Verified: VerifiedStrong, Sources: 2},
+	}})
+	v.Fetch = ff.fetch
+	_, err := v.Verify(context.Background(), Request{
+		Tool: "x", Version: "1.0.0", Platform: "linux-amd64", Artifact: "x.tar.gz",
+		ArtifactURL: "https://upstream.example/download/x.tar.gz",
+		Digest:      cur, Format: "gnu-sums",
+		SumsURLs: []string{"https://mirror.example/x.sha256"},
+	})
+	if !errors.Is(err, ErrChecksum) || !strings.Contains(err.Error(), "force-rehash") {
+		t.Fatalf("没有同源校验源时应保持原报错: %v", err)
+	}
+}

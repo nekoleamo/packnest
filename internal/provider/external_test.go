@@ -228,6 +228,7 @@ default = "https://example.invalid/aaa/SHASUMS256.txt"
 bins = ["aaa"]
 [companions.web]
 mode = "pinned"
+version = "1.0.0"
 registry = "zzz"
 target = "lib/web"
 `)

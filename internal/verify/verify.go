@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -216,6 +217,8 @@ type Request struct {
 	Platform string // 如 darwin-arm64
 	// Artifact 是校验和文件里对应的文件名（如 node-v22.22.2-darwin-arm64.tar.gz）。
 	Artifact string
+	// ArtifactURL 是产物的实际下载地址（同源配对校验用：与产物同 host 的校验源可信度更高）。
+	ArtifactURL string
 	// Digest 是实际产物的摘要（算法见 Algo）。
 	Digest string
 	// Algo 是摘要算法：sha256（默认）/ sha1（registry shasum）/ sha512（registry integrity）。
@@ -243,6 +246,8 @@ type Result struct {
 	Digest   string
 	Algo     string
 	Sources  int
+	// Note 是欣得提醒用户的人类可读说明（如"上游重新发布，按同源配对接受"）。
+	Note string
 }
 
 // Verifier 执行校验。Fetch 与 Now 可注入，测试零外网。
@@ -279,6 +284,11 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 				ErrChecksum, key, entryAlgo, algo)
 		}
 		if !strings.EqualFold(entry.Digest, req.Digest) {
+			// 本地记录与实际不符：可能是上游重新发布了同一版本。只要与产物同源的校验源也同意新摘要，
+			// 就按 weak 接受并改写记录（同源配对）；否则保留原来那条"要求 --force-rehash"的报错。
+			if res, ok := v.sameOriginRepublish(ctx, req, algo, key); ok {
+				return res, nil
+			}
 			return Result{}, fmt.Errorf("%w: %s 的 %s 与本地记录不一致（记录 %s，实际 %s）；确需覆盖用 --force-rehash",
 				ErrChecksum, key, algo, entry.Digest, req.Digest)
 		}
@@ -299,6 +309,10 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 	}
 	if len(expected) > 1 {
 		// 源之间不一致有两种可能：镜像被投毒，或上游重新发布过同一版本。
+		// 同源配对：与产物同 host 的校验源也同意"当前产物" 时，按 weak 接受（并改写 TOFU）。
+		if res, ok := v.sameOriginRepublish(ctx, req, algo, key); ok {
+			return res, nil
+		}
 		// 按方案 §18.6 一律硬失败，但把"产物与哪个源一致"写清楚，让用户能判断该不该 --insecure。
 		matched := "与任何源都不一致"
 		for sum := range expected {
@@ -327,6 +341,60 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 	}
 	v.record(key, Entry{Digest: req.Digest, Algo: algo, Verified: verified, Sources: sources})
 	return Result{Mode: "network", Verified: verified, Digest: req.Digest, Algo: algo, Sources: sources}, nil
+}
+
+// sameOriginRepublish 处理"上游重新发布了同一版本"（产物变了，同源校验和也跟着变）。
+//
+// 放行条件必须同时满足两条，否则就是"镜像把产物和校验和一起换了"（那只能靠 --insecure）：
+//  1. 与产物**同 host** 的校验源认可当前产物摘要；
+//  2. 另一个 host 的校验源还在给**别的**摘要（典型是旧摘要，说明它是没同步的镜像而不是攻击者）。
+//
+// 这种"跨源分裂"才是上游重发的特征；只有同源一家之言时保持硬失败。
+func (v *Verifier) sameOriginRepublish(ctx context.Context, req Request, algo, key string) (Result, bool) {
+	host := hostOf(req.ArtifactURL)
+	if host == "" || v.Fetch == nil {
+		return Result{}, false
+	}
+	sameOriginAgrees, otherOriginDiffers := false, false
+	for _, u := range req.SumsURLs {
+		data, err := v.Fetch(ctx, u)
+		if err != nil {
+			continue
+		}
+		sum, ok := pickSum(req.Format, data, req.Artifact)
+		if !ok {
+			continue
+		}
+		if strings.EqualFold(sum, req.Digest) {
+			sameOriginAgrees = sameOriginAgrees || hostOf(u) == host
+			continue
+		}
+		otherOriginDiffers = otherOriginDiffers || hostOf(u) != host
+	}
+	if !sameOriginAgrees || !otherOriginDiffers {
+		return Result{}, false
+	}
+	v.record(key, Entry{Digest: req.Digest, Algo: algo, Verified: VerifiedWeak, Sources: 1})
+	return Result{Mode: "network", Verified: VerifiedWeak, Digest: req.Digest, Algo: algo, Sources: 1,
+		Note: "上游重新发布了同一版本的产物（同源 " + host + " 已更新，其它源还是旧摘要），按 weak 接受"}, true
+}
+
+// pickSum 从校验和文件里取出本产物的摘要（per-artifact 单文件 / gnu-sums 多行）。
+func pickSum(format string, data []byte, artifact string) (string, bool) {
+	if format == "per-artifact" {
+		return ParsePerArtifact(data)
+	}
+	sum, ok := ParseGNUSums(data)[artifact]
+	return sum, ok
+}
+
+// hostOf 取 URL 的 host（解析失败返回空串：调用方按"不同源"处理）。
+func hostOf(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return u.Host
 }
 
 // collect 拉取全部校验和源，返回期望哈希集合与成功源数量。

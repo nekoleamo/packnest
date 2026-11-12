@@ -145,8 +145,15 @@ Safety rules for external manifests (a violation only rejects that one file —
 - URL templates may only use `{version} {platform} {ext} {registry} {tool} {filename} {tag}`
 - `checksum.urls` is required (except `registry-integrity` / `index-inline`, where the digest comes from the index);
   `{filename}` falls back to the artifact URL's basename on indexes without a file list (`github-releases` / `dirlist`)
-- `[companions]` `registry` must point at an existing tool id
+- `[companions.<name>]` `registry` must point at an existing tool id; `mode = bundled|latest-compatible|pinned`,
+  `target` is relative to the tool root (node→npm is the `latest-compatible` special case with engines lookup);
+  `pinned` requires a `version`. A companion is part of its host: it is uninstalled/GC'd with the host and stays out of the ledger
 - one manifest ≤ 256KB (so a stray binary cannot masquerade as a manifest)
+
+- **Upstream re-publish** (the same version's artifact was replaced upstream): a TOFU mismatch no longer forces
+  `--force-rehash` when the checksum source on the **artifact's own host** agrees with the new digest *and* a source on
+  another host still reports the old one (cross-source split). It is accepted as `weak`, the record is rewritten, and the
+  `verify` event's `msg` explains why; a same-origin claim alone is still a hard failure (that could be a swapped mirror).
 
 **Verification strength follows the checksum source, not the artifact**: if the artifact *and* the
 checksums come over http, the result caps at `weak`; artifact over http but ≥2 agreeing https

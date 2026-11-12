@@ -127,6 +127,16 @@ ls ~/.packnest/providers                  # 文件名必须等于 id（zig.toml 
   所以 `.../{version}/{filename}.sha256` 这种写法可以直接用（1.0.1 起；之前会渲染成空串去抓 `.../.sha256` 而 404）。
 `PK_PROVIDERS_DIR` 是**追加**语义（可多个目录，用 `os.PathListSeparator` 分隔），不支持指向 `http(s)://`。
 
+## 2.5.5 报「与本地记录不一致」怎么办
+
+先判断是不是**上游重新发布了同一版本**（产物与上游自己的校验和一起变了）：
+
+- `pk install <工具>@<版本>` 现在会自动处理这种跨源分裂：同 host 的校验源认可新摘要、别的源还是旧摘要 →
+  按 `weak` 接受并改写 TOFU 表，`--json` 的 `verify` 事件里 `msg` 会写明原因；
+- 只有同源一家之言时仍然硬失败（那可能说明镜像把产物和校验和一起换了）——
+  确认来源可信后用 `pk install <工具>@<版本> --force-rehash` 覆盖一次；
+- 之前用旧产物装过、缓存里还是旧字节：`pk gc` 清缓存后再装，或直接 `--force-rehash`。
+
 ## 2.6 pnpm 装不上
 
 `pnpm` 的产物是 registry 上的平台包 `@pnpm/exe.<os>-<arch>`（真二进制）。两个已知坑：
