@@ -144,6 +144,14 @@ sh cmd/pk-desktop/packaging/build-macos.sh 0.10.2 arm64
 由 `.github/workflows/gui-build.yml` 构建（Linux 需 GTK4 + WebKitGTK 6.0，Windows 需 WebView2 运行时），
 产物只进 workflow artifact，下载后用 `--from-dir` 上传。
 
+### 两个实测坑（2026-11-13，gui-v0.10.3）
+
+- **CI 产物的版本号取自 `cmd/pk-desktop/main.go` 的 `guiVersion`**，不是 `scripts/latest`（那是 CLI 的）。
+  之前用 CLI 版本命名，`release-gui.sh --version 0.10.3` 按 0.10.3 找 CI 产物自然一个都找不到。
+- **`release-gui.sh` 只上传真实存在的产物**：早先把 `*.tar.gz` 等通配符直接写进 `gh release upload`，
+  只构建了 mac 时整条命令每次都失败、重试 5 次后仍打印“已上传”，结果 GitHub release 上一个附件都没有。
+  现在先 `ls` 出文件再传，失败以退出码 5 报出。
+
 ### 重发同一版本
 
 gitee 不允许替换同名附件，所以**先删 release 再重建**：

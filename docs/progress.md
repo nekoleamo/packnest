@@ -560,6 +560,10 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   单行也有 `→ 新版本` 徽标）、体检页「一键修复」按钮（`pk doctor --fix`，修完把 `fixed[]` 逐条显示）、
   回收页「每工具保留 N 个」输入框（`pk gc --keep N`，结果里多一块"按保留数留下"）。`pkcli` 三个方法随之改签名
   （`List` 返回 `{Tools, Outdated}`、`Doctor(…, fix)`、`GC(…, keep)`），契约测试补了 `outdated[]` / `fixed[]` / `keep` 的解析断言。
+- 发布 `gui-v0.10.3` 顺手修的两个发布链路坑（已写进 `docs/publishing.md`）：① `gui-build.yml` 用
+  `scripts/latest`（CLI 版本）给 GUI 产物命名 → CI 产物成 `packnest-desktop_1.3.1_*`，`release-gui.sh`
+  找不到；改成取 `guiVersion`。② `release-gui.sh` 把不存在的通配符写进 `gh release upload`，每次都失败却
+  仍打印"已上传" → GitHub release 零附件；改成只传 `ls` 出来的真实文件、失败退出 5。
 - 同步：`docs/cli.md`（`--jobs`/`--keep`/`--fix`/可升级提示）、`docs/json-schema.md`（`outdated`/`fixed`/`KeptRecent`/`keep`）、
   README、官网中英文、`--json` golden 三份。
 - 发布：tag **v1.3.1**（gitee + GitHub + brew tap + scoop + 官网同批）；`verify-release` 6 产物 sha256 全对。
