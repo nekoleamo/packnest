@@ -44,8 +44,18 @@ export interface GCResult {
   Removed?: string[];
   CacheRemoved?: string[];
   KeptRef?: string[];
+  // 1.3：--keep N 保留的版本
+  KeptRecent?: string[];
   FreedBytes?: number;
   DryRun?: boolean;
+  keep?: number;
+}
+// 1.3：pk list --json 的 outdated（已装版本落后索引最新时才有；只读索引缓存，不联网）
+export interface Outdated {
+  name: string;
+  installed: string;
+  latest: string;
+  advice: string;
 }
 export interface ProbeEntry {
   url: string;
@@ -97,18 +107,23 @@ export function friendly(status: number, text: string): string {
 
 export const api = {
   status: () => json<Status>("/api/status"),
-  tools: () => json<{ tools: Tool[] }>("/api/tools"),
+  tools: () => json<{ tools: Tool[]; outdated?: Outdated[] }>("/api/tools"),
   available: () => json<{ available: AvailableTool[] }>("/api/available"),
   versions: (tool: string, all = false) =>
     json<Versions>(`/api/versions?tool=${encodeURIComponent(tool)}${all ? "&all=1" : ""}`),
   mirrors: () => json<Mirror>("/api/mirrors"),
   useMirror: (use: string) =>
     json<Mirror>("/api/mirrors", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ use }) }),
-  doctor: (globals: boolean, probe: boolean) =>
-    json<{ issues: Issue[] }>(`/api/doctor?globals=${globals ? 1 : 0}&probe=${probe ? 1 : 0}`),
+  // fix=true 时后端会用 `pk doctor --fix` 修 PATH 托管块与 pk/packnest 入口
+  doctor: (globals: boolean, probe: boolean, fix = false) =>
+    json<{ issues: Issue[]; fixed?: string[] }>(
+      `/api/doctor?globals=${globals ? 1 : 0}&probe=${probe ? 1 : 0}&fix=${fix ? 1 : 0}`,
+    ),
   probe: (tool?: string) =>
     json<{ results: ProbeEntry[] }>(`/api/probe${tool ? "?tool=" + encodeURIComponent(tool) : ""}`),
-  gc: (run: boolean) => json<GCResult>("/api/gc", { method: run ? "POST" : "GET" }),
+  // keep>0 = 每个工具保留最新 N 个版本（`pk gc --keep N`）
+  gc: (run: boolean, keep = 0) =>
+    json<GCResult>(`/api/gc?keep=${keep}`, { method: run ? "POST" : "GET" }),
   use: (tool: string, version: string) =>
     json("/api/use", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tool, version }) }),
   uninstall: (tool: string) =>

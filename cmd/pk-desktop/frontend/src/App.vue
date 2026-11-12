@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watchEffect } from "vue";
-import { api, install, type AvailableTool, type EnvDoc, type GCResult, type InstallEvent, type Issue, type Mirror, type ProbeEntry, type Tool, type WhichResult } from "./api";
+import { api, install, type AvailableTool, type EnvDoc, type GCResult, type InstallEvent, type Issue, type Mirror, type Outdated, type ProbeEntry, type Tool, type WhichResult } from "./api";
 
 const status = ref<{ ok: boolean; reason?: string; path?: string; version?: string }>({ ok: false });
 const tools = ref<Tool[]>([]);
+// 1.3：已装版本落后索引最新时后端会在 /api/tools 里带上 outdated（只读索引缓存，不联网）
+const outdated = ref<Outdated[]>([]);
+const fixed = ref<string[]>([]);
 const available = ref<AvailableTool[]>([]);
 const versions = ref<{ version: string; installed?: boolean; lts?: string }[]>([]);
 const issues = ref<Issue[]>([]);
@@ -34,7 +37,25 @@ async function loadStatus() {
   }
 }
 async function loadTools() {
-  tools.value = (await api.tools()).tools ?? [];
+  const res = await api.tools();
+  tools.value = res.tools ?? [];
+  outdated.value = res.outdated ?? [];
+}
+// 可升级的提示按工具名索引：升级按钮直接给 `pk install <tool>@latest`（与 CLI 的建议一致）
+const outdatedFor = (name: string) => outdated.value.find((o) => o.name === name);
+async function upgrade(name: string) {
+  if (!confirm(`把 ${name} 升到最新版（${outdatedFor(name)?.latest ?? "latest"}）？旧版本会保留，可用「卸载」清理。`)) return;
+  err.value = "";
+  busy.value = true;
+  try {
+    const spec = `${name}@latest`;
+    await install(spec, () => {});
+    await Promise.all([loadTools(), loadVersions()]);
+  } catch (e) {
+    err.value = String(e);
+  } finally {
+    busy.value = false;
+  }
 }
 async function loadAvailable() {
   const list = (await api.available()).available ?? [];
@@ -79,8 +100,21 @@ const mirrorOpts = computed(() => [
 ]);
 async function loadDoctor() {
   err.value = "";
+  fixed.value = [];
   try {
     issues.value = (await api.doctor(globals.value, deepProbe.value)).issues ?? [];
+  } catch (e) {
+    err.value = String(e);
+  }
+}
+// 一键修复：只修 PATH 托管块与 pk/packnest 入口（其余问题只报不改，和 CLI 一致）
+async function fixProblems() {
+  err.value = "";
+  try {
+    const res = await api.doctor(globals.value, deepProbe.value, true);
+    fixed.value = res.fixed ?? [];
+    issues.value = res.issues ?? [];
+    if (fixed.value.length) await loadTools();
   } catch (e) {
     err.value = String(e);
   }
@@ -268,11 +302,14 @@ async function writeNpmrc() {
 
 // ---- GC：结果做成分组表格，不再直接打 JSON ----
 const gcRes = ref<GCResult | null>(null);
+// 保留版本数：0 = 不保留（只清零引用），N>0 = 每个工具留最新 N 个（`pk gc --keep N`）
+const gcKeep = ref(0);
 async function runGC(run: boolean) {
-  if (run && !confirm("执行 GC 会删除零引用版本与超限缓存，继续？")) return;
+  const keepNote = gcKeep.value > 0 ? `（每个工具保留最新 ${gcKeep.value} 个）` : "";
+  if (run && !confirm(`执行 GC 会删除零引用版本与超限缓存${keepNote}，继续？`)) return;
   err.value = "";
   try {
-    gcRes.value = await api.gc(run);
+    gcRes.value = await api.gc(run, gcKeep.value);
   } catch (e) {
     err.value = String(e);
   }
@@ -287,6 +324,7 @@ const gcGroups = computed(() => {
     { title: `${gcVerb.value}版本`, rows: r.Removed ?? [] },
     { title: `${gcVerb.value}缓存`, rows: r.CacheRemoved ?? [] },
     { title: "仍被引用（保留）", rows: r.KeptRef ?? [] },
+    { title: `按 --keep 保留（每工具最近 ${r.keep ?? 0} 个）`, rows: r.KeptRecent ?? [] },
   ].filter((g) => g.rows.length);
 });
 
@@ -397,13 +435,25 @@ onMounted(async () => {
         <button @click="refreshAll">刷新</button>
         <span class="hint">{{ installed.length }} 条记录</span>
       </div>
+      <div v-if="outdated.length" class="row">
+        <span class="badge">可升级</span>
+        <span v-for="o in outdated" :key="o.name" class="hint">
+          {{ o.name }} {{ o.installed }} → {{ o.latest }}
+          <button :disabled="busy" @click="upgrade(o.name)">升级</button>
+        </span>
+      </div>
       <div v-if="!installed.length" class="hint">还没有装任何工具：在下面的「安装队列」里加一条。</div>
       <table v-else>
         <thead><tr><th>工具</th><th>版本</th><th>来源</th><th>大小</th><th></th></tr></thead>
         <tbody>
           <tr v-for="t in installed" :key="t.name + t.version" :class="{ active: t.active }">
             <td>{{ t.name }}</td>
-            <td>{{ t.version }}</td>
+            <td>
+              {{ t.version }}
+              <span v-if="outdatedFor(t.name)?.installed === t.version" class="badge" :title="'索引最新 ' + outdatedFor(t.name)?.latest">
+                → {{ outdatedFor(t.name)?.latest }}
+              </span>
+            </td>
             <td class="dim">{{ t.source || "embedded" }}</td>
             <td>{{ fmtMB(t.size_bytes) }}</td>
             <td>
@@ -529,9 +579,11 @@ onMounted(async () => {
       <h2>体检</h2>
       <div class="row">
         <button @click="loadDoctor">运行 pk doctor</button>
+        <button @click="fixProblems" title="只修 PATH 托管块与 pk/packnest 入口，其余只报不改">一键修复</button>
         <label class="hint"><input type="checkbox" v-model="globals" @change="loadDoctor" /> 含全局包</label>
         <label class="hint"><input type="checkbox" v-model="deepProbe" @change="loadDoctor" /> 实测原生模块（--probe）</label>
       </div>
+      <div v-for="(f, i) in fixed" :key="'fx' + i" class="ok">已修 {{ f }}</div>
       <div v-if="!issues.length" class="hint">没有发现问题</div>
 
       <template v-if="globalIssues.length">
@@ -567,6 +619,11 @@ onMounted(async () => {
     <section>
       <h2>磁盘占用与回收</h2>
       <div class="row">
+        <label class="hint" title="每个工具保留最新的 N 个版本（pk gc --keep N）；0 = 不按版本保留">
+          每工具保留
+          <input v-model.number="gcKeep" type="number" min="0" max="20" style="width: 4rem" />
+          个
+        </label>
         <button @click="runGC(false)">预演</button>
         <button class="danger" @click="runGC(true)">执行 GC</button>
         <span v-if="gcRes?.DryRun" class="badge">预演结果（未删除）</span>
@@ -577,6 +634,9 @@ onMounted(async () => {
           <div class="stat"><b>{{ gcRes.CacheRemoved?.length ?? 0 }}</b><span>{{ gcVerb }}缓存</span></div>
           <div class="stat"><b>{{ fmtMB(gcRes.FreedBytes) }}</b><span>释放空间</span></div>
           <div class="stat"><b>{{ gcRes.KeptRef?.length ?? 0 }}</b><span>仍被引用</span></div>
+          <div v-if="(gcRes.KeptRecent?.length ?? 0) > 0" class="stat">
+            <b>{{ gcRes.KeptRecent?.length ?? 0 }}</b><span>按保留数留下</span>
+          </div>
         </div>
         <div v-if="!gcGroups.length" class="hint">没有可回收的东西。</div>
         <div v-for="g in gcGroups" :key="g.title" class="gcgroup">

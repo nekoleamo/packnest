@@ -24,20 +24,39 @@ type Tool struct {
 }
 
 type listDoc struct {
-	Schema int    `json:"schema"`
-	Tools  []Tool `json:"tools"`
+	Schema   int            `json:"schema"`
+	Tools    []Tool         `json:"tools"`
+	Outdated []OutdatedTool `json:"outdated"`
 }
 
-// List 返回已装工具（GUI 首屏）。
-func (c *Client) List(ctx context.Context) ([]Tool, error) {
+// OutdatedTool 是一条可升级提示（1.3 的 `pk list --json` 字段；只读索引缓存，没缓存就没有）。
+type OutdatedTool struct {
+	Name      string `json:"name"`
+	Installed string `json:"installed"`
+	Latest    string `json:"latest"`
+	Advice    string `json:"advice"`
+}
+
+// ListResult 是“已装 + 可升级”两份数据（GUI 首屏一次拿完）。
+type ListResult struct {
+	Tools    []Tool
+	Outdated []OutdatedTool
+}
+
+// List 返回已装工具与可升级提示（GUI 首屏）。
+func (c *Client) List(ctx context.Context) (ListResult, error) {
 	var doc listDoc
 	if err := c.runJSON(ctx, &doc, "list"); err != nil {
-		return nil, err
+		return ListResult{}, err
 	}
+	// 契约：数组永远不是 null
 	if doc.Tools == nil {
-		return []Tool{}, nil // 契约：数组永远不是 null
+		doc.Tools = []Tool{}
 	}
-	return doc.Tools, nil
+	if doc.Outdated == nil {
+		doc.Outdated = []OutdatedTool{}
+	}
+	return ListResult{Tools: doc.Tools, Outdated: doc.Outdated}, nil
 }
 
 // Issue 是 `pk doctor --json` 的一条问题。
@@ -49,14 +68,22 @@ type Issue struct {
 }
 
 type doctorDoc struct {
-	Schema int     `json:"schema"`
-	OK     bool    `json:"ok"`
-	Issues []Issue `json:"issues"`
+	Schema int      `json:"schema"`
+	OK     bool     `json:"ok"`
+	Issues []Issue  `json:"issues"`
+	Fixed  []string `json:"fixed"`
 }
 
-// Doctor 返回体检结果（GUI 的"告警页"直接渲染这个）。
-// probe=true 时还会用 node 实测 dlopen 原生模块（只加载二进制，不跑包代码）。
-func (c *Client) Doctor(ctx context.Context, globals, probe bool) ([]Issue, error) {
+// DoctorResult 是体检结果 + `--fix` 实际做过的动作。
+type DoctorResult struct {
+	Issues []Issue
+	Fixed  []string
+}
+
+// Doctor 返回体检结果（GUI 的“告警页”直接渲染这个）。
+// probe=true 时还会用 node 实测 dlopen 原生模块（只加载二进制，不跑包代码）；
+// fix=true 会修 PATH 托管块与 pk/packnest 入口（其余问题只报不改）。
+func (c *Client) Doctor(ctx context.Context, globals, probe, fix bool) (DoctorResult, error) {
 	args := []string{"doctor"}
 	if globals {
 		args = append(args, "--globals")
@@ -64,20 +91,23 @@ func (c *Client) Doctor(ctx context.Context, globals, probe bool) ([]Issue, erro
 	if probe {
 		args = append(args, "--probe")
 	}
+	if fix {
+		args = append(args, "--fix")
+	}
 	args = append(args, "--json")
 	// doctor 有 error 级问题时退出码是 1，但输出仍是合法 JSON：这里要吃掉退出码
 	stdout, err := c.run(ctx, nil, args...)
 	if err != nil && len(stdout) == 0 {
-		return nil, err
+		return DoctorResult{}, err
 	}
 	var doc doctorDoc
 	if jerr := json.Unmarshal(stdout, &doc); jerr != nil {
-		return nil, err
+		return DoctorResult{}, err
 	}
 	if doc.Issues == nil {
-		return []Issue{}, nil
+		doc.Issues = []Issue{}
 	}
-	return doc.Issues, nil
+	return DoctorResult{Issues: doc.Issues, Fixed: doc.Fixed}, nil
 }
 
 // Event 是 `pk install --json` 的一行 NDJSON。
@@ -142,15 +172,20 @@ type GCResult struct {
 	Removed      []string `json:"Removed"`
 	CacheRemoved []string `json:"CacheRemoved"`
 	KeptRef      []string `json:"KeptRef"`
+	KeptRecent   []string `json:"KeptRecent"`
 	FreedBytes   int64    `json:"FreedBytes"`
 	DryRun       bool     `json:"DryRun"`
+	Keep         int      `json:"keep"`
 }
 
-// GC 跑回收（dryRun=true 时只报告）。
-func (c *Client) GC(ctx context.Context, dryRun bool) (GCResult, error) {
+// GC 跑回收（dryRun=true 时只报告；keep>0 时每个工具保留最新 keep 个版本）。
+func (c *Client) GC(ctx context.Context, dryRun bool, keep int) (GCResult, error) {
 	args := []string{"gc", "--json"}
 	if dryRun {
 		args = append(args, "--dry-run")
+	}
+	if keep > 0 {
+		args = append(args, "--keep", strconv.Itoa(keep))
 	}
 	var res GCResult
 	err := c.runJSON(ctx, &res, args...)

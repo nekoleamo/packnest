@@ -281,7 +281,7 @@ Windows 上系统不允许删除正在运行的 exe，会打印出要你执行�
 - pnpm 走 registry 平台包 `@pnpm/exe.<os>-<arch>`（真二进制），不再有"启动器首次运行自己下平台二进制"的下载面；代价是它只从 **11.0.0** 起发布，`pk install pnpm@10` 会立即报错并建议 corepack
 - 缓存按内容寻址：`cache/archives/<sha256>.<ext>`（TOFU 表里已知摘要时直接按内容找，同内容跨版本只存一份）
 - 项目内自动覆盖全局版本需要 direnv（`pk env --project`）；未装 direnv 时 `node` 仍解析到全局默认
-- `[companions]` 通用：node→npm 走 engines 反查，其它键按 `bundled|latest-compatible|pinned` 装进宿主的 `<target>`（1.1）；GUI（`pk-desktop`）是 CLI 的补充界面，必先装 `pk`，只发 macOS arm64
+- `[companions]` 通用：node→npm 走 engines 反查，其它键按 `bundled|latest-compatible|pinned` 装进宿主的 `<target>`（1.1）；GUI（`pk-desktop`）是 CLI 的补充界面，必先装 `pk`，只发 macOS arm64（GUI 0.10.3 已跟齐 1.3：可升级提示 / `doctor --fix` / `gc --keep`）
 
 ## 许可证
 

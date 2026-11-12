@@ -76,16 +76,28 @@ if [ "$1" = use ]; then echo '{"schema":1}' >&2; echo "另一个 pk 正在运行
 
 // TestListAndDoctor：list 的空数组契约、doctor 的"退出码 1 但 JSON 合法"都要能吃下。
 func TestListAndDoctor(t *testing.T) {
-	p := fakePK(t, versionOK+`if [ "$1" = list ]; then echo '{"schema":1,"tools":[]}'; exit 0; fi
-if [ "$1" = doctor ]; then echo '{"schema":1,"ok":false,"issues":[{"code":"PATH_MISSING","severity":"warn","message":"bin 不在 PATH"}]}'; exit 1; fi
+	p := fakePK(t, versionOK+`if [ "$1" = list ]; then
+  echo '{"schema":1,"tools":[],"outdated":[{"name":"node","installed":"22.23.4","latest":"26.13.0","advice":"pk install node@latest"}]}'
+  exit 0
+fi
+if [ "$1" = doctor ]; then
+  echo '{"schema":1,"ok":false,"issues":[{"code":"PATH_MISSING","severity":"warn","message":"bin 不在 PATH"}],"fixed":["重建 pk/packnest 入口"]}'
+  exit 1
+fi
 `)
 	cl := &Client{Path: p, Env: os.Environ()}
 	tools, err := cl.List(context.Background())
-	if err != nil || tools == nil || len(tools) != 0 {
+	if err != nil || tools.Tools == nil || len(tools.Tools) != 0 || tools.Outdated == nil {
 		t.Fatalf("空列表应为 []（契约）: %v %+v", err, tools)
 	}
-	issues, err := cl.Doctor(context.Background(), false, false)
-	if err != nil || len(issues) != 1 || issues[0].Code != "PATH_MISSING" {
+	if len(tools.Outdated) != 1 || tools.Outdated[0].Latest != "26.13.0" || tools.Outdated[0].Advice == "" {
+		t.Fatalf("outdated 契约解析不对: %+v", tools.Outdated)
+	}
+	issues, err := cl.Doctor(context.Background(), false, false, false)
+	if err != nil || len(issues.Issues) != 1 || issues.Issues[0].Code != "PATH_MISSING" {
 		t.Fatalf("doctor 退出码 1 但 JSON 合法时不该报错: %v %+v", err, issues)
+	}
+	if len(issues.Fixed) != 1 {
+		t.Fatalf("--fix 的 fixed[] 契约解析不对: %+v", issues)
 	}
 }

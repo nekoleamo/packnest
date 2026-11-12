@@ -39,18 +39,21 @@ func TestContractAgainstRealCLI(t *testing.T) {
 	if _, err := cl.List(ctx); err != nil { // 空台账也要能解析（数组契约）
 		t.Fatalf("list: %v", err)
 	}
-	if _, err := cl.Doctor(ctx, false, false); err != nil {
+	if _, err := cl.Doctor(ctx, false, false, false); err != nil {
 		t.Fatalf("doctor: %v", err)
 	}
 	if _, err := cl.Mirrors(ctx); err != nil {
 		t.Fatalf("mirror list: %v", err)
 	}
-	gc, err := cl.GC(ctx, true) // 预演：不删东西
+	gc, err := cl.GC(ctx, true, 2) // 预演：不删东西（顺带覆盖 --keep）
 	if err != nil {
-		t.Fatalf("gc --dry-run: %v", err)
+		t.Fatalf("gc --dry-run --keep 2: %v", err)
 	}
 	if !gc.DryRun {
 		t.Fatalf("gc --dry-run 应回报 DryRun=true: %+v", gc)
+	}
+	if gc.Keep != 2 {
+		t.Fatalf("gc --keep 2 应回报 keep=2: %+v", gc)
 	}
 }
 

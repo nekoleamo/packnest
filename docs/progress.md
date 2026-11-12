@@ -508,7 +508,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 | 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
 | 行数 | **11,150 / 11,200**（余量 50）；`cmd/pk` 3,204 / 3,200（warn）；单文件无 >600 行 |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
-| GUI 发布 | 独立 tag **`gui-v0.10.2`**（gitee + GitHub 各 3 产物：mac arm64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；mac intel 已放弃，`gui-v0.10.1` 是补差异页之前那版 |
+| GUI 发布 | 独立 tag **`gui-v0.10.3`**（gitee + GitHub 各 3 产物：mac arm64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；mac intel 已放弃，`gui-v0.10.1` 是补差异页之前那版 |
 | 发布流程 | 唯一清单在 `docs/publishing.md`（「三、发布流程」第 ⑦ 步 + 「五点五、GUI 的产物」） |
 
 ### 接下来可做的（1.3 已落地，待发版）
@@ -556,6 +556,10 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   的 `NewLazyDLL` 直接取 kernel32，不引 x/sys），拿不到立刻返回 `ErrLocked`（退出码 5）。
 - **行数红线 11,100 → 11,200**（1.3 实测 +157 行：多连接 15 / list 提示 55 / doctor --fix 42 / gc --keep 30 / 偿债 15）；
   落地后 11,150 / 11,200。
+- **GUI 跟齐 1.3（`gui-v0.10.3`）**：已装列表顶部「可升级」行（`outdated[]`，点「升级」= `pk install <tool>@latest`，
+  单行也有 `→ 新版本` 徽标）、体检页「一键修复」按钮（`pk doctor --fix`，修完把 `fixed[]` 逐条显示）、
+  回收页「每工具保留 N 个」输入框（`pk gc --keep N`，结果里多一块"按保留数留下"）。`pkcli` 三个方法随之改签名
+  （`List` 返回 `{Tools, Outdated}`、`Doctor(…, fix)`、`GC(…, keep)`），契约测试补了 `outdated[]` / `fixed[]` / `keep` 的解析断言。
 - 同步：`docs/cli.md`（`--jobs`/`--keep`/`--fix`/可升级提示）、`docs/json-schema.md`（`outdated`/`fixed`/`KeptRecent`/`keep`）、
   README、官网中英文、`--json` golden 三份。
 - 发布：tag **v1.3.1**（gitee + GitHub + brew tap + scoop + 官网同批）；`verify-release` 6 产物 sha256 全对。

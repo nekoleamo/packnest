@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -42,7 +43,7 @@ var trayTemplate []byte
 
 // guiVersion 是 GUI 自己的版本（与 CLI 解耦；CLI 版本靠 pkcli 的启动门禁检查）。
 // 发布用的 tag 与产物文件名都跟它走：`gui-v<guiVersion>`。
-const guiVersion = "0.10.2"
+const guiVersion = "0.10.3"
 
 // api 是前端唯一的数据来源（不用 Wails 绑定，浏览器形态也能用）。
 type api struct {
@@ -243,7 +244,8 @@ func (a *api) handleTools(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, err)
 		return
 	}
-	writeJSON(w, map[string]any{"tools": tools})
+	// outdated 来自 `pk list --json`（1.3：只读 24h 索引缓存，没缓存就是空）
+	writeJSON(w, map[string]any{"tools": tools.Tools, "outdated": tools.Outdated})
 }
 
 func (a *api) handleDoctor(w http.ResponseWriter, r *http.Request) {
@@ -254,12 +256,12 @@ func (a *api) handleDoctor(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := timeout(r, 90*time.Second)
 	defer cancel()
 	q := r.URL.Query()
-	issues, err := cl.Doctor(ctx, q.Get("globals") == "1", q.Get("probe") == "1")
+	res, err := cl.Doctor(ctx, q.Get("globals") == "1", q.Get("probe") == "1", q.Get("fix") == "1")
 	if err != nil {
 		httpErr(w, err)
 		return
 	}
-	writeJSON(w, map[string]any{"issues": issues})
+	writeJSON(w, map[string]any{"issues": res.Issues, "fixed": res.Fixed})
 }
 
 func (a *api) handleMirrors(w http.ResponseWriter, r *http.Request) {
@@ -314,7 +316,11 @@ func (a *api) handleGC(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := timeout(r, 120*time.Second)
 	defer cancel()
 	dry := r.Method != http.MethodPost // POST 才真删
-	res, err := cl.GC(ctx, dry)
+	keep := 0
+	if v, err := strconv.Atoi(r.URL.Query().Get("keep")); err == nil {
+		keep = v
+	}
+	res, err := cl.GC(ctx, dry, keep)
 	if err != nil {
 		httpErr(w, err)
 		return

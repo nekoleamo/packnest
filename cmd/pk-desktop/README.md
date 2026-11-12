@@ -1,4 +1,4 @@
-# pk-desktop —— packnest 的可视化补充界面
+# pk-desktop —— packnest 的可视化补充界面（0.10.3）
 
 > **定位**：GUI 不是独立端。**必须先装 CLI**（`pk`），这里只把 `pk <cmd> --json` 的结果投影成界面。
 > 不 import 主模块任何 `internal/*`，业务真相永远在 CLI 与 `PK_ROOT`（方案 §11 定案 2026-11-11）。
@@ -8,11 +8,12 @@
 | 界面 | 背后调用 |
 |---|---|
 | 已装工具列表 / 设为默认 / 卸载（含 `weak`/未校验/npm 徽标、复制安装路径） | `pk list --json`、`pk use …`、`pk uninstall … --yes` |
+| **可升级提示**：落后索引最新时顶部给一行 `node 22.23.4 → 26.13.1`，点「升级」= `pk install node@latest`（只读索引缓存，不联网） | `pk list --json` 的 `outdated[]`（1.3） |
 | 可装版本 / 版本选择（全部版本 + 本地过滤） | `pk list --available --json`、`pk list <tool> --json [--all]` |
 | 安装队列（多条 spec 依次装，每行独立进度）+ 深浅色切换（跟随系统/浅色/深色） | `pk install <spec> --json`（逐条复用同一条 NDJSON 流） |
 | 镜像档切换 + **各源探测** | `pk mirror list --json`、`pk mirror use <name>`、`pk mirror probe --json`（延迟/可达性表格） |
-| 磁盘回收（统计块 + 分组清单，预演"将删"/真删"已删"） | `pk gc --json`（GET = 预演，POST = 真删） |
-| 体检（含"实测原生模块"= `--probe`；全局包问题单独一张表） | `pk doctor --json [--globals] [--probe]` |
+| 磁盘回收（统计块 + 分组清单，预演"将删"/真删"已删"；**每工具保留 N 个版本**输入框 = `--keep N`） | `pk gc --json [--keep N]`（GET = 预演，POST = 真删） |
+| 体检（含"实测原生模块"= `--probe`；全局包问题单独一张表；**一键修复**按钮） | `pk doctor --json [--globals] [--probe] [--fix]`（`--fix` 只修 PATH 托管块与 pk/packnest 入口） |
 | 环境页：`which`（命令→真实路径）、`env`（PATH/变量只读）、`mirror write`（写 npmrc，先确认） | `pk which <命令> --json`、`pk env --json [--project]`、`pk mirror write --json` |
 
 ## 跑起来
@@ -92,8 +93,8 @@ open dist/gui/packnest.app
 release 里有独立产物（需要先装 CLI），挂在 **`gui-v<版本>`** 这个 tag 下：
 
 ```
-https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.10.2/<文件名>
-https://github.com/nekoleamo/packnest/releases/download/gui-v0.10.2/<文件名>
+https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.10.3/<文件名>
+https://github.com/nekoleamo/packnest/releases/download/gui-v0.10.3/<文件名>
 ```
 
 | 平台 | 文件 | 用法 |
