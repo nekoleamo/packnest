@@ -257,7 +257,7 @@ func TestFetchShardErrors(t *testing.T) {
 	var done int64
 
 	// ① 目标目录不存在 → 打开文件失败
-	if _, err := c.fetchShard(context.Background(), hc, srv.URL, filepath.Join(t.TempDir(), "no-such", "s0"), 0, 1023, &done, int64(len(payload))); err == nil {
+	if _, err := c.fetchShard(context.Background(), hc, srv.URL, filepath.Join(t.TempDir(), "no-such", "s0"), 0, 1023, &done, int64(len(payload)), nil); err == nil {
 		t.Fatal("目录不存在时应报错")
 	}
 
@@ -266,7 +266,7 @@ func TestFetchShardErrors(t *testing.T) {
 		http.Error(w, "boom", http.StatusInternalServerError)
 	}))
 	defer bad.Close()
-	if _, err := c.fetchShard(context.Background(), hc, bad.URL, filepath.Join(t.TempDir(), "s1"), 0, 1023, &done, 1024); err == nil {
+	if _, err := c.fetchShard(context.Background(), hc, bad.URL, filepath.Join(t.TempDir(), "s1"), 0, 1023, &done, 1024, nil); err == nil {
 		t.Fatal("两次都 500 时应返回错误")
 	}
 }

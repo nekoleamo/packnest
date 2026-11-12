@@ -43,8 +43,17 @@ func (c *Client) parallelDownload(ctx context.Context, url, dst string) (int64, 
 
 	partPath := dst + ".part"
 	var done int64
-	var mu sync.Mutex
+	var mu sync.Mutex     // 保护 firstErr
+	var progMu sync.Mutex // 串行化 Progress 回调：调用方（CLI/GUI）不必自己加锁
 	var firstErr error
+	report := func(d, total int64) {
+		if c.Progress == nil {
+			return
+		}
+		progMu.Lock()
+		c.Progress(d, total)
+		progMu.Unlock()
+	}
 
 	shards := make([]string, 0, n)
 	defer func() { // 失败时把分片清干净（成功时已经拼走了）
@@ -65,7 +74,7 @@ func (c *Client) parallelDownload(ctx context.Context, url, dst string) (int64, 
 		wg.Add(1)
 		go func(p string, start, end int64) {
 			defer wg.Done()
-			got, err := c.fetchShard(ctx, hc, url, p, start, end, &done, size)
+			got, err := c.fetchShard(ctx, hc, url, p, start, end, &done, size, report)
 			if err != nil {
 				mu.Lock()
 				if firstErr == nil {
@@ -141,7 +150,7 @@ func (c *Client) remoteSize(ctx context.Context, hc *http.Client, url string) (i
 }
 
 // fetchShard 拉一段（含一次重试），并把进度累加进共享计数。
-func (c *Client) fetchShard(ctx context.Context, hc *http.Client, url, path string, start, end int64, done *int64, total int64) (int64, error) {
+func (c *Client) fetchShard(ctx context.Context, hc *http.Client, url, path string, start, end int64, done *int64, total int64, report func(int64, int64)) (int64, error) {
 	var lastErr error
 	for attempt := 0; attempt < 2; attempt++ {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -165,8 +174,8 @@ func (c *Client) fetchShard(ctx context.Context, hc *http.Client, url, path stri
 			return 0, err
 		}
 		var r io.Reader = resp.Body
-		if c.Progress != nil { // 进度按全局累计算，别让每个分片各自报百分比
-			r = &shardReader{r: resp.Body, done: done, total: total, fn: c.Progress}
+		if report != nil { // 进度按全局累计算，别让每个分片各自报百分比
+			r = &shardReader{r: resp.Body, done: done, total: total, fn: report}
 		}
 		n, copyErr := io.Copy(f, r)
 		closeErr := f.Close()
