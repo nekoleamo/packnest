@@ -80,11 +80,14 @@ type Event struct {
 	Tool    string `json:"tool,omitempty"`
 	Version string `json:"version,omitempty"`
 	Bytes   int64  `json:"bytes,omitempty"`
-	Source  string `json:"source,omitempty"`
-	Mode    string `json:"mode,omitempty"`
-	Path    string `json:"path,omitempty"`
-	OK      *bool  `json:"ok,omitempty"`
-	Msg     string `json:"msg,omitempty"`
+	// BytesDone / BytesTotal 只在 progress 事件里有意义（GUI 画进度条用）。
+	BytesDone  int64  `json:"bytes_done,omitempty"`
+	BytesTotal int64  `json:"bytes_total,omitempty"`
+	Source     string `json:"source,omitempty"`
+	Mode       string `json:"mode,omitempty"`
+	Path       string `json:"path,omitempty"`
+	OK         *bool  `json:"ok,omitempty"`
+	Msg        string `json:"msg,omitempty"`
 }
 
 // WriteJSON 输出一个缩进 JSON 文档（人可读，也便于 golden 比对）。

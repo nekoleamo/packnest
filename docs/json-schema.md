@@ -40,6 +40,7 @@
 | `ev` | 附带字段 | 说明 |
 |---|---|---|
 | `resolve` | `tool,version` | 版本解析完成 |
+| `progress` | `tool,version,bytes_done,bytes_total` | 下载字节进度（约 200ms 一次，`bytes_total` 未知时为 0；GUI 画进度条用） |
 | `cache` | `tool,version,bytes` | 缓存命中（0 网络） |
 | `download` | `tool,version,bytes,source` | 实际下载（`source` 是最终使用的 URL） |
 | `verify` | `tool,version,mode,ok` | `mode ∈ tofu/network/insecure` |
@@ -47,7 +48,9 @@
 | `done` | `tool,version,path` | 落盘完成 |
 | `uninstall` | `tool,version` | 卸载完成 |
 
-GUI 只需要：读 `schema` 判契约版本；进度条用 `download.bytes`；"是否校验过"看 `verify.mode`。
+GUI（作为 CLI 的可视化补充，走子进程 + `--json`）只需要：读 `schema` 判契约版本；
+进度条用 `progress.bytes_done/bytes_total`（`download` 只给最终大小）；"是否校验过"看 `verify.mode`；
+结束看 `done`；破坏性命令要自己先确认再传 `--yes`。
 
 ## doctor 问题码（脚本与 GUI 依赖）
 

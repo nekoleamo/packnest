@@ -4,14 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/mirror"
 	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/spec"
 	"github.com/packnest/packnest/internal/verify"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 // fetchArtifact 返回（本地缓存路径, 实际下载 URL, 是否来自缓存）。
@@ -87,6 +89,9 @@ func (i *Installer) addressed(path, sha, ext string) string {
 	return dst
 }
 
+// progressInterval 是 progress 事件的节流间隔：GUI 每 200ms 拿到一次就够画进度条了。
+const progressInterval = 200 * time.Millisecond
+
 // downloadFromChain 先探测再下载；探测全挂时退化到直接下载首选源。
 //
 // 理由：HEAD 探针只有 500ms（方案 §6.3），网络抖动时"探针超时"不等于"源不可用"，
@@ -99,6 +104,21 @@ func (i *Installer) downloadFromChain(ctx context.Context, tool, version string,
 		source = probe.URL
 	}
 
+	// 下载过程中的字节进度：CLI 的进度条照旧走 Client.Progress，这里再叠一层 --json 事件
+	if i.opt.Events != nil {
+		prev, last := i.opt.Client.Progress, time.Time{}
+		i.opt.Client.Progress = func(done, total int64) {
+			if prev != nil {
+				prev(done, total)
+			}
+			if done < total && time.Since(last) < progressInterval {
+				return
+			}
+			last = time.Now()
+			i.emit(jsonout.Event{Ev: "progress", Tool: tool, Version: version, BytesDone: done, BytesTotal: total})
+		}
+		defer func() { i.opt.Client.Progress = prev }()
+	}
 	n, err := i.opt.Client.Download(ctx, source, cachePath)
 	if err != nil {
 		for _, alt := range urls {

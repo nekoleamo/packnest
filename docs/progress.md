@@ -524,6 +524,9 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ## GUI 定位（2026-11-11 拍板）
 
+**GUI 前置 ① 已完成**：`pk install --json` 现在吐 `progress` 事件（`bytes_done`/`bytes_total`，约 200ms 节流），
+这是"补充式 GUI"唯一缺的契约字段；`Event` 只增字段，文本模式不受影响（`TestInstallEmitsProgressEvents`）。
+
 **GUI 是 CLI 的可视化补充，不是独立端**：必须先装 `pk`，GUI 通过子进程调 `pk <cmd> --json`（冻结 schema）驱动，
 GUI 侧不 import 任何 `internal/*`。连带影响：
 

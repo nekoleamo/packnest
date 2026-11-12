@@ -11,7 +11,7 @@
 | # | 约束 | 越界后果 |
 |---|---|---|
 | 1 | **第三方依赖 = 2 个**：`Masterminds/semver/v3`、`BurntSushi/toml` | 编译时间、体积、供应链都崩 |
-| 2 | **代码 ≤ 10,450 行**（`cmd/`+`internal/`，不含 `*_test.go` 与 `internal/testkit`；8,500 → 10,000 → 10,200 → 10,300 → 10,360 → 10,450（都由实测驱动；最后一次是"消除 >600 行单文件"的拆分开销，拆分本身净增行）） | 违背"一个下午读得完"；门禁已上线：`make loc`（`make check` 第 2 项，`tools/loccheck.sh`），超线直接红 |
+| 2 | **代码 ≤ 10,500 行**（`cmd/`+`internal/`，不含 `*_test.go` 与 `internal/testkit`；8,500 → 10,000 → 10,200 → 10,300 → 10,360 → 10,450 → 10,500（都由实测驱动；10,500 是 GUI 前置换来的：`--json` 的 progress 事件与契约字段）） | 违背"一个下午读得完"；门禁已上线：`make loc`（`make check` 第 2 项，`tools/loccheck.sh`），超线直接红 |
 | 3 | **命令面 9 个**：install/uninstall/use/list/which/mirror/doctor/env/gc | 加命令先改方案文档 |
 | 4 | **`CGO_ENABLED=0` 6 平台**：darwin/linux/windows × amd64/arm64 | 单二进制承诺作废 |
 | 5 | **归档只 2 种**：tar.gz + zip。解压零第三方（`archive/tar`+`compress/gzip`+`archive/zip`） | 不许引 xz/7z/compress |

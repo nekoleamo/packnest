@@ -527,13 +527,20 @@ func TestInstallEmitsEvents(t *testing.T) {
 	if _, err := inst.Install(context.Background(), "node", "22.22.2"); err != nil {
 		t.Fatal(err)
 	}
+	// progress 事件会穿插在序列里（GUI 用它画进度条），这里只看主序列
+	seq := make([]jsonout.Event, 0, len(events))
+	for _, ev := range events {
+		if ev.Ev != "progress" {
+			seq = append(seq, ev)
+		}
+	}
 	want := []string{"resolve", "download", "verify", "done"}
-	if len(events) < len(want) {
+	if len(seq) < len(want) {
 		t.Fatalf("事件太少: %+v", events)
 	}
 	for i, w := range want[:3] {
-		if events[i].Ev != w {
-			t.Fatalf("第 %d 个事件应为 %q，得到 %q（%+v）", i, w, events[i].Ev, events)
+		if seq[i].Ev != w {
+			t.Fatalf("第 %d 个事件应为 %q，得到 %q（%+v）", i, w, seq[i].Ev, seq)
 		}
 	}
 	if events[len(events)-1].Ev != "done" {
