@@ -104,16 +104,17 @@ GUI 是**独立产物**（需要 cgo + 各平台 WebView 工具链），但有�
 | 文件 | `packnest-desktop_<ver>_<os>_<arch>.{app.zip,zip,tar.gz}` |
 | 为什么单独 tag | gitee 的 release API 不返回附件 id，同名附件**删不掉也换不了**；GUI 会频繁重发，单独一个 release 才能整体删掉重建（`DELETE /releases/{id}`） |
 
-### 本机打包（macOS，双架构）
+### 本机打包（macOS，arm64 单架构）
 
 ```bash
-sh scripts/release-gui.sh --version 0.10.0            # 构建 arm64+amd64 .app.zip 并上传
+sh scripts/release-gui.sh --version 0.10.1            # 构建 arm64 .app.zip 并上传
 # 只打包不上传：
 sh cmd/pk-desktop/packaging/build-macos.sh 0.10.0 arm64   # → dist/gui/packnest.app
 ```
 
 打包逻辑只有一处（`cmd/pk-desktop/packaging/build-macos.sh`）：图标（`sips`/`iconutil` → `icon.icns`）、
-`Info.plist` 版本注入、签名都在里面；`release-gui.sh` 只是循环两个架构 + 打 zip + 上传。
+`Info.plist` 版本注入、签名都在里面；`release-gui.sh` 只是打 zip + 上传（**mac intel/amd64 已放弃**，
+2026-11-12 拍板；Intel Mac 要 GUI 就自己 `make gui-app` 出本机构建）。
 
 ### 签名与公证（2026-11-12 拍板：不做）
 

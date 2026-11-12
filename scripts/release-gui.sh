@@ -51,7 +51,9 @@ else
   build_gui=1
   echo "构建 GUI（pk-desktop ${VER}）"
 fi
-for arch in arm64 amd64; do
+# 只发 Apple Silicon（2026-11-12 拍板：mac intel/amd64 放弃 —— 自用机器是 arm64，
+# macos-15-intel 那个 CI job 也一直失败；Intel Mac 需自己 make gui）
+for arch in arm64; do
   if [ "${build_gui}" = "0" ]; then break; fi
   app="$DIST/gui/packnest.app"
   rm -rf "$app"

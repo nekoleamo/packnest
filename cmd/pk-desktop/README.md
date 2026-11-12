@@ -50,12 +50,15 @@ make gui              # 构建桌面壳（embed frontend/dist）
 - 契约就是 `docs/json-schema.md`，不需要生成前端绑定；
 - 前端可以用任何框架（现在是 Vue 3 + TS，换框架只动 `frontend/` 与重建 `dist/`）。
 
-## 打包（macOS）
+## 打包（macOS，Apple Silicon）
 
 ```bash
-make gui-app            # → dist/gui/packnest.app（ad-hoc 签名，本地自用）
+make gui-app            # → dist/gui/packnest.app（ad-hoc 签名，本机自用）
 open dist/gui/packnest.app
 ```
+
+- 默认按本机架构（`uname -m`）交叉编译；**发布只发 arm64**（intel 2026-11-12 放弃）。
+  Intel Mac 想要 GUI 就自己在 Intel 机器上 `make gui-app`（脚本仍支持 `build-macos.sh <ver> amd64`）。
 
 - `LSMinimumSystemVersion = 13.0`（Wails v3 的目标）；`CFBundleIdentifier = io.packnest.desktop`
 - 图标由 `packaging/genicon`（纯标准库）生成 → `assets/icon.png` 与 `assets/tray-template.png`，
@@ -94,7 +97,7 @@ https://github.com/nekoleamo/packnest/releases/download/gui-v0.10.1/<文件名>
 
 | 平台 | 文件 | 用法 |
 |---|---|---|
-| macOS | `packnest-desktop_<ver>_darwin_{arm64,amd64}.app.zip` | 解压后 `open packnest.app`（ad-hoc 签名：首次启动需在"隐私与安全性"里放行） |
+| macOS | `packnest-desktop_<ver>_darwin_arm64.app.zip` | 解压后 `open packnest.app`（ad-hoc 签名：首次启动需在"隐私与安全性"里放行）。**只发 Apple Silicon**（intel/amd64 2026-11-12 放弃；Intel Mac 自己 `make gui-app` 出本机构建） |
 | Windows | `packnest-desktop_<ver>_windows_amd64.zip` | 解压得到 `pk-desktop.exe`，双击即可（需要 WebView2 运行时） |
 | Linux | `packnest-desktop_<ver>_linux_amd64.tar.gz` | 解压得到 `pk-desktop`，运行即可（需要 GTK4 + WebKitGTK 6.0，包名见上表；没有就 `--serve` 走浏览器） |
 

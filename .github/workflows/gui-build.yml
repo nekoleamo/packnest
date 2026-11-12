@@ -20,7 +20,6 @@ jobs:
       matrix:
         include:
           - { runner: macos-15,       os: darwin,  arch: arm64 }
-          - { runner: macos-15-intel, os: darwin,  arch: amd64, optional: true }
           - { runner: windows-latest, os: windows, arch: amd64 }
           - { runner: ubuntu-latest,  os: linux,   arch: amd64, optional: true }
     runs-on: ${{ matrix.runner }}
