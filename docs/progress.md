@@ -523,7 +523,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - **同源配对校验**：跨源分裂（同 host 认新摘要 + 别 host 给旧摘要）时按 `weak` 接受上游重发并改写 TOFU，
   `verify` 事件 `msg` 说明原因；同源一家之言仍硬失败。
 - 行数红线 10,500 → **10,700**（本次两项能力的实测驱动），`make loc` 现在 **10,627 / 10,700**；
-- 发布：tag **v1.1.0**（gitee + GitHub + brew tap + scoop 同步，`verify-release` 6 产物 sha256 全对，smoke 5 runner 待确认）。
+- 发布：tag **v1.1.0**（gitee + GitHub + brew tap + scoop 同步，`verify-release` 6 产物 sha256 全对；smoke 5 runner 装的都是真 `packnest v1.1.0`，全绿）。
 
 ## v1.0.0 发布记录（2026-11-12）
 

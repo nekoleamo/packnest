@@ -56,6 +56,16 @@
 - 真机装一遍：`smoke.yml` 5/5 组合（macos-15 / macos-15-intel / ubuntu-latest / ubuntu-24.04-arm / windows-latest）；
 - CRC 之外的 3 项仍靠人工确认：Windows ARM64 运行时、PowerShell 调 `.cmd` shim、macOS Gatekeeper 首启。
 
+## 五、1.1 两项能力的验证（2026-11-12，v1.1.0）
+
+| 能力 | 验证方式 | 结果 |
+|---|---|---|
+| 通用伴生包（`[companions.<名>]`） | `TestGenericCompanionInstalled`（两个假 provider：宿主 + 伴生，断言落到 `<宿主>/<target>` 且吐 `companion` 事件）、`TestCompanionPinnedNeedsVersion` | ✅ |
+| 上游重发的同源配对校验 | `TestVerifySameOriginRepublish`（同 host 认新摘要 + 别 host 给旧摘要 → weak 并改写 TOFU）、`TestVerifyNoSameOriginStillFails`（只有同源一家之言 → 仍要 `--force-rehash`）；真网回归：外部清单 rg + `pk install node@22` 的 `verify` 事件形状不变 | ✅ |
+
+> 上游重发无法在真网复现（要等上游真去换同一版本的产物），所以这条以单测锁定判据；
+> 真网只做"没回归"的确认：`pk install node@22` → `{"ev":"verify","mode":"network","ok":true}`。
+
 ## 附：v0.9.0 轮记录（2026-11-11，原文保留）
 
 > 目的：`make check` 只证明"编得过 + 单测绿"，装不装得上、卸不卸得干净必须在真机上跑。
