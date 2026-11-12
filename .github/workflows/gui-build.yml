@@ -1,0 +1,68 @@
+# 构建 GUI（pk-desktop）三平台产物 —— **只产出 workflow artifact，不发布**。
+#
+# 为什么在 CI 构建：GUI 需要 cgo + 各平台 WebView 工具链（macOS SDK / MSVC+WebView2 / GTK4+WebKitGTK），
+# 本机只有 macOS。产物发布仍走"本机唯一发布者"：`gh run download` 拉回来，再
+# `sh scripts/release-gui.sh --from-dir <dir>` 上传（字节与 CI 完全一致）。
+name: gui-build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15,       os: darwin,  arch: arm64 }
+          - { runner: macos-15-intel, os: darwin,  arch: amd64, optional: true }
+          - { runner: windows-latest, os: windows, arch: amd64 }
+          - { runner: ubuntu-latest,  os: linux,   arch: amd64, optional: true }
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.optional == true }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      # Linux 的 Wails v3 依赖 GTK4 + WebKitGTK 6.0（方案 §11）
+      - name: Linux 依赖
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+
+      - name: 构建（macOS → .app.zip）
+        if: matrix.os == 'darwin'
+        run: |
+          V=$(tr -d ' \t\r\n' < scripts/latest)
+          sh cmd/pk-desktop/packaging/build-macos.sh "$V"
+          mkdir -p out
+          ( cd dist/gui && zip -q -r -X "../../out/packnest-desktop_${V}_darwin_${{ matrix.arch }}.app.zip" packnest.app )
+
+      - name: 构建（Windows / Linux → 裸二进制）
+        if: matrix.os != 'darwin'
+        shell: bash
+        run: |
+          V=$(tr -d ' \t\r\n' < scripts/latest)
+          mkdir -p out
+          ext=""; [ "${{ matrix.os }}" = windows ] && ext=".exe"
+          ( cd cmd/pk-desktop && CGO_ENABLED=1 GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
+              go build -trimpath -ldflags "-s -w" -o "../../out/pk-desktop$ext" . )
+          if [ "${{ matrix.os }}" = windows ]; then
+            ( cd out && zip -q -X "packnest-desktop_${V}_windows_${{ matrix.arch }}.zip" "pk-desktop.exe" )
+          else
+            tar -czf "out/packnest-desktop_${V}_linux_${{ matrix.arch }}.tar.gz" -C out pk-desktop
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gui-${{ matrix.os }}-${{ matrix.arch }}
+          path: out/*
+          if-no-files-found: error
