@@ -534,6 +534,11 @@ GUI 已带图标（`packaging/genicon` 生成的"巢"标记 → `.icns`/托盘�
 **GUI 前置 ④ 已完成**：托盘（关窗口收进托盘、菜单打开/退出）、单实例（占端口当互斥锁，第二个实例直接拒绝）、
 桌面壳同时提供浏览器形态；mac/win/linux 三平台产物已随 v0.10.0 发布（mac 本机构建，win/linux 由 gui-build.yml 构建后本机上传）。
 
+**GUI 界面细节（2026-11-11 第二轮）**：镜像页的"探测各源"表格（host+末段/状态/延迟）、体检页的
+"实测原生模块（--probe）"开关、版本选择的"全部版本 + 本地过滤"、已装行的 weak/未校验/npm 徽标与
+"复制安装路径"、统一错误文案（412 没装 CLI / 409 另一个 pk 正在运行 / 401 要 token）。
+发布流程已并入 `docs/publishing.md`（「三、发布流程」第 ⑦ 步 + 「五点五」唯一清单）。
+
 **GUI 前置 ③ 已完成**：可装版本/版本选择/卸载三个页面、`internal/pkcli` 的契约测试（用真 CLI 跑
 `version/list/doctor/mirror list/gc --dry-run`）、`make gui / gui-app / gui-serve / gui-test`；
 macOS `.app` 打包脚本（ad-hoc 签名，13.0+）；`--serve` 绑非回环地址时强制 `--token`。
