@@ -504,7 +504,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 | 线 | 状态 |
 |---|---|
-| CLI | **v1.0.0 已发（2026-11-12）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、9 个命令 |
+| CLI | **v1.0.1 已发（2026-11-12）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、9 个命令 |
 | 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
 | 行数 | **10,491 / 10,500**（余量 9）；`cmd/pk` 3,136 / 3,200；单文件无 >600 行 |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
@@ -531,6 +531,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 | smoke | 打 tag 后重跑 `smoke.yml`：5 个 runner 装的都是真 `packnest v1.0.0`，`--version`/doctor/装 node/卸载零残留 全过 |
 | 渠道 | gitee release、GitHub Releases、brew tap（`nekoleamo/homebrew-packnest`）、scoop bucket 均已同步，远端 hash 核对一致 |
 | 顺手修 | 发布当天发现 `ci.yml` 的浅克隆导致 `VERSION=$(git describe)` 退化成短 SHA（GUI 版本门禁把它判成"太旧"）→ checkout 加 `fetch-depth: 0` |
+| 1.0.1 补丁（同日） | 外部清单 `checksum.urls` 里的 `{filename}` 在无文件清单的索引（`github-releases`/`dirlist`）上回落到产物 URL 末段；实测 `rg.toml` 用 `{version}/{filename}.sha256` 直接装成（`weak`）。同时更正文档：`checksum.urls` 仍必填。6 产物 + tap/bucket 已同步 |
 
 ### GUI 界面细节记录（2026-11-11 第二轮 / 2026-11-12 第三轮）
 
