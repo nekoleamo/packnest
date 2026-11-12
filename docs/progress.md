@@ -505,7 +505,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 | 线 | 状态 |
 |---|---|
 | CLI | v0.10.0 已发（gitee + GitHub + brew tap + scoop）；外部 provider、corepack（PATH 5 段）、内容寻址缓存、L4 dlopen、降级重定向加固、pnpm 平台包 全部落地 |
-| 门禁 | `make check` 8 项全绿（含 `make loc`）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
+| 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
 | 行数 | **10,472 / 10,500**（余量 28）；单文件无 >600 行 |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
 | GUI 发布 | 独立 tag **`gui-v0.10.1`**（gitee + GitHub 各 3 产物：mac arm64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；mac intel 已放弃，`gui-v0.10.0` 是旧界面那版 |
@@ -513,7 +513,8 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ### 接下来可做的（按性价比）
 
-1. **CLI 侧可选**：剩余非 GUI 项都卡在行数（内容寻址缓存已做；L4 已做；剩下 `uninstall_all.go` 编排搬进
+1. **CLI 0.10.0 → 1.0.0**（契约已冻结，`docs/verify-1.0.md` 还是 v0.9.0 那轮记录，发版前重跑一轮用户视角验证）
+2. **CLI 侧可选**：剩余非 GUI 项都卡在行数（内容寻址缓存已做；L4 已做；剩下 `uninstall_all.go` 编排搬进
    `internal/install` 属于"GUI 不再需要的技术债"，可随时做也可不做）
 
 ### 已完成（2026-11-12，第三轮 GUI 界面细节，commit 见 git log）
@@ -531,6 +532,14 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - **Linux 运行时依赖清单**：各发行版包名（Debian/Ubuntu `libgtk-4-1 libwebkitgtk-6.0-4`、Fedora `gtk4 webkitgtk6.0`、
   Arch `gtk4 webkitgtk-6.0`、Alpine `gtk4.0 webkit2gtk-6.0`）写进 `cmd/pk-desktop/README.md`，并注明
   4.1 不够、老发行版（Debian 11 / Ubuntu 20.04）改用 `--serve` 浏览器形态。包名是查各发行版包索引核过的。
+- **门禁上云（A2）**：新增 `.github/workflows/ci.yml`（此前 4 个 workflow 没有一个跑门禁）：
+  `check` job 跑 `make check` 8 项，`gui-contract` job 构建真 `pk` 后跑 GUI 侧 `internal/pkcli`（含契约测试）。
+  上线当天就抓到只在 Linux 红的 `env.RCFileFor`（非 Windows 上读了本机 `PSModulePath`，把预测的 windows
+  profile 误判成 PS7）→ 已修（跨 OS 预测不读本机环境）并补回归用例 `TestRCFileForIgnoresForeignEnv`；
+  两次 CI 均绿（`check` + `gui-contract` 全 success）。
+- 文档清理（D）：`packaging/npm`（npm 渠道停用后的死骨架）已删；README「已知限制」两条过期项
+  （pnpm 12 启动器、GUI 未开工）改成现状；progress 里 L4「未做/已做」自相矛盾已统一，
+  伴生包那条改成实情：`applyCompanion` 硬编码 `Companions["npm"]`，其它键解析但不生效。
 - 验法：临时 `PK_ROOT=/tmp/pkroot17` 装 node@20/22 + pnpm、手造带 `engines`/`gypfile` 的假全局包，
   用 `--serve` + headless Chrome 截图核对了表格/摘要/队列的两种配色（不动用户真实 `~/.packnest`）。
 
