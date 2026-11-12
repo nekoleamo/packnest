@@ -106,3 +106,19 @@ jobs:
           # 零残留卸载（不删 pk 自己）
           "$pk" uninstall --all --purge --yes
           [ ! -d "$PK_ROOT" ] || { echo "PK_ROOT 还在：$PK_ROOT"; ls -la "$PK_ROOT"; exit 1; }
+
+  # GUI 侧契约测试：只测 internal/pkcli（不编译 Wails 主程序，省掉 GTK/WebKit 依赖），
+  # 用真实 bin/pk 跑一遍 version/list/doctor/mirror list/gc，保证 GUI 结构体不漂移。
+  gui-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - name: 构建 CLI
+        run: make build
+      - name: GUI 契约测试（pkcli）
+        env:
+          PK_SKIP_VERSION_CHECK: '1'
+        run: cd cmd/pk-desktop && go test ./internal/pkcli
