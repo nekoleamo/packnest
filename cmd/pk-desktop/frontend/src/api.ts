@@ -54,6 +54,23 @@ export interface ProbeEntry {
   latency_ms: number;
   err?: string;
 }
+export interface WhichResult {
+  name: string;
+  path: string;
+  shim: boolean;
+}
+export interface EnvDoc {
+  shell: string;
+  path: string[];
+  env: { key: string; value: string }[];
+  script_hint?: string;
+}
+export interface MirrorWriteResult {
+  file: string;
+  registry: string;
+  replaced: boolean;
+}
+
 export interface InstallEvent {
   ev: string;
   tool?: string;
@@ -96,6 +113,11 @@ export const api = {
     json("/api/use", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tool, version }) }),
   uninstall: (tool: string) =>
     json("/api/uninstall", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tool }) }),
+  // which / env 只读；mirror-write 会改用户的 ~/.npmrc（调用方先弹确认）
+  which: (cmd: string) => json<WhichResult>(`/api/which?cmd=${encodeURIComponent(cmd)}`),
+  env: (project = false) => json<EnvDoc>(`/api/env?project=${project ? 1 : 0}`),
+  mirrorWrite: (file = "") =>
+    json<MirrorWriteResult>("/api/mirror-write", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ file }) }),
 };
 
 // install 是 NDJSON 流：progress 事件驱动进度条，done/error 收尾。

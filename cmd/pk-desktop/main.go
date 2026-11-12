@@ -188,6 +188,9 @@ func (a *api) routes(token string) *http.ServeMux {
 	mux.HandleFunc("/api/available", a.handleAvailable)
 	mux.Handle("/api/uninstall", guard(token, http.HandlerFunc(a.handleUninstall)))
 	mux.HandleFunc("/api/versions", a.handleVersions)
+	mux.HandleFunc("/api/which", a.handleWhich)                                          // 只读：命令名 → 真实二进制
+	mux.HandleFunc("/api/env", a.handleEnv)                                              // 只读：当前 PATH / 环境变量
+	mux.Handle("/api/mirror-write", guard(token, http.HandlerFunc(a.handleMirrorWrite))) // 写 npmrc
 	return mux
 }
 
@@ -399,6 +402,68 @@ func (a *api) handleVersions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, v)
+}
+
+// handleWhich：把命令名解析回真实二进制（`pk which <cmd>`）。
+func (a *api) handleWhich(w http.ResponseWriter, r *http.Request) {
+	name := r.URL.Query().Get("cmd")
+	if name == "" {
+		http.Error(w, "需要 ?cmd=<命令名>", http.StatusBadRequest)
+		return
+	}
+	cl, ok := a.client(w)
+	if !ok {
+		return
+	}
+	ctx, cancel := timeout(r, 30*time.Second)
+	defer cancel()
+	res, err := cl.Which(ctx, name)
+	if err != nil {
+		httpErr(w, err)
+		return
+	}
+	writeJSON(w, res)
+}
+
+// handleEnv：只读地看当前生效的 PATH 与环境变量（写 rc 是 `pk env --write`，GUI 不做）。
+func (a *api) handleEnv(w http.ResponseWriter, r *http.Request) {
+	cl, ok := a.client(w)
+	if !ok {
+		return
+	}
+	ctx, cancel := timeout(r, 30*time.Second)
+	defer cancel()
+	doc, err := cl.Environment(ctx, r.URL.Query().Get("project") == "1")
+	if err != nil {
+		httpErr(w, err)
+		return
+	}
+	writeJSON(w, doc)
+}
+
+// handleMirrorWrite：把当前档位的 registry 写进 npmrc（只增不改、写前备份）。
+// 它会改用户的 ~/.npmrc，所以前端必须先弹确认再打这个接口。
+func (a *api) handleMirrorWrite(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "用 POST", http.StatusMethodNotAllowed)
+		return
+	}
+	cl, ok := a.client(w)
+	if !ok {
+		return
+	}
+	ctx, cancel := timeout(r, 60*time.Second)
+	defer cancel()
+	var body struct {
+		File string `json:"file"` // 空 = 默认 ~/.npmrc
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	res, err := cl.MirrorWrite(ctx, body.File)
+	if err != nil {
+		httpErr(w, err)
+		return
+	}
+	writeJSON(w, res)
 }
 
 func (a *api) handleUse(w http.ResponseWriter, r *http.Request) {

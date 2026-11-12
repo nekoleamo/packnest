@@ -13,6 +13,7 @@
 | 镜像档切换 + **各源探测** | `pk mirror list --json`、`pk mirror use <name>`、`pk mirror probe --json`（延迟/可达性表格） |
 | 磁盘回收（统计块 + 分组清单，预演"将删"/真删"已删"） | `pk gc --json`（GET = 预演，POST = 真删） |
 | 体检（含"实测原生模块"= `--probe`；全局包问题单独一张表） | `pk doctor --json [--globals] [--probe]` |
+| 环境页：`which`（命令→真实路径）、`env`（PATH/变量只读）、`mirror write`（写 npmrc，先确认） | `pk which <命令> --json`、`pk env --json [--project]`、`pk mirror write --json` |
 
 ## 跑起来
 

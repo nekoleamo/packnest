@@ -169,6 +169,61 @@ func hideWindow(cmd *exec.Cmd) {
 	}
 }
 
+// Which 是 `pk which <命令> --json` 的投影（GUI 的"命令定位"）。
+type Which struct {
+	Name string `json:"name"`
+	Path string `json:"path"`
+	Shim bool   `json:"shim"` // true 表示命中的是 pk 自己建的入口
+}
+
+// Which 把命令名解析回真实二进制。命令没装时 CLI 退出 1，错误消息可直接展示。
+func (c *Client) Which(ctx context.Context, name string) (Which, error) {
+	var w Which
+	err := c.runJSON(ctx, &w, "which", name)
+	return w, err
+}
+
+// EnvDoc 是 `pk env --json` 的投影（只读：写 rc 是 `pk env --write`，GUI 不做）。
+type EnvDoc struct {
+	Shell string   `json:"shell"`
+	Paths []string `json:"path"`
+	Env   []struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	} `json:"env"`
+	ScriptHint string `json:"script_hint"`
+}
+
+// Environment 读当前生效的 PATH / 环境变量（project=true 时按 pk.lock 前置项目版本）。
+func (c *Client) Environment(ctx context.Context, project bool) (EnvDoc, error) {
+	args := []string{"env"}
+	if project {
+		args = append(args, "--project")
+	}
+	var d EnvDoc
+	err := c.runJSON(ctx, &d, args...)
+	return d, err
+}
+
+// MirrorWriteResult 是 `pk mirror write --json` 的结果。
+type MirrorWriteResult struct {
+	File     string `json:"file"`
+	Registry string `json:"registry"`
+	Replaced bool   `json:"replaced"`
+}
+
+// MirrorWrite 把当前档位的 registry 写进 npmrc（默认 ~/.npmrc，写前备份）。
+// GUI 必须自己先弹确认（它会改用户已有配置文件，只是只増不改 registry 一行）。
+func (c *Client) MirrorWrite(ctx context.Context, file string) (MirrorWriteResult, error) {
+	args := []string{"mirror", "write"}
+	if file != "" {
+		args = append(args, "--file", file)
+	}
+	var res MirrorWriteResult
+	err := c.runJSON(ctx, &res, args...)
+	return res, err
+}
+
 // AvailableTool 是 `pk list --available --json` 的一条（每个工具一行）。
 type AvailableTool struct {
 	Name     string   `json:"name"`

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watchEffect } from "vue";
-import { api, install, type AvailableTool, type GCResult, type InstallEvent, type Issue, type Mirror, type ProbeEntry, type Tool } from "./api";
+import { api, install, type AvailableTool, type EnvDoc, type GCResult, type InstallEvent, type Issue, type Mirror, type ProbeEntry, type Tool, type WhichResult } from "./api";
 
 const status = ref<{ ok: boolean; reason?: string; path?: string; version?: string }>({ ok: false });
 const tools = ref<Tool[]>([]);
@@ -220,6 +220,52 @@ async function switchMirror() {
   await loadMirrors();
 }
 
+// ---- 环境页：which（命令 → 真实路径）+ env（当前 PATH/变量）+ mirror write ----
+const whichCmd = ref("node");
+const whichRes = ref<WhichResult | null>(null);
+const whichErr = ref("");
+const envDoc = ref<EnvDoc | null>(null);
+const envProject = ref(false);
+const npmrcOut = ref("");
+
+async function runWhich() {
+  if (!whichCmd.value.trim()) return;
+  whichErr.value = "";
+  whichRes.value = null;
+  try {
+    whichRes.value = await api.which(whichCmd.value.trim());
+  } catch (e) {
+    whichErr.value = String(e);
+  }
+}
+async function loadEnv() {
+  err.value = "";
+  try {
+    envDoc.value = await api.env(envProject.value);
+  } catch (e) {
+    err.value = String(e);
+  }
+}
+async function copyEval() {
+  if (!envDoc.value) return;
+  const sh = envDoc.value.shell === "powershell" ? "powershell" : "bash";
+  try {
+    await navigator.clipboard.writeText(`eval "$(pk env --shell ${sh})"`);
+  } catch {
+    /* 没剪贴板权限就算了 */
+  }
+}
+async function writeNpmrc() {
+  if (!confirm("把当前镜像档的 registry 写进 ~/.npmrc？只改 registry 一行，写前会备份。")) return;
+  err.value = "";
+  try {
+    const r = await api.mirrorWrite();
+    npmrcOut.value = `${r.file} → ${r.registry}${r.replaced ? "（原有行已替换）" : "（新写入）"}`;
+  } catch (e) {
+    err.value = String(e);
+  }
+}
+
 // ---- GC：结果做成分组表格，不再直接打 JSON ----
 const gcRes = ref<GCResult | null>(null);
 async function runGC(run: boolean) {
@@ -318,6 +364,7 @@ function fmtMB(n?: number) {
 onMounted(async () => {
   await loadStatus();
   if (status.value.ok) await refreshAll();
+  if (status.value.ok) await loadEnv();
 });
 </script>
 
@@ -428,6 +475,11 @@ onMounted(async () => {
         <input v-model="probeTool" placeholder="只探某个工具（留空=全部）" size="18" />
         <button :disabled="probing" @click="runProbe">{{ probing ? "探测中…" : "探测各源" }}</button>
       </div>
+      <div class="row">
+        <button class="danger" @click="writeNpmrc">写入 ~/.npmrc</button>
+        <span class="hint">只改 registry 一行；写前自动备份 npmrc.pk.bak</span>
+        <span v-if="npmrcOut" class="ok mono">{{ npmrcOut }}</span>
+      </div>
       <table v-if="probeRows.length">
         <thead><tr><th>源</th><th>状态</th><th>延迟</th></tr></thead>
         <tbody>
@@ -438,6 +490,39 @@ onMounted(async () => {
           </tr>
         </tbody>
       </table>
+    </section>
+
+    <section>
+      <h2>环境</h2>
+      <div class="row">
+        <input v-model="whichCmd" placeholder="命令名（node / pnpm …）" size="14" @keyup.enter="runWhich" />
+        <button @click="runWhich">哪来的？</button>
+        <span v-if="whichErr" class="bad">{{ whichErr }}</span>
+        <span v-else-if="whichRes" class="ok mono">
+          {{ whichRes.path }}{{ whichRes.shim ? "（pk 入口）" : "（真实文件）" }}
+        </span>
+      </div>
+
+      <div class="row">
+        <button @click="loadEnv">读取当前环境</button>
+        <label class="hint"><input type="checkbox" v-model="envProject" @change="loadEnv" /> 项目级（pk.lock）</label>
+        <button @click="copyEval">复制 eval 片段</button>
+      </div>
+      <div v-if="envDoc">
+        <table>
+          <thead><tr><th>PATH（按优先级）</th></tr></thead>
+          <tbody>
+            <tr v-for="(p, i) in envDoc.path" :key="i"><td class="mono">{{ p }}</td></tr>
+          </tbody>
+        </table>
+        <div class="gcgroup">
+          <h3>环境变量（{{ envDoc.env?.length ?? 0 }}）</h3>
+          <div v-for="(kv, i) in envDoc.env" :key="i" class="mono dim ellipsis" :title="kv.value">
+            {{ kv.key }}={{ kv.value }}
+          </div>
+        </div>
+      </div>
+      <div v-else class="hint">点「读取当前环境」看 pk 到底导出了什么（只读，不写任何 rc）。</div>
     </section>
 
     <section>
