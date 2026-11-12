@@ -570,6 +570,11 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   从 tap 装到 1.3.1、`packnest --version` 正确；官网中英文 `class="ver"` 都是 v1.3.1。
   官网 section 标题同时从 0.8rem 的纯大写小标签提到 1.4rem，补上缺失的中等字阶（impeccable 的
   `flat-type-hierarchy` 之前对整站命中）。
+- 官网第二处设计债：数字条（`.stats`）的竖分隔线原来用 `border-left`，impeccable 的
+  `cramped-padding` 一律判「文本离边框不足 8px」。排查结论：**规则读外部样式表时会丢掉 padding**
+  （同一份 CSS 内联进页面就不报，`--no-config` 也一样），不是 padding 真的不够。改成
+  1px 绝对定位伪元素当分隔线（`.stats li + li::before`），视觉一致、不参与盒模型，`detect site` 归零；
+  忽略规则也一并撤掉（不留静音）。
 
 ### 1.1 已完成（2026-11-12，v1.1.0 已发 + GUI gui-v0.10.2）
 
