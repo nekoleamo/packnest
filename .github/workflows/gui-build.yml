@@ -40,7 +40,9 @@ jobs:
       - name: 构建（macOS → .app.zip）
         if: matrix.os == 'darwin'
         run: |
-          V=$(tr -d ' \t\r\n' < scripts/latest)
+          # GUI 有独立版本号（cmd/pk-desktop/main.go 的 guiVersion），别拿 scripts/latest（那是 CLI 的）
+          V=$(grep -oE 'guiVersion = "[0-9.]+"' cmd/pk-desktop/main.go | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "GUI 版本: $V"
           sh cmd/pk-desktop/packaging/build-macos.sh "$V"
           mkdir -p out
           ( cd dist/gui && zip -q -r -X "../../out/packnest-desktop_${V}_darwin_${{ matrix.arch }}.app.zip" packnest.app )
@@ -49,7 +51,9 @@ jobs:
         if: matrix.os != 'darwin'
         shell: bash
         run: |
-          V=$(tr -d ' \t\r\n' < scripts/latest)
+          # GUI 有独立版本号（cmd/pk-desktop/main.go 的 guiVersion），别拿 scripts/latest（那是 CLI 的）
+          V=$(grep -oE 'guiVersion = "[0-9.]+"' cmd/pk-desktop/main.go | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "GUI 版本: $V"
           mkdir -p out
           ext=""; [ "${{ matrix.os }}" = windows ] && ext=".exe"
           ( cd cmd/pk-desktop && CGO_ENABLED=1 GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \

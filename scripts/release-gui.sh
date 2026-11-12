@@ -117,13 +117,19 @@ if command -v gh >/dev/null 2>&1; then
       --notes "packnest GUI ${VER} (requires pk CLI)" >/dev/null 2>&1 && break
     sleep 8
   done
+  # 只传**真实存在**的产物：直接写通配符时，某个平台还没构建（例如只在本机打了 mac）
+  # 会让整条 gh 命令每次都失败，最后却照样打印"已上传"（0.10.3 就这样丢过 GitHub 附件）。
+  files=$(ls "$DIST/gui/packnest-desktop_${VER}"_*.zip "$DIST/gui/packnest-desktop_${VER}"_*.tar.gz 2>/dev/null || true)
+  [ -n "$files" ] || { echo "没有可上传的 GUI 产物（先构建或 --from-dir）" >&2; exit 4; }
   n=0
-  until gh release upload "$TAG" --repo "$GH_REPO" --clobber \
-    "$DIST/gui/packnest-desktop_${VER}"_*.zip "$DIST/gui/packnest-desktop_${VER}"_*.tar.gz
-  do
+  ok=0
+  until [ "$ok" = 1 ]; do
+    if gh release upload "$TAG" --repo "$GH_REPO" --clobber $files; then ok=1; break; fi
     n=$((n + 1)); [ "$n" -le 5 ] || break
     sleep 8
   done
+  [ "$ok" = 1 ] || { echo "GitHub 上传失败（重试 $n 次）：$files" >&2; exit 5; }
+  printf '%s\n' "$files" | sed 's|^|  github  |'
   echo "已上传 GitHub Releases（${TAG}）"
 fi
 echo "完成。用户：下载 zip → 解压 → open packnest.app（首次启动 macOS 会问权限）"
