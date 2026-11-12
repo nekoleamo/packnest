@@ -15,9 +15,11 @@ CMD_MAX=3200
 FILE_MAX=600
 
 # 统计口径（三处门禁共用同一份文件列表，避免"门禁说一套、方案算一套"）
-files=$(find cmd internal -name '*.go' ! -name '*_test.go' ! -path 'internal/testkit/*' | sort)
+# GUI（cmd/pk-desktop）单列预算：它只是"调 CLI + 投影 JSON"的一层壳，不参与主线红线
+files=$(find cmd internal -name '*.go' ! -name '*_test.go' ! -path 'internal/testkit/*' \
+  ! -path 'cmd/pk-desktop/*' | sort)
 total=$(printf '%s\n' "$files" | xargs wc -l | tail -1 | awk '{print $1}')
-cmd=$(find cmd -name '*.go' ! -name '*_test.go' | xargs wc -l | tail -1 | awk '{print $1}')
+cmd=$(find cmd -name '*.go' ! -name '*_test.go' ! -path 'cmd/pk-desktop/*' | xargs wc -l | tail -1 | awk '{print $1}')
 
 echo "行数门禁（cmd/ + internal/，不含 *_test.go 与 internal/testkit）"
 printf '  总计    %5d / %d  余量 %d\n' "$total" "$LOC_MAX" "$((LOC_MAX - total))"

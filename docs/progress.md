@@ -524,6 +524,11 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ## GUI 定位（2026-11-11 拍板）
 
+**GUI 前置 ② 已完成（spike）**：`cmd/pk-desktop` 独立模块（Wails v3.1.0 + 零依赖前端），
+`internal/pkcli` 负责"定位 CLI / 版本门禁 / 跑 `--json` / 解析 NDJSON"，已用假 `pk` 脚本单测
+（定位、schema 与版本门禁、progress 事件流、退出码 5）。桌面壳与 `--serve`（浏览器）共用同一套 `/api/*`；
+没装 CLI 时页面直接给安装命令。见 `cmd/pk-desktop/README.md`。
+
 **GUI 前置 ① 已完成**：`pk install --json` 现在吐 `progress` 事件（`bytes_done`/`bytes_total`，约 200ms 节流），
 这是"补充式 GUI"唯一缺的契约字段；`Event` 只增字段，文本模式不受影响（`TestInstallEmitsProgressEvents`）。
 
