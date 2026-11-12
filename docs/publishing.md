@@ -100,7 +100,7 @@ GUI 是**独立产物**（需要 cgo + 各平台 WebView 工具链），但有�
 
 | 项 | 约定 |
 |---|---|
-| tag | `gui-v<cliVer>`（**不是** CLI 的 `v<cliVer>`） |
+| tag | `gui-v<guiVer>`（**不是** CLI 的 `v<cliVer>`）：GUI 有独立版本号（`cmd/pk-desktop/main.go` 的 `guiVersion`），产物文件名里的 `<ver>` 就是这个数，与 tag 一致 |
 | 文件 | `packnest-desktop_<ver>_<os>_<arch>.{app.zip,zip,tar.gz}` |
 | 为什么单独 tag | gitee 的 release API 不返回附件 id，同名附件**删不掉也换不了**；GUI 会频繁重发，单独一个 release 才能整体删掉重建（`DELETE /releases/{id}`） |
 
