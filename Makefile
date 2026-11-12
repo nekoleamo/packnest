@@ -21,7 +21,7 @@ FUZZ_TARGETS := FuzzSpec FuzzSHASUMS FuzzArchivePath
 FUZZ_TIME := 30s
 
 # 有 tag 时用 tag（去掉前导 v），否则用默认开发版本号。
-VERSION ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null | sed -n 's/^v\?\([0-9].*\)/\1/p'); echo "$${v:-1.0.1}")
+VERSION ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null | sed -n 's/^v\?\([0-9].*\)/\1/p'); echo "$${v:-1.1.0}")
 LDFLAGS := -s -w -X main.Version=$(VERSION)
 # 归档里所有文件的 mtime（可重复构建的前提；改它会改变所有产物的 sha256）
 SOURCE_DATE := 202001010000
