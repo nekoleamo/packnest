@@ -118,6 +118,13 @@ ls ~/.packnest/providers                  # 文件名必须等于 id（zig.toml 
 | `PROVIDER_HTTP_URL` | http 源已被 `PK_ALLOW_HTTP=1` 放行 | 能换 https 就换；否则接受最高 `weak` 的校验强度 |
 
 外部清单出问题**不会**让 `pk install node` 之类失败：坏文件被跳过、只记 issue。
+
+校验和写法的两个坑：
+
+- `checksum.urls` **必填**（`registry-integrity` / `index-inline` 例外，摘要在索引里）；写成 `mode = "none"` 才允许全省略，
+  但那样安装只会标 `unverified`。
+- 模板里的 `{filename}` 在没有文件清单的索引（`github-releases` / `dirlist`）上会**回落到产物 URL 的末段**，
+  所以 `.../{version}/{filename}.sha256` 这种写法可以直接用（1.0.1 起；之前会渲染成空串去抓 `.../.sha256` 而 404）。
 `PK_PROVIDERS_DIR` 是**追加**语义（可多个目录，用 `os.PathListSeparator` 分隔），不支持指向 `http(s)://`。
 
 ## 2.6 pnpm 装不上

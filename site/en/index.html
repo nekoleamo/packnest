@@ -113,7 +113,7 @@
 </section>
 
 <section id="tools">
-  <h2>What it installs <span class="hint">7 providers · declarative embedded TOML</span></h2>
+  <h2>What it installs <span class="hint">6 embedded providers · write your own TOML for the long tail</span></h2>
   <table>
     <thead><tr><th>tool</th><th>notes</th></tr></thead>
     <tbody>
@@ -144,6 +144,7 @@
     </tbody>
   </table>
   <p class="after">Global flags: <code>--json</code> (the only contract for GUIs and scripts) · <code>--offline</code> · <code>--yes</code> · <code>--root</code>. Fixed exit codes: 0 ok / 1 generic / 2 usage / 3 network / 4 checksum / 5 locked.</p>
+  <p class="after">Long-tail tools need no release: drop <code>~/.packnest/providers/&lt;id&gt;.toml</code> in (pure data, no code executed; checksums, mirror fallback and companion packages are declared in the manifest, and <code>pk doctor</code> points at the offending line).</p>
 </section>
 
 <section class="en" lang="zh-CN">

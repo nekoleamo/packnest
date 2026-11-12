@@ -143,6 +143,8 @@ Safety rules for external manifests (a violation only rejects that one file —
 - `layout.single` / `bin_targets` must be relative and free of `..`; `strip` must not be negative
 - `index.kind = "pbs"` is not allowed (python's directory parsing lives in the embedded logic)
 - URL templates may only use `{version} {platform} {ext} {registry} {tool} {filename} {tag}`
+- `checksum.urls` is required (except `registry-integrity` / `index-inline`, where the digest comes from the index);
+  `{filename}` falls back to the artifact URL's basename on indexes without a file list (`github-releases` / `dirlist`)
 - `[companions]` `registry` must point at an existing tool id
 - one manifest ≤ 256KB (so a stray binary cannot masquerade as a manifest)
 

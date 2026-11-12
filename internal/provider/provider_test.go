@@ -481,3 +481,24 @@ func TestRegistryTemplatesRenderPerProfile(t *testing.T) {
 		t.Fatalf("回退链里必须有官方 registry: %v", urls)
 	}
 }
+
+// TestFilenamePlaceholderFallsBackToArtifactName：github-releases / dirlist 类型的索引没有文件清单，
+// {filename} 曾经渲染成空串（校验和 URL 变成 .../.sha256 → 404）。现在回落到产物 URL 的末段。
+func TestFilenamePlaceholderFallsBackToArtifactName(t *testing.T) {
+	p := &Provider{
+		ID: "x",
+		Artifact: ArtifactBlock{
+			URLs:     map[string]string{"default": "https://e/{version}/x-{version}-{platform}.{ext}"},
+			Platform: map[string]string{"darwin-arm64": "aarch64-apple-darwin"},
+			Ext:      map[string]string{"darwin": "tar.gz"},
+		},
+		Checksum: ChecksumBlock{URLs: map[string]string{"default": "https://e/{version}/{filename}.sha256"}},
+	}
+	urls, err := p.ChecksumURLsFor(Version{Version: "1.2.3"}, "darwin", "arm64", "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "https://e/1.2.3/x-1.2.3-aarch64-apple-darwin.tar.gz.sha256"; len(urls) == 0 || urls[0] != want {
+		t.Fatalf("校验和 URL = %v，期望 %s", urls, want)
+	}
+}

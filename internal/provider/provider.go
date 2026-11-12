@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path"
 	"sort"
 	"strings"
 	"sync"
@@ -345,12 +346,10 @@ func (p *Provider) urlVars(v Version, goos, goarch, profile string) (map[string]
 		return nil, err
 	}
 	filename := v.ArtifactName
-	if filename == "" {
-		if f, ok := v.FileFor(goos, goarch); ok {
-			filename = f.Filename
-		}
+	if f, ok := v.FileFor(goos, goarch); filename == "" && ok {
+		filename = f.Filename
 	}
-	return map[string]string{
+	vars := map[string]string{
 		"version":  v.Version,
 		"platform": platform,
 		"ext":      ext,
@@ -358,7 +357,17 @@ func (p *Provider) urlVars(v Version, goos, goarch, profile string) (map[string]
 		"tool":     p.ID,
 		"filename": filename,
 		"tag":      v.Tag,
-	}, nil
+	}
+	if filename == "" {
+		// 索引没有文件清单（github-releases / dirlist）时 {filename} 会渲染成空串（抓 `.../.sha256` 404）。
+		// 用产物 URL 的末段兜底：产物名本来就只由 {version}/{platform}/{ext} 决定，不引入新信息。
+		if tmpl := p.Artifact.URLs[pickProfileKey(p.Artifact.URLs, profile)]; !strings.Contains(tmpl, "{filename}") {
+			if u, err := render(tmpl, vars); err == nil {
+				vars["filename"] = path.Base(u)
+			}
+		}
+	}
+	return vars, nil
 }
 
 // ArtifactURLs 返回按回退链排好序的产物 URL 列表（同一版本所有档位）。

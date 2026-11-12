@@ -142,6 +142,8 @@ PK_PROVIDERS_DIR=/opt/corp/pk:/srv/more   # 追加目录（可多个，冒号分
 - `layout.single` / `bin_targets` 必须是相对路径且不含 `..`；`strip` 不许为负
 - 禁用 `index.kind = "pbs"`（python 的目录列举解析在内嵌逻辑里）
 - URL 模板只能用 `{version} {platform} {ext} {registry} {tool} {filename} {tag}`
+- 校验和：`checksum.urls` 必填（`registry-integrity` / `index-inline` 例外，摘要在索引里）；
+  `{filename}` 在没有文件清单的索引（`github-releases` / `dirlist`）上会回落成产物 URL 的末段
 - `[companions]` 的 `registry` 必须指向已存在的工具 id
 - 单个清单 ≤ 256KB（防止误把二进制当清单）
 

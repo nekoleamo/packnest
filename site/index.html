@@ -112,7 +112,7 @@
 </section>
 
 <section id="tools">
-  <h2>能装什么 <span class="hint">7 providers · 内嵌 TOML 声明</span></h2>
+  <h2>能装什么 <span class="hint">6 个内嵌 provider · 长尾工具自己写 TOML</span></h2>
   <table>
     <thead><tr><th>工具</th><th>说明</th></tr></thead>
     <tbody>
@@ -143,6 +143,7 @@
     </tbody>
   </table>
   <p class="after">全局开关 <code>--json</code>（GUI 与脚本的唯一契约）· <code>--offline</code> · <code>--yes</code> · <code>--root</code>；退出码固定 0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用。</p>
+  <p class="after">长尾工具不用等发版：把 <code>~/.packnest/providers/&lt;id&gt;.toml</code> 放进去即可（纯数据、不执行代码；校验和、镜像回退、伴生包都在清单里声明，<code>pk doctor</code> 会指出清单哪一行不对）。</p>
 </section>
 
 <section class="en" lang="en">

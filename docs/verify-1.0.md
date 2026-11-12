@@ -37,14 +37,16 @@
    修法：`enableCorepack` 前先 `pruneDanglingShims`（只删悬空软链，Windows 的 `.cmd` 自然跳过）。
    验收：`TestPruneDanglingShims`；实测 gc 掉 node@24 后 `install node@22 --corepack` 自动把 yarn 指回 22.23.5。
 
-## 三、发现但**不在 1.0.0 修**的一个限制（写进 1.1 计划）
+## 三、发现并已修的限制（1.0.1）
 
 外部清单里 `checksum.urls` 用 `{filename}` 占位符时，`github-releases` / 无文件清单的索引拿不到文件名 →
 渲染成空串 → 抓 `.../.sha256` 404 → 报"拿不到校验和（所有源都不可用）"。
-**绕过**：`format = "per-artifact"` 时**不用写** `checksum.urls`（自动按 `<产物URL>.sha256` 取，实测可用），
-或把模板写成 `{version}`/`{platform}` 而不用 `{filename}`。
-正解是让 `{filename}` 在缺索引元数据时回落到产物文件名（或让空渲染直接报清单非法），留 1.1 做
-（见 `~/Documents/Plan/17-包管理器/pn-1.1-计划.md`）。
+修法：`urlVars` 在索引没给文件名时**回落到产物 URL 的末段**（产物名本来就只由 `{version}/{platform}/{ext}` 决定）。
+验收：`TestFilenamePlaceholderFallsBackToArtifactName`；实测外部清单 `rg.toml` 用
+`{version}/{filename}.sha256` 直接装成（`verified: weak`）。
+
+> 更正：早前写的"`per-artifact` 不写 `checksum.urls` 会自动派生 `<产物URL>.sha256`"是**错的** ——
+> 缺 `checksum.urls` 的清单会被判 `PROVIDER_EXTERNAL_INVALID`（工具直接不可见）。
 
 ## 四、自动化覆盖
 

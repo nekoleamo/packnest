@@ -515,9 +515,8 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 1. **deno 同源配对校验**（deno 上游重新发布同一版本时可自动接受并标 weak；现在只能 `--insecure`）—— 需先抬行数红线
 2. **通用伴生包**：`applyCompanion` 目前硬编码 `Companions["npm"]`，其它键只解析不生效
-3. **外部清单 `{filename}` 回退**：`github-releases` 索引没有文件清单时渲染成空串（见「已知缺口」）
-4. **多连接下载**：先做基准证明收益再实现（国内 CDN 分片实测往往更慢）；`--jobs` 已在 1.0.0 删除
-5. 卸载编排搬 `internal/install`（可选技术债）、GUI 差异页（`which`/`env`/`mirror write`）、3 项人工确认
+3. **多连接下载**：先做基准证明收益再实现（国内 CDN 分片实测往往更慢）；`--jobs` 已在 1.0.0 删除
+4. 卸载编排搬 `internal/install`（可选技术债）、GUI 差异页（`which`/`env`/`mirror write`）、3 项人工确认
 
 ## v1.0.0 发布记录（2026-11-12）
 
@@ -659,8 +658,8 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
   `pk install pnpm@10` 会在解析后**立刻报错并给建议**（corepack 或 `npm i -g pnpm@10`），不再去撞 404。另：之前用 JS tarball 装过同一版本的机器，
   TOFU 表里记的是旧摘要，重装会要求 `--force-rehash`（一次性）。
 - deno 这类「上游重新发布」的版本目前只能 `--insecure`；自动化需要「同源配对校验」（官方产物 + 官方校验和成对验证、标记 weak），属 v1.1。
-- 外部清单的 `checksum.urls` 用 `{filename}` 时，`github-releases`（无文件清单）索引拿不到文件名 → 渲染成空串 → 报"拿不到校验和"。
-  绕过：`format = "per-artifact"` 不写 `checksum.urls`（自动取 `<产物URL>.sha256`），或模板改用 `{version}`/`{platform}`。正解留 1.1。
+- ✅ 外部清单 `checksum.urls` 的 `{filename}` 在无文件清单的索引上（`github-releases`/`dirlist`）已回落到产物 URL 末段（1.0.1，
+  `TestFilenamePlaceholderFallsBackToArtifactName`）。注意 `checksum.urls` 仍然必填（缺了清单非法）。
 - **伴生包只实现 node→npm 一种**（2026-11-12 校对）：`internal/install/companion.go` 的 `applyCompanion`
   硬编码取 `Companions["npm"]`，其它 `[companions]` 键**只被解析与校验、安装时不生效**。
   清单校验侧已允许外部清单的 companions 指向另一个外部 provider（含前向引用，
