@@ -504,7 +504,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 | 线 | 状态 |
 |---|---|
-| CLI | **v1.2.0 已发（2026-11-12）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、9 个命令 |
+| CLI | **v1.3.0 已发（2026-11-13）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、9 个命令 |
 | 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
 | 行数 | **11,150 / 11,200**（余量 50）；`cmd/pk` 3,204 / 3,200（warn）；单文件无 >600 行 |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
@@ -515,8 +515,8 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 1. **3 项人工确认**（唯一挡在「全部自动化跑通」前面的）：Windows ARM64 运行时、PowerShell 调 `.cmd` shim、
    macOS Gatekeeper 首启 —— 步骤与通过标准在 `docs/verify-manual.md`，缺的是对应硬件/真人操作
-2. **待发版**：1.3 五项（见下方「1.3 已完成」）已在 main 上跑绿，是否发 `v1.3.0` 由你定
-3. **已无阻塞项**：1.1/1.2 时期的“可选增强”三项全部完成
+2. **已无阻塞项**：1.1/1.2/1.3 的可选增强与偿债全部完成；`v1.3.0` 已发（2026-11-13）
+3. **下一轮候选**在 `~/Documents/Plan/17-包管理器/pn-1.3-候选清单.md` 的“不做”一栏（`pk upgrade` 独立命令、自更新器、daemon）
 
 ### 1.2 已完成（2026-11-12，v1.2.0）
 
@@ -536,7 +536,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - 顺手修：`smoke.yml` 的版本号改成先查**线上最新 release**再回退 `scripts/latest` —— 否则"刚发完版但还没推
   scripts/latest"时会装到上一个版本（本轮连踩两次，第一次 smoke 装的是 1.1.0）。
 
-### 1.3 已完成（2026-11-13，未发版）
+### 1.3 已完成（2026-11-13，v1.3.0 已发）
 
 - **多连接默认自适应**：`Jobs = 0` 为默认（每段约 8MB → 2~8 段），`--jobs 1` 强制单流、`--jobs N` 固定段数，
   `PK_JOBS` 改默认；续传现场 / 不支持 Range / 任一异常仍整体退回单流。
@@ -558,6 +558,9 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   落地后 11,150 / 11,200。
 - 同步：`docs/cli.md`（`--jobs`/`--keep`/`--fix`/可升级提示）、`docs/json-schema.md`（`outdated`/`fixed`/`KeptRecent`/`keep`）、
   README、官网中英文、`--json` golden 三份。
+- 发布：tag **v1.3.0**（gitee + GitHub + brew tap + scoop + 官网同批）；`verify-release` 6 产物 sha256 全对。
+  官网 section 标题同时从 0.8rem 的纯大写小标签提到 1.4rem，补上缺失的中等字阶（impeccable 的
+  `flat-type-hierarchy` 之前对整站命中）。
 
 ### 1.1 已完成（2026-11-12，v1.1.0 已发 + GUI gui-v0.10.2）
 
