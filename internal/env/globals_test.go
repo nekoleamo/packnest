@@ -3,6 +3,7 @@ package env
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -155,6 +156,21 @@ func TestRCFileFor(t *testing.T) {
 		if got := RCFileFor(c.shell, c.goos, "/home/u", c.envShell); got != filepath.FromSlash(c.want) {
 			t.Errorf("RCFileFor(%v,%s,%q) = %q，期望 %q", c.shell, c.goos, c.envShell, got, c.want)
 		}
+	}
+}
+
+// TestRCFileForIgnoresForeignEnv：非 Windows 上"预测 windows profile 路径"时不应读本机环境。
+// CI（Linux）装着 pwsh，PSModulePath/POWERSHELL_DISTRIBUTION_CHANNEL 会让预测误判成 PS7 ——
+// 2026-11-12 的门禁在 ubuntu 上就因这个红过一次。
+func TestRCFileForIgnoresForeignEnv(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("真 Windows 上读本机 PSModulePath 是预期行为")
+	}
+	t.Setenv("PSModulePath", `C:\Program Files\PowerShell\7\Modules`)
+	t.Setenv("POWERSHELL_DISTRIBUTION_CHANNEL", "MSI:7.4.6")
+	want := filepath.FromSlash("/home/u/Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1")
+	if got := RCFileFor(ShellPowerShell, "windows", "/home/u", ""); got != want {
+		t.Fatalf("RCFileFor 被本机环境带偏了: %q，期望 %q", got, want)
 	}
 }
 

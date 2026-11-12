@@ -164,7 +164,13 @@ func RCFileFor(shell Shell, goos, home, envShell string) string {
 	if shell == ShellPowerShell {
 		if goos == "windows" {
 			// 单值版本只给首选（cmd 侧会用 WindowsProfilePaths 拿到全部候选）
-			return WindowsProfilePaths(home, os.Getenv)[0]
+			// 仅在真 Windows 上读本机环境：CI（Linux）也装着 pwsh，PSModulePath 会让"预测 windows 路径"的调用
+			// 误判成 PowerShell 7（门禁在 ubuntu 上就这样红过一次）。
+			getenv := os.Getenv
+			if runtime.GOOS != "windows" {
+				getenv = func(string) string { return "" }
+			}
+			return WindowsProfilePaths(home, getenv)[0]
 		}
 		return filepath.Join(home, ".config", "powershell", "Microsoft.PowerShell_profile.ps1")
 	}
