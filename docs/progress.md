@@ -504,7 +504,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 | 线 | 状态 |
 |---|---|
-| CLI | **v1.0.1 已发（2026-11-12）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、9 个命令 |
+| CLI | **v1.1.0 已发（2026-11-12）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、9 个命令 |
 | 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
 | 行数 | **10,491 / 10,500**（余量 9）；`cmd/pk` 3,136 / 3,200；单文件无 >600 行 |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
@@ -516,13 +516,14 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 1. **多连接下载**：先做基准证明收益再实现（国内 CDN 分片实测往往更慢）；`--jobs` 已在 1.0.0 删除
 2. 卸载编排搬 `internal/install`（可选技术债）、GUI 差异页（`which`/`env`/`mirror write`）、3 项人工确认
 
-### 1.1 已完成（2026-11-12）
+### 1.1 已完成（2026-11-12，v1.1.0 已发）
 
 - **通用伴生包**：`[companions.<名>]` 不再只认 node→npm，`bundled|latest-compatible|pinned` 三种语义都生效，
   装进宿主 `<target>`（跟着宿主卸载/回收，不单独进台账）；`pinned` 必须给 `version`（缺失即清单非法）。
 - **同源配对校验**：跨源分裂（同 host 认新摘要 + 别 host 给旧摘要）时按 `weak` 接受上游重发并改写 TOFU，
   `verify` 事件 `msg` 说明原因；同源一家之言仍硬失败。
-- 行数红线 10,500 → **10,700**（本次两项能力的实测驱动），`make loc` 现在 10,627 / 10,700。
+- 行数红线 10,500 → **10,700**（本次两项能力的实测驱动），`make loc` 现在 **10,627 / 10,700**；
+- 发布：tag **v1.1.0**（gitee + GitHub + brew tap + scoop 同步，`verify-release` 6 产物 sha256 全对，smoke 5 runner 待确认）。
 
 ## v1.0.0 发布记录（2026-11-12）
 
