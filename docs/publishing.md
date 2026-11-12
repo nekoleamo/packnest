@@ -153,6 +153,13 @@ sh scripts/release-gui.sh --version 0.10.2             # 重建 + 上传
 `pages.yml` 在**每次推 main**与**打 `v*` tag**时都会重跑（不用 paths 过滤 —— 版本号是 `git describe` 算的，
 只改代码/只打 tag 时也得重建，否则站点会一直挂着上一个版本；2026-11-12 实测踩过：线上还显示 1.0.1）。
 手动重建：`gh workflow run pages.yml --repo nekoleamo/packnest`。
+
+版本号还有两个坑（2026-11-12 都踩过，已修在 `pages.yml` 与 `scripts/build-site.sh`）：
+
+- `actions/checkout` 默认 **`fetch-tags: false`** —— 只给 `fetch-depth: 0` 拿不到 tag，
+  `git describe` 退化成短 SHA，站点会渲染成 `vdev`（或把 `635c593` 这种短 SHA 误当版本号）；
+- 所以 `build-site.sh` 只认 `vX.Y.Z` 形式的 tag（`--match 'v[0-9]*' --abbrev=0`，不用 `--always`），
+  取不到就依次回退 `scripts/latest` → `dist/latest`，最后才 `dev`。
 站点里的安装命令与渠道矩阵要和本文件保持一致（npm 那条已删）。
 
 ## 七、为什么不再发 npm
