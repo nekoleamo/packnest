@@ -12,7 +12,10 @@ on:
     paths:
       - 'site/**'
       - 'scripts/build-site.sh'
+      - 'scripts/latest' # 发版会改它（版本号的单一真源之一）
       - '.github/workflows/pages.yml'
+    # 版本号是 git describe 出来的：**发版（打 tag）也要重新渲染**，否则站点会一直挂着上一个版本
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
