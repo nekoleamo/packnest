@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/packnest/packnest/internal/env"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/jsonout"
@@ -162,7 +163,7 @@ func (a *app) cmdInstall(args []string) int {
 	if !a.json && !*quiet && !inPath(a.paths.Bin()) {
 		fmt.Fprintf(a.out, "\n提示：%s 不在 PATH，node/npm 等命令还不能直接用。\n", a.paths.Bin())
 		fmt.Fprintln(a.out, "      运行一次 `pk env --write` 即可（写进 rc 的托管块，块外内容不动），或临时：")
-		fmt.Fprintf(a.out, "      eval \"$(pk env --shell %s)\"\n", detectShell())
+		fmt.Fprintf(a.out, "      eval \"$(pk env --shell %s)\"\n", env.DetectShell())
 	}
 	if failed {
 		return jsonout.ExitFail
