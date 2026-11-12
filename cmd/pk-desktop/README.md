@@ -37,6 +37,22 @@ go build -o ../../bin/pk-desktop .
 - 契约就是 `docs/json-schema.md`，不需要生成前端绑定；
 - 前端可以用任何框架（现在是零依赖的 vanilla，后续换 Vue3 时只换 `assets/`）。
 
+## 打包（macOS）
+
+```bash
+make gui-app            # → dist/gui/packnest.app（ad-hoc 签名，本地自用）
+open dist/gui/packnest.app
+```
+
+- `LSMinimumSystemVersion = 13.0`（Wails v3 的目标）；`CFBundleIdentifier = io.packnest.desktop`
+- 分发要额外做 Developer ID 签名 + notarize；Linux 需要 GTK4/WebKitGTK 6.0，Windows 需要 WebView2（都还没接构建）
+
+## 安全边界
+
+- `--serve` 默认只绑 `127.0.0.1`；
+- 绑到非回环地址时**必须** `--token`，否则拒绝启动（这个接口能装卸软件）；
+  带 token 后 `/api/*` 认 `?token=` 或 `Authorization: Bearer`。
+
 ## 测试
 
 `internal/pkcli` 有单测：

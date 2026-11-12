@@ -15,6 +15,7 @@ import (
 	"flag"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"time"
 
@@ -34,10 +35,11 @@ type api struct {
 func main() {
 	serve := flag.Bool("serve", false, "只起 HTTP（用浏览器打开，不建桌面窗口）")
 	addr := flag.String("addr", "127.0.0.1:7799", "--serve 时监听的地址")
+	token := flag.String("token", "", "非回环地址时必须给：访问 /api/* 要带 ?token= 或 Authorization: Bearer")
 	flag.Parse()
 
 	a := &api{find: pkcli.Locate}
-	mux := a.routes()
+	mux := a.routes(*token)
 
 	sub, err := fs.Sub(assets, "assets")
 	if err != nil {
@@ -45,6 +47,9 @@ func main() {
 	}
 	static := application.BundledAssetFileServer(sub)
 	if *serve {
+		if !loopback(*addr) && *token == "" {
+			log.Fatal("拒绝启动：--serve 绑到非回环地址却没有 --token（这等于把装/卸软件的接口暴露到网络）")
+		}
 		// 浏览器形态和桌面壳共用同一套接口 + 同一份静态页
 		log.Printf("pk-desktop --serve：http://%s/（需要本机已安装 pk）", *addr)
 		log.Fatal(http.ListenAndServe(*addr, withAPI(mux, static)))
@@ -73,17 +78,52 @@ func withAPI(apiHandler, assetsHandler http.Handler) http.Handler {
 	})
 }
 
-func (a *api) routes() *http.ServeMux {
+// guard 给 /api/* 加一层令牌校验：`--serve` 一旦绑到非回环地址，等于把"装/卸软件"的接口
+// 暴露到网络里，必须显式给 token（桌面壳形态不走 HTTP 端口，不受影响）。
+func guard(token string, h http.Handler) http.Handler {
+	if token == "" {
+		return h
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ok := r.URL.Query().Get("token") == token
+		if !ok && r.Header.Get("Authorization") == "Bearer "+token {
+			ok = true
+		}
+		if !ok {
+			http.Error(w, "需要 token", http.StatusUnauthorized)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
+// loopback 判断监听地址是否只在本机（默认安全形态）。
+func loopback(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		host = addr
+	}
+	if host == "" {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func (a *api) routes(token string) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/status", a.handleStatus)
 	mux.HandleFunc("/api/tools", a.handleTools)
 	mux.HandleFunc("/api/doctor", a.handleDoctor)
-	mux.HandleFunc("/api/mirrors", a.handleMirrors)
-	mux.HandleFunc("/api/gc", a.handleGC)
-	mux.HandleFunc("/api/install", a.handleInstall) // NDJSON 流：一行一个 CLI 事件
-	mux.HandleFunc("/api/use", a.handleUse)
+	mux.Handle("/api/mirrors", guard(token, http.HandlerFunc(a.handleMirrors)))
+	mux.Handle("/api/gc", guard(token, http.HandlerFunc(a.handleGC)))
+	mux.Handle("/api/install", guard(token, http.HandlerFunc(a.handleInstall))) // NDJSON 流：一行一个 CLI 事件
+	mux.Handle("/api/use", guard(token, http.HandlerFunc(a.handleUse)))
 	mux.HandleFunc("/api/available", a.handleAvailable)
-	mux.HandleFunc("/api/uninstall", a.handleUninstall)
+	mux.Handle("/api/uninstall", guard(token, http.HandlerFunc(a.handleUninstall)))
 	mux.HandleFunc("/api/versions", a.handleVersions)
 	return mux
 }

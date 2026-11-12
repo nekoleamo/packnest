@@ -27,7 +27,7 @@ LDFLAGS := -s -w -X main.Version=$(VERSION)
 SOURCE_DATE := 202001010000
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
-.PHONY: gitee-release help build test race check fmt loc vet cover cross fuzz bench golden accept clean dist list-providers release checksums site verify-release publish-manifests github-release gui gui-serve gui-test
+.PHONY: gitee-release help build test race check fmt loc vet cover cross fuzz bench golden accept clean dist list-providers release checksums site verify-release publish-manifests github-release gui gui-app gui-serve gui-test
 
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
@@ -42,6 +42,7 @@ help:
 	@echo "make gitee-release  上传产物到 gitee release（二进制主源）"
 	@echo "    注：npm 分发渠道已于 2026-11-11 停用（见 docs/publishing.md）"
 	@echo "make gui      构建 GUI（cmd/pk-desktop，需先装 pk；不计入行数门禁）"
+	@echo "make gui-app  打包 macOS .app 到 dist/gui/（ad-hoc 签名）"
 	@echo "make gui-serve  GUI 的浏览器形态（127.0.0.1:7799）"
 	@echo "make github-release  同步产物到 GitHub Releases（海外主源）"
 	@echo "make site      渲染官网到 site/dist（只注入版本号，无前端工具链）"
@@ -171,6 +172,10 @@ checksums:
 gui:
 	@cd cmd/pk-desktop && go build -o ../../$(BIN)-desktop .
 	@echo "已构建 $(BIN)-desktop（需要本机已安装 pk 才能用）"
+
+# macOS .app（本地自用：ad-hoc 签名；分发要 Developer ID + notarize）
+gui-app:
+	@sh cmd/pk-desktop/packaging/build-macos.sh $(VERSION)
 
 # 浏览器形态（前端是普通静态页 + /api/*，不需要 Wails 运行时）
 gui-serve: gui

@@ -524,6 +524,10 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ## GUI 定位（2026-11-11 拍板）
 
+**GUI 前置 ③ 已完成**：可装版本/版本选择/卸载三个页面、`internal/pkcli` 的契约测试（用真 CLI 跑
+`version/list/doctor/mirror list/gc --dry-run`）、`make gui / gui-app / gui-serve / gui-test`；
+macOS `.app` 打包脚本（ad-hoc 签名，13.0+）；`--serve` 绑非回环地址时强制 `--token`。
+
 **GUI 前置 ② 已完成（spike）**：`cmd/pk-desktop` 独立模块（Wails v3.1.0 + 零依赖前端），
 `internal/pkcli` 负责"定位 CLI / 版本门禁 / 跑 `--json` / 解析 NDJSON"，已用假 `pk` 脚本单测
 （定位、schema 与版本门禁、progress 事件流、退出码 5）。桌面壳与 `--serve`（浏览器）共用同一套 `/api/*`；
