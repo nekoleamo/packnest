@@ -14,7 +14,9 @@ cd "$(dirname "$0")/.."
 # （2026-11-12：CI 的 clone 没 tag，站点一度渲染成 vdev）。
 VER="${PK_VERSION:-}"
 if [ -z "$VER" ]; then
-  VER=$(git describe --tags --always 2>/dev/null | sed -n 's/^v\{0,1\}\([0-9][0-9.]*\).*/\1/p')
+  # 只认 vX.Y.Z 形式的 tag：不用 --always（它会退化成短 SHA，`635c593` 这种还会被下面的数字匹配误当成版本号），
+  # --match 同时把 gui-v* 这类别的 tag 排除在外。
+  VER=$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null | sed 's/^v//')
 fi
 if [ -z "$VER" ]; then
   VER=$(tr -d ' \t\r\n' < scripts/latest 2>/dev/null || true)
