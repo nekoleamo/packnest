@@ -27,7 +27,7 @@
 
 - **包职责按方案 §4.3 预算表**：`internal/{spec,provider,mirror,fetch,archive,verify,store,companion,shim,env,jsonout,toolchain,testkit}` + `cmd/pk`。
   `internal/install`（编排层）是从 `cmd/pk` 预算里划出来的：`cmd/pk` 只管参数与输出，编排要能被 GUI 复用，总量不变。新增包先改预算表。
-- **依赖方向单向**：`cmd/pk → internal/*`；`internal` 之间只许 `上层 → 下层`，禁止环。GUI（未来 `cmd/pk-desktop`）只许 import `internal/core` 的公开函数，`core` 永不得出现 Wails 符号。M5 前 Wails 不进主 `go.mod`。
+- **依赖方向单向**：`cmd/pk → internal/*`；`internal` 之间只许 `上层 → 下层`，禁止环。GUI（未来 `cmd/pk-desktop`）**只作为 CLI 的可视化补充**：必须以已安装的 `pk` 为前提，通过子进程 + `pk --json`（冻结 schema）驱动，**不 import** 任何 `internal/*`；`--json` 变更同时是对 GUI 的破坏性变更（同步 golden）。M5 前 Wails 不进主 `go.mod`。
 - **可测性从第一行代码开始**：`PK_ROOT` 取代硬编码路径 · `fetch` 的 `http.Client` 走接口注入（不是包级变量）· 时钟可注入（TTL/ETag 过期不用 `time.Sleep`）· 平台分支走 `GOOS` 参数 + 单测替身。
 - **原子落盘**：下载 → `.part` → 校验 → 解压到 `tools/<tool>/<ver>.tmp.<rand>` → `rename` → 写台账（先 `.bak`）。任一步失败删 tmp，**不留半成品目录**。Windows `os.Rename` 不能覆盖目录 → `.old` 改名三步法。
 - **路径统一走 `internal/paths`**（Windows 长路径 `\\?\` 前缀化），不许在业务代码里拼 `filepath.Join(home, ...)`。

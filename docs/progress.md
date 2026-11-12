@@ -522,6 +522,15 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   阶段 0 实测净腾 **16 行**（不是方案预估的 200：`flag`/`usage` 样板只有 16 行可省，
   `fetchArtifactVerified` 抽出来后主流程与伴生 npm 包复用同一路径，但 helper 自身吃掉了省下的行）。
 
+## GUI 定位（2026-11-11 拍板）
+
+**GUI 是 CLI 的可视化补充，不是独立端**：必须先装 `pk`，GUI 通过子进程调 `pk <cmd> --json`（冻结 schema）驱动，
+GUI 侧不 import 任何 `internal/*`。连带影响：
+
+- 方案 §11 的"`pk-desktop → internal/core`"改为"`pk-desktop → pk` 子进程"；`internal/core` 门面不再需要；
+- 技术债「卸载编排搬进 internal/install」**降级**（原本是为 GUI 复用，现在只是测试便利）；
+- 升级/卸载都指回 CLI（`brew upgrade`、`pk uninstall --all --self`），GUI 不自带更新器与第二套状态。
+
 ## 实装验证
 
 smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnpm（平台包）** 并跑一次，
