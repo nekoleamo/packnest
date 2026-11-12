@@ -128,6 +128,15 @@ func (a *api) routes(token string) *http.ServeMux {
 	return mux
 }
 
+// httpErr 把 pkcli 的错误映射成状态码：锁被占用 → 409（前端提示"另一个 pk 正在运行"），其余 → 502。
+func httpErr(w http.ResponseWriter, err error) {
+	if errors.Is(err, pkcli.ErrBusy) {
+		http.Error(w, err.Error(), http.StatusConflict)
+		return
+	}
+	http.Error(w, err.Error(), http.StatusBadGateway)
+}
+
 // client 取"已定位的 pk"；没装 CLI 时直接 412，前端据此引导安装。
 func (a *api) client(w http.ResponseWriter) (*pkcli.Client, bool) {
 	cl, _, err := a.find()
@@ -165,7 +174,7 @@ func (a *api) handleTools(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	tools, err := cl.List(ctx)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		httpErr(w, err)
 		return
 	}
 	writeJSON(w, map[string]any{"tools": tools})
@@ -180,7 +189,7 @@ func (a *api) handleDoctor(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	issues, err := cl.Doctor(ctx, r.URL.Query().Get("globals") == "1")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		httpErr(w, err)
 		return
 	}
 	writeJSON(w, map[string]any{"issues": issues})
@@ -208,7 +217,7 @@ func (a *api) handleMirrors(w http.ResponseWriter, r *http.Request) {
 	}
 	m, err := cl.Mirrors(ctx)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		httpErr(w, err)
 		return
 	}
 	writeJSON(w, m)
@@ -224,7 +233,7 @@ func (a *api) handleGC(w http.ResponseWriter, r *http.Request) {
 	dry := r.Method != http.MethodPost // POST 才真删
 	res, err := cl.GC(ctx, dry)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		httpErr(w, err)
 		return
 	}
 	writeJSON(w, res)
@@ -269,7 +278,7 @@ func (a *api) handleUninstall(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := timeout(r, 300*time.Second)
 	defer cancel()
 	if err := cl.UninstallTool(ctx, body.Tool); err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		httpErr(w, err)
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true})
@@ -285,7 +294,7 @@ func (a *api) handleAvailable(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	rows, err := cl.Available(ctx)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		httpErr(w, err)
 		return
 	}
 	writeJSON(w, map[string]any{"available": rows})
@@ -306,7 +315,7 @@ func (a *api) handleVersions(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	v, err := cl.ToolVersions(ctx, tool, 40)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		httpErr(w, err)
 		return
 	}
 	writeJSON(w, v)
@@ -325,7 +334,7 @@ func (a *api) handleUse(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := timeout(r, 60*time.Second)
 	defer cancel()
 	if err := cl.Use(ctx, body.Tool, body.Version); err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		httpErr(w, err)
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true})

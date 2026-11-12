@@ -208,6 +208,7 @@ make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 | [docs/json-schema.md](docs/json-schema.md) | `--json` v1 契约（字段与问题码） |
 | [docs/publishing.md](docs/publishing.md) | 发布渠道（gitee / brew / scoop）、凭据、唯一发布者规则 |
 | [docs/verify-1.0.md](docs/verify-1.0.md) | 1.0 前实装验证记录（6 平台矩阵、发现的问题与修复） |
+| [cmd/pk-desktop/README.md](cmd/pk-desktop/README.md) | **GUI（可视化补充）**：必须先装 CLI，子进程调 `pk --json`；`--serve` 浏览器形态与 macOS `.app` 打包 |
 
 ## 彻底卸载
 
