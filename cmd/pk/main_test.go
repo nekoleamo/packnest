@@ -1418,3 +1418,41 @@ func TestInstallFromPackageJSONEngines(t *testing.T) {
 	}
 	_ = code // 离线拿不到索引 → 退出码是网络（3），不在这里断言
 }
+
+// `--dry-run` 是只读预览：不下载、不写 pk.lock（曾经会写，等于一次预览就改了仓库）。
+func TestInstallDryRunWritesNoLock(t *testing.T) {
+	root := t.TempDir()
+	// 预置索引缓存 → 离线也能解析出版本，dry-run 不需要产物
+	meta := filepath.Join(root, "cache", "meta")
+	if err := os.MkdirAll(meta, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	index := `[{"version":"v22.22.2","lts":"Jod"},{"version":"v22.98.0","lts":"Jod"}]`
+	if err := os.WriteFile(filepath.Join(meta, "node.json"), []byte(index), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stamp := `{"url":"https://example.invalid/index.json","fetched_at":"` + time.Now().UTC().Format(time.RFC3339) + `"}`
+	if err := os.WriteFile(filepath.Join(meta, "node.meta.json"), []byte(stamp), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "pk.toml"), []byte("[tools]\nnode = \"22\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+
+	code, out, errOut := execCLI(t, "--root", root, "--offline", "install", "--dry-run")
+	if code != 0 {
+		t.Fatalf("dry-run 应成功（离线 + 索引缓存），得到 %d：%q", code, errOut)
+	}
+	if !strings.Contains(out, "解析 node@22.98.0") {
+		t.Fatalf("应打印解析结果: %q", out)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "pk.lock")); !os.IsNotExist(err) {
+		t.Fatal("dry-run 不该写 pk.lock")
+	}
+	if strings.Contains(out, "已更新 pk.lock") {
+		t.Fatalf("dry-run 不该声称更新了锁: %q", out)
+	}
+}

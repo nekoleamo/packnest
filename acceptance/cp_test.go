@@ -21,7 +21,7 @@ import (
 )
 
 // cpEnv 造一台只提供 node 的假镜像（Corepack 决定包里带不带 corepack）。
-func cpEnv(t *testing.T, version string, withCorepack bool) (*testkit.FakeNode, *install.Installer, paths.Paths, *[]string) {
+func cpEnv(t *testing.T, version string, withCorepack bool, mutate ...func(*install.Options)) (*testkit.FakeNode, *install.Installer, paths.Paths, *[]string) {
 	t.Helper()
 	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
 		Versions: []testkit.NodeSpec{{Version: version, NPMVersion: "11.20.0", Corepack: withCorepack}},
@@ -32,7 +32,7 @@ func cpEnv(t *testing.T, version string, withCorepack bool) (*testkit.FakeNode, 
 		t.Fatal(err)
 	}
 	var calls []string
-	inst, err := install.New(install.Options{
+	opt := install.Options{
 		Paths: p, Client: fetch.New(), Cfg: store.DefaultConfig(), Profile: "cn",
 		GOOS: "darwin", GOARCH: "arm64", Corepack: true,
 		// 不真跑 node：把 corepack enable 的产物（shim）按真实行为写出来
@@ -50,7 +50,11 @@ func cpEnv(t *testing.T, version string, withCorepack bool) (*testkit.FakeNode, 
 			}
 			return fm.NodeProvider, nil
 		},
-	})
+	}
+	for _, m := range mutate {
+		m(&opt)
+	}
+	inst, err := install.New(opt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,5 +99,51 @@ func TestAcceptance_CP_NoCorepackOnNode25(t *testing.T) {
 	}
 	if len(*calls) != 0 {
 		t.Fatalf("不该尝试执行 corepack: %v", *calls)
+	}
+}
+
+// TestAcceptance_CP_DryRunNoCorepack：`--dry-run` 只打印计划 —— 已装版本也不该重放 corepack
+// （那是真往 global/corepack/bin 写 shim）。
+func TestAcceptance_CP_DryRunNoCorepack(t *testing.T) {
+	_, inst, p, calls := cpEnv(t, "22.22.2", true)
+	ctx := context.Background()
+	if _, err := inst.Install(ctx, "node", "22.22.2"); err != nil {
+		t.Fatalf("先装 node: %v", err)
+	}
+	if err := inst.Finalize(); err != nil {
+		t.Fatal(err)
+	}
+	// 清掉上一轮写下的 shim，再看 dry-run 会不会又写回来
+	for _, shim := range []string{"yarn", "yarnpkg", "pnpm"} {
+		_ = os.Remove(filepath.Join(p.GlobalCorepackBin(), shim))
+	}
+	*calls = nil
+
+	// 再建一个 dry-run 安装器（与 cmd 传 DryRun 的时机一致），用同一套路径与假命令
+	dry, err := install.New(install.Options{
+		Paths: p, Client: fetch.New(), Cfg: store.DefaultConfig(), Profile: "cn",
+		GOOS: "darwin", GOARCH: "arm64", Corepack: true, DryRun: true,
+		RunCommand: func(_ context.Context, name string, args ...string) error {
+			*calls = append(*calls, filepath.Base(name)+" "+strings.Join(args, " "))
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := dry.Install(ctx, "node", "22.22.2")
+	if err != nil {
+		t.Fatalf("dry-run: %v", err)
+	}
+	if !res.AlreadyInstalled || res.Corepack {
+		t.Fatalf("已装版本在 dry-run 下应报 already-installed 且不启用 corepack: %+v", res)
+	}
+	if len(*calls) != 0 {
+		t.Fatalf("dry-run 不该执行 corepack enable: %v", *calls)
+	}
+	for _, shim := range []string{"yarn", "yarnpkg", "pnpm"} {
+		if _, err := os.Stat(filepath.Join(p.GlobalCorepackBin(), shim)); !os.IsNotExist(err) {
+			t.Fatalf("dry-run 不该写回 %s", shim)
+		}
 	}
 }

@@ -77,7 +77,7 @@ Scope is decided by the current directory, not by a flag:
 ```bash
 $ pk install node@22            # newest 22.x
 $ pk install node@22.22.2       # exact; still fetches checksums
-$ pk install node@22 --dry-run  # resolve only: version + artifact URL + checksum source
+$ pk install node@22 --dry-run  # resolve only: version + artifact URL + checksum source (writes nothing)
 $ pk install                    # install everything declared in ./pk.toml
 ```
 

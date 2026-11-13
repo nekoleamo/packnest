@@ -124,9 +124,11 @@ func (a *app) cmdInstall(args []string) int {
 	if err != nil {
 		return a.failWith(err)
 	}
-	// 写操作前先清扫崩溃残留（断电/强杀留下的 .tmp/.old/.part）。
-	if swept, err := inst.SweepStale(); err == nil && len(swept.Removed) > 0 && !a.json {
-		fmt.Fprintf(a.out, "清扫残留 %d 项（约 %.1f MB）\n", len(swept.Removed), float64(swept.Bytes)/(1<<20))
+	// 写操作前先清扫崩溃残留（断电/强杀留下的 .tmp/.old/.part）；--dry-run 不动盘。
+	if !*dryRun {
+		if swept, err := inst.SweepStale(); err == nil && len(swept.Removed) > 0 && !a.json {
+			fmt.Fprintf(a.out, "清扫残留 %d 项（约 %.1f MB）\n", len(swept.Removed), float64(swept.Bytes)/(1<<20))
+		}
 	}
 
 	var failed bool
@@ -176,18 +178,24 @@ func (a *app) cmdInstall(args []string) int {
 	if failed {
 		return jsonout.ExitFail
 	}
-	// 项目里安装成功就刷新 pk.lock（--frozen 不动锁）。
-	// 只有 pk.toml 存在时才写：engine 来自 package.json 的项目不该凭空多出一个 pk 文件。
-	if !*frozen && len(project) > 0 && install.HasProjectFile(a.cwd()) {
-		lock, err := a.writeProjectLock(project, inst)
-		if err != nil {
-			return a.fail(err)
-		}
+	// 项目里安装成功就刷新 pk.lock。--frozen 不动锁；--dry-run 什么都不落盘
+	// （它只打印计划，写锁既无意义也可能把一个"还没装"的项目卡成错误）。
+	if *dryRun || *frozen || len(project) == 0 {
+		return jsonout.ExitOK
+	}
+	// 只有 pk.toml 存在时才写：engines 来自 package.json 的项目不该凭空多出一个 pk 文件。
+	if !install.HasProjectFile(a.cwd()) {
 		if !a.json {
-			fmt.Fprintf(a.out, "已更新 %s（%s）\n", install.LockFileName, lock.LockTools())
+			fmt.Fprintln(a.out, "没写 "+install.LockFileName+"（这个项目没有 pk.toml；想固化版本就加一份）")
 		}
-	} else if !*frozen && len(project) > 0 && !a.json {
-		fmt.Fprintln(a.out, "没写 "+install.LockFileName+"（这个项目没有 pk.toml；想固化版本就加一份）")
+		return jsonout.ExitOK
+	}
+	lock, err := a.writeProjectLock(project, inst)
+	if err != nil {
+		return a.fail(err)
+	}
+	if !a.json {
+		fmt.Fprintf(a.out, "已更新 %s（%s）\n", install.LockFileName, lock.LockTools())
 	}
 	return jsonout.ExitOK
 }

@@ -205,7 +205,8 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		if _, statErr := os.Stat(target); statErr == nil {
 			res := Result{Tool: tool, Version: version, Path: target, Verified: existing.Verified,
 				AlreadyInstalled: true, NPMVersion: existing.NpmVersion, NPMReplaced: existing.NpmBundled}
-			if p.ID == "node" && i.opt.Corepack { // 已装也照样重放 corepack（用户这次显式要了）
+			// 已装也照样重放 corepack（用户这次显式要了）；dry-run 不写任何东西。
+			if p.ID == "node" && i.opt.Corepack && !i.opt.DryRun {
 				res.Corepack, err = i.enableCorepack(ctx, target)
 			}
 			return res, err

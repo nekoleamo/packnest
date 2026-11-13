@@ -99,7 +99,9 @@ $ pk install pnpm            # 没装 node 时
 pk: pnpm@ 安装失败: pnpm 需要 node：先 `pk install node` 再装 pnpm（我们不隐式安装运行时）
 ```
 
-### 1.3 先看会做什么（不下载）
+### 1.3 先看会做什么（不下载、不动盘）
+
+`--dry-run` 是**只读预览**：不下载、不解压、不写 `pk.lock`、不清残留、也不重放 corepack。
 
 ```bash
 $ pk install go@1.27.3 --dry-run
