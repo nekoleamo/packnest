@@ -71,6 +71,23 @@ Global flags: `--json` (the only contract for GUIs and scripts) · `--offline` �
 `--root` (debug). Fixed exit codes: `0` ok / `1` generic / `2` usage / `3` network / `4` checksum /
 `5` locked.
 
+## Desktop app (optional)
+
+`pk-desktop` is a **visual supplement** to the CLI (Wails v3 + Vue3, a separate module): the CLI must be installed first,
+and every action in the UI is a subprocess call to `pk <command> --json`. It has no downloader, ledger or self-updater of
+its own — uninstall and upgrade still go through the CLI.
+
+- installed-tools table with an `upgrade` hint (one click = `pk install <tool>@latest`), `weak` / unverified / npm badges, set default, uninstall, copy path
+- multi-spec install queue with per-row progress (the NDJSON `progress` event)
+- mirror profile switching with latency probing; doctor page (global packages in a table, `--probe` to really load native modules, **Fix now** = `pk doctor --fix`)
+- reclaim page: preview or delete, `--keep N` keeps the newest N versions per tool
+- read-only `which` / `env` views, light/dark toggle
+
+Artifacts live under a **separate tag** `gui-v<version>` (macOS arm64 / Windows amd64 / Linux amd64) on
+[gitee](https://gitee.com/null_593_5354/packnest/releases) and [GitHub Releases](https://github.com/nekoleamo/packnest/releases).
+macOS builds are ad-hoc signed (allow once in System Settings → Privacy & Security); Linux needs GTK4 + WebKitGTK 6.0.
+No desktop runtime? Use `pk-desktop --serve` → `http://127.0.0.1:7799/`.
+
 ## Differences from proto / mise / nvm
 
 | Them | packnest |

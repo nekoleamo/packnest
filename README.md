@@ -82,6 +82,27 @@ pk gc --keep 2              # 每个工具保留最新 2 个版本，其余零�
 全局开关：`--json`（GUI 与脚本的唯一契约）· `--offline` · `--yes` · `--root`（调试）。
 退出码固定：`0` 成功 / `1` 通用 / `2` 用法 / `3` 网络 / `4` 校验 / `5` 锁被占用。
 
+## 桌面端（可选）
+
+`pk-desktop` 是 CLI 的**可视化补充**（Wails v3 + Vue3，独立模块）：**必须先装 `pk`**，
+界面里每个动作都是子进程调 `pk <命令> --json`，没有自己的下载器、台账或更新器 —— 卸载/升级仍指回 CLI。
+
+| 界面 | 背后的命令 |
+|---|---|
+| 已装工具表：`可升级` 提示（点一下 = `pk install <工具>@latest`）、`weak`/未校验/npm 徽标、设为默认、卸载、复制路径 | `pk list --json`、`pk use`、`pk uninstall --yes` |
+| 多 spec 安装队列，每行独立进度（NDJSON 的 `progress` 事件） | `pk install <spec> --json` |
+| 镜像档切换 + 各源延迟探测 | `pk mirror list/probe/use --json` |
+| 体检页：全局包表格化、`--probe` 用 node 实测原生模块、**一键修复** | `pk doctor --json [--globals] [--probe] [--fix]` |
+| 回收页：预演/真删、`--keep N` 每个工具保留最近 N 个版本 | `pk gc --json [--keep N]` |
+| `which` / `env` 只读查看、深浅色切换 | `pk which --json`、`pk env --json` |
+
+安装：产物挂在**独立 tag** `gui-v<版本>` 下（macOS arm64 / Windows amd64 / Linux amd64），
+从 [gitee](https://gitee.com/null_593_5354/packnest/releases) 或 [GitHub Releases](https://github.com/nekoleamo/packnest/releases) 下载。
+macOS 是 ad-hoc 签名（首次打开在「系统设置 → 隐私与安全性」放行一次）；Linux 需要 GTK4 + WebKitGTK 6.0。
+不想装桌面运行时也能用浏览器形态：`pk-desktop --serve` → `http://127.0.0.1:7799/`。
+
+用户向说明见 [docs/gui.md](docs/gui.md)，开发/打包细节见 [cmd/pk-desktop/README.md](cmd/pk-desktop/README.md)。
+
 ## 与 proto / mise / nvm 的差别
 
 | 它们 | packnest |
@@ -235,6 +256,7 @@ make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 | [docs/verify-1.0.md](docs/verify-1.0.md) | 1.0 前实装验证记录（6 平台矩阵、发现的问题与修复） |
 | [docs/providers.md](docs/providers.md) | **外部清单的字段级说明**：`[index]/[artifact]/[checksum]/[layout]/[companions]/[toolchain]` 每个字段的合法值与占位符 |
 | [docs/verify-manual.md](docs/verify-manual.md) | 需要人工确认的三项（Windows ARM64 运行时、`.cmd` shim、macOS Gatekeeper 首启）的步骤与通过标准 |
+| [docs/gui.md](docs/gui.md) | **桌面端使用说明**：下载/安装/首次放行、界面与 CLI 命令的对照、故障排查 |
 | [cmd/pk-desktop/README.md](cmd/pk-desktop/README.md) | **GUI（可视化补充）**：必须先装 CLI，子进程调 `pk --json`；`--serve` 浏览器形态与 macOS `.app` 打包 |
 
 ## 彻底卸载

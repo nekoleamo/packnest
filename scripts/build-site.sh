@@ -26,6 +26,10 @@ if [ -z "$VER" ]; then
 fi
 [ -n "$VER" ] || VER=dev
 
+# GUI 版本号单独注入（取自 cmd/pk-desktop/main.go 的 guiVersion）：GUI 有独立版本、独立 tag。
+GUI_VER=$(grep -oE 'guiVersion = "[0-9.]+"' cmd/pk-desktop/main.go 2>/dev/null | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+[ -n "$GUI_VER" ] || GUI_VER=dev
+
 OUT=site/dist
 rm -rf "$OUT"
 mkdir -p "$OUT"
@@ -36,10 +40,10 @@ find site -type f ! -path 'site/dist/*' | while read -r f; do
   mkdir -p "$OUT/$(dirname "$rel")"
   case "$rel" in
     *.html|*.css|*.svg)
-      sed "s/__PK_VERSION__/${VER}/g" "$f" > "$OUT/$rel" ;;
+      sed -e "s/__PK_VERSION__/${VER}/g" -e "s/__GUI_VERSION__/${GUI_VER}/g" "$f" > "$OUT/$rel" ;;
     *)
       cp "$f" "$OUT/$rel" ;;
   esac
 done
 
-echo "site/dist 已生成（v${VER}）：$(cd "$OUT" && find . -type f | sed 's|^\./||' | sort | tr '\n' ' ')"
+echo "site/dist 已生成（CLI v${VER} · GUI ${GUI_VER}）：$(cd "$OUT" && find . -type f | sed 's|^\./||' | sort | tr '\n' ' ')"

@@ -564,6 +564,10 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   `scripts/latest`（CLI 版本）给 GUI 产物命名 → CI 产物成 `packnest-desktop_1.3.1_*`，`release-gui.sh`
   找不到；改成取 `guiVersion`。② `release-gui.sh` 把不存在的通配符写进 `gh release upload`，每次都失败却
   仍打印"已上传" → GitHub release 零附件；改成只传 `ls` 出来的真实文件、失败退出 5。
+- **桌面端补齐用户向材料**：新增 `docs/gui.md`（下载/首次放行/浏览器形态/界面↔CLI 对照/故障排查/卸载）与
+  `docs/en/gui.md`；README 与 README.en 各加「桌面端（可选）」一节（表格列出每个界面背后的 `pk` 命令）；
+  官网中英文各加 `#gui` 段（定位、能做什么、下载三平台产物、前置条件、不是什么）+ 导航/页脚入口。
+  GUI 版本号由 `scripts/build-site.sh` 从 `cmd/pk-desktop/main.go` 注入（`__GUI_VERSION__`），与 CLI 版本解耦。
 - 同步：`docs/cli.md`（`--jobs`/`--keep`/`--fix`/可升级提示）、`docs/json-schema.md`（`outdated`/`fixed`/`KeptRecent`/`keep`）、
   README、官网中英文、`--json` golden 三份。
 - 发布：tag **v1.3.1**（gitee + GitHub + brew tap + scoop + 官网同批）；`verify-release` 6 产物 sha256 全对。

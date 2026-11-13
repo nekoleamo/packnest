@@ -6,6 +6,7 @@
 |---|---|
 | [../README.en.md](../README.en.md) | English README: install, quick start, constraints, design notes |
 | [cli.md](cli.md) | CLI reference — the nine commands, flags, exit codes, recipes |
+| [gui.md](gui.md) | **Desktop app** (`pk-desktop`): download, first-launch, browser form, UI↔CLI mapping |
 | [troubleshooting.md](troubleshooting.md) | Troubleshooting and coexistence with proto / nvm / mise |
 | [../json-schema.md](../json-schema.md) | The `--json` v1 contract (field names are language-neutral) |
 | [../cli.md](../cli.md) | Chinese manual — the same ground with more narrative detail |

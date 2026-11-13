@@ -19,6 +19,7 @@
   <nav>
     <a class="hide-sm" href="#tools">Tools</a>
     <a class="hide-sm" href="#commands">Commands</a>
+    <a class="hide-sm" href="#gui">Desktop app</a>
     <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/cli.md">Docs</a>
     <a class="hide-xs" href="https://github.com/nekoleamo/packnest">GitHub</a>
     <a class="hide-xs" href="https://gitee.com/null_593_5354/packnest">gitee</a>
@@ -151,6 +152,35 @@
   <p class="after">Long-tail tools need no release: drop <code>~/.packnest/providers/&lt;id&gt;.toml</code> in (pure data, no code executed; checksums, mirror fallback and companion packages are declared in the manifest, and <code>pk doctor</code> points at the offending line).</p>
 </section>
 
+<section id="gui">
+  <h2>Desktop app <span class="hint">optional · separate artifact · requires the CLI</span></h2>
+  <p class="after">The GUI (<code>pk-desktop</code>, Wails + Vue3) is a visual supplement to the CLI, not a second installer:
+  it imports no internal packages and every action is a subprocess call to <code>pk &lt;command&gt; --json</code>,
+  so the truth always stays in the CLI and in <code>~/.packnest</code>.</p>
+  <dl>
+    <dt>What it does</dt>
+    <dd>Installed-tools table with an <b>upgrade</b> hint (one click = <code>pk install &lt;tool&gt;@latest</code>), a multi-spec
+    install queue with per-row progress, mirror profile switching plus latency probing, a doctor page (global packages in a
+    table, <code>--probe</code> to really load native modules with node, and <b>Fix&nbsp;now</b> = <code>pk doctor --fix</code>),
+    a reclaim page (preview or delete, <code>--keep N</code> to keep the newest N versions per tool), read-only
+    <code>which</code> / <code>env</code> views, and a light/dark toggle.</dd>
+    <dt>Download</dt>
+    <dd>Separate tag <code>gui-v__GUI_VERSION__</code> with three artifacts:
+    <code>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</code>, <code>…_windows_amd64.zip</code>,
+    <code>…_linux_amd64.tar.gz</code> — from
+    <a href="https://gitee.com/null_593_5354/packnest/releases/tag/gui-v__GUI_VERSION__">gitee</a> or
+    <a href="https://github.com/nekoleamo/packnest/releases/tag/gui-v__GUI_VERSION__">GitHub</a>.</dd>
+    <dt>Requirements</dt>
+    <dd>The CLI must be installed first, otherwise the app only tells you it cannot find <code>pk</code>. macOS builds are
+    ad-hoc signed: allow the app once under System Settings → Privacy &amp; Security. Linux needs GTK4 + WebKitGTK 6.0
+    (<code>libgtk-4-dev libwebkitgtk-6.0-dev</code>). No desktop runtime? Use the browser form:
+    <code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code>, same features.</dd>
+    <dt>What it is not</dt>
+    <dd>Not a second package manager: no downloader of its own, no separate ledger, no self-updater. Uninstall and upgrade
+    still go through the CLI (<code>brew upgrade packnest</code>, <code>pk uninstall --all --self</code>).</dd>
+  </dl>
+</section>
+
 <section class="en" lang="zh-CN">
   <h2>中文</h2>
   <p>本页是英文版。中文说明、命令手册与故障排查在中文页与 <code>docs/</code> 里：<a href="../">打开中文页</a>。</p>
@@ -159,6 +189,7 @@
 <footer>
   <nav>
     <a href="https://github.com/nekoleamo/packnest">Source</a>
+    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/gui.md">Desktop app</a>
     <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/cli.md">CLI reference</a>
     <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/troubleshooting.md">Troubleshooting</a>
     <a href="https://github.com/nekoleamo/packnest/blob/main/docs/json-schema.md">--json contract</a>
