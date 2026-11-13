@@ -97,9 +97,9 @@ type Installer struct {
 	opt    Options
 	ledger *store.Ledger
 	known  *verify.Known
-	// prefetched 是"正在后台加载的索引"（键为 provider ID）：多工具的索引互不相干，
-	// 别让网络串行地在解压/解析后面排队。
-	prefetched map[string]*indexFuture
+	// pf 是"正在后台加载的索引"（键为 provider ID）。多工具并行安装时多个 worker 共享它，
+	// 同一份索引不重复拉；互斥在 indexCache 内部。
+	pf *indexCache
 }
 
 // New 加载台账与校验表。
@@ -138,7 +138,7 @@ func New(opt Options) (*Installer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Installer{opt: opt, ledger: ledger, known: known, prefetched: map[string]*indexFuture{}}, nil
+	return &Installer{opt: opt, ledger: ledger, known: known, pf: newIndexCache()}, nil
 }
 
 // Ledger 暴露台账（CLI 的 list 复用）。
@@ -170,140 +170,15 @@ func (i *Installer) emit(ev jsonout.Event) {
 }
 
 // Install 安装一个工具。specStr 为空表示"最新稳定版"。
+//
+// 拆成 prepare（可并行：校验/解压/伴生包，只写自己的 tmp）与 commit（单写者：落盘/台账/shim）。
+// 单工具路径两者紧挨着跑，行为与拆分前完全一致。
 func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, error) {
-	p, err := i.opt.LookupProvider(tool)
+	prep, err := i.prepare(ctx, tool, specStr, true)
 	if err != nil {
 		return Result{}, err
 	}
-	if err := i.checkRequires(p); err != nil {
-		return Result{}, err
-	}
-
-	var lockedSHA string
-	var resolved provider.Version
-	var idx *provider.Index
-	if i.opt.Frozen {
-		version, sha, err := i.lockedVersion(i.opt.Lock, tool)
-		if err != nil {
-			return Result{}, err
-		}
-		lockedSHA = sha
-		resolved = provider.Version{Version: version}
-	} else {
-		i.resolveAutoProfile(ctx, p)
-		resolved, idx, err = i.resolveVersion(ctx, p, specStr)
-		if err != nil {
-			return Result{}, err
-		}
-	}
-	version := resolved.Version
-	if err := checkMinVersion(p, version); err != nil {
-		return Result{}, err
-	}
-	i.emit(jsonout.Event{Ev: "resolve", Tool: tool, Version: version})
-
-	target := i.opt.Paths.ToolVersion(tool, version)
-	if existing := i.ledger.Find(tool, version); existing != nil && !i.opt.Force {
-		if _, statErr := os.Stat(target); statErr == nil {
-			res := Result{Tool: tool, Version: version, Path: target, Verified: existing.Verified,
-				AlreadyInstalled: true, NPMVersion: existing.NpmVersion, NPMReplaced: existing.NpmBundled}
-			// 已装也照样重放 corepack（用户这次显式要了）；dry-run 不写任何东西。
-			if p.ID == "node" && i.opt.Corepack && !i.opt.DryRun {
-				res.Corepack, err = i.enableCorepack(ctx, target)
-			}
-			return res, err
-		}
-	}
-
-	res := Result{Tool: tool, Version: version, Path: target}
-
-	if i.opt.DryRun {
-		urls, err := p.ArtifactURLsFor(resolved, i.opt.GOOS, i.opt.GOARCH, i.opt.Profile)
-		if err != nil {
-			return Result{}, err
-		}
-		res.Planned, res.PlanURL, res.PlanFormat = true, urls[0], extOrDefault(p, i.opt.GOOS)
-		res.PlanChecksum = fmt.Sprintf("%s(%s)", p.Checksum.Format, p.Checksum.Mode)
-		i.emit(jsonout.Event{Ev: "plan", Tool: tool, Version: version, Source: res.PlanURL, Mode: res.PlanChecksum})
-		return res, nil
-	}
-
-	archivePath, _, sha, vr, err := i.fetchArtifactVerified(ctx, p, resolved, idx)
-	if err != nil {
-		return Result{}, err
-	}
-	res.SHA256, res.Verified = sha, vr.Verified
-	i.emit(jsonout.Event{Ev: "verify", Tool: tool, Version: version, Mode: vr.Mode, OK: boolPtr(true), Msg: vr.Note})
-
-	if i.opt.Frozen && lockedSHA != "" {
-		if err := verifyLockedSHA(archivePath, lockedSHA); err != nil {
-			return Result{}, err
-		}
-	}
-
-	tmpDir := target + ".tmp." + randomSuffix()
-	layout := archive.Layout{Strip: p.Layout.Strip, Single: p.Layout.Single, Bins: p.Layout.Bins, BinTargets: p.Layout.BinTargets}
-	format, err := archive.FormatFor(extOrDefault(p, i.opt.GOOS))
-	if err != nil {
-		return Result{}, err
-	}
-	// 解压要 1s 上下（纯 CPU），这段时间把伴生包的索引先拉回来（npm 索引冷拉实测 0.23s）。
-	i.prefetchCompanionIndex(ctx, p)
-
-	// Ctrl-C / panic 也不许留半成品目录（方案 §12.1 `_M4_CtrlCNoPartial`）。
-	placed := false
-	defer func() {
-		if !placed {
-			_ = os.RemoveAll(tmpDir)
-		}
-	}()
-	if err := archive.Extract(archivePath, tmpDir, format, layout, i.opt.GOOS); err != nil {
-		// 归档损坏：把缓存也删掉，下次重下（可能是截断的产物）。
-		_ = os.Remove(archivePath)
-		return Result{}, fmt.Errorf("解压失败（产物可能被截断或损坏）: %w", err)
-	}
-
-	npmVersion, npmBundled, err := i.applyCompanion(ctx, p, version, tmpDir, idx)
-	if err != nil {
-		return Result{}, err
-	}
-	res.NPMVersion, res.NPMReplaced = npmVersion, npmBundled
-
-	if err := i.applyGenericCompanions(ctx, p, version, tmpDir); err != nil {
-		return Result{}, err
-	}
-
-	if err := archive.Replace(target, tmpDir); err != nil {
-		return Result{}, err
-	}
-	placed = true
-
-	i.ledger.Upsert(store.Install{
-		Tool: tool, Version: version, Path: target,
-		Source: i.opt.Profile, SHA256: res.SHA256, Verified: res.Verified, Transport: transportOf(p),
-		NpmBundled: npmBundled, NpmVersion: npmVersion,
-		Channel: "manual", SizeBytes: store.DirSize(target),
-	})
-	// 首次安装即设为全局默认；已有默认版本时不抢（切版本用 `pk use`）。
-	if i.ActiveVersion(tool) == "" {
-		if err := i.Activate(tool, version); err != nil {
-			return Result{}, err
-		}
-		res.BecameDefault = true
-	} else if i.ActiveVersion(tool) == version {
-		if err := i.installShims(p, target); err != nil {
-			return Result{}, err
-		}
-	}
-	if p.ID == "node" && i.opt.Corepack {
-		enabled, err := i.enableCorepack(ctx, target)
-		if err != nil {
-			return Result{}, err
-		}
-		res.Corepack = enabled
-	}
-	i.emit(jsonout.Event{Ev: "done", Tool: tool, Version: version, Path: target})
-	return res, nil
+	return i.commit(ctx, prep)
 }
 
 // Uninstall 台账驱动卸载：只删自己记录过的目录（方案 §8.2 第 3 条）。

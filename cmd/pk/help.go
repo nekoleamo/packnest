@@ -18,35 +18,50 @@ import (
 //go:embed help/*.txt
 var helpFS embed.FS
 
+// 英文帮助也是数据：放 help/en/*.txt，零代码行数（--lang=en 时优先用它）。
+//
+//go:embed help/en/*.txt
+var helpENFS embed.FS
+
 // 补全脚本同理：是数据，不是代码（`pk env --completion bash|zsh|powershell`）。
 //
 //go:embed completion/*.txt
 var completionFS embed.FS
 
-var commandHelp = func() map[string]string {
-	entries, err := helpFS.ReadDir("help")
+var commandHelp = loadHelp(helpFS, "help")
+var commandHelpEN = loadHelp(helpENFS, "help/en")
+
+// loadHelp 把一个 embed 目录读成 命令名 → 文本。
+func loadHelp(fsys embed.FS, dir string) map[string]string {
+	entries, err := fsys.ReadDir(dir)
 	if err != nil {
 		return map[string]string{}
 	}
 	out := make(map[string]string, len(entries))
 	for _, e := range entries {
-		data, err := helpFS.ReadFile("help/" + e.Name())
+		data, err := fsys.ReadFile(dir + "/" + e.Name())
 		if err != nil {
 			continue
 		}
 		out[strings.TrimSuffix(e.Name(), ".txt")] = strings.TrimRight(string(data), "\n")
 	}
 	return out
-}()
+}
 
 // printCommandHelp 打印某个命令的详细帮助。
 func printCommandHelp(w io.Writer, cmd string) bool {
-	if text, ok := commandHelp[cmd]; ok {
-		fmt.Fprintln(w, text)
-		fmt.Fprintf(w, "\n开关与默认值：pk %s --help\n", cmd)
-		return true
+	text, ok := commandHelp[cmd]
+	if !ok {
+		return false
 	}
-	return false
+	if langEN {
+		if en, has := commandHelpEN[cmd]; has {
+			text = en
+		}
+	}
+	fmt.Fprintln(w, text)
+	fmt.Fprintf(w, tr("\n开关与默认值：pk %s --help\n", "\nFlags and defaults: pk %s --help\n"), cmd)
+	return true
 }
 
 // commandNames 返回有详细帮助的命令名（排序）。
@@ -61,7 +76,7 @@ func commandNames() []string {
 
 // helpSummary 是 `pk help` 的总览（与 printUsage 一致，但列出可查询的命令）。
 func helpSummary(w io.Writer) {
-	fmt.Fprintln(w, "详细用法: pk help <命令>，可用命令: "+strings.Join(commandNames(), " / "))
+	fmt.Fprintln(w, tr("详细用法: pk help <命令>，可用命令: ", "details: pk help <command>; available commands: ")+strings.Join(commandNames(), " / "))
 }
 
 // shell 补全脚本。放在 env 子命令里（`pk env --completion bash`），
@@ -76,7 +91,7 @@ var completionCommands = []string{
 func writeCompletion(w io.Writer, shell string) error {
 	data, err := completionFS.ReadFile("completion/" + shell + ".txt")
 	if err != nil {
-		return fmt.Errorf("不支持的 shell %q（bash/zsh/powershell）", shell)
+		return errT(tr("不支持的 shell %q（bash/zsh/powershell）", "unsupported shell %q (bash/zsh/powershell)"), shell)
 	}
 	arg := strings.Join(completionCommands, " ")
 	if shell == "powershell" { // PowerShell 的数组要带引号

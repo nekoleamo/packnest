@@ -29,7 +29,8 @@ VER_DIR="$DIST/v$VERSION"
 [ -d "$VER_DIR" ] || { echo "找不到 $VER_DIR" >&2; exit 1; }
 
 echo "将发布 ${REPO} ${TAG}（来自 ${VER_DIR}）"
-for f in "$VER_DIR"/packnest_* "$VER_DIR"/checksums.txt; do
+for f in "$VER_DIR"/packnest_* "$VER_DIR"/checksums.txt "$VER_DIR"/checksums.txt.sig; do
+  [ -f "$f" ] || continue
   [ -f "$f" ] && printf '  %s (%s)\n' "$(basename "$f")" "$(du -h "$f" | cut -f1)"
 done
 if [ "$DRY" -eq 1 ]; then echo "dry-run：没有上传"; exit 0; fi
@@ -51,7 +52,7 @@ fi
 echo "release id: $rel_id"
 
 # 2) 逐个上传附件
-for f in "$VER_DIR"/packnest_* "$VER_DIR"/checksums.txt; do
+for f in "$VER_DIR"/packnest_* "$VER_DIR"/checksums.txt "$VER_DIR"/checksums.txt.sig; do
   [ -f "$f" ] || continue
   code=$(curl -s -o /tmp/gitee-upload.json -w '%{http_code}' -X POST "$api/releases/$rel_id/attach_files" \
     -F "access_token=$TOKEN" -F "file=@$f")

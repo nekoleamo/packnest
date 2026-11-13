@@ -537,6 +537,19 @@ $ pk install --help          # 同上
 
 ---
 
+## 11.9 语言（1.7）
+
+默认中文。`--lang=en`（或 `export PK_LANG=en`）把 CLI 输出与 `--help` 切成英文：
+
+```bash
+pk --lang=en install node@22
+PK_LANG=en pk list
+```
+
+- 命令行优先于 `PK_LANG`；**不跟随 `LANG`**（CI 里常是 `C`/`en_US`，自动跟随会让日志静默变英文）。
+- `--json` 的结构不随语言改变；`msg`/`message` 这类文案字段不保证英文（机器读 `code`/`ev`/退出码）。
+- `internal/*` 的错误消息仍是中文（英文只覆盖 CLI 这一层），见 `~/Documents/Plan/17-包管理器/pn-1.7-英文输出-方案.md`。
+
 ## 12. 全局开关与退出码
 
 | 开关 | 作用 |

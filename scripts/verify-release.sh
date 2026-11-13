@@ -30,6 +30,24 @@ trap 'rm -rf "$tmp"' EXIT
 
 fail=0
 printf '核对 v%s 的已发布产物：%s\n' "$VER" "$BASE"
+
+# 发布签名：远端有 checksums.txt.sig 就验（公钥与 pk 内置的那份同源）
+if curl -fsSL --max-time 60 -o "$tmp/checksums.txt.sig" "$BASE/checksums.txt.sig" 2>/dev/null; then
+  SIGNERS="internal/verify/keys/allowed_signers"
+  if ! command -v ssh-keygen >/dev/null 2>&1; then
+    echo "  签名：跳过（本机没有 ssh-keygen）" >&2
+  elif ! grep -q 'ssh-ed25519' "$SIGNERS" 2>/dev/null; then
+    echo "  签名：跳过（$SIGNERS 里还没有公钥）" >&2
+  elif ssh-keygen -Y verify -f "$SIGNERS" -I release@packnest.dev -n pk-release \
+       -s "$tmp/checksums.txt.sig" < "$SUMS" >/dev/null 2>&1; then
+    echo "  签名：OK（sshsig / pk-release）"
+  else
+    echo "  签名：不符（checksums.txt 与 .sig 对不上，或密钥已轮换未同步）" >&2
+    fail=1
+  fi
+else
+  echo "  签名：该版本没有 .sig（兼容期正常）" >&2
+fi
 while read -r want file; do
   [ -n "${file:-}" ] || continue
   printf '  %-46s ' "$file"

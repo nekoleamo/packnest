@@ -32,7 +32,7 @@ DIR="$DIST/v$VER"
 command -v gh >/dev/null 2>&1 || { echo "需要 gh（brew install gh）" >&2; exit 1; }
 
 echo "将发布 ${REPO} ${TAG}（来自 ${DIR}）"
-ls "$DIR"/packnest_* "$DIR"/checksums.txt | sed 's|^|  |'
+ls "$DIR"/packnest_* "$DIR"/checksums.txt $( [ -f "$DIR/checksums.txt.sig" ] && echo "$DIR/checksums.txt.sig" ) | sed 's|^|  |'
 [ "$DRY" -eq 1 ] && { echo "dry-run：没有上传"; exit 0; }
 
 # release 不存在就建（存在则复用，重复上传用 --clobber 覆盖同名文件）
@@ -42,6 +42,9 @@ if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
 fi
 # 兜底：release 是 draft 时 /releases/latest 看不到它，smoke 会退而装上一个版本（1.3.1 踩过）
 gh release edit "$TAG" --repo "$REPO" --draft=false >/dev/null
+EXTRA=""
+[ -f "$DIR/checksums.txt.sig" ] && EXTRA="$DIR/checksums.txt.sig"
+# shellcheck disable=SC2086
 gh release upload "$TAG" --repo "$REPO" --clobber \
-  "$DIR"/packnest_* "$DIR"/checksums.txt
+  "$DIR"/packnest_* "$DIR"/checksums.txt $EXTRA
 echo "完成：https://github.com/${REPO}/releases/tag/${TAG}"

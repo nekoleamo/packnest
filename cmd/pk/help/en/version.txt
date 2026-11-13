@@ -1,0 +1,3 @@
+pk version [--json]
+
+  Print version and build info (machine-readable when installed via a channel).

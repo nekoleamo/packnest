@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -17,16 +18,16 @@ import (
 // cmdList 列出已装工具（--available 时附带内嵌 provider 目录）。
 func (a *app) cmdList(args []string) int {
 	fs := a.newFlagSet("list")
-	available := fs.Bool("available", false, "列出各工具的最新可用版本（索引默认 24h 缓存）")
-	refresh := fs.Bool("refresh", false, "忽略索引缓存，强制重新拉取（配合 --available / 工具名）")
-	all := fs.Bool("all", false, "配合工具名：列出全部可装版本（等于 --limit 0）")
-	limit := fs.Int("limit", 20, "配合工具名：只列最近 N 个版本（0 = 全部）")
-	major := fs.String("major", "", "配合工具名：只看某个大版本（如 --major 22；0.x 可写 0.10）")
+	available := fs.Bool("available", false, tr("列出各工具的最新可用版本（索引默认 24h 缓存）", "list the latest available version per tool (index cached 24h)"))
+	refresh := fs.Bool("refresh", false, tr("忽略索引缓存，强制重新拉取（配合 --available / 工具名）", "ignore the index cache and refetch (with --available / a tool name)"))
+	all := fs.Bool("all", false, tr("配合工具名：列出全部可装版本（等于 --limit 0）", "with a tool name: list every installable version (= --limit 0)"))
+	limit := fs.Int("limit", 20, tr("配合工具名：只列最近 N 个版本（0 = 全部）", "with a tool name: list the latest N versions (0 = all)"))
+	major := fs.String("major", "", tr("配合工具名：只看某个大版本（如 --major 22；0.x 可写 0.10）", "with a tool name: only one major line (e.g. --major 22; use 0.10 for 0.x)"))
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
 	if fs.NArg() > 1 {
-		return a.failUsage(fmt.Errorf("用法: pk list [工具] [--available] [--refresh] [--all]"))
+		return a.failUsage(errors.New(tr("用法: pk list [工具] [--available] [--refresh] [--all]", "usage: pk list [tool] [--available] [--refresh] [--all]")))
 	}
 	if tool := fs.Arg(0); tool != "" {
 		n := *limit
@@ -34,7 +35,7 @@ func (a *app) cmdList(args []string) int {
 			n = 0
 		}
 		if n < 0 {
-			return a.failUsage(fmt.Errorf("--limit 不能为负数"))
+			return a.failUsage(errors.New(tr("--limit 不能为负数", "--limit must not be negative")))
 		}
 		return a.listToolVersions(tool, *refresh, n, strings.TrimPrefix(*major, "v"))
 	}
@@ -44,7 +45,7 @@ func (a *app) cmdList(args []string) int {
 		return a.fail(err)
 	}
 	if recovered && !a.json {
-		fmt.Fprintf(a.errOut, "pk: 台账损坏，已从 %s.bak 恢复（`pk doctor` 查看详情）\n", a.paths.Ledger())
+		fmt.Fprintf(a.errOut, tr("pk: 台账损坏，已从 %s.bak 恢复（`pk doctor` 查看详情）\n", "pk: ledger was corrupt, recovered from %s.bak (see `pk doctor`)\n"), a.paths.Ledger())
 	}
 
 	entries := install.InstalledEntries(ledger, install.ActiveVersions(a.cfg, ledger))
@@ -67,9 +68,9 @@ func (a *app) cmdList(args []string) int {
 
 	switch {
 	case len(entries) == 0 && !*available:
-		fmt.Fprintln(a.out, "还没装任何工具。`pk install node@22` 开始。")
+		fmt.Fprintln(a.out, tr("还没装任何工具。`pk install node@22` 开始。", "No tools installed yet. Start with `pk install node@22`."))
 	case len(entries) > 0:
-		fmt.Fprintln(a.out, "已装:")
+		fmt.Fprintln(a.out, tr("已装:", "installed:"))
 		for _, e := range entries {
 			mark := " "
 			if e.Active {
@@ -79,12 +80,12 @@ func (a *app) cmdList(args []string) int {
 			if e.NPM != nil && e.NPM.Version != "" {
 				line += fmt.Sprintf(" (npm %s", e.NPM.Version)
 				if e.NPM.Replaced != "" && e.NPM.Replaced != e.NPM.Version {
-					line += fmt.Sprintf(" ← 自带 %s", e.NPM.Replaced)
+					line += fmt.Sprintf(tr(" ← 自带 %s", " <- bundled %s"), e.NPM.Replaced)
 				}
 				line += ")"
 			}
 			if e.Verified == "unverified" {
-				line += " [未校验]"
+				line += tr(" [未校验]", " [unverified]")
 			}
 			if e.Source == provider.SourceExternal {
 				line += " *"
@@ -98,14 +99,14 @@ func (a *app) cmdList(args []string) int {
 		return a.printAvailable()
 	}
 	if hints := install.OutdatedHints(a.context(), a.paths, a.cfg.Mirror, entries); len(hints) > 0 {
-		fmt.Fprintln(a.out, "可升级（索引缓存；详情 `pk list --available`）:")
+		fmt.Fprintln(a.out, tr("可升级（索引缓存；详情 `pk list --available`）:", "upgradable (index cache; see `pk list --available`):"))
 		for _, h := range hints {
 			fmt.Fprintf(a.out, "  %-6s %s → %s   %s\n", h.Name, h.Installed, h.Latest, h.Advice)
 		}
 	}
 	for _, e := range entries {
 		if e.Source == provider.SourceExternal {
-			fmt.Fprintln(a.out, "* 来自外部清单（"+strings.Join(provider.ExternalDirs(), string(os.PathListSeparator))+"）")
+			fmt.Fprintln(a.out, tr("* 来自外部清单（", "* from an external manifest (")+strings.Join(provider.ExternalDirs(), string(os.PathListSeparator))+tr("）", ")"))
 			break
 		}
 	}
@@ -113,7 +114,7 @@ func (a *app) cmdList(args []string) int {
 }
 
 // availableRows 拉各工具的可用版本（失败只记录，不影响其他工具；并发在 provider 里）。
-// 只给"最新 + 近几个 + LTS"，所以走轻量索引（清单声明了 stable_urls 的工具会快一个数量级）。
+// 只给tr("最新 + 近几个 + LTS", "latest + recent + LTS")，所以走轻量索引（清单声明了 stable_urls 的工具会快一个数量级）。
 func (a *app) availableRows() []provider.AvailableRow {
 	loader := a.indexLoader()
 	loader.Stable = true
@@ -130,10 +131,10 @@ func (a *app) printAvailable() int {
 			Tools  []provider.AvailableRow `json:"tools"`
 		}{jsonout.SchemaVersion, a.cfg.Mirror, rows})
 	}
-	fmt.Fprintf(a.out, "可装版本（档位 %s；缓存 24h，离线读缓存）:\n", a.cfg.Mirror)
+	fmt.Fprintf(a.out, tr("可装版本（档位 %s；缓存 24h，离线读缓存）:\n", "installable versions (profile %s; cached 24h, offline reads cache):\n"), a.cfg.Mirror)
 	for _, row := range rows {
 		if row.Err != "" {
-			fmt.Fprintf(a.out, "  %-7s 取不到索引: %s\n", row.Name, firstLine(row.Err))
+			fmt.Fprintf(a.out, tr("  %-7s 取不到索引: %s\n", "  %-7s index unavailable: %s\n"), row.Name, firstLine(row.Err))
 			continue
 		}
 		extra := ""
@@ -141,13 +142,13 @@ func (a *app) printAvailable() int {
 			extra = " (lts " + row.LTS + ")"
 		}
 		if row.Stale {
-			extra += " [索引来自过期缓存]"
+			extra += tr(" [索引来自过期缓存]", " [index from stale cache]")
 		}
 		name := row.Name
 		if row.Source == provider.SourceExternal {
 			name += "*"
 		}
-		fmt.Fprintf(a.out, "  %-7s %-10s%s  近几个: %s\n",
+		fmt.Fprintf(a.out, tr("  %-7s %-10s%s  近几个: %s\n", "  %-7s %-10s%s  recent: %s\n"),
 			name, row.Latest, extra, strings.Join(row.Recent, ", "))
 	}
 	return jsonout.ExitOK
@@ -164,8 +165,8 @@ func (a *app) indexLoader() *provider.IndexLoader {
 
 // listToolVersions 打印某一个工具的全部可装版本 + 本机已装（`pk list node`）。
 //
-// 单工具视图和 `--available` 的"每个工具一行"是两件事：这里要能看见完整版本集，
-// 而不是只有最新版和"近几个"。
+// 单工具视图和 `--available` 的tr("每个工具一行", "one line per tool")是两件事：这里要能看见完整版本集，
+// 而不是只有最新版和tr("近几个", "recent")。
 func (a *app) listToolVersions(name string, refresh bool, limit int, major string) int {
 	p, err := provider.Get(name)
 	if err != nil {
@@ -187,8 +188,8 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 	_ = refresh // 缓存 TTL 由 a.refreshIndex 统一决定
 	idx, err := a.indexLoader().Load(a.context(), p, a.cfg.Mirror)
 	if err != nil {
-		fmt.Fprintf(a.errOut, "pk: %s 的版本索引取不到: %v\n", name, err)
-		fmt.Fprintln(a.errOut, "试一试：pk list "+name+" --refresh（强制回源）· pk mirror probe（看哪个源通）· pk mirror use cn（换档）")
+		fmt.Fprintf(a.errOut, tr("pk: %s 的版本索引取不到: %v\n", "pk: cannot fetch the version index for %s: %v\n"), name, err)
+		fmt.Fprintln(a.errOut, tr("试一试：pk list ", "try: pk list ")+name+tr(" --refresh（强制回源）· pk mirror probe（看哪个源通）· pk mirror use cn（换档）", " --refresh (force refetch) · pk mirror probe (which source works) · pk mirror use cn (switch profile)"))
 		return jsonout.ExitNetwork
 	}
 
@@ -207,7 +208,7 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 			}
 		}
 		if len(kept) == 0 {
-			fmt.Fprintf(a.errOut, "pk: %s 没有 %s.x 的版本（pk list %s 看有哪些大版本）\n", name, major, name)
+			fmt.Fprintf(a.errOut, tr("pk: %s 没有 %s.x 的版本（pk list %s 看有哪些大版本）\n", "pk: %s has no %s.x versions (see `pk list %s` for majors)\n"), name, major, name)
 			return jsonout.ExitFail
 		}
 		versions = kept
@@ -250,28 +251,28 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 		return a.emit(out)
 	}
 
-	head := name + "：可装 " + fmt.Sprint(len(versions)) + " 个版本"
+	head := name + tr("：可装 ", ": installable ") + fmt.Sprint(len(versions)) + tr(" 个版本", " version(s)")
 	if major != "" {
-		head = name + " " + major + ".x：" + fmt.Sprint(len(versions)) + " 个版本"
+		head = name + " " + major + ".x：" + fmt.Sprint(len(versions)) + tr(" 个版本", " version(s)")
 	}
 	if hasLatest {
-		head += "（索引最新 " + latest.Version
+		head += tr("（索引最新 ", "(latest in index ") + latest.Version
 		if hasLTS && ltsLatest != "" {
 			head += " · lts " + ltsLatest
 		}
-		head += "）"
+		head += tr("）", ")")
 	}
 	if idx.Stale {
-		head += " [索引来自过期缓存]"
+		head += tr(" [索引来自过期缓存]", " [index from stale cache]")
 	}
 	fmt.Fprintln(a.out, head)
 	if len(installed) == 0 {
-		fmt.Fprintln(a.out, "  已装   （本机还没装）")
+		fmt.Fprintln(a.out, tr("  已装   （本机还没装）", "  installed   (not installed locally)"))
 	} else {
 		for i, v := range installed {
 			label := "       "
 			if i == 0 {
-				label = "  已装 "
+				label = tr("  已装 ", "  installed ")
 			}
 			mark := " "
 			if active[name] == v {
@@ -281,7 +282,7 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 		}
 	}
 	if len(versions) == 0 {
-		fmt.Fprintln(a.out, "  可装   （索引里没有稳定版本）")
+		fmt.Fprintln(a.out, tr("  可装   （索引里没有稳定版本）", "  installable   (no stable version in the index)"))
 		return jsonout.ExitOK
 	}
 	// versions 是降序；展示用升序（最新在最下面），窗口取升序序列的尾部 = 最近 N 个。
@@ -296,12 +297,12 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 		shown = asc[truncated:]
 	}
 	if truncated > 0 {
-		fmt.Fprintf(a.out, "  可装   （显示最近 %d 个，旧 → 新，最新在最下面）\n", len(shown))
+		fmt.Fprintf(a.out, tr("  可装   （显示最近 %d 个，旧 → 新，最新在最下面）\n", "  installable   (latest %d, oldest first, newest at the bottom)\n"), len(shown))
 	} else {
-		fmt.Fprintf(a.out, "  可装   （全部 %d 个，旧 → 新，最新在最下面）\n", len(shown))
+		fmt.Fprintf(a.out, tr("  可装   （全部 %d 个，旧 → 新，最新在最下面）\n", "  installable   (all %d, oldest first, newest at the bottom)\n"), len(shown))
 	}
 
-	// 行多的时候改成"按大版本分组 + 多列网格"：877 行逐行铺开没法看（参考 nvm/pyenv 用户
+	// 行多的时候改成tr("按大版本分组 + 多列网格", "grouped by major + multi-column grid")：877 行逐行铺开没法看（参考 nvm/pyenv 用户
 	// 都靠 grep 也是因为如此）。少量版本仍用一版一行 + 文字标签，读起来更清楚。
 	mark := func(v string) string {
 		m := ""
@@ -324,7 +325,7 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 	}
 	if len(shown) > gridThreshold {
 		a.printVersionGrid(shown, ltsOf, mark)
-		fmt.Fprintln(a.out, "         图例：* 最新 · l 长期支持(LTS) · + 已装 · @ 当前默认")
+		fmt.Fprintln(a.out, tr("         图例：* 最新 · l 长期支持(LTS) · + 已装 · @ 当前默认", "         legend: * latest · l LTS · + installed · @ current default"))
 	} else {
 		width := 0
 		for _, v := range shown {
@@ -349,9 +350,9 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 			}
 			if slices.Contains(installed, v) {
 				if active[name] == v {
-					tags = append(tags, "已装 · 当前默认")
+					tags = append(tags, tr("已装 · 当前默认", "installed · current default"))
 				} else {
-					tags = append(tags, "已装")
+					tags = append(tags, tr("已装", "installed"))
 				}
 			}
 			if len(tags) == 0 {
@@ -362,9 +363,9 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 		}
 	}
 	if truncated > 0 {
-		fmt.Fprintf(a.out, "         …还有前面 %d 个更旧的版本（pk list %s --all 看全部，或 --limit N）\n", truncated, name)
+		fmt.Fprintf(a.out, tr("         …还有前面 %d 个更旧的版本（pk list %s --all 看全部，或 --limit N）\n", "         ...%d older versions not shown (pk list %s --all, or --limit N)\n"), truncated, name)
 	}
-	fmt.Fprintf(a.out, "  想装某个版本：pk install %s@<版本>\n", name)
+	fmt.Fprintf(a.out, tr("  想装某个版本：pk install %s@<版本>\n", "  to install one: pk install %s@<version>\n"), name)
 	return jsonout.ExitOK
 }
 
@@ -383,7 +384,7 @@ func (a *app) cmdWhich(args []string) int {
 		return a.failUsage(err)
 	}
 	if fs.NArg() != 1 {
-		return a.failUsage(fmt.Errorf("用法: pk which <命令>"))
+		return a.failUsage(errors.New(tr("用法: pk which <命令>", "usage: pk which <command>")))
 	}
 	name := fs.Arg(0)
 	path, isShim, err := shim.Resolve(a.paths.Bin(), name, goos())
@@ -391,7 +392,7 @@ func (a *app) cmdWhich(args []string) int {
 		return a.fail(err)
 	}
 	if path == "" {
-		return a.fail(fmt.Errorf("命令 %q 不在 %s（`pk list` 看已装工具，`pk env` 检查 PATH）", name, a.paths.Bin()))
+		return a.fail(errT(tr("命令 %q 不在 %s（`pk list` 看已装工具，`pk env` 检查 PATH）", "command %q is not in %s (see `pk list` for installed tools, `pk env` for PATH)"), name, a.paths.Bin()))
 	}
 	if a.json {
 		return a.emit(struct {
@@ -405,10 +406,10 @@ func (a *app) cmdWhich(args []string) int {
 	return jsonout.ExitOK
 }
 
-// gridThreshold 是"改用网格"的行数阈值：少量版本一版一行更好读，多了就得压缩。
+// gridThreshold 是tr("改用网格", "switching to grid")的行数阈值：少量版本一版一行更好读，多了就得压缩。
 const gridThreshold = 25
 
-// majorOf 取版本的"大版本"分组键：常规是 major，0.x 用 major.minor（node 的 0.10/0.12 区别很大）。
+// majorOf 取版本的tr("大版本", "majors")分组键：常规是 major，0.x 用 major.minor（node 的 0.10/0.12 区别很大）。
 func majorOf(v string) string {
 	parts := strings.SplitN(strings.TrimPrefix(v, "v"), ".", 3)
 	if len(parts) < 2 {
@@ -423,7 +424,7 @@ func majorOf(v string) string {
 // printVersionGrid 按大版本分组、组内升序、多列铺开（列数按终端宽度算）。
 //
 // 参考 nvm ls-remote / pyenv install --list：这类列表动辄几百上千行，逐行铺开无法扫读；
-// 分组 + 网格让人一眼看到"有哪些大版本、每个大版本有哪些补丁"。
+// 分组 + 网格让人一眼看到tr("有哪些大版本、每个大版本有哪些补丁", "which majors exist and their patches")。
 func (a *app) printVersionGrid(shown []string, ltsOf map[string]string, mark func(string) string) {
 	// 按 majorOf 分组，保持 shown 的顺序（升序），组也按首次出现顺序（旧 → 新）
 	order := make([]string, 0, 8)

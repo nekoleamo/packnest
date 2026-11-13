@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
 
@@ -12,13 +13,13 @@ import (
 // cmdUse 切换全局默认版本（写 config.toml + 台账引用 + 重指 shim）。
 func (a *app) cmdUse(args []string) int {
 	fs := a.newFlagSet("use")
-	project := fs.Bool("project", false, "固定到当前项目的 pk.toml + pk.lock（默认改全局默认）")
-	lockOnly := fs.Bool("lock", false, "只按现有 pk.toml 重新生成 pk.lock（不切版本）")
+	project := fs.Bool("project", false, tr("固定到当前项目的 pk.toml + pk.lock（默认改全局默认）", "pin into the project's pk.toml + pk.lock (default: change the global default)"))
+	lockOnly := fs.Bool("lock", false, tr("只按现有 pk.toml 重新生成 pk.lock（不切版本）", "regenerate pk.lock from the current pk.toml only (no version switch)"))
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
 	if fs.NArg() != 1 && !*lockOnly {
-		return a.failUsage(fmt.Errorf("用法: pk use <工具>@<版本> [--project] 或 pk use --lock"))
+		return a.failUsage(errors.New(tr("用法: pk use <工具>@<版本> [--project] 或 pk use --lock", "usage: pk use <tool>@<version> [--project] or pk use --lock")))
 	}
 	tool, version := "", ""
 	var err error
@@ -50,7 +51,7 @@ func (a *app) cmdUse(args []string) int {
 		// 项目级固定：核对已装 → 写 pk.toml → 重新生成 pk.lock（不改全局默认）
 		version = inst.ResolveInstalled(tool, version)
 		if in := inst.Ledger().Find(tool, version); in == nil {
-			return a.fail(fmt.Errorf("%s@%s 还没装（先 `pk install %s@%s`）", tool, version, tool, version))
+			return a.fail(errT(tr("%s@%s 还没装（先 `pk install %s@%s`）", "%s@%s is not installed (run `pk install %s@%s` first)"), tool, version, tool, version))
 		}
 		if err := install.SaveProjectTool(a.cwd(), tool, version); err != nil {
 			return a.fail(err)
@@ -67,8 +68,8 @@ func (a *app) cmdUse(args []string) int {
 				Lock    string `json:"lock"`
 			}{jsonout.SchemaVersion, tool, version, "project", install.LockFileName})
 		}
-		fmt.Fprintf(a.out, "已固定到项目：%s = %q（写入 pk.toml，并更新 %s）\n", tool, version, install.LockFileName)
-		fmt.Fprintln(a.out, "项目内生效：echo 'eval \"$(pk env --project)\"' > .envrc && direnv allow")
+		fmt.Fprintf(a.out, tr("已固定到项目：%s = %q（写入 pk.toml，并更新 %s）\n", "pinned for this project: %s = %q (written to pk.toml, %s updated)\n"), tool, version, install.LockFileName)
+		fmt.Fprintln(a.out, tr("项目内生效：echo 'eval \"$(pk env --project)\"' > .envrc && direnv allow", "activate inside the project: echo 'eval \"$(pk env --project)\"' > .envrc && direnv allow"))
 		return jsonout.ExitOK
 	}
 	if err := inst.Activate(tool, version); err != nil {
@@ -89,7 +90,7 @@ func (a *app) cmdUse(args []string) int {
 			Config  string `json:"config"`
 		}{jsonout.SchemaVersion, tool, version, a.paths.Config()})
 	}
-	fmt.Fprintf(a.out, "已切到 %s@%s（全局默认写进 %s，shim 已重指）\n", tool, version, a.paths.Config())
+	fmt.Fprintf(a.out, tr("已切到 %s@%s（全局默认写进 %s，shim 已重指）\n", "switched to %s@%s (global default written to %s, shims repointed)\n"), tool, version, a.paths.Config())
 	return jsonout.ExitOK
 }
 
@@ -100,7 +101,7 @@ func (a *app) refreshProjectLock(inst *install.Installer) int {
 		return a.fail(err)
 	}
 	if len(project) == 0 {
-		fmt.Fprintln(a.errOut, "pk: 当前目录没有 pk.toml")
+		fmt.Fprintln(a.errOut, tr("pk: 当前目录没有 pk.toml", "pk: no pk.toml in the current directory"))
 		return jsonout.ExitFail
 	}
 	lock, err := a.writeProjectLock(project, inst)
@@ -108,7 +109,7 @@ func (a *app) refreshProjectLock(inst *install.Installer) int {
 		return a.fail(err)
 	}
 	if !a.json {
-		fmt.Fprintf(a.out, "已更新 %s（%s）\n", install.LockFileName, lock.LockTools())
+		fmt.Fprintf(a.out, tr("已更新 %s（%s）\n", "updated %s (%s)\n"), install.LockFileName, lock.LockTools())
 	}
 	return jsonout.ExitOK
 }
@@ -116,9 +117,9 @@ func (a *app) refreshProjectLock(inst *install.Installer) int {
 // cmdGC 回收零引用版本与超限缓存。
 func (a *app) cmdGC(args []string) int {
 	fs := a.newFlagSet("gc")
-	dryRun := fs.Bool("dry-run", false, "只报告不删除")
-	cacheMax := fs.String("cache-max", "", "覆盖产物缓存上限（如 20G）")
-	keepN := fs.Int("keep", 0, "每个工具保留最新的 N 个版本（默认不保留，只清零引用）")
+	dryRun := fs.Bool("dry-run", false, tr("只报告不删除", "report only, delete nothing"))
+	cacheMax := fs.String("cache-max", "", tr("覆盖产物缓存上限（如 20G）", "override the artifact cache quota (e.g. 20G)"))
+	keepN := fs.Int("keep", 0, tr("每个工具保留最新的 N 个版本（默认不保留，只清零引用）", "keep the latest N versions per tool (default: keep none, only drop references)"))
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -133,7 +134,7 @@ func (a *app) cmdGC(args []string) int {
 	} else {
 		v, err := store.ParseSize(a.cfg.CacheMax)
 		if err != nil {
-			return a.failUsage(fmt.Errorf("config.toml 的 cache_max 非法: %w", err))
+			return a.failUsage(errT(tr("config.toml 的 cache_max 非法: %w", "invalid cache_max in config.toml: %w"), err))
 		}
 		limit = v
 	}
@@ -169,23 +170,23 @@ func (a *app) cmdGC(args []string) int {
 			Keep     int   `json:"keep,omitempty"`
 		}{Schema: jsonout.SchemaVersion, GCResult: res, CacheMax: limit, Keep: *keepN})
 	}
-	mode := "已回收"
+	mode := tr("已回收", "reclaimed")
 	if *dryRun {
-		mode = "将回收（dry-run）"
+		mode = tr("将回收（dry-run）", "would reclaim (dry-run)")
 	}
-	fmt.Fprintf(a.out, "%s %d 个零引用版本、%d 个缓存文件，释放约 %.1f MB\n",
+	fmt.Fprintf(a.out, tr("%s %d 个零引用版本、%d 个缓存文件，释放约 %.1f MB\n", "%s %d zero-reference version(s), %d cache file(s), about %.1f MB freed\n"),
 		mode, len(res.Removed), len(res.CacheRemoved), float64(res.FreedBytes)/(1<<20))
 	for _, name := range res.Removed {
-		fmt.Fprintf(a.out, "  版本 %s\n", name)
+		fmt.Fprintf(a.out, tr("  版本 %s\n", "  version %s\n"), name)
 	}
 	for _, path := range res.CacheRemoved {
-		fmt.Fprintf(a.out, "  缓存 %s\n", path)
+		fmt.Fprintf(a.out, tr("  缓存 %s\n", "  cache %s\n"), path)
 	}
 	if len(res.KeptRecent) > 0 {
-		fmt.Fprintf(a.out, "保留（--keep %d 的新版本）：%d 个\n", *keepN, len(res.KeptRecent))
+		fmt.Fprintf(a.out, tr("保留（--keep %d 的新版本）：%d 个\n", "kept (newest %d): %d\n"), *keepN, len(res.KeptRecent))
 	}
 	if len(res.KeptRef) > 0 {
-		fmt.Fprintf(a.out, "保留（仍被引用）：%d 项\n", len(res.KeptRef))
+		fmt.Fprintf(a.out, tr("保留（仍被引用）：%d 项\n", "kept (still referenced): %d\n"), len(res.KeptRef))
 		for _, name := range res.KeptRef {
 			fmt.Fprintf(a.out, "  %s\n", name)
 		}
@@ -194,13 +195,13 @@ func (a *app) cmdGC(args []string) int {
 }
 
 // ---------------------------------------------------------------------------
-// `pk upgrade`（原 cmd_upgrade.go）：与 `pk use` 同属"切版本"这一组命令，合在一个文件里。
+// `pk upgrade`（原 cmd_upgrade.go）：与 `pk use` 同属tr("切版本", "switch versions")这一组命令，合在一个文件里。
 // ---------------------------------------------------------------------------
 
 // cmdUpgrade 把已装工具升到索引最新（旧版本保留，想清理用 `pk gc --keep N`）。
 func (a *app) cmdUpgrade(args []string) int {
 	fs := a.newFlagSet("upgrade")
-	dryRun := fs.Bool("dry-run", false, "只列出将从哪个版本升到哪个，不下载")
+	dryRun := fs.Bool("dry-run", false, tr("只列出将从哪个版本升到哪个，不下载", "only report from -> to, download nothing"))
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -248,30 +249,30 @@ func (a *app) cmdUpgrade(args []string) int {
 	}
 
 	if len(items) == 0 {
-		fmt.Fprintln(a.out, "还没装任何工具：先 `pk install node@22`。")
+		fmt.Fprintln(a.out, tr("还没装任何工具：先 `pk install node@22`。", "No tools installed yet: run `pk install node@22` first."))
 		return jsonout.ExitOK
 	}
 	for _, it := range items {
 		switch {
 		case it.Err != "":
-			fmt.Fprintf(a.out, "  ✘ %-6s %s 升级失败：%s\n", it.Tool, it.From, it.Err)
+			fmt.Fprintf(a.out, tr("  ✘ %-6s %s 升级失败：%s\n", "  x  %-6s %s upgrade failed: %s\n"), it.Tool, it.From, it.Err)
 		case it.Skipped != "":
 			fmt.Fprintf(a.out, "  ·  %-6s %s  %s\n", it.Tool, it.From, it.Skipped)
 		case *dryRun:
-			fmt.Fprintf(a.out, "  → %-6s %s → %s（dry-run，未下载）\n", it.Tool, it.From, it.To)
+			fmt.Fprintf(a.out, tr("  → %-6s %s → %s（dry-run，未下载）\n", "  -> %-6s %s -> %s (dry-run, nothing downloaded)\n"), it.Tool, it.From, it.To)
 		default:
 			fmt.Fprintf(a.out, "  ✔ %-6s %s → %s\n", it.Tool, it.From, it.To)
 		}
 	}
 	if *dryRun {
-		fmt.Fprintln(a.out, "dry-run：没有下载任何东西；去掉 --dry-run 才真升。")
+		fmt.Fprintln(a.out, tr("dry-run：没有下载任何东西；去掉 --dry-run 才真升。", "dry-run: nothing was downloaded; drop --dry-run to really upgrade."))
 		return jsonout.ExitOK
 	}
 	if changed > 0 {
-		fmt.Fprintf(a.out, "已升级 %d 个工具（旧版本保留，`pk gc --keep 2` 可清理）\n", changed)
+		fmt.Fprintf(a.out, tr("已升级 %d 个工具（旧版本保留，`pk gc --keep 2` 可清理）\n", "upgraded %d tool(s) (old versions kept; clean up with `pk gc --keep 2`)\n"), changed)
 	}
 	if failed > 0 {
-		fmt.Fprintf(a.errOut, "pk: %d 个工具升级失败（见上），其余已完成\n", failed)
+		fmt.Fprintf(a.errOut, tr("pk: %d 个工具升级失败（见上），其余已完成\n", "pk: %d tool(s) failed to upgrade (see above), the rest completed\n"), failed)
 		return jsonout.ExitFail
 	}
 	return jsonout.ExitOK

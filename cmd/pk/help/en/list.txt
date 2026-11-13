@@ -1,0 +1,7 @@
+pk list [tool] [--major N] [--available] [--refresh] [--all|--limit N] [--json]
+
+  No arguments: list installed tools (* marks the global default) with disk usage. No network.
+  pk list node: node only - installed + installable, oldest -> newest, newest at the bottom;
+                up to 40 versions print one per line (tagged latest / lts: <name> / installed),
+                more than that switches to "grouped by major + multi-column grid" (columns follow terminal width),
+                legend: * latest · l LTS · + installed · @ current default.

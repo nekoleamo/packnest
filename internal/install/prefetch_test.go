@@ -50,16 +50,18 @@ func TestCompanionIndexPrefetchedOnce(t *testing.T) {
 		t.Fatalf("预取应只发一次请求，实际 %d 次", got)
 	}
 
-	// 预取只能被消费一次：再取会走正常路径（这里命中 24h 索引缓存，所以仍然只有 1 次请求）
+	// 预取槽保留（多个 worker 可以等同一个 future）：再取一次仍然只有 1 次请求
 	if _, err := inst.loadOrTakeIndex(ctx, npmP); err != nil {
 		t.Fatalf("二次加载: %v", err)
 	}
 	if got := atomic.LoadInt32(&hits); got != 1 {
 		t.Fatalf("索引只该拉一次，实际 %d 次", got)
 	}
-	// 预取槽已被消费（不会无限复用同一个结果）
-	if _, ok := inst.prefetched[npmP.ID]; ok {
-		t.Fatal("预取结果消费后应清出槽位")
+	inst.pf.mu.Lock()
+	_, stillThere := inst.pf.futures[npmP.ID]
+	inst.pf.mu.Unlock()
+	if !stillThere {
+		t.Fatal("预取槽应保留，供并行的多个 worker 共享")
 	}
 
 	// dry-run 不预取（预览不额外发请求）

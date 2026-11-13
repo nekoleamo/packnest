@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // 伴生包与工具链自带工具：node → npm 的反查与替换、corepack 的 shim 落位。
@@ -250,6 +251,16 @@ func readNpmVersion(pkgPath string) string {
 	return pkg.Version
 }
 
+// indexCache 是"正在后台加载的索引"的共享表：多工具并行安装时多个 worker 共享它，
+// 同一个 provider 的索引只拉一次。future 只在 map 里读写，锁保证并发安全；
+// 后台协程只写自己的 f.idx 再 close(f.done)，读侧靠 channel 的 happens-before。
+type indexCache struct {
+	mu      sync.Mutex
+	futures map[string]*indexFuture
+}
+
+func newIndexCache() *indexCache { return &indexCache{futures: map[string]*indexFuture{}} }
+
 // indexFuture 是一次后台索引加载的结果槽。
 type indexFuture struct {
 	done chan struct{}
@@ -281,16 +292,15 @@ func (i *Installer) prefetchCompanionIndex(ctx context.Context, p *provider.Prov
 }
 
 // startPrefetch 起一个后台索引加载（同一工具只起一次），返回它的结果槽。
-//
-// prefetched 这张表只在"安装协程"里读写（cmd → Install/Upgrade → 这里 / loadOrTakeIndex），
-// 后台协程只写自己的 f.idx 再 close(f.done)，读侧靠 channel 的 happens-before，所以不需要锁。
 func (i *Installer) startPrefetch(ctx context.Context, p *provider.Provider) *indexFuture {
-	f, ok := i.prefetched[p.ID]
-	if ok { // 已经起过：直接复用它的结果槽（绝不能再起一个 goroutine 去写同一个槽）
+	i.pf.mu.Lock()
+	if f, ok := i.pf.futures[p.ID]; ok { // 已经起过：复用它的结果槽（绝不重复起 goroutine 写同一个槽）
+		i.pf.mu.Unlock()
 		return f
 	}
-	f = &indexFuture{done: make(chan struct{})}
-	i.prefetched[p.ID] = f
+	f := &indexFuture{done: make(chan struct{})}
+	i.pf.futures[p.ID] = f
+	i.pf.mu.Unlock()
 	go func() {
 		defer close(f.done)
 		if idx, err := i.loadIndex(ctx, p); err == nil {
@@ -301,9 +311,11 @@ func (i *Installer) startPrefetch(ctx context.Context, p *provider.Provider) *in
 }
 
 // loadOrTakeIndex 优先用预取结果（等它结束）；没有预取就现加载。
+// 条目不删除：多个 worker 可以等同一个 future（done 可多次接收）。
 func (i *Installer) loadOrTakeIndex(ctx context.Context, p *provider.Provider) (*provider.Index, error) {
-	f, ok := i.prefetched[p.ID]
-	delete(i.prefetched, p.ID)
+	i.pf.mu.Lock()
+	f, ok := i.pf.futures[p.ID]
+	i.pf.mu.Unlock()
 	if !ok {
 		return i.loadIndex(ctx, p)
 	}

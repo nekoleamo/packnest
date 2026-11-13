@@ -977,3 +977,53 @@ warn 消失。
 现在临时名带自增序号（`<file>.tmp.<n>`），`SweepStale` 的 glob 同步放宽到 `*.tmp*`。
 
 行数：11,599 / 11,600（余 1），`cmd/pk` 3,064 / 3,200，文件数 61 → 52（非测试 .go）。
+
+---
+
+## 1.7（2026-11-14）：三条重活落地（并行安装 / 发布签名 / CLI 英文）
+
+三条都是 1.5 候选清单里"不该顺手做"的项，本轮各自独立成方案后一次做完（方案见
+`~/Documents/Plan/17-包管理器/pn-1.7-*.md`）。
+
+### #7 多 spec 真并行安装（`internal/install/parallel.go`）
+
+| 项 | 结果 |
+|---|---|
+| 结构 | `Install` 拆成 prepare（校验/解压/伴生包，只写自己的 `.tmp`）+ commit（落盘/台账/TOFU/shim/corepack，单写者） |
+| 并行边界 | `planLevels`：无关工具同层并行；`requires` 依赖下一层；同一工具多 spec 串行；`node` 与 `npm` 的 shim 同名 → 错层 |
+| 并发安全 | worker 各持 TOFU 副本（`verify.Verify` 会写 map，共享必崩）、独立 `fetch.Client` 值拷贝（`downloadFromChain` 临时改 `Progress`）、`indexCache` 互斥共享（同一索引只拉一次） |
+| 契约 | `--json` 字段零变更；事件跨工具可交错，组内顺序不变（docs/json-schema.md 已写明） |
+| 验收 | `TestAcceptance_Par_*` 7 个（三工具 / requires 顺序 / 同工具串行 / npm 冲突 / 失败隔离 / 事件顺序 / Ctrl-C 无残留）+ `TestPlanLevels` / `TestPrepareCommitSplit` / `TestPrepareFailureLeavesNothing` |
+| 行为变化 | 多工具时"网络/校验错误不再中断后续工具"（尽力而为，退出码取第一个非 1 的错误码）；多工具下载阶段不画进度条 |
+
+### #8 发布产物签名（`internal/verify/sshsig.go` + 发布脚本）
+
+| 项 | 结果 |
+|---|---|
+| 机制 | 只签 `checksums.txt` 的 `ssh-keygen -Y` sshsig（namespace `pk-release`）；产物变 8 件（+`checksums.txt.sig`） |
+| 客户端 | `install.sh` / `install.ps1` 先验签再比 sha256（缺 `.sig`/缺 ssh-keygen/未配公钥 → 打印提示后只比 sha256，不静默）；失败退出码 4 |
+| pk 侧 | 内置公钥（`internal/verify/keys/allowed_signers`，`//go:embed`）+ `pk doctor` 的 `TRUST_KEYS` / `TRUST_KEYS_UNCONFIGURED` |
+| 发布 | 新增 `scripts/sign-release.sh`（私钥离线、人工触发、自验）；`release-*.sh` 带上 `.sig`；`verify-release.sh` 远端有 `.sig` 就验 |
+| 边界 | brew/scoop 不验签名（只认清单 sha256），已在方案与文档写明；私钥若常驻发布机则本条零增益 |
+| 验收 | `TestVerifySSHSIG*` / `TestParseAllowedSigners*`（代码构造夹具，不存二进制） |
+| 待办 | 正式发版前生成离线密钥，把公钥同时填进 `internal/verify/keys/allowed_signers` 与 `scripts/install.sh` 的 `ALLOWED_SIGNERS`、`scripts/install.ps1` 的 `$AllowedSigners` |
+
+### #9 CLI 英文输出（L0 + L1）
+
+| 项 | 结果 |
+|---|---|
+| L0 | `cmd/pk/help/en/*.txt` 11 份（embed 数据，零代码行数）；`--lang=en` 时优先读它 |
+| L1 | `cmd/pk` 270 条用户可见文案包 `tr(zh, en)`；`--lang=en|zh` 全局开关 + `PK_LANG`（默认中文，**不跟随 LANG**） |
+| 防漏翻 | `tools/langcheck.go`（`go build ignore` + AST）扫未被 `tr()` 包住的中文字面量，已进 `make check`（第 3 项） |
+| 不做 | `internal/*` 的 368 条错误消息（1,620 条中文测试断言绑在上面）；`--json` 的 `msg`/`message` 不保证英文（`code`/退出码才是契约）；`mirror list` 的档位描述来自 internal，英文模式下仍中文 |
+| 验收 | `TestAcceptance_Lang_{DefaultChinese,HelpEnglish,CommandsEnglish,ErrorsEnglish}` + `TestLang{FlagPriority,InvalidValue,JSONUnaffected}` |
+
+### 总账
+
+| 项 | 结果 |
+|---|---|
+| 行数 | 11,599 → **12,208 / 12,300**（余 92），`cmd/pk` 3,177 / 3,200；红线 11,600 → **12,300**（实测驱动） |
+| 门禁 | `make check` 8 项 → **9 项**（新增 `make lang`） |
+| 测试 | 607 → **654** 个；`go test -race ./...` 全绿；`staticcheck`/`vet` 干净 |
+| 命令面 | 仍 10 个（签名挂在 `doctor`、语言挂在全局开关，都没加命令） |
+| `--json` | schema 1 不变，字段零变更，golden 未改 |

@@ -11,7 +11,7 @@ import (
 // removeSelf 在 unix 上直接 unlink 正在运行的二进制（合法），并删掉同目录的 packnest 别名。
 func removeSelf(exe, goos string) (bool, string) {
 	if exe == "" {
-		return false, "拿不到自身路径"
+		return false, tr("拿不到自身路径", "cannot determine own path")
 	}
 	dir := filepath.Dir(exe)
 	removed := make([]string, 0, 3)
@@ -31,7 +31,7 @@ func removeSelf(exe, goos string) (bool, string) {
 		removed = append(removed, p)
 	}
 	if len(removed) == 0 {
-		return false, "同目录下没找到 pk/packnest 可执行文件"
+		return false, tr("同目录下没找到 pk/packnest 可执行文件", "no pk/packnest executable next to this binary")
 	}
 	// 目录空了就一并收掉（只删空目录，绝不递归）
 	_ = os.Remove(dir)

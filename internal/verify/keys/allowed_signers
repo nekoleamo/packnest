@@ -1,0 +1,11 @@
+# 发布签名公钥（ssh-keygen allowed_signers 格式）
+#
+# 每行一把：release@packnest.dev ssh-ed25519 <base64 公钥> [注释]
+#
+# 轮换规则（见 ~/Documents/Plan/17-包管理器/pn-1.7-产物签名-方案.md §七）：
+#   - 最多两把：当前密钥 + 下一把（提前发布，保证老脚本能验新签名）
+#   - 私钥离线保管，绝不进仓库、不进发布机常驻目录
+#
+# 生成（离线机器）：
+#   ssh-keygen -t ed25519 -C "pk-release-2026" -f pk-release-2026 -N ""
+# 然后把 pk-release-2026.pub 的第二列拼上 principal 写进本文件。

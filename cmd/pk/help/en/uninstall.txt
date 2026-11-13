@@ -1,0 +1,8 @@
+pk uninstall <tool>[@<version>] [--force]
+pk uninstall --all [--purge] [--keep-cache] [--yes]
+
+  Single: ledger-driven. Only directories recorded in the ledger are removed (unknown dirs are reported, not deleted);
+          versions still referenced (global default / project lock / another tool's dependency) need --force.
+  All: --all removes everything pk installed - every runtime, shims, and the managed block in shell rc / Windows user Path -
+       then prints the command that removes the pk binary itself, based on how it was installed (brew / scoop / script).
+       Without --yes it only prints the plan; an interactive terminal lists versions and asks y/N.

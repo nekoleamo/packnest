@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/packnest/packnest/internal/env"
 	"github.com/packnest/packnest/internal/jsonout"
@@ -17,12 +18,12 @@ import (
 // cmdEnv 输出 shell 环境片段（默认只打印，不落盘）。
 func (a *app) cmdEnv(args []string) int {
 	fs := a.newFlagSet("env")
-	shellName := fs.String("shell", "", "shell 方言: bash|zsh|sh|powershell（默认看 $SHELL）")
-	write := fs.Bool("write", false, "把托管块写进 shell rc（幂等，只改自己那一段）")
-	unset := fs.Bool("unset", false, "删掉 rc 里的托管块")
-	completion := fs.String("completion", "", "输出 shell 补全脚本: bash|zsh|powershell")
-	rcFile := fs.String("rc", "", "写哪个 rc 文件（默认按 $SHELL 猜，如 ~/.zshrc）")
-	projectScope := fs.Bool("project", false, "输出项目级环境：把 pk.toml/pk.lock 锁定的版本目录前置到 PATH（配合 direnv 用）")
+	shellName := fs.String("shell", "", tr("shell 方言: bash|zsh|sh|powershell（默认看 $SHELL）", "shell dialect: bash|zsh|sh|powershell (default: $SHELL)"))
+	write := fs.Bool("write", false, tr("把托管块写进 shell rc（幂等，只改自己那一段）", "write the managed block into your shell rc (idempotent, only that block)"))
+	unset := fs.Bool("unset", false, tr("删掉 rc 里的托管块", "remove the managed block from rc"))
+	completion := fs.String("completion", "", tr("输出 shell 补全脚本: bash|zsh|powershell", "print a shell completion script: bash|zsh|powershell"))
+	rcFile := fs.String("rc", "", tr("写哪个 rc 文件（默认按 $SHELL 猜，如 ~/.zshrc）", "which rc file to edit (default: guessed from $SHELL, e.g. ~/.zshrc)"))
+	projectScope := fs.Bool("project", false, tr("输出项目级环境：把 pk.toml/pk.lock 锁定的版本目录前置到 PATH（配合 direnv 用）", "print project env: prepend the versions pinned by pk.toml/pk.lock to PATH (for direnv)"))
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -54,7 +55,7 @@ func (a *app) cmdEnv(args []string) int {
 			return a.fail(err)
 		}
 		if len(projectSegs) == 0 {
-			fmt.Fprintln(a.errOut, "pk: 当前目录没有 pk.toml，或锁定的工具还没安装")
+			fmt.Fprintln(a.errOut, tr("pk: 当前目录没有 pk.toml，或锁定的工具还没安装", "pk: no pk.toml in the current directory, or a pinned tool is not installed"))
 		}
 		pathSegs = append(projectSegs, pathSegs...)
 	}
@@ -78,19 +79,19 @@ func (a *app) cmdEnv(args []string) int {
 				_ = os.MkdirAll(filepath.Dir(bak), 0o755)
 				_ = os.WriteFile(bak, []byte(before+"\n"), 0o644)
 				if !a.json {
-					fmt.Fprintf(a.out, "旧 Path 已备份到 %s\n", bak)
+					fmt.Fprintf(a.out, tr("旧 Path 已备份到 %s\n", "old Path backed up to %s\n"), bak)
 				}
 			}
 			_ = after
 			if perr != nil {
-				fmt.Fprintf(a.errOut, "pk: 更新用户 PATH 失败（可手动把 %s 加进「用户变量 Path」）: %v\n",
+				fmt.Fprintf(a.errOut, tr("pk: 更新用户 PATH 失败（可手动把 %s 加进「用户变量 Path」）: %v\n", "pk: failed to update the user PATH (add %s to the user Path variable manually): %v\n"),
 					strings.Join(pathSegs, ";"), perr)
 			}
 			if !a.json {
 				if changed {
-					fmt.Fprintln(a.out, "已更新用户 Path（注册表用户环境变量，新开窗口生效）")
+					fmt.Fprintln(a.out, tr("已更新用户 Path（注册表用户环境变量，新开窗口生效）", "user Path updated (registry user env; effective in new windows)"))
 				} else {
-					fmt.Fprintln(a.out, "用户 Path 里已经有这些目录（无需改动）")
+					fmt.Fprintln(a.out, tr("用户 Path 里已经有这些目录（无需改动）", "user Path already contains these dirs (nothing to do)"))
 				}
 			}
 		}
@@ -104,7 +105,7 @@ func (a *app) cmdEnv(args []string) int {
 					return a.fail(err)
 				}
 				if !a.json {
-					fmt.Fprintf(a.out, "跳过 %s（执行策略禁止加载脚本；已清掉其中的 packnest 托管块）\n", t)
+					fmt.Fprintf(a.out, tr("跳过 %s（执行策略禁止加载脚本；已清掉其中的 packnest 托管块）\n", "skipping %s (execution policy blocks scripts; the packnest block was removed)\n"), t)
 				}
 				continue
 			}
@@ -118,28 +119,28 @@ func (a *app) cmdEnv(args []string) int {
 					return a.fail(err)
 				}
 				if !a.json {
-					fmt.Fprintf(a.out, "已删掉 %s 里的 packnest 托管块\n", rc)
+					fmt.Fprintf(a.out, tr("已删掉 %s 里的 packnest 托管块\n", "removed the packnest block from %s\n"), rc)
 				}
 			}
 			if blocked && !a.json {
-				fmt.Fprintln(a.out, "（PowerShell 执行策略禁止脚本，profile 里的块本来就不会生效）")
+				fmt.Fprintln(a.out, tr("（PowerShell 执行策略禁止脚本，profile 里的块本来就不会生效）", "(PowerShell execution policy blocks scripts, so a profile block would never apply)"))
 			}
 			return jsonout.ExitOK
 		}
 		block := env.ExportScript(vars, pathSegs, sh)
 		if len(targets) == 0 && !a.json {
-			fmt.Fprintln(a.out, "没有可写的 profile；PATH 已经交给系统环境变量。")
-			fmt.Fprintln(a.out, "要让 registry/GOPROXY 这些变量也常驻，二选一：")
-			fmt.Fprintln(a.out, "  1) Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   然后重跑 pk env --write")
-			fmt.Fprintln(a.out, "  2) 每次会话：pk env --shell powershell | Invoke-Expression")
-			fmt.Fprintln(a.out, "（本次已生效的部分：用户 Path；改动只涉及 packnest 自己的目录）")
+			fmt.Fprintln(a.out, tr("没有可写的 profile；PATH 已经交给系统环境变量。", "no writable profile; PATH is handled by the system environment."))
+			fmt.Fprintln(a.out, tr("要让 registry/GOPROXY 这些变量也常驻，二选一：", "to persist registry/GOPROXY too, pick one:"))
+			fmt.Fprintln(a.out, tr("  1) Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   然后重跑 pk env --write", "  1) Set-ExecutionPolicy -Scope CurrentUser RemoteSigned   then rerun pk env --write"))
+			fmt.Fprintln(a.out, tr("  2) 每次会话：pk env --shell powershell | Invoke-Expression", "  2) every session: pk env --shell powershell | Invoke-Expression"))
+			fmt.Fprintln(a.out, tr("（本次已生效的部分：用户 Path；改动只涉及 packnest 自己的目录）", "(applied this time: user Path only; changes are limited to packnest's own dirs)"))
 		}
 		for _, rc := range targets {
 			if err := env.WriteManagedBlock(rc, block); err != nil {
 				return a.fail(err)
 			}
 			if !a.json {
-				fmt.Fprintf(a.out, "已写入 %s 的托管块（块外内容未改动；备份在 %s.pk.bak）\n", rc, rc)
+				fmt.Fprintf(a.out, tr("已写入 %s 的托管块（块外内容未改动；备份在 %s.pk.bak）\n", "wrote the managed block into %s (nothing outside it changed; backup at %s.pk.bak)\n"), rc, rc)
 			}
 		}
 		if a.json {
@@ -151,10 +152,10 @@ func (a *app) cmdEnv(args []string) int {
 			}{jsonout.SchemaVersion, targets[0], targets, block})
 		}
 		if sh == env.ShellPowerShell {
-			fmt.Fprintln(a.out, "新开一个 PowerShell 窗口生效（当前窗口可先执行上面的片段，或用 `pk env --shell powershell | Invoke-Expression`）")
-			fmt.Fprintf(a.out, "确认写到哪个 profile：pwsh 里执行 `$PROFILE`；Windows PowerShell 5.1 是另一个路径（两块都已写）\n")
+			fmt.Fprintln(a.out, tr("新开一个 PowerShell 窗口生效（当前窗口可先执行上面的片段，或用 `pk env --shell powershell | Invoke-Expression`）", "open a new PowerShell window (or run the snippet above / `pk env --shell powershell | Invoke-Expression`)"))
+			fmt.Fprint(a.out, tr("确认写到哪个 profile：pwsh 里执行 `$PROFILE`；Windows PowerShell 5.1 是另一个路径（两块都已写）\n", "to confirm which profile: run `$PROFILE` in pwsh; Windows PowerShell 5.1 uses another path (both blocks were written)\n"))
 		} else {
-			fmt.Fprintln(a.out, "新开一个 shell，或 `source "+targets[0]+"` 生效")
+			fmt.Fprintln(a.out, tr("新开一个 shell，或 `source ", "open a new shell, or `source ")+targets[0]+tr("` 生效", "`"))
 		}
 		return jsonout.ExitOK
 	}
@@ -181,7 +182,7 @@ func (a *app) cmdEnv(args []string) int {
 // npmCacheDir 沿用已有 ~/.npm（绝不迁移不复制），不存在才用自己的缓存目录。
 
 // ---------------------------------------------------------------------------
-// `pk mirror`（原 cmd_mirror.go）：与 `pk env` 同属"环境配置"这一组。
+// `pk mirror`（原 cmd_mirror.go）：与 `pk env` 同属tr("环境配置", "environment")这一组。
 // ---------------------------------------------------------------------------
 
 func goos() string { return runtime.GOOS }
@@ -189,7 +190,7 @@ func goos() string { return runtime.GOOS }
 // cmdMirror 是镜像档的门面命令：list / probe / use（write 属 M5）。
 func (a *app) cmdMirror(args []string) int {
 	if len(args) == 0 {
-		return a.failUsage(fmt.Errorf("用法: pk mirror list|probe|use <档位>"))
+		return a.failUsage(errors.New(tr("用法: pk mirror list|probe|use <档位>", "usage: pk mirror list|probe|use <profile>")))
 	}
 	sub, rest := args[0], args[1:]
 	switch sub {
@@ -202,7 +203,7 @@ func (a *app) cmdMirror(args []string) int {
 	case "write":
 		return a.mirrorWrite(rest)
 	}
-	return a.failUsage(fmt.Errorf("未知子命令 pk mirror %s", sub))
+	return a.failUsage(errT(tr("未知子命令 pk mirror %s", "unknown subcommand pk mirror %s"), sub))
 }
 
 func (a *app) mirrorList() int {
@@ -224,7 +225,7 @@ func (a *app) mirrorList() int {
 			Mirror  []row  `json:"mirrors"`
 		}{jsonout.SchemaVersion, current, rows})
 	}
-	fmt.Fprintf(a.out, "当前档位: %s\n", current)
+	fmt.Fprintf(a.out, tr("当前档位: %s\n", "active profile: %s\n"), current)
 	for _, p := range mirror.Profiles() {
 		mark := " "
 		if p.Name == current {
@@ -232,14 +233,14 @@ func (a *app) mirrorList() int {
 		}
 		fmt.Fprintf(a.out, "  %s %-8s %-16s %s\n      %s\n", mark, p.Name, p.Display, p.Registry, p.Note)
 	}
-	fmt.Fprintln(a.out, "  (auto 表示自动探测：普通命令只探首选 + 上轮最优，结果缓存 6h)")
+	fmt.Fprintln(a.out, tr("  (auto 表示自动探测：普通命令只探首选 + 上轮最优，结果缓存 6h)", "  (auto = detect automatically: regular commands probe the preferred source plus last round's best; cached 6h)"))
 	if current == mirror.AutoProfile {
 		if p, err := provider.Get("node"); err == nil {
 			prober := &mirror.Prober{Client: a.client, Path: a.paths.Probe()}
 			if resolved := mirror.CachedProfile(prober, p.Index.URLs["default"], p.Index.URLs["cn"], a.now(), mirror.DefaultTTL); resolved != "" {
-				fmt.Fprintf(a.out, "  auto 当前判定: %s（来自探测缓存；国外环境会判 default）\n", resolved)
+				fmt.Fprintf(a.out, tr("  auto 当前判定: %s（来自探测缓存；国外环境会判 default）\n", "  auto currently resolves to: %s (from the probe cache; outside China it picks default)\n"), resolved)
 			} else {
-				fmt.Fprintln(a.out, "  auto 当前判定: 未探测（第一次 install 时会探，并把结果缓存）")
+				fmt.Fprintln(a.out, tr("  auto 当前判定: 未探测（第一次 install 时会探，并把结果缓存）", "  auto currently resolves to: not probed yet (the first install probes and caches it)"))
 			}
 		}
 	}
@@ -248,7 +249,7 @@ func (a *app) mirrorList() int {
 
 func (a *app) mirrorProbe(args []string) int {
 	fs := a.newFlagSet("mirror probe")
-	only := fs.String("tool", "", "只探测某个工具的索引源")
+	only := fs.String("tool", "", tr("只探测某个工具的索引源", "probe only one tool's index source"))
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -267,7 +268,7 @@ func (a *app) mirrorProbe(args []string) int {
 		urls = append(urls, p.IndexURLs(a.cfg.Mirror)...)
 	}
 	if len(urls) == 0 {
-		return a.fail(fmt.Errorf("没有可探测的源（检查 --tool 与 provider 清单）"))
+		return a.fail(errors.New(tr("没有可探测的源（检查 --tool 与 provider 清单）", "no source to probe (check --tool and the provider manifests)")))
 	}
 	results := prober.Probe(a.context(), urls)
 
@@ -290,7 +291,7 @@ func (a *app) mirrorProbe(args []string) int {
 			fmt.Fprintf(a.out, "       └ %s\n", r.Err)
 		}
 	}
-	fmt.Fprintf(a.out, "\n%d/%d 可用（结果缓存 6h 于 %s）\n", ok, len(results), a.paths.Probe())
+	fmt.Fprintf(a.out, tr("\n%d/%d 可用（结果缓存 6h 于 %s）\n", "\n%d/%d reachable (cached 6h in %s)\n"), ok, len(results), a.paths.Probe())
 	if ok == 0 {
 		return jsonout.ExitNetwork
 	}
@@ -300,7 +301,7 @@ func (a *app) mirrorProbe(args []string) int {
 // mirrorWrite 把 registry 写进 ~/.npmrc：写前备份、只增不改（方案 §6.6）。
 func (a *app) mirrorWrite(args []string) int {
 	fs := a.newFlagSet("mirror write")
-	target := fs.String("file", "", "目标 npmrc（默认 ~/.npmrc）")
+	target := fs.String("file", "", tr("目标 npmrc（默认 ~/.npmrc）", "target npmrc (default ~/.npmrc)"))
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
 	}
@@ -320,7 +321,7 @@ func (a *app) mirrorWrite(args []string) int {
 	}
 	if len(existing) > 0 {
 		if err := os.WriteFile(path+".pk.bak", existing, 0o644); err != nil {
-			return a.fail(fmt.Errorf("备份 %s 失败: %w", path, err))
+			return a.fail(errT(tr("备份 %s 失败: %w", "failed to back up %s: %w"), path, err))
 		}
 	}
 	// 已有 registry= 就改那一行，没有就追加（绝不删别的配置）
@@ -354,13 +355,13 @@ func (a *app) mirrorWrite(args []string) int {
 			Replaced bool   `json:"replaced"`
 		}{jsonout.SchemaVersion, path, registry, replaced})
 	}
-	fmt.Fprintf(a.out, "已写入 %s（registry=%s；备份在 %s.pk.bak）\n", path, registry, path)
+	fmt.Fprintf(a.out, tr("已写入 %s（registry=%s；备份在 %s.pk.bak）\n", "wrote %s (registry=%s; backup at %s.pk.bak)\n"), path, registry, path)
 	return jsonout.ExitOK
 }
 
 func (a *app) mirrorUse(args []string) int {
 	if len(args) != 1 {
-		return a.failUsage(fmt.Errorf("用法: pk mirror use <%s>", strings.Join(mirror.Names(), "|")))
+		return a.failUsage(errT(tr("用法: pk mirror use <%s>", "usage: pk mirror use <%s>"), strings.Join(mirror.Names(), "|")))
 	}
 	name := strings.ToLower(strings.TrimSpace(args[0]))
 	if _, err := mirror.Get(name); err != nil {
@@ -377,7 +378,7 @@ func (a *app) mirrorUse(args []string) int {
 			Config string `json:"config"`
 		}{jsonout.SchemaVersion, name, a.paths.Config()})
 	}
-	fmt.Fprintf(a.out, "镜像档已切到 %s（写入 %s）\n", name, a.paths.Config())
-	fmt.Fprintln(a.out, "下次安装即生效；`pk env --shell bash` 可查看随之变化的 registry 变量")
+	fmt.Fprintf(a.out, tr("镜像档已切到 %s（写入 %s）\n", "mirror profile switched to %s (written to %s)\n"), name, a.paths.Config())
+	fmt.Fprintln(a.out, tr("下次安装即生效；`pk env --shell bash` 可查看随之变化的 registry 变量", "effective on the next install; `pk env --shell bash` shows the resulting registry variables"))
 	return jsonout.ExitOK
 }

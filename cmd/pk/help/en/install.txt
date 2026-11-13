@@ -1,0 +1,13 @@
+pk install [tool[@version]]... [--frozen] [--insecure] [--force] [--force-rehash] [--quiet] [--corepack|--no-corepack]
+
+  Install tools. With no arguments, install everything declared in ./pk.toml.
+  Scope: there is no --global/--project switch; the current directory decides:
+    ./pk.toml exists   -> install what the project declares and write/update pk.lock (project lock)
+    no ./pk.toml       -> install into the shared root; if the tool has no global default yet, make it the default
+  Only one copy ever lives on disk (~/.packnest/tools/<tool>/<ver>). Project scope is just
+  "lock + PATH order", never a duplicated tree; use pk env --project inside the project (e.g. direnv).
+  Semantics:
+    pk install                 install everything in pk.toml (errors if there is no pk.toml)
+    pk install node            install the node pinned in pk.toml, else the latest stable
+    pk install node@22         explicit spec, unaffected by pk.toml
+  Exit codes: 0 ok / 1 generic / 2 usage / 3 network / 4 checksum / 5 lock held

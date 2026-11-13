@@ -1,0 +1,16 @@
+pk doctor [--json] [--globals] [--probe]
+
+  Environment check. Issue codes are fixed (GUI and scripts depend on them):
+    PATH_ORDER / PATH_MISSING        bin directory is not first on PATH
+    LEDGER_BROKEN / LEDGER_RECOVERED  ledger corrupt / restored from .bak
+    CONFIG_BROKEN / MIRROR_PROFILE_INVALID
+    MIRROR_UNREACHABLE (--probe)      index source unreachable
+    GO_TOOLCHAIN_NOT_LOCAL            go installed but GOTOOLCHAIN is not local
+    GLOBAL_ENGINES_UNMET / GLOBAL_NATIVE_ABI / GLOBAL_SHADOWS_PROJECT (--globals)
+    FOREIGN_MANAGER                   another manager detected, e.g. proto/nvm/mise (--foreign lists versions)
+    FOREIGN_SHIM_PRIORITY             another shim shadows pk's node
+    PROVIDERS_DIRS                    effective external manifest dirs (info)
+    PROVIDER_EXTERNAL_INVALID / _CONFLICT / PROVIDER_HTTP_URL  external manifest problems
+    GO_INSTALL_NOT_IN_PATH            `go install` output dir is not on PATH (info)
+    PIP_USER_SITE_UNMANAGED           pip user installs are out of scope (info)
+  Exit code: 1 when any error-level issue is present.

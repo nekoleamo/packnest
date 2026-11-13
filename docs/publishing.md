@@ -81,6 +81,25 @@ make github-release      # 用 gh 把 dist/v<ver>/ 的 6 产物 + checksums.txt 
 - **别删已经发过产物的 tag**：gitee 的 release 附件挂在 tag 上，删 tag 会让所有附件 404
   （1.3.1 挪 tag 到修好的提交后就是这样）。正确做法是**重跑** `sh scripts/release-gitee.sh` 重传附件。
 
+## 三点七、发布签名（1.7 起）
+
+产物清单可以签 sshsig，客户端（`install.sh` / `install.ps1`）在比 sha256 之前先验签。
+
+```bash
+make release                                            # 先出 6 产物 + checksums.txt
+PK_SIGNING_KEY=/Volumes/usb/pk-release-2026 sh scripts/sign-release.sh
+sh scripts/release-gitee.sh && sh scripts/release-github.sh
+make verify-release                                     # 远端有 .sig 就一起验
+```
+
+规则（细节见 `~/Documents/Plan/17-包管理器/pn-1.7-产物签名-方案.md`）：
+- **私钥离线**，只在发版时临时挂载；签名必须人工触发（自动签等于没签）。
+- 只签 `checksums.txt`（覆盖 6 个产物），产物变 **8 件**：6 归档 + `checksums.txt` + `checksums.txt.sig`。
+- 公钥要同时写进三处，否则用户侧认不出：`internal/verify/keys/allowed_signers`、
+  `scripts/install.sh` 的 `ALLOWED_SIGNERS`、`scripts/install.ps1` 的 `$AllowedSigners`。
+- 轮换时 allowed_signers 最多留两把（当前 + 下一把），先发带新公钥的版本，下一版才用新钥签。
+- **brew / scoop 不验签名**（只认清单里的 sha256），这是渠道能力边界，别在文档里承诺覆盖。
+
 ## 四、gitee（国内二进制主源）
 
 - `sh scripts/release-gitee.sh` 建/复用 tag 对应的 release，逐个上传 `dist/v<ver>/packnest_*` 与 `checksums.txt`；

@@ -388,3 +388,13 @@ $ pk install node@22.22.2 --dry-run      # shows artifact URL + checksum mode
 
 Environment overrides: `PK_MIRROR_REGISTRY`, `PK_MIRROR_<TOOL>_INDEX`, `PK_MIRROR_<TOOL>_ARTIFACT`,
 `PK_MIRROR_<TOOL>_CHECKSUM`, `PK_ROOT`, `PK_GITEE_REPO`, `PK_NPM_REGISTRY`, `PK_INSTALL_BASE`.
+
+## Language
+
+Chinese is the default. `--lang=en` (or `export PK_LANG=en`) switches the CLI output and
+`--help` text to English. The command line wins over `PK_LANG`; `LANG` is deliberately ignored
+(a `C`/`en_US` CI locale should not silently change log language).
+
+`--json` structure never depends on the language: `code`, `ev` and exit codes are the contract;
+`msg`/`message` strings may stay Chinese. Error messages coming from `internal/*` are Chinese only
+(English coverage stops at the CLI layer).

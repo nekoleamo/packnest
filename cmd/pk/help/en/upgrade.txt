@@ -1,0 +1,6 @@
+pk upgrade [tool...] [--dry-run] [--json]
+
+  Upgrade installed tools to the latest stable in their index and switch the global default to it; **old versions are kept**
+  (clean up with pk gc --keep N). No arguments = every tool in the ledger; names = only those.
+  npm is bundled with node and follows it (it is skipped with a reason).
+  Exit code: 0 when all succeed; 1 when any tool fails (the rest are still completed).

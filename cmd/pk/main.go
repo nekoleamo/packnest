@@ -60,6 +60,10 @@ func (a *app) context() context.Context {
 
 // run 是可测试的入口：返回退出码（0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁占用）。
 func run(args []string, out, errOut io.Writer) int {
+	if err := initLangFromEnv(); err != nil {
+		fmt.Fprintf(errOut, "pk: %v\n", err)
+		return jsonout.ExitUsage
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -98,7 +102,7 @@ func run(args []string, out, errOut io.Writer) int {
 
 	cmd, cmdArgs := rest[0], rest[1:]
 	if a.cfgErr != nil && cmd != "doctor" && cmd != "help" && cmd != "-h" && cmd != "--help" && cmd != "version" && cmd != "--version" {
-		return a.fail(fmt.Errorf("配置不可用，先修好再操作: %w", a.cfgErr))
+		return a.fail(errT(tr("配置不可用，先修好再操作: %w", "config unusable, fix it first: %w"), a.cfgErr))
 	}
 	switch cmd {
 	case "help", "-h", "--help":
@@ -131,7 +135,7 @@ func run(args []string, out, errOut io.Writer) int {
 	case "upgrade":
 		return a.cmdUpgrade(cmdArgs)
 	}
-	return a.failUsage(fmt.Errorf("未知命令 %q", cmd))
+	return a.failUsage(errT(tr("未知命令 %q", "unknown command %q"), cmd))
 }
 
 // parseGlobals 取出全局开关（可出现在任意位置），其余原样返回。
@@ -149,9 +153,21 @@ func (a *app) parseGlobals(args []string) ([]string, error) {
 			a.offline = true
 		case arg == "--yes" || arg == "-y":
 			a.yes = true
+		case arg == "--lang":
+			if i+1 >= len(args) {
+				return nil, errors.New(tr("--lang 需要 en|zh", "--lang needs en|zh"))
+			}
+			i++
+			if err := setLang(args[i]); err != nil {
+				return nil, err
+			}
+		case strings.HasPrefix(arg, "--lang="):
+			if err := setLang(strings.TrimPrefix(arg, "--lang=")); err != nil {
+				return nil, err
+			}
 		case arg == "--root":
 			if i+1 >= len(args) {
-				return nil, fmt.Errorf("--root 需要路径参数")
+				return nil, errors.New(tr("--root 需要路径参数", "--root needs a path argument"))
 			}
 			i++
 			a.root = args[i]
@@ -186,7 +202,7 @@ func (a *app) cmdVersion() int {
 
 func (a *app) fail(err error) int {
 	if errors.Is(err, store.ErrLocked) { // 全局锁被另一个 pk 占着（方案 §错误码 5）
-		fmt.Fprintln(a.errOut, "pk: 另一个 pk 正在运行（退出码 5）")
+		fmt.Fprintln(a.errOut, tr("pk: 另一个 pk 正在运行（退出码 5）", "pk: another pk is running (exit code 5)"))
 		return jsonout.ExitLocked
 	}
 	fmt.Fprintf(a.errOut, "pk: %v\n", err)
@@ -197,9 +213,9 @@ func (a *app) fail(err error) int {
 func (a *app) usageFor(fs *flag.FlagSet, name string) {
 	fs.Usage = func() {
 		if !printCommandHelp(a.errOut, name) {
-			fmt.Fprintf(a.errOut, "用法见 `pk help %s`\n", name)
+			fmt.Fprintf(a.errOut, tr("用法见 `pk help %s`\n", "usage: see `pk help %s`\n"), name)
 		}
-		fmt.Fprintln(a.errOut, "\n开关（默认值见括号）：")
+		fmt.Fprintln(a.errOut, tr("\n开关（默认值见括号）：", "\nFlags (defaults in parentheses):"))
 		fs.PrintDefaults()
 	}
 }
@@ -230,7 +246,7 @@ func (a *app) failUsage(err error) int {
 		return jsonout.ExitOK // 子命令的 --help 是正常请求
 	}
 	fmt.Fprintf(a.errOut, "pk: %v\n", err)
-	fmt.Fprintln(a.errOut, "运行 `pk help` 查看用法")
+	fmt.Fprintln(a.errOut, tr("运行 `pk help` 查看用法", "run `pk help` for usage"))
 	return jsonout.ExitUsage
 }
 
@@ -242,7 +258,7 @@ func (a *app) emit(v any) int {
 }
 
 func printUsage(w io.Writer) {
-	fmt.Fprintln(w, `packnest · 国内网络开箱可用的运行时安装器
+	fmt.Fprintln(w, tr(`packnest · 国内网络开箱可用的运行时安装器
 
 用法: pk <命令> [参数] [--json] [--offline] [--yes]
 
@@ -262,7 +278,29 @@ func printUsage(w io.Writer) {
   --json      机器可读输出（GUI 与脚本的唯一入口）
   --offline   禁止一切网络访问
   --yes       不交互确认
-  --root DIR  覆盖 PK_ROOT（调试用）`)
+  --root DIR  覆盖 PK_ROOT（调试用）
+  --lang en   英文输出（默认中文；也可 PK_LANG=en）`, `packnest · runtime installer that works out of the box behind the GFW
+
+usage: pk <command> [args] [--json] [--offline] [--yes]
+
+commands:
+  install [tool[@version]]  install (no args = read pk.toml; 6 built-in tools)
+  uninstall tool@version    ledger-driven uninstall (referenced versions need --force)
+  use tool@version          switch the global default version
+  list [--available]        installed / installable tools
+  which <command>           resolve a shim to the real binary
+  mirror list|probe|use     mirror profiles: list / probe / switch
+  doctor                    environment check (PATH/shim/ledger/mirror)
+  env [--shell S] [--write] print a shell environment snippet
+  gc [--dry-run] [--cache-max]  reclaim zero-reference versions and over-quota cache
+  upgrade [tool...] [--dry-run]  upgrade installed tools to the latest (old versions kept, npm follows node)
+
+global flags:
+  --json      machine-readable output (the only contract for GUI and scripts)
+  --offline   forbid all network access
+  --yes       no interactive confirmation
+  --root DIR  override PK_ROOT (debugging)
+  --lang en   output in English (default: zh; PK_LANG also works)`))
 }
 
 // parseFlexible 允许开关出现在位置参数之后（`pk install bun --insecure`）。

@@ -11,7 +11,7 @@
 #   --repo owner/name     gitee 仓库（默认 null_593_5354/packnest）
 #   --version vX.Y.Z      指定版本（默认最新）
 #   --dir DIR             安装目录（默认 ~/.local/bin，无需 sudo）
-#   --skip-verify         跳过 sha256 校验（不推荐；只在拿不到校验和时用）
+#   --skip-verify         跳过 sha256 与签名校验（不推荐；只在拿不到校验和时用）
 #   --dry-run             只打印将要做什么
 #
 # 只要能 GET 到 <base>/v<版本>/packnest_<版本>_<os>_<arch>.tar.gz + checksums.txt，就能装。
@@ -27,6 +27,12 @@ VERSION=""
 DIR="${HOME}/.local/bin"
 DRY_RUN=0
 SKIP_VERIFY="${PK_SKIP_VERIFY:-0}"
+
+# 发布签名公钥（allowed_signers 格式，与 pk 二进制内置的那份同源）。
+# 发版前由 scripts/sign-release.sh 派生的一行填在这里；为空则只做 sha256 并打印提示。
+ALLOWED_SIGNERS=""
+SIGNER="release@packnest.dev"
+SSHSIG_NAMESPACE="pk-release"
 
 sha256_of() {
   if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d' ' -f1
@@ -127,6 +133,31 @@ MSG
 fi
 if [ "$SKIP_VERIFY" -eq 0 ]; then
   sums=$(curl -fsSL --retry 2 --retry-connrefused --max-time 60 "$sums_url" 2>/dev/null || true)
+  if [ -z "$sums" ]; then
+    # 清单都拉不到就别往下走：否则会被误报成"签名不匹配"
+    echo "拿不到校验清单 ${sums_url}（网络不通或该版本没有这个文件）；确认来源可信后可加 --skip-verify" >&2
+    exit 4
+  fi
+  # ① 签名：先验 checksums.txt 的 sshsig，再比产物 sha256 —— 镜像站改不了这里。
+  sig_url="${sums_url}.sig"
+  sig=$(curl -fsSL --retry 2 --retry-connrefused --max-time 60 "$sig_url" 2>/dev/null || true)
+  if [ -n "$sig" ] && [ -n "$ALLOWED_SIGNERS" ] && command -v ssh-keygen >/dev/null 2>&1; then
+    printf '%s\n' "$sig" > "$tmp/checksums.txt.sig"
+    printf '%s\n' "$ALLOWED_SIGNERS" > "$tmp/allowed_signers"
+    printf '%s\n' "$sums" > "$tmp/checksums.txt"
+    if ! ssh-keygen -Y verify -f "$tmp/allowed_signers" -I "$SIGNER" \
+         -n "$SSHSIG_NAMESPACE" -s "$tmp/checksums.txt.sig" < "$tmp/checksums.txt" >/dev/null 2>&1; then
+      echo "签名校验失败：$sig_url 与内置公钥不匹配（产物或清单可能被篡改）。" >&2
+      echo "确认来源可信后可加 --skip-verify，但请先核对官方公布的密钥指纹。" >&2
+      exit 4
+    fi
+    echo "  校验：sshsig OK（发布签名）"
+  elif [ -n "$sig" ]; then
+    echo "  提示：未验签（本机没有 ssh-keygen，或脚本未内置公钥），本次只比对 sha256" >&2
+  else
+    echo "  提示：该版本没有发布签名（$sig_url），本次只比对 sha256" >&2
+  fi
+
   want=$(printf '%s\n' "$sums" | awk -v f="${name}.tar.gz" '$2==f {print $1; exit}')
   got=$(sha256_of "$tmp/pk.tar.gz")
   if [ -z "$want" ] || [ -z "$got" ]; then

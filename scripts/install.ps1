@@ -123,6 +123,10 @@ function Get-LatestVersion {
 }
 
 if ($env:PK_SKIP_VERIFY -eq '1') { $SkipVerify = [switch]$true }   # `iwr | iex` 传不了开关，用环境变量代替
+
+# 发布签名公钥（allowed_signers 格式，与 pk 内置的那份同源）。
+# 发版前把 scripts/sign-release.sh 打印的那行填进来；为空则只做 sha256 并打印提示。
+$AllowedSigners = ''
 if (-not $Version -and $env:PK_VERSION) { $Version = $env:PK_VERSION }
 if ($env:PK_INSTALL_DIR) { $Dir = $env:PK_INSTALL_DIR }
 
@@ -168,6 +172,30 @@ try {
       Get-Content -Raw $sumsTmp
     } catch { $null }
     if ($null -eq $sums) { $sums = '' }
+
+    # (1) 签名：远端有 .sig、脚本内置公钥、且本机有 ssh-keygen（Win10 1809+ 可选功能）才验
+    $sigUrl = "$sumsUrl.sig"
+    $sigTmp = Join-Path $tmp.FullName 'checksums.txt.sig'
+    $haveSig = $false
+    try { Download-File -url $sigUrl -out $sigTmp -rounds 1; $haveSig = $true } catch { $haveSig = $false }
+    if ($haveSig) {
+      $ssh = Get-Command ssh-keygen -ErrorAction SilentlyContinue
+      if ($ssh -and $AllowedSigners) {
+        $signersTmp = Join-Path $tmp.FullName 'allowed_signers'
+        $sumsFile = Join-Path $tmp.FullName 'checksums.txt'
+        Set-Content -Path $signersTmp -Value $AllowedSigners -NoNewline
+        Set-Content -Path $sumsFile -Value $sums -NoNewline
+        $verifyOut = (Get-Content $sumsFile -Raw | & ssh-keygen -Y verify -f $signersTmp `
+          -I 'release@packnest.dev' -n pk-release -s $sigTmp 2>&1) -join "`n"
+        if ($verifyOut -notmatch 'Good "pk-release" signature') {
+          throw "Signature verification failed for $sigUrl (artifact or checksums may be tampered with)."
+        }
+        Write-Host '  verify: sshsig OK (release signature)'
+      } else {
+        Write-Host '  note: signature present but not verified (no ssh-keygen or no built-in key); sha256 only' -ForegroundColor Yellow
+      }
+    }
+
     $want = $null
     foreach ($line in ($sums -split "`n")) {
       $f = $line.Trim() -split '\s+'

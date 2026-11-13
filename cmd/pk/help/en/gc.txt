@@ -1,0 +1,4 @@
+pk gc [--dry-run] [--cache-max 5GB] [--json]
+
+  Reclaim zero-reference versions (still-referenced ones are listed in KeptRef) and over-quota artifact cache (LRU).
+  The default quota comes from cache_max in config.toml.

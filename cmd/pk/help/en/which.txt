@@ -1,0 +1,4 @@
+pk which <command> [--json]
+
+  Resolve a shim to the real binary path (shim debugging / dual-name consistency check).
+  Example: pk which node; `pk which pk` and `pk which packnest` must point to the same file.

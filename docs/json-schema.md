@@ -38,6 +38,9 @@
 
 每行一个独立 JSON 对象，`ev` 是判别字段；顺序保证 `resolve → (cache|download) → verify → [companion] → done`。
 
+多工具安装（1.7 起跨工具并行）时：**组内顺序不变**，组间可以交错；每行都带 `tool`，
+按 `tool` 分组即可还原单工具事件流（GUI 就是这么消费的）。
+
 | `ev` | 附带字段 | 说明 |
 |---|---|---|
 | `resolve` | `tool,version` | 版本解析完成 |

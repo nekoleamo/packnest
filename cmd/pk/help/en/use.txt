@@ -1,0 +1,5 @@
+pk use <tool>@<version> [--project]
+pk use --lock
+
+  Switch the global default: writes config.toml, updates ledger references, repoints shims.
+  Only **installed** versions can be activated (run pk install first).

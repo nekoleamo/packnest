@@ -1,0 +1,6 @@
+pk mirror list|probe|use <profile>|write
+
+  list    list built-in profiles (default/cn/tuna/aliyun/ustc/auto) and the active one
+  probe   probe index sources in parallel (cached 6h; --tool probes a single tool)
+  use     switch profile (writes config.toml)
+  write   write the active registry into ~/.npmrc (backup first, append only)
