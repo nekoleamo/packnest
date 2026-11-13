@@ -28,7 +28,9 @@ macOS ships arm64 only (Apple Silicon); Intel Macs must build it themselves with
 ## 2. Install the CLI first
 
 On start the app looks for `pk` on `PATH`, then in the usual install locations, and checks its contract version
-(`schema ≥ 1` and a recent enough version). If it cannot find one, the UI says so — it never downloads a second runtime.
+(`schema ≥ 1` and a recent enough version). If it cannot find one, the header shows the install command for **your
+platform** (PowerShell on Windows, `sh` elsewhere) with a copy button, and the main panels stay hidden. The app never
+downloads a second runtime itself.
 
 ```bash
 curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh

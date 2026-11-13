@@ -85,6 +85,7 @@ its own — uninstall and upgrade still go through the CLI.
 
 Artifacts live under a **separate tag** `gui-v<version>` (macOS arm64 / Windows amd64 / Linux amd64) on
 [gitee](https://gitee.com/null_593_5354/packnest/releases) and [GitHub Releases](https://github.com/nekoleamo/packnest/releases).
+If the CLI is missing, the app shows the install command for your platform with a copy button.
 macOS builds are ad-hoc signed (allow once in System Settings → Privacy & Security); Linux needs GTK4 + WebKitGTK 6.0.
 No desktop runtime? Use `pk-desktop --serve` → `http://127.0.0.1:7799/`.
 

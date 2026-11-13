@@ -98,6 +98,7 @@ pk gc --keep 2              # 每个工具保留最新 2 个版本，其余零�
 
 安装：产物挂在**独立 tag** `gui-v<版本>` 下（macOS arm64 / Windows amd64 / Linux amd64），
 从 [gitee](https://gitee.com/null_593_5354/packnest/releases) 或 [GitHub Releases](https://github.com/nekoleamo/packnest/releases) 下载。
+没装 CLI 时界面会直接给出当前平台的安装命令（带复制按钮）。
 macOS 是 ad-hoc 签名（首次打开在「系统设置 → 隐私与安全性」放行一次）；Linux 需要 GTK4 + WebKitGTK 6.0。
 不想装桌面运行时也能用浏览器形态：`pk-desktop --serve` → `http://127.0.0.1:7799/`。
 

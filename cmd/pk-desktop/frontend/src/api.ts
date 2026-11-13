@@ -3,6 +3,8 @@ export interface Status {
   ok: boolean;
   reason?: string;
   path?: string;
+  // 宿主平台（darwin/linux/windows）：没装 CLI 时据此给对应平台的安装命令
+  platform?: string;
   cli?: { schema: number; name: string; version: string };
 }
 export interface Tool {

@@ -43,7 +43,7 @@ var trayTemplate []byte
 
 // guiVersion 是 GUI 自己的版本（与 CLI 解耦；CLI 版本靠 pkcli 的启动门禁检查）。
 // 发布用的 tag 与产物文件名都跟它走：`gui-v<guiVersion>`。
-const guiVersion = "0.10.3"
+const guiVersion = "0.10.4"
 
 // api 是前端唯一的数据来源（不用 Wails 绑定，浏览器形态也能用）。
 type api struct {
@@ -226,10 +226,11 @@ func writeJSON(w http.ResponseWriter, v any) {
 func (a *api) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	cl, info, err := a.find()
 	if err != nil {
-		writeJSON(w, map[string]any{"ok": false, "reason": err.Error()})
+		// platform 让前端给"对应平台"的安装命令（Windows 用户不该被塞一条 sh 命令）
+		writeJSON(w, map[string]any{"ok": false, "reason": err.Error(), "platform": runtime.GOOS})
 		return
 	}
-	writeJSON(w, map[string]any{"ok": true, "cli": info, "path": cl.Path})
+	writeJSON(w, map[string]any{"ok": true, "cli": info, "path": cl.Path, "platform": runtime.GOOS})
 }
 
 func (a *api) handleTools(w http.ResponseWriter, r *http.Request) {

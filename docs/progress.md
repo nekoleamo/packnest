@@ -508,7 +508,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 | 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
 | 行数 | **11,150 / 11,200**（余量 50）；`cmd/pk` 3,204 / 3,200（warn）；单文件无 >600 行 |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
-| GUI 发布 | 独立 tag **`gui-v0.10.3`**（gitee + GitHub 各 3 产物：mac arm64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；mac intel 已放弃，`gui-v0.10.1` 是补差异页之前那版 |
+| GUI 发布 | 独立 tag **`gui-v0.10.4`**（gitee + GitHub 各 3 产物：mac arm64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；mac intel 已放弃，`gui-v0.10.1` 是补差异页之前那版 |
 | 发布流程 | 唯一清单在 `docs/publishing.md`（「三、发布流程」第 ⑦ 步 + 「五点五、GUI 的产物」） |
 
 ### 接下来可做的（1.3 已落地，待发版）
@@ -560,6 +560,9 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   单行也有 `→ 新版本` 徽标）、体检页「一键修复」按钮（`pk doctor --fix`，修完把 `fixed[]` 逐条显示）、
   回收页「每工具保留 N 个」输入框（`pk gc --keep N`，结果里多一块"按保留数留下"）。`pkcli` 三个方法随之改签名
   （`List` 返回 `{Tools, Outdated}`、`Doctor(…, fix)`、`GC(…, keep)`），契约测试补了 `outdated[]` / `fixed[]` / `keep` 的解析断言。
+- **`gui-v0.10.4`：没装 CLI 时给对应平台的安装命令**。`/api/status` 多一个 `platform`（`runtime.GOOS`），
+  前端据此在顶栏给 Windows 的 `iwr … install.ps1 -UseB | iex` 或其余平台的 `curl … install.sh | sh`，带「复制」按钮
+  （之前固定塞 `sh` 命令，Windows 用户照着敲会失败）；`status.reason` 为"找不到 pk"时不再重复显示，主界面保持隐藏。
 - 发布 `gui-v0.10.3` 顺手修的两个发布链路坑（已写进 `docs/publishing.md`）：① `gui-build.yml` 用
   `scripts/latest`（CLI 版本）给 GUI 产物命名 → CI 产物成 `packnest-desktop_1.3.1_*`，`release-gui.sh`
   找不到；改成取 `guiVersion`。② `release-gui.sh` 把不存在的通配符写进 `gh release upload`，每次都失败却

@@ -34,7 +34,9 @@ curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh 
 # 或 brew install nekoleamo/packnest/packnest
 ```
 
-找不到时界面顶部会直接显示原因（"找不到 pk"），不会自己去下第二份运行时。
+找不到时界面顶部会直接给出**当前平台**的安装命令（Windows 是 `iwr … install.ps1 -UseB | iex`，其余是
+`curl -fsSL … install.sh | sh`），旁边有「复制」按钮；主界面此时不显示。装完 CLI 重开窗口即可，
+GUI 不会自己去下第二份运行时。
 
 ## 三、浏览器形态（不装桌面运行时也能用）
 

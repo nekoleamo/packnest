@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watchEffect } from "vue";
 import { api, install, type AvailableTool, type EnvDoc, type GCResult, type InstallEvent, type Issue, type Mirror, type Outdated, type ProbeEntry, type Tool, type WhichResult } from "./api";
 
-const status = ref<{ ok: boolean; reason?: string; path?: string; version?: string }>({ ok: false });
+const status = ref<{ ok: boolean; reason?: string; path?: string; version?: string; platform?: string }>({ ok: false });
 const tools = ref<Tool[]>([]);
 // 1.3：已装版本落后索引最新时后端会在 /api/tools 里带上 outdated（只读索引缓存，不联网）
 const outdated = ref<Outdated[]>([]);
@@ -31,11 +31,28 @@ async function refreshAll() {
 async function loadStatus() {
   try {
     const s = await api.status();
-    status.value = { ok: s.ok, reason: s.reason, path: s.path, version: s.cli?.version };
+    status.value = { ok: s.ok, reason: s.reason, path: s.path, version: s.cli?.version, platform: s.platform };
   } catch (e) {
     status.value = { ok: false, reason: String(e) };
   }
 }
+// 没装 CLI 时引导用的安装命令：Windows 用 PowerShell 版，其余平台用 sh 版
+const installCmd = computed(() =>
+  status.value.platform === "windows"
+    ? "iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex"
+    : "curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh",
+);
+const copiedHint = ref(false);
+async function copyInstallCmd() {
+  try {
+    await navigator.clipboard.writeText(installCmd.value);
+    copiedHint.value = true;
+    setTimeout(() => (copiedHint.value = false), 1600);
+  } catch {
+    /* 没有剪贴板权限时用户仍可手动选中 */
+  }
+}
+
 async function loadTools() {
   const res = await api.tools();
   tools.value = res.tools ?? [];
@@ -411,8 +428,10 @@ onMounted(async () => {
     <h1>packnest</h1>
     <span class="meta" v-if="status.ok">CLI {{ status.version }} · {{ status.path }}</span>
     <span class="meta" v-else>
-      找不到 pk：{{ status.reason }} —— 先装 CLI：
-      <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh</code>
+      首次使用先装 CLI（窗口重开后自动接管）：
+      <code>{{ installCmd }}</code>
+      <button @click="copyInstallCmd" :title="'复制安装命令'">{{ copiedHint ? "已复制" : "复制" }}</button>
+      <span v-if="status.reason && !status.reason.startsWith('找不到 pk')" class="dim">（{{ status.reason }}）</span>
     </span>
     <div class="seg">
       <button
