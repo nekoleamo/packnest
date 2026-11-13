@@ -500,15 +500,15 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ## 下一步（新会话从这里接）
 
-### 已完成（截至 2026-11-12，v1.0.0）
+### 已完成（截至 2026-11-13，v1.5.0）
 
 | 线 | 状态 |
 |---|---|
-| CLI | **v1.4.0 已发（2026-11-13）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、**10 个命令**（新增 `upgrade`） |
+| CLI | **v1.5.0 已发（2026-11-13）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、**10 个命令**；1.5 新增 `PK_CACHE` + 读 `package.json` 的 `engines.node`，并把 `auto` 探测、索引传输、`list` 大小三处延迟修掉 |
 | 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
-| 行数 | **11,597 / 11,600**（余量 3）；`cmd/pk` 3,191 / 3,200；单文件无 >600 行（`cmd_list.go` 497） |
+| 行数 | **11,584 / 11,600**（余量 16）；`cmd/pk` 3,169 / 3,200；单文件无 >600 行（`cmd_list.go` 495） |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
-| GUI 发布 | 独立 tag **`gui-v0.10.4`**（gitee + GitHub 各 3 产物：mac arm64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；mac intel 已放弃，`gui-v0.10.1` 是补差异页之前那版 |
+| GUI 发布 | 独立 tag **`gui-v0.11.0`**（gitee + GitHub 各 3 产物：mac arm64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；mac intel 已放弃，`gui-v0.10.1` 是补差异页之前那版 |
 | 发布流程 | 唯一清单在 `docs/publishing.md`（「三、发布流程」第 ⑦ 步 + 「五点五、GUI 的产物」） |
 
 ### 接下来可做的（1.3 已落地，待发版）
@@ -801,7 +801,7 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
   跟着宿主一起卸载/回收（不单独进台账）。node→npm 仍是 `applyCompanion` 的 engines 反查特例。
   验收 `TestGenericCompanionInstalled`、`TestCompanionPinnedNeedsVersion`。
 
-## 1.5（2026-11-13，未发版）
+## 1.5（2026-11-13，**v1.5.0 已发**）
 
 候选清单见 `~/Documents/Plan/17-包管理器/pn-1.5-候选清单.md`。三条一起做：两条功能 + 一条偿债。
 
@@ -827,7 +827,7 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 混进来会让"pk.toml 权威"这条变模糊，留作以后单独评估。`PK_CACHE` 只搬缓存，没搬台账：台账与锁必须和 shim 在同一处，
 否则"删了缓存目录"会连安装记录一起丢。
 
-## 1.5 第二轮：整体 review + 性能优化（2026-11-13，未发版）
+## 1.5 第二轮：整体 review + 性能优化（2026-11-13，随 v1.5.0 发布）
 
 先量后改（同一台机器、同一台镜像、`/tmp` 下每次全新 `PK_ROOT`）。**三处延迟问题都是"代码说的和做的不一致"**：
 

@@ -7,7 +7,7 @@
 > **2026-11-13 更新**：原来第 2 条「Windows `.cmd` shim 被 PowerShell 调用」已自动化 ——
 > `smoke.yml` 新增 Windows 专属 `pwsh` 步骤，真 PowerShell 调 `pk.cmd` / `packnest.cmd` /
 > `node.cmd` / `npm.cmd` 并断言输出，再走零残留卸载（首次运行即通过：`pk.cmd --version ->
-> packnest v1.3.1 (windows/amd64)（v1.4.0 起同样通过）`、`node.cmd -v -> v22.23.5`、`npm.cmd -v -> 12.2.2`）。
+> packnest v1.3.1 (windows/amd64)（v1.4.0 起同样通过，v1.5.0 复测通过）`、`node.cmd -v -> v22.23.5`、`npm.cmd -v -> 12.2.2`）。
 > 下面保留原文，作为"如果 CI 挂了怎么手动复核"的步骤清单。
 
 ## 1. Windows ARM64 运行时
