@@ -504,7 +504,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 | 线 | 状态 |
 |---|---|
-| CLI | **v1.5.0 已发（2026-11-13）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、**10 个命令**；1.5 新增 `PK_CACHE` + 读 `package.json` 的 `engines.node`，并把 `auto` 探测、索引传输、`list` 大小三处延迟修掉 |
+| CLI | **v1.5.1 已发（2026-11-13）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、**10 个命令**；1.5 新增 `PK_CACHE` + 读 `package.json` 的 `engines.node`，并把 `auto` 探测、索引传输、`list` 大小三处延迟修掉 |
 | 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
 | 行数 | **11,584 / 11,600**（余量 16）；`cmd/pk` 3,169 / 3,200；单文件无 >600 行（`cmd_list.go` 495） |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
@@ -801,7 +801,7 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
   跟着宿主一起卸载/回收（不单独进台账）。node→npm 仍是 `applyCompanion` 的 engines 反查特例。
   验收 `TestGenericCompanionInstalled`、`TestCompanionPinnedNeedsVersion`。
 
-## 1.5（2026-11-13，**v1.5.0 已发**）
+## 1.5（2026-11-13，v1.5.0 → **v1.5.1 已发**）
 
 候选清单见 `~/Documents/Plan/17-包管理器/pn-1.5-候选清单.md`。三条一起做：两条功能 + 一条偿债。
 
@@ -877,7 +877,7 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 `pages.yml` 的 `v*` tag 触发被直接拒绝（`Tag "v1.5.0" is not allowed to deploy...`）。
 已通过 API 补了一条 `v*`（tag）策略，`gh run rerun` 后转绿 —— 以后打 tag 能直接刷新官网，不用等下一次 main 推送。
 
-## v1.5.0 之后的小修（2026-11-13，待下个版本发布）
+## v1.5.1：`--dry-run` 的四处副作用（2026-11-13 已发）
 
 `--dry-run` 的承诺是"只打印计划"，实际有三个副作用，已修：
 
@@ -891,3 +891,16 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 回归用例：`TestInstallDryRunWritesNoLock`（CLI 层：预置索引缓存 + `--offline`，断言不写锁、退出 0）、
 `TestAcceptance_CP_DryRunNoCorepack`（已装版本 dry-run 不执行 `corepack enable`、不写 shim）、
 `TestInstallDryRunLeavesConfigAlone`（`--dry-run --corepack` 不改 config.toml）。四条都验过"去掉修复即失败"。
+
+## v1.5.1 发版记录（2026-11-13）
+
+只含 `--dry-run` 的四处副作用修复（不动 `--json`、不动命令面）：
+
+| 步骤 | 结果 |
+|---|---|
+| `make check` | 8 项全绿（行数 11,594 / 11,600，`cmd/pk` 3,178 / 3,200） |
+| `make release VERSION=1.5.1` | 6 产物 + checksums；二进制自报 `packnest v1.5.1` |
+| gitee / GitHub Releases | 各 6 产物 + checksums，`verify-release` 全部一致 |
+| tap / scoop | 推到 1.5.1，远端回读一致；本机 `brew install` 装到 1.5.1 |
+| smoke / CI | smoke 5/5 + gui-contract 全绿；main 门禁云端复跑通过 |
+| 官网 | 中英文均为 v1.5.1 |
