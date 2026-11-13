@@ -93,7 +93,11 @@ func (i *Installer) upgradeTargets(tools []string) (targets []string, skipped []
 		}
 		seen[tool] = true
 		if tool == "npm" {
-			skipped = append(skipped, UpgradeItem{Tool: "npm", From: spec.SortDesc(i.installedVersions("npm"))[0],
+			from := ""
+			if vs := spec.SortDesc(i.installedVersions("npm")); len(vs) > 0 {
+				from = vs[0]
+			}
+			skipped = append(skipped, UpgradeItem{Tool: "npm", From: from,
 				Skipped: "npm 是 node 的伴生包，跟着 node 一起换（单独升会配错 engines）"})
 			return
 		}

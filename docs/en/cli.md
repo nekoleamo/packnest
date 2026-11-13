@@ -21,9 +21,10 @@
 - [7. doctor](#7-doctor)
 - [8. env](#8-env)
 - [9. gc](#9-gc)
-- [10. version / help](#10-version--help)
-- [11. Global flags and exit codes](#11-global-flags-and-exit-codes)
-- [12. Common recipes](#12-common-recipes)
+- [10. upgrade](#10-upgrade)
+- [11. version / help](#11-version--help)
+- [12. Global flags and exit codes](#12-global-flags-and-exit-codes)
+- [13. Common recipes](#13-common-recipes)
 
 ---
 
@@ -303,7 +304,25 @@ Reclaims unreferenced versions (referenced ones are listed under `KeptRef`) and 
 cache by LRU down to `cache_max` (default from `config.toml`). `--dry-run` reports without touching
 the disk.
 
-## 10. version / help
+## 10. upgrade
+
+```
+pk upgrade [tool...] [--dry-run] [--json]
+```
+
+Upgrades every installed tool to the newest release in its index, then switches the global default to
+the new version. **Old versions are kept** — clean them up with `pk gc --keep N`.
+
+- no arguments = every tool in the ledger; pass names to upgrade a subset
+- `npm` is skipped on purpose: it is node's companion package and is paired per exact node version,
+  so it moves together with node (upgrading it alone would mismatch `engines`)
+- tools that are not installed are reported, not treated as errors
+- exit code `0` when everything succeeded, `1` when some tool failed (the rest still complete)
+- `--json`: `{schema, dry_run, changed, failed, items[].{tool,from,to,changed,skipped,error}}`
+
+`pk list` prints the same information as an upgrade hint, pointing at `pk upgrade <tool>`.
+
+## 11. version / help
 
 ```bash
 $ pk version          # packnest v0.7.x (go1.27.3, darwin/arm64)
@@ -311,7 +330,7 @@ $ pk version --json   # {schema, name, version, go, os, arch}
 $ pk help install     # per-command help
 ```
 
-## 11. Global flags and exit codes
+## 12. Global flags and exit codes
 
 | Flag | Effect |
 |---|---|
@@ -329,7 +348,7 @@ $ pk help install     # per-command help
 | `4` | checksum failure |
 | `5` | another `pk` holds the lock |
 
-## 12. Common recipes
+## 13. Common recipes
 
 ```bash
 # project-scoped pin (writes pk.toml + pk.lock, global default untouched)

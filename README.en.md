@@ -238,7 +238,7 @@ make npm-dry    # build the npm packages and validate manifests (no publish, no 
 
 | Document | Contents |
 |---|---|
-| [docs/en/cli.md](docs/en/cli.md) | **CLI reference** — all nine commands with examples |
+| [docs/en/cli.md](docs/en/cli.md) | **CLI reference** — all ten commands with examples |
 | [docs/en/troubleshooting.md](docs/en/troubleshooting.md) | Troubleshooting, including coexistence with proto/nvm/mise |
 | [docs/json-schema.md](docs/json-schema.md) | The `--json` v1 contract (fields and issue codes) |
 | [docs/cli.md](docs/cli.md) | The Chinese manual (more narrative detail) |
