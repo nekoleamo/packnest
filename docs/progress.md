@@ -546,7 +546,12 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   `pk.cmd` / `packnest.cmd` / `node.cmd` / `npm.cmd` 并断言输出，再零残留卸载。
   首次运行即通过（`packnest v1.3.1 (windows/amd64)`、`node.cmd -v -> v22.23.5`、`npm.cmd -v -> 12.2.2`），
   人工确认 3 项 → **2 项**（`docs/verify-manual.md` 同步）。
-- 行数红线 11,200 → **11,300**（本轮实测 11,191；余量留给零碎修复）。
+- **`pk upgrade`（第 10 个命令）**：`pk upgrade [工具…] [--dry-run] [--json]` —— 把已装工具升到索引最新、
+  把全局默认切过去、**旧版本保留**（清理交给 `pk gc --keep N`）；npm 明确跳过（伴生包按 node 精确版本配对，
+  单独升会配错 `engines`）；未安装的工具只给一行指路。编排在 `internal/install/upgrade.go`，cmd 只做参数与输出。
+  验收 `TestAcceptance_M7_Upgrade`（dry-run 不落盘 / 切默认 / 旧版本留着 / 二次报"已是最新" / 未装工具不报错）、
+  `TestAcceptance_M7_UpgradeCLI`（`--json` 形状 + 文本输出）。`pk list` 的可升级提示同步改成 `pk upgrade <工具>`。
+- 行数红线 11,200 → **11,300** → **11,450**（1.4 两项 + 新命令的实测驱动，落地 11,427）。
 - **顺带修一个自己刚拖出来的事故**：发完 `gui-v0.10.4` 后 `releases/latest` 指向了 `gui-v0.10.4`，
   `scripts/install.sh` 拼出 `…/download/vgui-v0.10.4/…` —— **所有新用户的一行安装 404**，
   `smoke` 全矩阵也红。三处修法一致：只认 `^v\d+\.\d+\.\d+$` 的 tag，否则退回 `scripts/latest`

@@ -90,6 +90,13 @@ pk use --lock
   回收零引用版本（被引用的列在 KeptRef 里）与超限的产物缓存（LRU）。
   默认上限取 config.toml 的 cache_max。`,
 
+	"upgrade": `pk upgrade [工具...] [--dry-run] [--json]
+
+  把已装工具升到各自索引的最新稳定版，并把全局默认切到新版；**旧版本保留**（用 pk gc --keep N 清理）。
+  不带参数 = 升台账里所有工具；给名字只升那些。
+  npm 是 node 的伴生包，跟着 node 一起换（会跳过并说明原因）。
+  退出码：全部成功 0；有工具失败 1（其余已完成）。`,
+
 	"version": `pk version [--json]
 
   打印版本与构建信息（渠道安装时是机器可读输出）。`,
@@ -126,7 +133,7 @@ func helpSummary(w io.Writer) {
 // 内容保持朴素：只补命令名、子命令与常用开关，不引入任何运行时依赖。
 
 var completionCommands = []string{
-	"install", "uninstall", "use", "list", "which", "mirror", "doctor", "env", "gc", "version", "help",
+	"install", "uninstall", "use", "list", "which", "mirror", "doctor", "env", "gc", "upgrade", "version", "help",
 }
 
 func writeCompletion(w io.Writer, shell string) error {
@@ -143,6 +150,7 @@ _packnest() {
     env) COMPREPLY=( $(compgen -W "--shell --write --unset --completion --json" -- "$cur") ); return ;;
     doctor) COMPREPLY=( $(compgen -W "--globals --probe --json" -- "$cur") ); return ;;
     gc) COMPREPLY=( $(compgen -W "--dry-run --cache-max --json" -- "$cur") ); return ;;
+    upgrade) COMPREPLY=( $(compgen -W "--dry-run --json" -- "$cur") ); return ;;
     install) COMPREPLY=( $(compgen -W "--frozen --insecure --force --force-rehash --quiet --json" -- "$cur") ); return ;;
   esac
   if [ "$COMP_CWORD" -eq 1 ]; then
@@ -165,6 +173,7 @@ _packnest() {
     mirror) _values 'subcommand' list probe use write ;;
     install) _values 'flag' --frozen --insecure --force --force-rehash --quiet --json ;;
     gc) _values 'flag' --dry-run --cache-max --json ;;
+    upgrade) _values 'flag' --dry-run --json ;;
     doctor) _values 'flag' --globals --probe --json ;;
     env) _values 'flag' --shell --write --unset --completion --json ;;
   esac

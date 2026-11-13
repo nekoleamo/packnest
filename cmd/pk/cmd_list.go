@@ -253,7 +253,7 @@ func (a *app) outdated(entries []jsonout.ToolEntry) []jsonout.OutdatedEntry {
 			latest, ok := idx.Latest()
 			cur := spec.SortDesc(versions)[0]
 			if ok && cur != latest.Version && spec.SortDesc([]string{cur, latest.Version})[0] == latest.Version {
-				out = append(out, jsonout.OutdatedEntry{Name: name, Installed: cur, Latest: latest.Version, Advice: "pk install " + name + "@latest"})
+				out = append(out, jsonout.OutdatedEntry{Name: name, Installed: cur, Latest: latest.Version, Advice: "pk upgrade " + name})
 			}
 		}
 	}

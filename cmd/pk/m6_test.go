@@ -90,7 +90,7 @@ func TestAcceptance_M6_ListOutdated(t *testing.T) {
 	if !strings.Contains(out, `"latest": "22.99.99"`) || !strings.Contains(out, `"installed": "22.98.0"`) {
 		t.Fatalf("应提示 22.98.0 → 22.99.99：\n%s", out)
 	}
-	if code, out, _ := execCLI(t, "--root", root, "list"); code != 0 || !strings.Contains(out, "pk install node@latest") {
+	if code, out, _ := execCLI(t, "--root", root, "list"); code != 0 || !strings.Contains(out, "pk upgrade node") {
 		t.Fatalf("文本模式应给可执行建议：%d\n%s", code, out)
 	}
 }
@@ -134,5 +134,48 @@ func TestAcceptance_M6_DoctorFix(t *testing.T) {
 	again, _ := os.ReadFile(rc)
 	if strings.Count(string(again), "# >>> packnest >>>") != 1 {
 		t.Fatalf("托管块必须幂等（只一段）：\n%s", again)
+	}
+}
+
+// TestAcceptance_M7_UpgradeCLI：`pk upgrade --json` 的形状（GUI 与脚本吃这个）+ dry-run 不动盘。
+func TestAcceptance_M7_UpgradeCLI(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{
+			{Version: "22.98.0", NPMVersion: "11.20.0"},
+			{Version: "22.99.99", NPMVersion: "11.20.0"},
+		},
+		NPM: map[string]string{"11.20.0": ">=20.0.0"},
+	})
+	t.Setenv("PK_MIRROR_NODE_INDEX", fm.Server.URL+"/node/index.json")
+	t.Setenv("PK_MIRROR_NODE_ARTIFACT", fm.Server.URL+"/node/v{version}/node-v{version}-{platform}.{ext}")
+	t.Setenv("PK_MIRROR_NODE_CHECKSUM", fm.Server.URL+"/node/v{version}/SHASUMS256.txt")
+	t.Setenv("PK_MIRROR_NPM_INDEX", fm.Server.URL+"/npm")
+	t.Setenv("PK_MIRROR_NPM_ARTIFACT", fm.Server.URL+"/npm/-/npm-{version}.tgz")
+
+	root := t.TempDir()
+	if code, out, errOut := execCLI(t, "--root", root, "install", "node@22.98.0"); code != 0 {
+		t.Fatalf("install 退出码 %d\n%s%s", code, out, errOut)
+	}
+	code, out, _ := execCLI(t, "--root", root, "--json", "upgrade", "--dry-run")
+	if code != 0 {
+		t.Fatalf("upgrade --dry-run 退出码 %d\n%s", code, out)
+	}
+	if !strings.Contains(out, `"changed": 1`) || !strings.Contains(out, `"to": "22.99.99"`) {
+		t.Fatalf("dry-run JSON 不对:\n%s", out)
+	}
+	// dry-run 不能装出 22.99.99（列表里可能出现"可升级"提示，所以看 JSON 的已装版本）
+	if code, out, _ := execCLI(t, "--root", root, "--json", "list"); code != 0 || strings.Contains(out, `"version": "22.99.99"`) {
+		t.Fatalf("dry-run 不该装上新版本:\n%s", out)
+	}
+	code, out, _ = execCLI(t, "--root", root, "upgrade")
+	if code != 0 || !strings.Contains(out, "已升级 1 个工具") {
+		t.Fatalf("upgrade 退出码 %d\n%s", code, out)
+	}
+	code, out, _ = execCLI(t, "--root", root, "list")
+	if code != 0 || !strings.Contains(out, "* node   22.99.99") {
+		t.Fatalf("升级后默认版本应为 22.99.99:\n%s", out)
+	}
+	if code, out, _ := execCLI(t, "--root", root, "upgrade"); code != 0 || strings.Contains(out, "已升级") {
+		t.Fatalf("二次 upgrade 应报已是最新:\n%s", out)
 	}
 }

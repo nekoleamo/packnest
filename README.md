@@ -66,6 +66,7 @@ pk doctor                   # 环境体检（PATH / 台账 / 镜像 / 全局包 
 pk doctor --fix             # 顺手修能自动修的两类：PATH 托管块、pk/packnest 入口（其余只报不改）
 pk gc --dry-run             # 零引用版本与超限缓存的回收预演
 pk gc --keep 2              # 每个工具保留最新 2 个版本，其余零引用的才回收
+pk upgrade                  # 已装工具一次升到索引最新（旧版本保留，npm 跟着 node 走）
 ```
 
 `pk list` 已装版本落后索引最新时会多一段可升级提示（只读 24h 索引缓存、不联网）：
@@ -75,8 +76,8 @@ pk gc --keep 2              # 每个工具保留最新 2 个版本，其余零�
   node   22.23.4 → 26.13.0   pk install node@latest
 ```
 
-命令面固定 9 个：`install` · `uninstall`（`<工具>[@<版本>]` / `--all`）· `use` · `list`（`[工具]` / `--available`）·
-`which` · `mirror`（list/probe/use/write）· `doctor` · `env` · `gc`，另加 `version` / `help`
+命令面固定 10 个：`install` · `uninstall`（`<工具>[@<版本>]` / `--all`）· `use` · `list`（`[工具]` / `--available`）·
+`which` · `mirror`（list/probe/use/write）· `doctor` · `env` · `gc` · `upgrade`（已装工具一次升到最新），另加 `version` / `help`
 （`pk help install` 有逐命令详解）。
 
 全局开关：`--json`（GUI 与脚本的唯一契约）· `--offline` · `--yes` · `--root`（调试）。
@@ -248,7 +249,7 @@ make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 
 | 文档 | 内容 |
 |---|---|
-| [docs/cli.md](docs/cli.md) | **操作手册**：9 个命令全量示例（可直接用于网站发布） |
+| [docs/cli.md](docs/cli.md) | **操作手册**：10 个命令全量示例（可直接用于网站发布） |
 | [README.en.md](README.en.md) · [docs/en/](docs/en/README.md) | 英文版介绍与文档（CLI 参考、故障排查） |
 | [docs/progress.md](docs/progress.md) | 里程碑进度、每轮交付与踩过的坑 |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | 故障排查（含与 proto/nvm/mise 共存） |

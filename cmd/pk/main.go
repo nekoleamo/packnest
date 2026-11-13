@@ -1,7 +1,7 @@
 // Command pk 是 packnest 的 CLI 入口。
 //
 // 命令面固定 9 个（方案 §4.4）：install / uninstall / use / list / which /
-// mirror / doctor / env / gc。`pk` 与 `packnest` 是同一二进制的两个名字，
+// mirror / doctor / env / gc / upgrade。`pk` 与 `packnest` 是同一二进制的两个名字，
 // argv[0] 不改变任何行为。
 package main
 
@@ -128,6 +128,8 @@ func run(args []string, out, errOut io.Writer) int {
 		return a.cmdEnv(cmdArgs)
 	case "gc":
 		return a.cmdGC(cmdArgs)
+	case "upgrade":
+		return a.cmdUpgrade(cmdArgs)
 	}
 	return a.failUsage(fmt.Errorf("未知命令 %q", cmd))
 }
@@ -254,6 +256,7 @@ func printUsage(w io.Writer) {
   doctor                  环境体检（PATH/shim/台账/镜像）
   env [--shell S] [--write] 输出 shell 环境片段
   gc [--dry-run] [--cache-max]  回收零引用版本与超限缓存
+  upgrade [工具…] [--dry-run]   把已装工具升到索引最新（旧版本保留，npm 随 node）
 
 全局开关:
   --json      机器可读输出（GUI 与脚本的唯一入口）

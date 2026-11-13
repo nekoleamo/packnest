@@ -43,7 +43,7 @@ func TestListGolden(t *testing.T) {
 			NPM: &ToolNPM{Version: "12.2.2", Replaced: "11.20.0"}, Requires: []string{}},
 		{Name: "pnpm", Version: "10.4.1", Active: false, Requires: []string{"node"}},
 	})
-	out.Outdated = []OutdatedEntry{{Name: "node", Installed: "26.13.0", Latest: "26.14.0", Advice: "pk install node@latest"}}
+	out.Outdated = []OutdatedEntry{{Name: "node", Installed: "26.13.0", Latest: "26.14.0", Advice: "pk upgrade node"}}
 	checkGolden(t, "list.golden.json", out)
 }
 

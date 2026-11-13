@@ -23,6 +23,7 @@
 | `pk version --json` | `version.golden.json` | `name,version,go,os,arch` |
 | `pk which --json` | `which.golden.json` | `name,path,shim` |
 | `pk gc --json` | `gc.golden.json` | `Removed,CacheRemoved,KeptRef,KeptRecent,FreedBytes,DryRun,cache_max_bytes,keep`（`KeptRecent`/`keep` 是 1.3 的 `--keep N`，`omitempty`） |
+| `pk upgrade --json` | 内联结构 | `dry_run`、`changed`、`failed`、`items[].{tool,from,to,changed,skipped,error}`（1.4 第 10 个命令） |
 | `pk use --json` | 内联结构 | `tool,version,config` |
 | `pk mirror list --json` | 内联结构 | `current`、`mirrors[].{name,display,registry,current}` |
 | `pk mirror probe --json` | 内联结构 | `results[].{url,ok,status,latency_ms,checked_at,err}` |

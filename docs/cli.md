@@ -3,7 +3,7 @@
 > **中文** · [English](en/cli.md)
 >
 > 适用于 **packnest v0.7.x**。所有示例都能直接复制执行；`$` 开头是命令，其余是输出示例。
-> 命令面固定 9 个：`install` `uninstall` `use` `list` `which` `mirror` `doctor` `env` `gc`，另有 `version` `help`。
+> 命令面固定 10 个：`install` `uninstall` `use` `list` `which` `mirror` `doctor` `env` `gc` `upgrade`，另有 `version` `help`。
 
 ## 目录
 
@@ -465,7 +465,32 @@ $ pk gc --json
 
 ---
 
-## 10. version / help
+## 10. upgrade — 把已装工具升到最新
+
+```bash
+$ pk upgrade --dry-run
+  → node   22.23.4 → 26.13.1（dry-run，未下载）
+  ·  pnpm   12.18.0  已是最新
+  ·  npm                npm 是 node 的伴生包，跟着 node 一起换（单独升会配错 engines）
+dry-run：没有下载任何东西；去掉 --dry-run 才真升。
+
+$ pk upgrade              # 真升：装新版 + 把全局默认切过去
+  ✔ node   22.23.4 → 26.13.1
+已升级 1 个工具（旧版本保留，`pk gc --keep 2` 可清理）
+
+$ pk upgrade node         # 只升指定工具（给多个名字就升多个）
+$ pk upgrade --json       # {schema, changed, failed, items[{tool,from,to,changed,skipped,error}]}
+```
+
+- **旧版本不删**：升级 = 装新版本 + 切默认，旧版本留着；清理用 `pk gc --keep N`
+- **npm 不参与**：它是 node 的伴生包，按 node 精确版本配对，跟着 node 一起换（单独升会配错 `engines`）
+- 未安装的工具不会报错，只给一行"还没装（先 `pk install <工具>@latest`）"
+- 退出码：全部成功 `0`；有工具失败 `1`（其余照常完成，失败原因逐条列出）
+- `pk list` 里的"可升级"提示会直接给 `pk upgrade <工具>` 这条命令
+
+---
+
+## 11. version / help
 
 ```bash
 $ pk --version
@@ -488,7 +513,7 @@ $ pk install --help          # 同上
 
 ---
 
-## 11. 全局开关与退出码
+## 12. 全局开关与退出码
 
 | 开关 | 作用 |
 |---|---|
@@ -508,7 +533,7 @@ $ pk install --help          # 同上
 
 ---
 
-## 12. 常见任务
+## 13. 常见任务
 
 ### 12.1 新机器（国内）从零到可用
 

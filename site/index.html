@@ -132,7 +132,7 @@
 </section>
 
 <section id="commands">
-  <h2>命令 <span class="hint">9 个 · 命令面固定</span></h2>
+  <h2>命令 <span class="hint">10 个 · 命令面固定</span></h2>
   <table>
     <thead><tr><th>命令</th><th>做什么</th></tr></thead>
     <tbody>
@@ -145,6 +145,7 @@
       <tr><td>doctor</td><td>体检 PATH、台账、镜像、全局包、其他版本管理器；<code>--fix</code> 自动修 PATH 托管块与 pk/packnest 入口</td></tr>
       <tr><td>env</td><td>输出 shell 片段；<code>--write</code> 写进托管块（Windows 走注册表用户 Path，不受执行策略限制）</td></tr>
       <tr><td>gc</td><td>回收零引用版本与超限缓存；<code>--keep 2</code> 每个工具保留最新 2 个</td></tr>
+      <tr><td>upgrade</td><td>把已装工具一次升到索引最新（旧版本保留、全局默认跟着切、npm 随 node）；<code>--dry-run</code> 先看要升什么</td></tr>
     </tbody>
   </table>
   <p class="after">全局开关 <code>--json</code>（GUI 与脚本的唯一契约）· <code>--offline</code> · <code>--yes</code> · <code>--root</code>；退出码固定 0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用。</p>
