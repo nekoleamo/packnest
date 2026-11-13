@@ -81,7 +81,7 @@ its own — uninstall and upgrade still go through the CLI.
 - multi-spec install queue with per-row progress (the NDJSON `progress` event)
 - mirror profile switching with latency probing; doctor page (global packages in a table, `--probe` to really load native modules, **Fix now** = `pk doctor --fix`)
 - reclaim page: preview or delete, `--keep N` keeps the newest N versions per tool
-- read-only `which` / `env` views, light/dark toggle
+- read-only `which` / `env` views, light/dark toggle, Chinese/English UI, and launch at login (off by default)
 
 Artifacts live under a **separate tag** `gui-v<version>` (macOS arm64 / Windows amd64 / Linux amd64) on
 [gitee](https://gitee.com/null_593_5354/packnest/releases) and [GitHub Releases](https://github.com/nekoleamo/packnest/releases).

@@ -48,6 +48,15 @@ pk-desktop --serve --addr 0.0.0.0:7799 --token <随机串>   # 绑非回环地�
 打开 `http://127.0.0.1:7799/` 就是同一套界面（前端是普通静态页 + `/api/*`，功能与桌面壳一致）。
 远程使用时访问 `/api/*` 要带 `?token=` 或 `Authorization: Bearer <token>`。
 
+## 三点五、界面语言与开机自启
+
+- **语言**：顶栏 `中文 / EN` 切换，默认跟系统语言（`navigator.language`），选择记在本地，重开仍是上次那个。
+  界面文案是 GUI 自己的；**CLI 的输出（体检问题、安装日志）仍然是中文** —— 这是刻意的：`--json` 才是机器接口，
+  人类文案只维护一份，避免两边漂移。
+- **开机自启**：设置里一个开关，**默认关**。打开后只写**用户级**条目：
+  macOS `~/Library/LaunchAgents/packnest-desktop.plist`、Windows `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`、
+  Linux `~/.config/autostart/packnest-desktop.desktop`；关闭只删自己写的那一条，不碰别人的同类条目。
+
 ## 四、界面与 CLI 命令的对照
 
 | 界面 | 实际调用 | 说明 |

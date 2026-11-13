@@ -47,6 +47,14 @@ pk-desktop --serve --addr 0.0.0.0:7799 --token <random>        # non-loopback ad
 `http://127.0.0.1:7799/` serves the same UI (a plain static page plus `/api/*`). When served remotely, `/api/*` calls
 need `?token=` or `Authorization: Bearer <token>`.
 
+## 3.5 UI language and launch at login
+
+- **Language**: the header has a `中文 / EN` switch; the default follows `navigator.language` and the choice is stored
+  locally. The UI strings are the GUI's own; **CLI output (doctor findings, install logs) stays Chinese** — on purpose:
+  `--json` is the machine interface, human prose is maintained once to avoid drift.
+- **Launch at login**: a switch in Settings, **off by default**. Enabling writes a **user-level** entry only
+  (macOS LaunchAgent, Windows `HKCU\...\Run`, Linux `~/.config/autostart`); disabling removes just that entry.
+
 ## 4. What calls what
 
 | UI | CLI call | Notes |

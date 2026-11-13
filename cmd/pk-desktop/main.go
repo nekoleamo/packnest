@@ -25,6 +25,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
+	"github.com/packnest/packnest/cmd/pk-desktop/internal/autostart"
 	"github.com/packnest/packnest/cmd/pk-desktop/internal/pkcli"
 )
 
@@ -43,7 +44,7 @@ var trayTemplate []byte
 
 // guiVersion 是 GUI 自己的版本（与 CLI 解耦；CLI 版本靠 pkcli 的启动门禁检查）。
 // 发布用的 tag 与产物文件名都跟它走：`gui-v<guiVersion>`。
-const guiVersion = "0.10.4"
+const guiVersion = "0.11.0"
 
 // api 是前端唯一的数据来源（不用 Wails 绑定，浏览器形态也能用）。
 type api struct {
@@ -192,6 +193,7 @@ func (a *api) routes(token string) *http.ServeMux {
 	mux.HandleFunc("/api/which", a.handleWhich)                                          // 只读：命令名 → 真实二进制
 	mux.HandleFunc("/api/env", a.handleEnv)                                              // 只读：当前 PATH / 环境变量
 	mux.Handle("/api/mirror-write", guard(token, http.HandlerFunc(a.handleMirrorWrite))) // 写 npmrc
+	mux.HandleFunc("/api/autostart", a.handleAutostart)                                  // 开机自启（默认关，显式打开才写）
 	return mux
 }
 
@@ -327,6 +329,28 @@ func (a *api) handleGC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, res)
+}
+
+// handleAutostart：GET 读状态、POST 改状态（{"enable":true|false}）。
+// 只动用户级位置（LaunchAgent / HKCU Run / ~/.config/autostart），永不写系统级。
+func (a *api) handleAutostart(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		writeJSON(w, autostart.Get())
+		return
+	}
+	var body struct {
+		Enable bool `json:"enable"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "请求体不是合法 JSON", http.StatusBadRequest)
+		return
+	}
+	st, err := autostart.Set(body.Enable)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	writeJSON(w, st)
 }
 
 func (a *api) handleInstall(w http.ResponseWriter, r *http.Request) {

@@ -83,6 +83,15 @@ export interface MirrorWriteResult {
   replaced: boolean;
 }
 
+// 开机自启（只写用户级条目：LaunchAgent / HKCU Run / ~/.config/autostart）
+export interface Autostart {
+  supported: boolean;
+  enabled: boolean;
+  path: string;
+  self?: string;
+  note?: string;
+}
+
 export interface InstallEvent {
   ev: string;
   tool?: string;
@@ -133,6 +142,13 @@ export const api = {
   // which / env 只读；mirror-write 会改用户的 ~/.npmrc（调用方先弹确认）
   which: (cmd: string) => json<WhichResult>(`/api/which?cmd=${encodeURIComponent(cmd)}`),
   env: (project = false) => json<EnvDoc>(`/api/env?project=${project ? 1 : 0}`),
+  autostart: () => json<Autostart>("/api/autostart"),
+  setAutostart: (enable: boolean) =>
+    json<Autostart>("/api/autostart", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ enable }),
+    }),
   mirrorWrite: (file = "") =>
     json<MirrorWriteResult>("/api/mirror-write", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ file }) }),
 };

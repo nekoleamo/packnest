@@ -1,4 +1,4 @@
-# pk-desktop —— packnest 的可视化补充界面（0.10.4）
+# pk-desktop —— packnest 的可视化补充界面（0.11.0）
 
 > **定位**：GUI 不是独立端。**必须先装 CLI**（`pk`），这里只把 `pk <cmd> --json` 的结果投影成界面。
 > 不 import 主模块任何 `internal/*`，业务真相永远在 CLI 与 `PK_ROOT`（方案 §11 定案 2026-11-11）。
@@ -15,6 +15,8 @@
 | 磁盘回收（统计块 + 分组清单，预演"将删"/真删"已删"；**每工具保留 N 个版本**输入框 = `--keep N`） | `pk gc --json [--keep N]`（GET = 预演，POST = 真删） |
 | 体检（含"实测原生模块"= `--probe`；全局包问题单独一张表；**一键修复**按钮） | `pk doctor --json [--globals] [--probe] [--fix]`（`--fix` 只修 PATH 托管块与 pk/packnest 入口） |
 | 没装 CLI 时的引导：按宿主平台给**对应平台**的安装命令（Windows → PowerShell，其余 → `sh`）+ 一键复制；主界面隐藏 | `/api/status` 的 `platform` + 412 |
+| **中英双语界面**：顶栏 `中文 / EN` 切换（默认跟 `navigator.language`，选择记在 localStorage）；字典在 `frontend/src/i18n.ts`，中文是源串、缺译文退回中文 | — |
+| **开机自启**：设置里一个开关，默认关；只写用户级条目（macOS LaunchAgent / Windows `HKCU\…\Run` / Linux `~/.config/autostart`），关闭只删自己那条 | `/api/autostart`（GET 读状态 / POST 开关） |
 | 环境页：`which`（命令→真实路径）、`env`（PATH/变量只读）、`mirror write`（写 npmrc，先确认） | `pk which <命令> --json`、`pk env --json [--project]`、`pk mirror write --json` |
 
 ## 跑起来
@@ -94,8 +96,8 @@ open dist/gui/packnest.app
 release 里有独立产物（需要先装 CLI），挂在 **`gui-v<版本>`** 这个 tag 下：
 
 ```
-https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.10.4/<文件名>
-https://github.com/nekoleamo/packnest/releases/download/gui-v0.10.4/<文件名>
+https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.11.0/<文件名>
+https://github.com/nekoleamo/packnest/releases/download/gui-v0.11.0/<文件名>
 ```
 
 | 平台 | 文件 | 用法 |

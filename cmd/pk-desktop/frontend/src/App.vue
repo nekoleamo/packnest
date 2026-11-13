@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watchEffect } from "vue";
+import { locale, setLocale, t } from "./i18n";
 import { api, install, type AvailableTool, type EnvDoc, type GCResult, type InstallEvent, type Issue, type Mirror, type Outdated, type ProbeEntry, type Tool, type WhichResult } from "./api";
 
 const status = ref<{ ok: boolean; reason?: string; path?: string; version?: string; platform?: string }>({ ok: false });
@@ -7,6 +8,23 @@ const tools = ref<Tool[]>([]);
 // 1.3：已装版本落后索引最新时后端会在 /api/tools 里带上 outdated（只读索引缓存，不联网）
 const outdated = ref<Outdated[]>([]);
 const fixed = ref<string[]>([]);
+// 开机自启（默认关；只写用户级条目）
+const autoStart = ref<{ supported: boolean; enabled: boolean; path: string; note?: string } | null>(null);
+async function loadAutostart() {
+  try {
+    autoStart.value = await api.autostart();
+  } catch {
+    autoStart.value = null;
+  }
+}
+async function toggleAutostart() {
+  if (!autoStart.value) return;
+  try {
+    autoStart.value = await api.setAutostart(!autoStart.value.enabled);
+  } catch (e) {
+    err.value = String(e);
+  }
+}
 const available = ref<AvailableTool[]>([]);
 const versions = ref<{ version: string; installed?: boolean; lts?: string }[]>([]);
 const issues = ref<Issue[]>([]);
@@ -28,6 +46,7 @@ const installed = computed(() => tools.value);
 async function refreshAll() {
   await Promise.all([loadTools(), loadMirrors(), loadDoctor(), loadAvailable()]);
 }
+onMounted(loadAutostart);
 async function loadStatus() {
   try {
     const s = await api.status();
@@ -61,7 +80,7 @@ async function loadTools() {
 // 可升级的提示按工具名索引：升级按钮直接给 `pk install <tool>@latest`（与 CLI 的建议一致）
 const outdatedFor = (name: string) => outdated.value.find((o) => o.name === name);
 async function upgrade(name: string) {
-  if (!confirm(`把 ${name} 升到最新版（${outdatedFor(name)?.latest ?? "latest"}）？旧版本会保留，可用「卸载」清理。`)) return;
+  if (!confirm(t("把 ") + name + t(" 升到最新版（") + (outdatedFor(name)?.latest ?? "latest") + t("）？旧版本会保留，可用「卸载」清理。"))) return;
   err.value = "";
   busy.value = true;
   try {
@@ -252,10 +271,10 @@ async function setDefault(t: Tool) {
   await api.use(t.name, t.version);
   await loadTools();
 }
-async function removeTool(t: Tool) {
-  if (!confirm(`卸载 ${t.name} 的全部版本？`)) return;
+async function removeTool(tool: Tool) {
+  if (!confirm(t("卸载 ") + tool.name + t(" 的全部版本？"))) return;
   try {
-    await api.uninstall(t.name);
+    await api.uninstall(tool.name);
   } catch (e) {
     alert(String(e));
   }
@@ -307,11 +326,11 @@ async function copyEval() {
   }
 }
 async function writeNpmrc() {
-  if (!confirm("把当前镜像档的 registry 写进 ~/.npmrc？只改 registry 一行，写前会备份。")) return;
+  if (!confirm(t("把当前镜像档的 registry 写进 ~/.npmrc？只改 registry 一行，写前会备份。"))) return;
   err.value = "";
   try {
     const r = await api.mirrorWrite();
-    npmrcOut.value = `${r.file} → ${r.registry}${r.replaced ? "（原有行已替换）" : "（新写入）"}`;
+    npmrcOut.value = `${r.file} → ${r.registry}${r.replaced ? t("（原有行已替换）") : t("（新写入）")}`;
   } catch (e) {
     err.value = String(e);
   }
@@ -322,8 +341,8 @@ const gcRes = ref<GCResult | null>(null);
 // 保留版本数：0 = 不保留（只清零引用），N>0 = 每个工具留最新 N 个（`pk gc --keep N`）
 const gcKeep = ref(0);
 async function runGC(run: boolean) {
-  const keepNote = gcKeep.value > 0 ? `（每个工具保留最新 ${gcKeep.value} 个）` : "";
-  if (run && !confirm(`执行 GC 会删除零引用版本与超限缓存${keepNote}，继续？`)) return;
+  const keepNote = gcKeep.value > 0 ? t("（每个工具保留最新 ") + gcKeep.value + t(" 个）") : "";
+  if (run && !confirm(t("执行 GC 会删除零引用版本与超限缓存") + keepNote + t("，继续？"))) return;
   err.value = "";
   try {
     gcRes.value = await api.gc(run, gcKeep.value);
@@ -333,7 +352,7 @@ async function runGC(run: boolean) {
   if (run) await loadTools();
 }
 // 预演与真删的描述不一样（"将删" vs "已删"），别让用户以为已经删了
-const gcVerb = computed(() => (gcRes.value?.DryRun ? "将删" : "已删"));
+const gcVerb = computed(() => (gcRes.value?.DryRun ? t("将删") : t("已删")));
 const gcGroups = computed(() => {
   const r = gcRes.value;
   if (!r) return [];
@@ -428,20 +447,24 @@ onMounted(async () => {
     <h1>packnest</h1>
     <span class="meta" v-if="status.ok">CLI {{ status.version }} · {{ status.path }}</span>
     <span class="meta" v-else>
-      首次使用先装 CLI（窗口重开后自动接管）：
+      {{ t("首次使用先装 CLI（窗口重开后自动接管）：") }}
       <code>{{ installCmd }}</code>
       <button @click="copyInstallCmd" :title="'复制安装命令'">{{ copiedHint ? "已复制" : "复制" }}</button>
       <span v-if="status.reason && !status.reason.startsWith('找不到 pk')" class="dim">（{{ status.reason }}）</span>
     </span>
+    <div class="seg" style="margin-left: auto">
+      <button :class="{ on: locale === 'zh' }" @click="setLocale('zh')">{{ t("中文") }}</button>
+      <button :class="{ on: locale === 'en' }" @click="setLocale('en')">EN</button>
+    </div>
     <div class="seg">
       <button
-        v-for="t in themeOpts"
-        :key="t.v"
-        :class="{ on: theme === t.v }"
-        :title="'配色：' + t.label"
-        @click="theme = t.v"
+        v-for="th in themeOpts"
+        :key="th.v"
+        :class="{ on: theme === th.v }"
+        :title="t('配色：') + t(th.label)"
+        @click="theme = th.v"
       >
-        {{ t.label }}
+        {{ t(th.label) }}
       </button>
     </div>
   </header>
@@ -449,39 +472,39 @@ onMounted(async () => {
   <main v-if="status.ok">
     <p v-if="err" class="err">⚠ {{ err }}</p>
     <section>
-      <h2>已装工具</h2>
+      <h2>{{ t("已装工具") }}</h2>
       <div class="row">
-        <button @click="refreshAll">刷新</button>
-        <span class="hint">{{ installed.length }} 条记录</span>
+        <button @click="refreshAll">{{ t("刷新") }}</button>
+        <span class="hint">{{ installed.length }} {{ t("条记录") }}</span>
       </div>
       <div v-if="outdated.length" class="row">
-        <span class="badge">可升级</span>
+        <span class="badge">{{ t("可升级") }}</span>
         <span v-for="o in outdated" :key="o.name" class="hint">
           {{ o.name }} {{ o.installed }} → {{ o.latest }}
-          <button :disabled="busy" @click="upgrade(o.name)">升级</button>
+          <button :disabled="busy" @click="upgrade(o.name)">{{ t("升级") }}</button>
         </span>
       </div>
-      <div v-if="!installed.length" class="hint">还没有装任何工具：在下面的「安装队列」里加一条。</div>
+      <div v-if="!installed.length" class="hint">{{ t("还没有装任何工具：在下面的「安装队列」里加一条。") }}</div>
       <table v-else>
-        <thead><tr><th>工具</th><th>版本</th><th>来源</th><th>大小</th><th></th></tr></thead>
+        <thead><tr><th>{{ t("工具") }}</th><th>{{ t("版本") }}</th><th>{{ t("来源") }}</th><th>{{ t("大小") }}</th><th></th></tr></thead>
         <tbody>
-          <tr v-for="t in installed" :key="t.name + t.version" :class="{ active: t.active }">
-            <td>{{ t.name }}</td>
+          <tr v-for="tool in installed" :key="tool.name + tool.version" :class="{ active: tool.active }">
+            <td>{{ tool.name }}</td>
             <td>
-              {{ t.version }}
-              <span v-if="outdatedFor(t.name)?.installed === t.version" class="badge" :title="'索引最新 ' + outdatedFor(t.name)?.latest">
-                → {{ outdatedFor(t.name)?.latest }}
+              {{ tool.version }}
+              <span v-if="outdatedFor(tool.name)?.installed === tool.version" class="badge" :title="'索引最新 ' + outdatedFor(tool.name)?.latest">
+                → {{ outdatedFor(tool.name)?.latest }}
               </span>
             </td>
-            <td class="dim">{{ t.source || "embedded" }}</td>
-            <td>{{ fmtMB(t.size_bytes) }}</td>
+            <td class="dim">{{ tool.source || "embedded" }}</td>
+            <td>{{ fmtMB(tool.size_bytes) }}</td>
             <td>
-              <span v-if="t.verified === 'weak'" class="badge weak" title="只有 1 个校验源">weak</span>
-              <span v-if="t.verified === 'unverified'" class="badge bad" title="未校验">未校验</span>
-              <span v-if="t.npm?.version" class="badge" :title="'自带 ' + (t.npm.replaced || '?')">npm {{ t.npm.version }}</span>
-              <button :disabled="t.active" @click="setDefault(t)">{{ t.active ? "当前默认" : "设为默认" }}</button>
-              <button @click="copyPath(t.path)" title="复制安装路径">路径</button>
-              <button class="danger" @click="removeTool(t)">卸载</button>
+              <span v-if="tool.verified === 'weak'" class="badge weak" :title="t('只有 1 个校验源')">weak</span>
+              <span v-if="tool.verified === 'unverified'" class="badge bad" :title="t('未校验')">{{ t("未校验") }}</span>
+              <span v-if="tool.npm?.version" class="badge" :title="'自带 ' + (tool.npm.replaced || '?')">npm {{ tool.npm.version }}</span>
+              <button :disabled="tool.active" @click="setDefault(tool)">{{ tool.active ? t("当前默认") : t("设为默认") }}</button>
+              <button @click="copyPath(tool.path)" :title="t('复制安装路径')">{{ t("路径") }}</button>
+              <button class="danger" @click="removeTool(tool)">{{ t("卸载") }}</button>
             </td>
           </tr>
         </tbody>
@@ -489,16 +512,16 @@ onMounted(async () => {
     </section>
 
     <section>
-      <h2>安装队列</h2>
+      <h2>{{ t("安装队列") }}</h2>
       <div class="row">
         <input v-model="queueInput" placeholder="node@22 / pnpm@latest" size="18" @keyup.enter="enqueue(); runQueue()" />
-        <button @click="enqueue()">加入队列</button>
-        <button :disabled="busy || !pending" @click="runQueue()">{{ busy ? "安装中…" : "开始安装" }}</button>
-        <button :disabled="busy" @click="clearDone()">清除已完成</button>
+        <button @click="enqueue()">{{ t("加入队列") }}</button>
+        <button :disabled="busy || !pending" @click="runQueue()">{{ busy ? t("安装中…") : t("开始安装") }}</button>
+        <button :disabled="busy" @click="clearDone()">{{ t("清除已完成") }}</button>
       </div>
-      <div v-if="!queue.length" class="hint">队列为空：填一个 spec 加进来，多条会按顺序依次装。</div>
+      <div v-if="!queue.length" class="hint">{{ t("队列为空：填一个 spec 加进来，多条会按顺序依次装。") }}</div>
       <table v-else>
-        <thead><tr><th>spec</th><th>进度</th><th>状态</th><th></th></tr></thead>
+        <thead><tr><th>spec</th><th>{{ t("进度") }}</th><th>{{ t("状态") }}</th><th></th></tr></thead>
         <tbody>
           <tr v-for="(q, i) in queue" :key="i">
             <td class="mono">{{ q.spec }}</td>
@@ -507,18 +530,18 @@ onMounted(async () => {
               <span class="dim">{{ q.percent }}%</span>
             </td>
             <td :class="q.state === 'fail' ? 'bad' : q.state === 'ok' ? 'ok' : 'dim'">{{ q.msg || "排队中" }}</td>
-            <td><button class="ghost" :disabled="q.state === 'run'" title="移出队列" @click="dequeue(i)">✕</button></td>
+            <td><button class="ghost" :disabled="q.state === 'run'" :title="t('移出队列')" @click="dequeue(i)">✕</button></td>
           </tr>
         </tbody>
       </table>
 
-      <h2 style="margin-top: 16px">可选版本</h2>
+      <h2 style="margin-top: 16px">{{ t("可选版本") }}</h2>
       <div class="row">
         <select v-model="tool" @change="loadVersions">
           <option v-for="a in available" :key="a.name" :value="a.name">{{ a.name }} · {{ a.latest }}</option>
         </select>
-        <label class="hint"><input type="checkbox" v-model="allVersions" @change="loadVersions" /> 全部版本</label>
-        <input v-model="verFilter" placeholder="过滤版本" size="8" />
+        <label class="hint"><input type="checkbox" v-model="allVersions" @change="loadVersions" /> {{ t("全部版本") }}</label>
+        <input v-model="verFilter" :placeholder="t('过滤版本')" size="8" />
       </div>
       <div class="row">
         <select v-model="picked">
@@ -526,31 +549,31 @@ onMounted(async () => {
             {{ v.version }}{{ v.installed ? "（已装）" : "" }}{{ v.lts ? " · lts " + v.lts : "" }}
           </option>
         </select>
-        <button :disabled="busy" @click="enqueue(`${tool}@${picked}`); runQueue()">装这个版本</button>
+        <button :disabled="busy" @click="enqueue(`${tool}@${picked}`); runQueue()">{{ t("装这个版本") }}</button>
       </div>
     </section>
 
     <section>
-      <h2>镜像档</h2>
+      <h2>{{ t("镜像档") }}</h2>
       <div class="row">
         <select v-if="mirror" v-model="mirrorPick">
-          <option v-for="m in mirrorOpts" :key="m.name" :value="m.name">{{ m.label }}</option>
+          <option v-for="m in mirrorOpts" :key="m.name" :value="m.name">{{ t(m.label) }}</option>
         </select>
-        <button :disabled="mirrorPick === mirror?.current" @click="switchMirror">切换</button>
-        <span class="hint">当前：{{ mirror?.current }}</span>
+        <button :disabled="mirrorPick === mirror?.current" @click="switchMirror">{{ t("切换") }}</button>
+        <span class="hint">{{ t("当前") }}：{{ mirror?.current }}</span>
       </div>
 
       <div class="row">
-        <input v-model="probeTool" placeholder="只探某个工具（留空=全部）" size="18" />
-        <button :disabled="probing" @click="runProbe">{{ probing ? "探测中…" : "探测各源" }}</button>
+        <input v-model="probeTool" :placeholder="t('只探某个工具（留空=全部）')" size="18" />
+        <button :disabled="probing" @click="runProbe">{{ probing ? t("探测中…") : t("探测各源") }}</button>
       </div>
       <div class="row">
-        <button class="danger" @click="writeNpmrc">写入 ~/.npmrc</button>
-        <span class="hint">只改 registry 一行；写前自动备份 npmrc.pk.bak</span>
+        <button class="danger" @click="writeNpmrc">{{ t("写入 ~/.npmrc") }}</button>
+        <span class="hint">{{ t("只改 registry 一行；写前自动备份 npmrc.pk.bak") }}</span>
         <span v-if="npmrcOut" class="ok mono">{{ npmrcOut }}</span>
       </div>
       <table v-if="probeRows.length">
-        <thead><tr><th>源</th><th>状态</th><th>延迟</th></tr></thead>
+        <thead><tr><th>{{ t("源") }}</th><th>{{ t("状态") }}</th><th>{{ t("延迟") }}</th></tr></thead>
         <tbody>
           <tr v-for="(p, i) in probeRows" :key="i">
             <td class="mono">{{ shortURL(p.url) }}</td>
@@ -562,10 +585,10 @@ onMounted(async () => {
     </section>
 
     <section>
-      <h2>环境</h2>
+      <h2>{{ t("环境") }}</h2>
       <div class="row">
-        <input v-model="whichCmd" placeholder="命令名（node / pnpm …）" size="14" @keyup.enter="runWhich" />
-        <button @click="runWhich">哪来的？</button>
+        <input v-model="whichCmd" :placeholder="t('命令名（node / pnpm …）')" size="14" @keyup.enter="runWhich" />
+        <button @click="runWhich">{{ t("哪来的？") }}</button>
         <span v-if="whichErr" class="bad">{{ whichErr }}</span>
         <span v-else-if="whichRes" class="ok mono">
           {{ whichRes.path }}{{ whichRes.shim ? "（pk 入口）" : "（真实文件）" }}
@@ -573,42 +596,42 @@ onMounted(async () => {
       </div>
 
       <div class="row">
-        <button @click="loadEnv">读取当前环境</button>
-        <label class="hint"><input type="checkbox" v-model="envProject" @change="loadEnv" /> 项目级（pk.lock）</label>
-        <button @click="copyEval">复制 eval 片段</button>
+        <button @click="loadEnv">{{ t("读取当前环境") }}</button>
+        <label class="hint"><input type="checkbox" v-model="envProject" @change="loadEnv" /> {{ t("项目级（pk.lock）") }}</label>
+        <button @click="copyEval">{{ t("复制 eval 片段") }}</button>
       </div>
       <div v-if="envDoc">
         <table>
-          <thead><tr><th>PATH（按优先级）</th></tr></thead>
+          <thead><tr><th>{{ t("PATH（按优先级）") }}</th></tr></thead>
           <tbody>
             <tr v-for="(p, i) in envDoc.path" :key="i"><td class="mono">{{ p }}</td></tr>
           </tbody>
         </table>
         <div class="gcgroup">
-          <h3>环境变量（{{ envDoc.env?.length ?? 0 }}）</h3>
+          <h3>{{ t("环境变量") }}（{{ envDoc.env?.length ?? 0 }}）</h3>
           <div v-for="(kv, i) in envDoc.env" :key="i" class="mono dim ellipsis" :title="kv.value">
             {{ kv.key }}={{ kv.value }}
           </div>
         </div>
       </div>
-      <div v-else class="hint">点「读取当前环境」看 pk 到底导出了什么（只读，不写任何 rc）。</div>
+      <div v-else class="hint">{{ t("点「读取当前环境」看 pk 到底导出了什么（只读，不写任何 rc）。") }}</div>
     </section>
 
     <section>
-      <h2>体检</h2>
+      <h2>{{ t("体检") }}</h2>
       <div class="row">
-        <button @click="loadDoctor">运行 pk doctor</button>
-        <button @click="fixProblems" title="只修 PATH 托管块与 pk/packnest 入口，其余只报不改">一键修复</button>
-        <label class="hint"><input type="checkbox" v-model="globals" @change="loadDoctor" /> 含全局包</label>
-        <label class="hint"><input type="checkbox" v-model="deepProbe" @change="loadDoctor" /> 实测原生模块（--probe）</label>
+        <button @click="loadDoctor">{{ t("运行 pk doctor") }}</button>
+        <button @click="fixProblems" :title="t('只修 PATH 托管块与 pk/packnest 入口，其余只报不改')">{{ t("一键修复") }}</button>
+        <label class="hint"><input type="checkbox" v-model="globals" @change="loadDoctor" /> {{ t("含全局包") }}</label>
+        <label class="hint"><input type="checkbox" v-model="deepProbe" @change="loadDoctor" /> {{ t("实测原生模块（--probe）") }}</label>
       </div>
       <div v-for="(f, i) in fixed" :key="'fx' + i" class="ok">已修 {{ f }}</div>
-      <div v-if="!issues.length" class="hint">没有发现问题</div>
+      <div v-if="!issues.length" class="hint">{{ t("没有发现问题") }}</div>
 
       <template v-if="globalIssues.length">
         <h3>全局包（{{ globalIssues.length }}）</h3>
         <table>
-          <thead><tr><th>包</th><th>问题</th><th>详情</th><th>级别</th></tr></thead>
+          <thead><tr><th>{{ t("包") }}</th><th>{{ t("问题") }}</th><th>{{ t("详情") }}</th><th>{{ t("级别") }}</th></tr></thead>
           <tbody>
             <tr v-for="(i, n) in globalIssues" :key="n">
               <td class="mono">{{ globalPkg(i) }}</td>
@@ -619,7 +642,7 @@ onMounted(async () => {
           </tbody>
         </table>
         <p class="hint">
-          引擎不满足 / ABI 绑定：切 node 版本前先处理，或在对应 node 版本下 <code>npm rebuild &lt;pkg&gt;</code>。
+          {{ t("引擎不满足 / ABI 绑定：切 node 版本前先处理，或在对应 node 版本下") }} <code>npm rebuild &lt;pkg&gt;</code>。
         </p>
       </template>
 
@@ -636,41 +659,54 @@ onMounted(async () => {
     </section>
 
     <section>
-      <h2>磁盘占用与回收</h2>
+      <h2>{{ t("磁盘占用与回收") }}</h2>
       <div class="row">
-        <label class="hint" title="每个工具保留最新的 N 个版本（pk gc --keep N）；0 = 不按版本保留">
-          每工具保留
+        <label class="hint" :title="t('每个工具保留最新的 N 个版本（pk gc --keep N）；0 = 不按版本保留')">
+          {{ t("每工具保留") }}
           <input v-model.number="gcKeep" type="number" min="0" max="20" style="width: 4rem" />
-          个
+          {{ t("个") }}
         </label>
-        <button @click="runGC(false)">预演</button>
-        <button class="danger" @click="runGC(true)">执行 GC</button>
-        <span v-if="gcRes?.DryRun" class="badge">预演结果（未删除）</span>
+        <button @click="runGC(false)">{{ t("预演") }}</button>
+        <button class="danger" @click="runGC(true)">{{ t("执行 GC") }}</button>
+        <span v-if="gcRes?.DryRun" class="badge">{{ t("预演结果（未删除）") }}</span>
       </div>
       <template v-if="gcRes">
         <div class="stats">
           <div class="stat"><b>{{ gcRes.Removed?.length ?? 0 }}</b><span>{{ gcVerb }}版本</span></div>
           <div class="stat"><b>{{ gcRes.CacheRemoved?.length ?? 0 }}</b><span>{{ gcVerb }}缓存</span></div>
-          <div class="stat"><b>{{ fmtMB(gcRes.FreedBytes) }}</b><span>释放空间</span></div>
-          <div class="stat"><b>{{ gcRes.KeptRef?.length ?? 0 }}</b><span>仍被引用</span></div>
+          <div class="stat"><b>{{ fmtMB(gcRes.FreedBytes) }}</b><span>{{ t("释放空间") }}</span></div>
+          <div class="stat"><b>{{ gcRes.KeptRef?.length ?? 0 }}</b><span>{{ t("仍被引用") }}</span></div>
           <div v-if="(gcRes.KeptRecent?.length ?? 0) > 0" class="stat">
-            <b>{{ gcRes.KeptRecent?.length ?? 0 }}</b><span>按保留数留下</span>
+            <b>{{ gcRes.KeptRecent?.length ?? 0 }}</b><span>{{ t("按保留数留下") }}</span>
           </div>
         </div>
-        <div v-if="!gcGroups.length" class="hint">没有可回收的东西。</div>
+        <div v-if="!gcGroups.length" class="hint">{{ t("没有可回收的东西。") }}</div>
         <div v-for="g in gcGroups" :key="g.title" class="gcgroup">
           <h3>{{ g.title }}（{{ g.rows.length }}）</h3>
           <div v-for="(r, n) in g.rows" :key="n" class="mono dim ellipsis" :title="r">{{ r }}</div>
         </div>
       </template>
-      <div v-else class="hint">点「预演」看会删什么（不会真删）。</div>
+      <div v-else class="hint">{{ t("点「预演」看会删什么（不会真删）。") }}</div>
     </section>
 
     <section>
-      <h2>说明</h2>
+      <h2>{{ t("设置") }}</h2>
+      <div class="row">
+        <label class="hint" :title="t('默认关；只写用户级自启条目（LaunchAgent / HKCU Run / ~/.config/autostart）')">
+          <input type="checkbox" :checked="autoStart?.enabled" :disabled="!autoStart?.supported"
+                 @change="toggleAutostart" />
+          {{ t("开机自启") }}
+        </label>
+        <span v-if="autoStart && !autoStart.supported" class="hint">{{ autoStart.note || t("当前平台不支持") }}</span>
+        <span v-else-if="autoStart" class="hint mono ellipsis" :title="autoStart.path">{{ autoStart.path }}</span>
+      </div>
+      <div class="hint">{{ t("默认关；只写用户级自启条目（LaunchAgent / HKCU Run / ~/.config/autostart）") }}</div>
+    </section>
+
+    <section>
+      <h2>{{ t("说明") }}</h2>
       <p class="hint">
-        这是 <b>pk</b> 的可视化补充：所有操作都通过调用本机已安装的 <code>pk</code>（子进程 + <code>--json</code>）完成，
-        没有装 CLI 时这里不会自己下载任何东西。
+        {{ t("这是") }} <b>pk</b> {{ t("的可视化补充：所有操作都通过调用本机已安装的") }} <code>pk</code>{{ t("（子进程 +") }} <code>--json</code>{{ t("）完成，没有装 CLI 时这里不会自己下载任何东西。") }}
       </p>
     </section>
   </main>

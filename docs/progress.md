@@ -557,6 +557,17 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   `smoke` 全矩阵也红。三处修法一致：只认 `^v\d+\.\d+\.\d+$` 的 tag，否则退回 `scripts/latest`
   （`scripts/install.sh`、`scripts/install.ps1`、`.github/workflows/smoke.yml`）；`docs/publishing.md` 记了这条坑。
 
+### 1.4 已完成（GUI 0.11.0，2026-11-13）
+
+- **中英双语界面**：`cmd/pk-desktop/frontend/src/i18n.ts` —— 中文是源串、英文查表，缺译文自动退回中文
+  （不会出现 `missing.key`）；顶栏 `中文 / EN` 切换，默认跟 `navigator.language`，选择存 localStorage。
+  CLI 的输出（体检问题、安装日志）仍是中文：`--json` 才是机器接口，人类文案只维护一份，避免两边漂移。
+- **开机自启**：`cmd/pk-desktop/internal/autostart`（macOS LaunchAgent / Windows `HKCU\…\Run` / Linux XDG autostart），
+  默认关、只写用户级条目、关闭只删自己那条；`/api/autostart` GET 读状态、POST 开关；设置页一个开关 + 条目路径。
+  单测 `TestEnableDisableWritesUserLevelEntry`（HOME 沙箱：默认关 / 打开写文件 / 关闭删文件 / 重复关闭幂等）。
+  实测：打开后 `~/Library/LaunchAgents/packnest-desktop.plist` 出现，关闭后消失。
+- 用过 headless Chrome 分别以 `zh / en` 渲染自查（`--lang=en-US` 触发英文）：主面板、按钮、对话框、GC 分组标题都跟语言走。
+
 ### 1.3 已完成（2026-11-13，v1.3.1 已发）
 
 - **多连接默认自适应**：`Jobs = 0` 为默认（每段约 8MB → 2~8 段），`--jobs 1` 强制单流、`--jobs N` 固定段数，
