@@ -208,10 +208,12 @@ func (a *app) availableRows() []availableEntry {
 		return []availableEntry{{Name: "-", Err: err.Error()}}
 	}
 	loader := a.indexLoader()
-	rows := make([]availableEntry, 0, len(all))
-	for _, p := range all {
+	// 并行拉：6 个工具串行时总耗时是"所有工具之和"（实测 3.8s，最慢的 go 占 2.0s），并发后接近最慢那个
+	res := loader.LoadAll(a.context(), all, a.cfg.Mirror)
+	rows := make([]availableEntry, 0, len(res))
+	for _, r := range res {
+		p, idx, err := r.Provider, r.Index, r.Err
 		row := availableEntry{Name: p.ID, Requires: requiresOf(p), Source: p.Source}
-		idx, err := loader.Load(a.context(), p, a.cfg.Mirror)
 		if err != nil {
 			row.Err = err.Error()
 			rows = append(rows, row)

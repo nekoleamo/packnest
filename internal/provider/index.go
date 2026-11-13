@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/packnest/packnest/internal/fetch"
@@ -75,6 +76,34 @@ type IndexLoader struct {
 	// Custom 是自定义索引形态的钩子（目前只有 pbs 两级目录列举，实现在 internal/toolchain，
 	// 这样 provider 不必反过来依赖 toolchain，避免成环）。
 	Custom func(ctx context.Context, p *Provider, profile string, client *fetch.Client, cacheDir string) ([]Version, error)
+}
+
+// LoadResult 是 LoadAll 的一项结果（Provider 一定非 nil，Index/Err 二选一）。
+type LoadResult struct {
+	Provider *Provider
+	Index    *Index
+	Err      error
+}
+
+// LoadAll 并发加载多个工具的索引（`pk list --available` / `doctor --probe` 这类“一次问所有工具”的场景）。
+//
+// 为什么并发：一个工具的索引就一次 HTTP；串行时总耗时 = 所有工具之和（实测 6 个工具 3.8s，
+// 最慢的 go 就占 2.0s）。并发后接近“最慢那个”，代价只是多几个 goroutine。
+// 单个工具失败只写到它自己的 Err 上，不影响其他工具（调用方继续展示能拿到的）。
+// 结果顺序与 ps 一致 —— 输出稳定才能被测试和脚本依赖。
+func (l *IndexLoader) LoadAll(ctx context.Context, ps []*Provider, profile string) []LoadResult {
+	res := make([]LoadResult, len(ps))
+	var wg sync.WaitGroup
+	for i, p := range ps {
+		wg.Add(1)
+		go func(i int, p *Provider) {
+			defer wg.Done()
+			idx, err := l.Load(ctx, p, profile)
+			res[i] = LoadResult{Provider: p, Index: idx, Err: err}
+		}(i, p)
+	}
+	wg.Wait()
+	return res
 }
 
 // Load 按镜像回退链依次尝试索引源。

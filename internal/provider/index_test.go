@@ -3,10 +3,12 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -379,5 +381,65 @@ func TestParseRegistryIndexEngineObjects(t *testing.T) {
 		if _, ok := v.Engines["runtime"]; ok {
 			t.Fatalf("对象型字段应被丢弃: %+v", v.Engines)
 		}
+	}
+}
+
+// TestLoadAllConcurrent：6 个工具的索引要并发拉（串行时总耗时是"所有工具之和"）。
+// 用慢服务 + 最大并发计数断言，不看墙钟，避免 CI 抖动。
+func TestLoadAllConcurrent(t *testing.T) {
+	index := []byte(`[{"version":"v22.22.2","lts":"Jod"}]`)
+	var cur, maxSeen int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := atomic.AddInt32(&cur, 1)
+		for {
+			old := atomic.LoadInt32(&maxSeen)
+			if n <= old || atomic.CompareAndSwapInt32(&maxSeen, old, n) {
+				break
+			}
+		}
+		time.Sleep(80 * time.Millisecond)
+		atomic.AddInt32(&cur, -1)
+		w.Header().Set("content-type", "application/json")
+		_, _ = w.Write(index)
+	}))
+	defer srv.Close()
+
+	ps := make([]*Provider, 6)
+	for i := range ps {
+		ps[i] = &Provider{
+			ID:    fmt.Sprintf("tool%d", i),
+			Index: IndexBlock{Kind: IndexJSON, URLs: map[string]string{"cn": srv.URL + "/index.json"}},
+		}
+	}
+	loader := &IndexLoader{Client: fetch.New(), CacheDir: t.TempDir(), TTL: time.Hour}
+	start := time.Now()
+	res := loader.LoadAll(context.Background(), ps, "cn")
+	if len(res) != len(ps) {
+		t.Fatalf("结果数不对: %d", len(res))
+	}
+	for i, r := range res {
+		if r.Err != nil || r.Index == nil {
+			t.Fatalf("第 %d 项失败: %v", i, r.Err)
+		}
+		if r.Provider != ps[i] {
+			t.Fatalf("结果顺序必须与入参一致（第 %d 项）", i)
+		}
+	}
+	if got := atomic.LoadInt32(&maxSeen); got < 2 {
+		t.Fatalf("应并发拉取，实际最大并发 %d", got)
+	}
+	if d := time.Since(start); d > 400*time.Millisecond {
+		t.Fatalf("6×80ms 并发应在 400ms 内完成，实际 %v", d)
+	}
+
+	// 单个工具失败不影响其他（只写在它自己的 Err 上）
+	dead := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(503)
+	}))
+	defer dead.Close()
+	badP := &Provider{ID: "bad", Index: IndexBlock{Kind: IndexJSON, URLs: map[string]string{"cn": dead.URL + "/a"}}}
+	mixed := loader.LoadAll(context.Background(), []*Provider{badP, ps[0]}, "cn")
+	if mixed[0].Err == nil || mixed[1].Err != nil {
+		t.Fatalf("一个失败不该影响其他: %v / %v", mixed[0].Err, mixed[1].Err)
 	}
 }

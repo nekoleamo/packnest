@@ -118,6 +118,37 @@ jobs:
           "$pk" uninstall --all --purge --yes
           [ ! -d "$PK_ROOT" ] || { echo "PK_ROOT 还在：$PK_ROOT"; ls -la "$PK_ROOT"; exit 1; }
 
+      - name: Windows：PowerShell 调 .cmd shim（原来的人工确认项，这里自动化）
+        if: matrix.os == 'windows'
+        shell: pwsh
+        env:
+          PK_ROOT: ${{ runner.temp }}/pkroot-cmd
+        run: |
+          # 为什么单独一步：上面那步走的是 git-bash，而 git-bash 不认 .cmd shim，
+          # 所以 %PK_ROOT%\bin 里的 pk.cmd / packnest.cmd / node.cmd 从来没被真 PowerShell 跑过
+          # （docs/verify-manual.md 里这一项目前挂着"人工确认"）。
+          $ErrorActionPreference = 'Stop'
+          $pk = Join-Path $env:RUNNER_TEMP 'bin/packnest.exe'
+          & $pk install node@22
+          if ($LASTEXITCODE -ne 0) { throw "install 退出码 $LASTEXITCODE" }
+          $bin = Join-Path $env:PK_ROOT 'bin'
+          foreach ($name in 'pk', 'packnest') {
+            $out = & "$bin\$name.cmd" --version
+            if ("$out" -notmatch 'packnest v') { throw "$name.cmd --version 输出异常: $out" }
+            Write-Host "$name.cmd --version -> $out"
+          }
+          # 工具自己的 shim：node/npm/npx 都是 .cmd 包装（内容 = @ECHO off + 引号目标 + %*）
+          $nodeVer = & "$bin\node.cmd" -v
+          if ("$nodeVer" -notmatch '^v22\.') { throw "node.cmd -v 输出异常: $nodeVer" }
+          Write-Host "node.cmd -v -> $nodeVer"
+          $npmVer = & "$bin\npm.cmd" -v
+          if (-not $npmVer) { throw 'npm.cmd -v 没有输出' }
+          Write-Host "npm.cmd -v -> $npmVer"
+          # 零残留：.cmd 之外的东西也要清干净（与上面 bash 步骤同样的断言）
+          & $pk uninstall --all --purge --yes
+          if ($LASTEXITCODE -ne 0) { throw "uninstall 退出码 $LASTEXITCODE" }
+          if (Test-Path $env:PK_ROOT) { throw "PK_ROOT 还在：$env:PK_ROOT" }
+
   # GUI 侧契约测试：只测 internal/pkcli（不编译 Wails 主程序，省掉 GTK/WebKit 依赖），
   # 用真实 bin/pk 跑一遍 version/list/doctor/mirror list/gc，保证 GUI 结构体不漂移。
   gui-contract:
