@@ -826,3 +826,35 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 **1.5 的取舍记录**：`engines.node` 只补 node、不补 pnpm/bun —— `packageManager` 字段（corepack 那套）语义不同，
 混进来会让"pk.toml 权威"这条变模糊，留作以后单独评估。`PK_CACHE` 只搬缓存，没搬台账：台账与锁必须和 shim 在同一处，
 否则"删了缓存目录"会连安装记录一起丢。
+
+## 1.5 第二轮：整体 review + 性能优化（2026-11-13，未发版）
+
+先量后改（同一台机器、同一台镜像、`/tmp` 下每次全新 `PK_ROOT`）。**三处延迟问题都是"代码说的和做的不一致"**：
+
+| # | 问题（review 发现） | 根因 | 改法 | 前 → 后 |
+|---|---|---|---|---|
+| 1 | `auto` 档位的探测缓存**形同虚设**：`mirror.Detect` 虽然 `Load()` 了缓存，但**从不读它**，每次都现发 HEAD | 写缓存 + `CachedProfile` 都在，唯独 `Detect` 没用上（文档和 doctor 文案都声称"6h 内不再探"） | `Detect` 先按 TTL 命中缓存（`Result.Cached` 标记，事件里写"6h 内探过"），未命中才探 | `install --dry-run` **0.71s → 0.01s**（首次仍需 1.44s：官方 500ms 超时 + 国内 250ms） |
+| 2 | 所有请求强制 `Accept-Encoding: identity` | 分片/续传必须 identity（Range 按原始字节），但索引请求被一起绑死了 | 抽出 `setAgent`：索引请求不设该头，交给 `http.Transport` 协商 gzip 并透明解压 | go 索引 **2.28MB → 557KB**；冷 `list --available` **1.54s → 0.98s** |
+| 3 | `pk list` 每次都 `filepath.Walk` 整个工具树算占用 | 台账没存大小（node 装完 189MB / 4,729 个文件） | 安装时算一次写进台账 `size_bytes`；老台账（无该字段）才回退 walk | `pk list` **40ms → 10ms**；暖 `list --available` **29ms → 20ms** |
+
+配套的代码质量项（都是"一份实现/标准库就够了"）：
+
+- **原子落盘只剩一份**：`fetch` / `mirror` / `verify` / `store` / `install` 各写过一遍"写 `.tmp` → rename"，
+  误差只在错误文案。统一到 `paths.WriteAtomic`（自动建父目录、失败清 tmp），顺带修好 `fetch` 那份不建目录的行为差异。
+- **手写小工具交给标准库**：`contains` / `containsStr` → `slices.Contains`；`installedTools` / `installedVersions`
+  → `store.Ledger.Versions`；`staticcheck` S1011；删死代码 `mustAlias`。`staticcheck ./...` 现在全绿。
+- 行数：11,642（超线）→ **11,586 / 11,600**（余 14），`cmd/pk` 3,191 → **3,169**。
+
+**量过但决定不做的**（写下来防止下次又去试）：
+
+- **解压耗时**：node 的 189MB / 4,729 文件，Go 标准库 gzip 解压 **1.05s**，系统 `gzip -dc | tar` 是 0.67s。
+  试过 `mkdirCache`（省 4,700 次重复 `MkdirAll`）+ 256KB 池化拷贝缓冲，实测 **1.054s / 1.134s**，与基线 1.08s 无差别
+  → 瓶颈是 Go 的 flate 本身（第三方压缩库是禁引项），改动已回退，不留无用复杂度。
+- **TOFU 每次重装重算 50MB 的 sha256**（~0.25s）：这是完整性保证，不能用 mtime 走捷径。
+- **`pk list --available` 的冷启动 0.98s** 压不到 0.3s：瓶颈是 go 索引这一个请求（`include=all`，0.93s）。
+  `?mode=json`（23KB，只含稳定版）能换，但会让 `pk list go --all` 缺历史版本 —— 留作后续选项，不在 1.5 动。
+- **`auto` 探测结论 6h 内直接采信**：如果用户换了网络（或反向），最多 6h 后自愈；期间失败信息会给出
+  `pk mirror use cn` / `pk mirror probe` 的出路，比"每次都多付 0.7s"划算（1.5 之前就是每次现探）。
+
+文档同步：`docs/cli.md` / `docs/en/cli.md`（auto 缓存语义、`engines.node`、`PK_CACHE`）、`README.md` / `README.en.md`
+（项目作用域表 + 工程约束的缓存例外）、官网中英文（install 行的 engines、下载段加 gzip、新增"缓存"一条）。

@@ -110,7 +110,9 @@
     <dt>长尾工具</dt>
     <dd>内嵌 6 个 provider，其余靠 <b>自写 TOML 清单</b>（<code>~/.packnest/providers/&lt;id&gt;.toml</code>）：索引、产物、校验、布局、伴生包全在清单里声明，纯数据不执行代码；字段见 <a href="https://github.com/nekoleamo/packnest/blob/main/docs/providers.md">docs/providers.md</a>。</dd>
     <dt>下载</dt>
-    <dd>Range 续传 + <b>默认多连接</b>（≥8MB、冷启动、源支持 Range 时按大小自适应 2~8 段，异常自动退回单流；<code>--jobs 1</code> 可强制单流）。实测 48MB 的 node 包：单流 1.46s → 8 段 0.84s。</dd>
+    <dd>Range 续传 + <b>默认多连接</b>（≥8MB、冷启动、源支持 Range 时按大小自适应 2~8 段，异常自动退回单流；<code>--jobs 1</code> 可强制单流）。实测 48MB 的 node 包：单流 1.46s → 8 段 0.84s。索引走 gzip 传输，go 的索引 2.28MB → 557KB。</dd>
+    <dt>缓存</dt>
+    <dd>产物与索引缓存默认在 <code>~/.packnest/cache</code>；CI 或多机预热可以用 <code>PK_CACHE=&lt;目录&gt;</code> 把它搬到别处（台账、shim、锁不动），<code>--purge</code> 也不会动那个目录。</dd>
     <dt>体积</dt>
     <dd>单个 Go 二进制，<code>CGO_ENABLED=0</code>，六平台构建，只依赖两个第三方库（semver、toml）。</dd>
   </dl>
@@ -136,7 +138,7 @@
   <table>
     <thead><tr><th>命令</th><th>做什么</th></tr></thead>
     <tbody>
-      <tr><td>install</td><td>装工具；无参数时按当前目录的 <code>pk.toml</code> 全装并刷新 <code>pk.lock</code></td></tr>
+      <tr><td>install</td><td>装工具；无参数时按当前目录的 <code>pk.toml</code> 全装并刷新 <code>pk.lock</code>；只有 <code>package.json</code> 时读它的 <code>engines.node</code></td></tr>
       <tr><td>uninstall</td><td><code>工具@版本</code> 删一个；<code>工具</code> 删该工具全部版本（先列版本再确认）；<code>--all</code> 清掉一切（<code>--purge</code> 连根删、<code>--self</code> 连自己）</td></tr>
       <tr><td>use</td><td>切换全局默认版本；<code>--project</code> 固定到当前项目</td></tr>
       <tr><td>list</td><td>已装工具与占用空间，版本落后时提示可升级（只读索引缓存、不联网）；<code>pk list node</code> 看单个工具的全部可装版本（<code>--major 22</code> / <code>--all</code>）</td></tr>

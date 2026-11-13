@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/packnest/packnest/internal/paths"
 )
 
 // ErrOffline 表示 --offline 下试图访问网络。
@@ -252,10 +254,7 @@ func (c *Client) GetIndexAccept(ctx context.Context, url, bodyPath, metaPath str
 		return res, nil
 	}
 	meta = IndexMeta{URL: url, ETag: hdr.Get("ETag"), LastModified: hdr.Get("Last-Modified"), FetchedAt: c.now()}
-	if err := os.MkdirAll(filepath.Dir(bodyPath), 0o755); err != nil {
-		return res, fmt.Errorf("创建缓存目录失败: %w", err)
-	}
-	if err := writeFileAtomic(bodyPath, fresh); err != nil {
+	if err := paths.WriteAtomic(bodyPath, fresh); err != nil {
 		return res, err
 	}
 	_ = writeIndexMeta(metaPath, meta)
@@ -269,7 +268,7 @@ func (c *Client) getConditional(ctx context.Context, url string, meta IndexMeta,
 	if err != nil {
 		return nil, 0, nil, fmt.Errorf("构造请求失败: %w", err)
 	}
-	c.setHeaders(req)
+	c.setAgent(req) // 索引可压缩：交给 Transport 协商 gzip
 	if accept != "" {
 		req.Header.Set("Accept", accept)
 	}
@@ -479,8 +478,16 @@ func parseContentRangeTotal(v string) (int64, bool) {
 	return total, true
 }
 
+// setHeaders 用于下载/探测：**必须 identity** —— Range 分片与续传按原始字节算偏移，
+// 传输层自动 gzip 会让 Content-Length 与 Range 语义对不上。
 func (c *Client) setHeaders(req *http.Request) {
 	req.Header.Set("Accept-Encoding", "identity")
+	c.setAgent(req)
+}
+
+// setAgent 只设 UA：索引请求走这条路径，不写 Accept-Encoding，
+// 让 http.Transport 自己协商 gzip 并透明解压（go 的 include=all 索引 2.28MB → 557KB）。
+func (c *Client) setAgent(req *http.Request) {
 	if c.UserAgent != "" {
 		req.Header.Set("User-Agent", c.UserAgent)
 	}
@@ -533,7 +540,7 @@ func writeIndexMeta(path string, meta IndexMeta) error {
 	if err != nil {
 		return err
 	}
-	return writeFileAtomic(path, data)
+	return paths.WriteAtomic(path, data)
 }
 
 func writePartMeta(path string, pm partMeta) error {
@@ -541,17 +548,5 @@ func writePartMeta(path string, pm partMeta) error {
 	if err != nil {
 		return err
 	}
-	return writeFileAtomic(path, data)
-}
-
-func writeFileAtomic(path string, data []byte) error {
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("写入 %q 失败: %w", path, err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("落盘 %q 失败: %w", path, err)
-	}
-	return nil
+	return paths.WriteAtomic(path, data)
 }

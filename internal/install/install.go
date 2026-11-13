@@ -276,7 +276,7 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 		Tool: tool, Version: version, Path: target,
 		Source: i.opt.Profile, SHA256: res.SHA256, Verified: res.Verified, Transport: transportOf(p),
 		NpmBundled: npmBundled, NpmVersion: npmVersion,
-		Channel: "manual",
+		Channel: "manual", SizeBytes: store.DirSize(target),
 	})
 	// 首次安装即设为全局默认；已有默认版本时不抢（切版本用 `pk use`）。
 	if i.ActiveVersion(tool) == "" {
@@ -431,16 +431,7 @@ func (i *Installer) checkRequires(p *provider.Provider) error {
 	return nil
 }
 
-func (i *Installer) installedVersions(tool string) []string {
-	var out []string
-	for _, in := range i.ledger.Installs {
-		if in.Tool == tool {
-			out = append(out, in.Version)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
+func (i *Installer) installedVersions(tool string) []string { return i.ledger.Versions(tool) }
 
 // resolveAutoProfile：档位是 auto 时先判定环境（国外 → 官方源，国内 → 镜像），
 // 判定结果同时写进探测缓存，后续命令 6h 内不再探。
@@ -456,8 +447,12 @@ func (i *Installer) resolveAutoProfile(ctx context.Context, p *provider.Provider
 		return
 	}
 	i.opt.Profile = profile
+	cached := ""
+	if res.Cached {
+		cached = ", 6h 内探过"
+	}
 	i.emit(jsonout.Event{Ev: "mirror", Tool: p.ID, Source: profile,
-		Msg: fmt.Sprintf("%s (%dms)", profile, res.LatencyMS)})
+		Msg: fmt.Sprintf("%s (%dms%s)", profile, res.LatencyMS, cached)})
 }
 
 func (i *Installer) resolveVersion(ctx context.Context, p *provider.Provider, specStr string) (provider.Version, *provider.Index, error) {

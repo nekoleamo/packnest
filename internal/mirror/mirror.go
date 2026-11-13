@@ -9,12 +9,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/packnest/packnest/internal/fetch"
+	"github.com/packnest/packnest/internal/paths"
 )
 
 // AutoProfile 表示"自动选择档位"。
@@ -155,7 +156,7 @@ func PickURLs(templates map[string]string, chain []string) []string {
 	// 链里没列到的档位（自定义内网等）兜底追加，保持 map 稳定顺序。
 	extra := make([]string, 0, len(templates))
 	for name := range templates {
-		if !contains(chain, name) {
+		if !slices.Contains(chain, name) {
 			extra = append(extra, name)
 		}
 	}
@@ -171,15 +172,6 @@ func PickURLs(templates map[string]string, chain []string) []string {
 	return out
 }
 
-func contains(list []string, s string) bool {
-	for _, v := range list {
-		if v == s {
-			return true
-		}
-	}
-	return false
-}
-
 // Result 是一次探测结果。
 type Result struct {
 	URL       string    `json:"url"`
@@ -188,6 +180,8 @@ type Result struct {
 	LatencyMS int64     `json:"latency_ms,omitempty"`
 	CheckedAt time.Time `json:"checked_at"`
 	Err       string    `json:"err,omitempty"`
+	// Cached 表示这次没发请求、直接用 6h 内的缓存结论（不落盘）。
+	Cached bool `json:"-"`
 }
 
 // CacheFile 是探测结果缓存（state/probe.json）。
@@ -234,18 +228,7 @@ func (p *Prober) Save(cache CacheFile) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(p.Path), 0o755); err != nil {
-		return fmt.Errorf("创建探测缓存目录失败: %w", err)
-	}
-	tmp := p.Path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("写探测缓存失败: %w", err)
-	}
-	if err := os.Rename(tmp, p.Path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("落盘探测缓存失败: %w", err)
-	}
-	return nil
+	return paths.WriteAtomic(p.Path, data)
 }
 
 // ProbeOne 对单个 URL 发 HEAD，永不返回 error（失败信息在 Result 里）。
@@ -341,7 +324,7 @@ func (p *Prober) Select(ctx context.Context, urls []string) (Result, error) {
 		}
 	}
 	for _, u := range urls {
-		if !contains(order, u) {
+		if !slices.Contains(order, u) {
 			order = append(order, u)
 		}
 	}
@@ -380,6 +363,25 @@ func (p *Prober) now() time.Time {
 // 国外环境多花 0 次请求，国内环境多花一次 500ms 以内的 HEAD。
 func Detect(ctx context.Context, prober *Prober, officialURL, cnURL string) (string, Result, error) {
 	cache := prober.Load()
+	// 6h 内探过就照缓存：auto 是默认档位，每次 install/upgrade 都走这里，
+	// 不该为一个早已知道的结论每次再花 150~500ms 现探。
+	fresh := func(url string) (Result, bool) {
+		if url == "" {
+			return Result{}, false
+		}
+		res, ok := cache.Results[url]
+		if !ok || !res.OK || prober.now().Sub(res.CheckedAt) >= prober.ttl() {
+			return Result{}, false
+		}
+		res.Cached = true
+		return res, true
+	}
+	if res, ok := fresh(officialURL); ok {
+		return "default", res, nil
+	}
+	if res, ok := fresh(cnURL); ok {
+		return "cn", res, nil
+	}
 	remember := func(res Result) {
 		cache.Results[res.URL] = res
 		_ = prober.Save(cache)
@@ -408,6 +410,14 @@ func ProfileOf(profile string) string {
 		return ""
 	}
 	return profile
+}
+
+// ttl 是探测结论的有效期（默认 6h）。
+func (p *Prober) ttl() time.Duration {
+	if p.TTL > 0 {
+		return p.TTL
+	}
+	return DefaultTTL
 }
 
 // CachedProfile 从探测缓存里挑一个已知可用的档位（不发网络请求）。

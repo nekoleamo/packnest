@@ -3,6 +3,8 @@
 /build/
 coverage.out
 /site/dist/
+# codegraph 索引（本地知识图谱，10MB SQLite，不随库分发；新机器 `codegraph init` 重建）
+.codegraph/
 *.test
 *.out.tmp
 .DS_Store

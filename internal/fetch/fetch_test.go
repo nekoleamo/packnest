@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/packnest/packnest/internal/paths"
 )
 
 func TestHead(t *testing.T) {
@@ -374,10 +376,22 @@ func TestClientDefaults(t *testing.T) {
 	}
 }
 
-func TestWriteFileAtomicError(t *testing.T) {
-	missingDir := filepath.Join(t.TempDir(), "no-such-dir")
-	if err := writeFileAtomic(filepath.Join(missingDir, "x.json"), []byte("{}")); err == nil {
-		t.Fatal("目录不存在应报错")
+// 原子落盘只有一份实现（internal/paths）：自动建父目录，失败不留 .tmp。
+func TestWriteFileAtomic(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "no-such-dir", "x.json")
+	if err := paths.WriteAtomic(target, []byte("{}")); err != nil {
+		t.Fatalf("应自动建父目录: %v", err)
+	}
+	if data, err := os.ReadFile(target); err != nil || string(data) != "{}" {
+		t.Fatalf("写入内容不符: %q %v", data, err)
+	}
+	// 目标是个目录 → rename 失败，且不留临时文件
+	dir := t.TempDir()
+	if err := paths.WriteAtomic(dir, []byte("{}")); err == nil {
+		t.Fatal("目标是目录应报错")
+	}
+	if _, err := os.Stat(dir + ".tmp"); !os.IsNotExist(err) {
+		t.Fatal("失败应清掉 .tmp")
 	}
 }
 

@@ -156,3 +156,42 @@ func TestCacheDefaultsUnderRoot(t *testing.T) {
 		t.Fatalf("CacheDir = %q", got)
 	}
 }
+
+// WriteAtomic 是全局唯一一份原子落盘：自动建父目录、失败清 .tmp、内容完整替换。
+func TestWriteAtomic(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "state", "deep", "x.json")
+	if err := WriteAtomic(target, []byte("v1")); err != nil {
+		t.Fatalf("应自动建父目录: %v", err)
+	}
+	if got, err := os.ReadFile(target); err != nil || string(got) != "v1" {
+		t.Fatalf("写入内容不对: %q %v", got, err)
+	}
+	if err := WriteAtomic(target, []byte("v2")); err != nil {
+		t.Fatalf("覆盖写失败: %v", err)
+	}
+	if got, _ := os.ReadFile(target); string(got) != "v2" {
+		t.Fatalf("覆盖后内容不对: %q", got)
+	}
+	if _, err := os.Stat(target + ".tmp"); !os.IsNotExist(err) {
+		t.Fatal("不该留下 .tmp")
+	}
+
+	// 目标是个目录 → rename 失败，且不留临时文件
+	blocked := t.TempDir()
+	if err := WriteAtomic(blocked, []byte("x")); err == nil {
+		t.Fatal("目标是目录应报错")
+	}
+	if _, err := os.Stat(blocked + ".tmp"); !os.IsNotExist(err) {
+		t.Fatal("失败应清掉 .tmp")
+	}
+
+	// 父路径是个文件 → 建目录失败
+	notDir := filepath.Join(dir, "afile")
+	if err := os.WriteFile(notDir, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteAtomic(filepath.Join(notDir, "y.json"), []byte("x")); err == nil {
+		t.Fatal("父路径是文件应报错")
+	}
+}

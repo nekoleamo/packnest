@@ -12,6 +12,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/packnest/packnest/internal/paths"
 	"github.com/packnest/packnest/internal/spec"
 	"github.com/packnest/packnest/internal/store"
 )
@@ -256,14 +257,5 @@ func SaveProjectTool(dir, tool, version string) error {
 		out = append(out, "[tools]", entry)
 	}
 
-	body := strings.Join(out, "\n") + "\n"
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(body), 0o644); err != nil {
-		return fmt.Errorf("写入 %q 失败: %w", path, err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("替换 %q 失败: %w", path, err)
-	}
-	return nil
+	return paths.WriteAtomic(path, []byte(strings.Join(out, "\n")+"\n"))
 }

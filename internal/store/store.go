@@ -35,19 +35,33 @@ type Ref struct {
 
 // Install 是台账里的一条安装记录。
 type Install struct {
-	Tool        string    `json:"tool"`
-	Version     string    `json:"version"`
-	Path        string    `json:"path"`
-	Source      string    `json:"source,omitempty"` // 镜像档名
-	SHA256      string    `json:"sha256,omitempty"`
-	Verified    string    `json:"verified,omitempty"`  // strong | weak | unverified
-	Transport   string    `json:"transport,omitempty"` // 空=全 https；http=清单里有放行的 http 源
-	CompanionOf string    `json:"companion_of,omitempty"`
-	NpmBundled  string    `json:"npm_bundled,omitempty"` // node 自带 npm 版本
-	NpmVersion  string    `json:"npm_version,omitempty"` // 实际生效的 npm 版本
-	Channel     string    `json:"install_channel,omitempty"`
+	Tool        string `json:"tool"`
+	Version     string `json:"version"`
+	Path        string `json:"path"`
+	Source      string `json:"source,omitempty"` // 镜像档名
+	SHA256      string `json:"sha256,omitempty"`
+	Verified    string `json:"verified,omitempty"`  // strong | weak | unverified
+	Transport   string `json:"transport,omitempty"` // 空=全 https；http=清单里有放行的 http 源
+	CompanionOf string `json:"companion_of,omitempty"`
+	NpmBundled  string `json:"npm_bundled,omitempty"` // node 自带 npm 版本
+	NpmVersion  string `json:"npm_version,omitempty"` // 实际生效的 npm 版本
+	Channel     string `json:"install_channel,omitempty"`
+	// SizeBytes 是安装目录占用（装完算一次，`pk list` 直接读 —— 别每次 walk 十几万文件）。
+	SizeBytes   int64     `json:"size_bytes,omitempty"`
 	References  []Ref     `json:"references,omitempty"`
 	InstalledAt time.Time `json:"installed_at"`
+}
+
+// Versions 返回某工具的已装版本（升序）。
+func (l *Ledger) Versions(tool string) []string {
+	var out []string
+	for _, in := range l.Installs {
+		if in.Tool == tool {
+			out = append(out, in.Version)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // Ledger 是 state/installs.json 的内容。
@@ -251,23 +265,8 @@ func (c *Config) Save(path string) error {
 	return WriteAtomic(path, data)
 }
 
-// WriteAtomic 写临时文件后 rename（同目录，保证原子）。
-func WriteAtomic(path string, data []byte) error {
-	if dir := filepath.Dir(path); dir != "" {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("创建目录 %q 失败: %w", dir, err)
-		}
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("写 %q 失败: %w", path, err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("替换 %q 失败: %w", path, err)
-	}
-	return nil
-}
+// WriteAtomic 写临时文件后 rename（实现只有一份，在 paths）。
+func WriteAtomic(path string, data []byte) error { return paths.WriteAtomic(path, data) }
 
 // WriteAtomicWithBackup 先备份现有文件为 .bak，再原子写。
 func WriteAtomicWithBackup(path string, data []byte) error {

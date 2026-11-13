@@ -30,9 +30,7 @@ type UpgradeItem struct {
 func (i *Installer) Upgrade(ctx context.Context, tools []string, dryRun bool) ([]UpgradeItem, error) {
 	targets, skipped := i.upgradeTargets(tools)
 	items := make([]UpgradeItem, 0, len(targets)+len(skipped))
-	for _, s := range skipped {
-		items = append(items, s)
-	}
+	items = append(items, skipped...)
 
 	for _, tool := range targets {
 		from := spec.SortDesc(i.installedVersions(tool))[0]

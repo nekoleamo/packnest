@@ -261,7 +261,8 @@ pk mirror list|probe|use <profile>|write
 
 `auto` probes the official index once (500ms HEAD) on the first install: reachable means direct with
 no extra request abroad, otherwise it falls back to a domestic mirror. The result is cached for 6h
-and shows up in `pk mirror list`.
+and shows up in `pk mirror list` — and since 1.5 that cache is actually honoured, so later commands
+no longer pay the 0.7s re-probe. Use `pk mirror probe` to re-check now, `pk mirror use cn` to pin.
 
 ## 7. doctor
 

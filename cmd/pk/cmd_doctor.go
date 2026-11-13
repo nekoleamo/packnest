@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/packnest/packnest/internal/env"
 	"github.com/packnest/packnest/internal/install"
@@ -132,7 +133,7 @@ func (a *app) cmdDoctor(args []string) int {
 	want := a.paths.Bin()
 	if len(segs) == 0 || segs[0] != want {
 		detail := map[string]any{"want_first": want, "hint": env.PathHint(a.paths.PathSegments())}
-		if containsStr(segs, want) {
+		if slices.Contains(segs, want) {
 			add(jsonout.SeverityWarn, "PATH_ORDER", fmt.Sprintf("%s 不在 PATH 最前", want), detail)
 		} else {
 			add(jsonout.SeverityWarn, "PATH_MISSING", fmt.Sprintf("%s 不在 PATH 里（`pk env --shell bash` 取片段）", want), detail)
@@ -161,20 +162,20 @@ func (a *app) cmdDoctor(args []string) int {
 	}
 
 	// 6b. go 的 GOTOOLCHAIN（方案 §6.6：不是 local 就多一个下载面）
-	if ledger != nil && len(installedTools(ledger, "go")) > 0 {
+	if ledger != nil && len(ledger.Versions("go")) > 0 {
 		if msg := toolchain.CheckGoEnv(os.Getenv); msg != "" {
 			add(jsonout.SeverityWarn, "GO_TOOLCHAIN_NOT_LOCAL", msg, map[string]any{"current": os.Getenv("GOTOOLCHAIN")})
 		}
 	}
 
 	// 6b2. go install 的产物落在 GOBIN（默认 ~/go/bin），不在 pk 治理范围内：只提示，不改 GOBIN。
-	if ledger != nil && len(installedTools(ledger, "go")) > 0 {
+	if ledger != nil && len(ledger.Versions("go")) > 0 {
 		bin := os.Getenv("GOBIN")
 		if bin == "" {
 			home, _ := os.UserHomeDir()
 			bin = filepath.Join(home, "go", "bin")
 		}
-		if !containsStr(splitPath(os.Getenv("PATH")), bin) {
+		if !slices.Contains(splitPath(os.Getenv("PATH")), bin) {
 			add(jsonout.SeverityInfo, "GO_INSTALL_NOT_IN_PATH",
 				fmt.Sprintf("`go install` 的命令会落到 %s，但它不在 PATH（我们不替你设 GOBIN）", bin),
 				map[string]any{"dir": bin, "advice": "把该目录加进 PATH，或 `GOBIN=<某个已在 PATH 的目录> go install ...`"})
@@ -182,7 +183,7 @@ func (a *app) cmdDoctor(args []string) int {
 	}
 
 	// 6b3. pip 用户级安装（~/.local/lib/pythonX）不在治理范围：诚实说明，不接管 site-packages。
-	if ledger != nil && len(installedTools(ledger, "python")) > 0 {
+	if ledger != nil && len(ledger.Versions("python")) > 0 {
 		add(jsonout.SeverityInfo, "PIP_USER_SITE_UNMANAGED",
 			"pip 的用户级安装（~/.local/lib/pythonX）不归 pk 管；要隔离请用 venv（我们不改 site-packages）", nil)
 	}
@@ -365,17 +366,6 @@ func projectBins(dir string) map[string]string {
 	out := map[string]string{}
 	for _, e := range entries {
 		out[e.Name()] = "node_modules/.bin"
-	}
-	return out
-}
-
-// installedTools 返回某工具的已装版本（doctor 用来决定要不要检查该工具的特情）。
-func installedTools(l *store.Ledger, tool string) []string {
-	var out []string
-	for _, in := range l.Installs {
-		if in.Tool == tool {
-			out = append(out, in.Version)
-		}
 	}
 	return out
 }

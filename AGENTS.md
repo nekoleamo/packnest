@@ -39,7 +39,7 @@
 
 - **验收项 = 测试名**：里程碑验收先写空壳 `TestAcceptance_M<n>_<Name>`（编译期即登记），再填实现。方案 §12 列出的用例名**不许改名、不许删**。
 - **夹具用代码造，不存二进制**：`internal/testkit` 里 `MakeNode(ver, npmVer)` / `MakeNpmRegistry(map)` / `Mirror(t, FS{...})`（`httptest.Server` 扮演 npmmirror/官方源），故障注入用可组合的 `testkit.Behavior`（`Status`/`TruncateAt`/`Slow`/`NoRange`/`WrongETag`/`StaleIndex`/`CorruptArchive`/`MissingChecksum`/`ChecksumMismatch`/`DropAfter`）。
-- **门禁 `make check`（7 项）**：gofmt+vet → `go test -race -count=1` → 覆盖率（已实现包 ≥85%，cmd ≥70%；新包在 `Makefile` 的 `COVER_PKGS` 里登记后才纳入）→ 6 平台交叉编译 → fuzz 各 30s → benchmark 阈值（`BenchmarkShimResolve`<15ms、`BenchmarkSpecParse`<50µs）→ `--json` golden 对比。`make accept` 只跑 `TestAcceptance_*`。
+- **门禁 `make check`（8 项，含 `make loc`）**：gofmt+vet → `go test -race -count=1` → 覆盖率（已实现包 ≥85%，cmd ≥70%；新包在 `Makefile` 的 `COVER_PKGS` 里登记后才纳入）→ 6 平台交叉编译 → fuzz 各 30s → benchmark 阈值（`BenchmarkShimResolve`<15ms、`BenchmarkSpecParse`<50µs）→ `--json` golden 对比。`make accept` 只跑 `TestAcceptance_*`。
 - 只有 3 件事允许人工确认：Windows `.cmd` shim 被 PowerShell 调用、macOS Gatekeeper 首启、GUI 的中文字体/托盘。其余一律自动化。
 
 ## 里程碑口径
@@ -60,8 +60,12 @@ M0 骨架 ✅ → M1 node+npm（伴生 npm、archive/verify/companion、真卸�
 ```bash
 make build      # CGO_ENABLED=0 本地构建 ./bin/pk
 make test       # 零外网单测
-make check      # 7 项门禁（提交前必跑）
+make check      # 8 项门禁（提交前必跑，含行数预算）
 make accept     # 只跑验收用例
 make cross      # 6 平台交叉编译到 dist/
 go run ./cmd/pk doctor --json
+
+# 代码理解（已 `codegraph init`，133 文件；`.codegraph/` 不入库，改完代码 `codegraph sync`）
+codegraph node DirSize        # 符号位置 + 源码 + 谁在调（比 grep+read 省一轮）
+codegraph explore "下载校验流程"   # 一片区域的符号 + 调用路径 + 影响面
 ```

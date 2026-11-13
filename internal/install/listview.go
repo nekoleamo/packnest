@@ -52,7 +52,9 @@ func InstalledEntries(ledger *store.Ledger, active map[string]string) []jsonout.
 		if in.Tool == "node" {
 			entry.NPM = &jsonout.ToolNPM{Version: in.NpmVersion, Replaced: in.NpmBundled}
 		}
-		if in.Path != "" {
+		// 台账里记着大小就直接用；1.5 之前的台账没有这个字段，退回 walk 一次。
+		entry.SizeBytes = in.SizeBytes
+		if entry.SizeBytes == 0 && in.Path != "" {
 			entry.SizeBytes = store.DirSize(in.Path)
 		}
 		entries = append(entries, entry)

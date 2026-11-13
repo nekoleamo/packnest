@@ -19,9 +19,10 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/packnest/packnest/internal/paths"
 )
 
 // 校验强度标记（写进台账与 `pk list`）。
@@ -104,20 +105,7 @@ func (k *Known) Save(path string) error {
 	if err != nil {
 		return err
 	}
-	if dir := filepath.Dir(path); dir != "" {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("创建校验表目录失败: %w", err)
-		}
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("写校验表失败: %w", err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("落盘校验表失败: %w", err)
-	}
-	return nil
+	return paths.WriteAtomic(path, data)
 }
 
 // SHA256File 计算文件 sha256（十六进制小写）。

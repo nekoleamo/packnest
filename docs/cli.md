@@ -375,7 +375,9 @@ $ pk mirror probe --tool node   # 只探某个工具
 $ pk mirror write               # 把 registry 写进 ~/.npmrc（先备份、只改 registry= 一行）
 ```
 
-**档位与 `auto`**：`auto` 会在第一次安装时先探官方索引（500ms HEAD），能用就用官方（国外不会多花一次请求），不能用才回落国内档。
+**档位与 `auto`**：`auto` 在第一次安装时先探官方索引（500ms HEAD），能用就用官方（国外不会多花一次请求），
+不能用才回落国内档；**结论缓存 6h，期间不再现探**（1.5 起真正生效 —— 之前每次 install 都会重探，单这一项
+就占 0.7s）。想立刻重探用 `pk mirror probe`，想固定档位用 `pk mirror use cn`。
 
 ---
 

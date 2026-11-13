@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/packnest/packnest/internal/install"
@@ -232,7 +233,7 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 		}
 		avail := make([]availEntry, 0, len(versions))
 		for _, v := range versions {
-			avail = append(avail, availEntry{Version: v, LTS: ltsOf[v], Installed: containsStr(installed, v)})
+			avail = append(avail, availEntry{Version: v, LTS: ltsOf[v], Installed: slices.Contains(installed, v)})
 		}
 		out := struct {
 			Schema    int          `json:"schema"`
@@ -310,7 +311,7 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 				m = "l"
 			}
 		}
-		if containsStr(installed, v) {
+		if slices.Contains(installed, v) {
 			if active[name] == v {
 				m = "@"
 			} else if m == "" {
@@ -344,7 +345,7 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 					lastLTS = lts
 				}
 			}
-			if containsStr(installed, v) {
+			if slices.Contains(installed, v) {
 				if active[name] == v {
 					tags = append(tags, "已装 · 当前默认")
 				} else {
@@ -364,19 +365,6 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 	fmt.Fprintf(a.out, "  想装某个版本：pk install %s@<版本>\n", name)
 	return jsonout.ExitOK
 }
-
-// containsStr 判断切片里有没有某个值（列表展示到处要用）。
-func containsStr(list []string, want string) bool {
-	for _, v := range list {
-		if v == want {
-			return true
-		}
-	}
-	return false
-}
-
-// mustAlias 把 "lts" 包成 spec（别名由索引层解析）。
-func mustAlias(name string) spec.Spec { return spec.MustParse(name) }
 
 // firstLine 取多行错误的第一行（列表里不刷屏）。
 func firstLine(s string) string {

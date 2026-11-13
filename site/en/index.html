@@ -111,7 +111,9 @@
     <dt>Long tail</dt>
     <dd>Six providers are embedded; everything else comes from your own TOML manifest (<code>~/.packnest/providers/&lt;id&gt;.toml</code>) — index, artifact, checksums, layout and companion packages are declarative data, no code executed. Field reference: <a href="https://github.com/nekoleamo/packnest/blob/main/docs/providers.md">docs/providers.md</a>.</dd>
     <dt>Downloads</dt>
-    <dd>Range resume plus <b>parallel sharding by default</b> (≥8MB, cold start, Range-capable source; 2–8 shards picked by size, any trouble falls back to one stream; <code>--jobs 1</code> forces a single stream). Measured on a 48MB node tarball: 1.46s → 0.84s with 8 shards.</dd>
+    <dd>Range resume plus <b>parallel sharding by default</b> (≥8MB, cold start, Range-capable source; 2–8 shards picked by size, any trouble falls back to one stream; <code>--jobs 1</code> forces a single stream). Measured on a 48MB node tarball: 1.46s → 0.84s with 8 shards. Indexes travel gzipped: the Go index drops from 2.28MB to 557KB.</dd>
+    <dt>Cache</dt>
+    <dd>Artifact and index caches live in <code>~/.packnest/cache</code> by default; <code>PK_CACHE=&lt;dir&gt;</code> moves them elsewhere for CI or multi-machine warmup (ledger, shims and locks stay put), and <code>--purge</code> never deletes that directory.</dd>
     <dt>Footprint</dt>
     <dd>One Go binary with <code>CGO_ENABLED=0</code>, built for six targets, depending on exactly two third-party libraries (semver, toml).</dd>
   </dl>
@@ -137,7 +139,7 @@
   <table>
     <thead><tr><th>command</th><th>what it does</th></tr></thead>
     <tbody>
-      <tr><td>install</td><td>installs a tool; with no argument installs everything in the local <code>pk.toml</code> and refreshes <code>pk.lock</code></td></tr>
+      <tr><td>install</td><td>installs a tool; with no argument installs everything in the local <code>pk.toml</code> and refreshes <code>pk.lock</code>; with only a <code>package.json</code> it reads its <code>engines.node</code></td></tr>
       <tr><td>uninstall</td><td><code>tool@version</code> one; <code>tool</code> every version (lists them, then asks); <code>--all</code> everything (<code>--purge</code> the root, <code>--self</code> the binary)</td></tr>
       <tr><td>use</td><td>switches the global default; <code>--project</code> pins it for the current project</td></tr>
       <tr><td>list</td><td>installed tools with disk usage, plus an upgrade hint when a newer release exists (from the index cache, never networked); <code>pk list node</code> browses every installable version (<code>--major 22</code> / <code>--all</code>)</td></tr>
