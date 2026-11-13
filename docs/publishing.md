@@ -144,7 +144,13 @@ sh cmd/pk-desktop/packaging/build-macos.sh 0.10.2 arm64
 由 `.github/workflows/gui-build.yml` 构建（Linux 需 GTK4 + WebKitGTK 6.0，Windows 需 WebView2 运行时），
 产物只进 workflow artifact，下载后用 `--from-dir` 上传。
 
-### 两个实测坑（2026-11-13，gui-v0.10.3）
+### 三个实测坑（2026-11-13，gui-v0.10.3 / v0.10.4）
+
+- **`releases/latest` 会指向 GUI 的 tag**：GUI 有独立的 `gui-v*` release，发完 GUI 之后
+  gitee/GitHub 的 `releases/latest` 返回的就是它 —— 所有"取最新 CLI 版本"的脚本必须校验 tag 形状
+  （只认 `^v\d+\.\d+\.\d+$`，否则退回 `scripts/latest`）。v0.10.4 发布后 `install.sh` 真的拼出了
+  `…/download/vgui-v0.10.4/…` 并 404，`smoke.yml` 也因此整条红。三处已修：
+  `scripts/install.sh`、`scripts/install.ps1`、`.github/workflows/smoke.yml`。
 
 - **CI 产物的版本号取自 `cmd/pk-desktop/main.go` 的 `guiVersion`**，不是 `scripts/latest`（那是 CLI 的）。
   之前用 CLI 版本命名，`release-gui.sh --version 0.10.3` 按 0.10.3 找 CI 产物自然一个都找不到。

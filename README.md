@@ -256,7 +256,7 @@ make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 | [docs/publishing.md](docs/publishing.md) | 发布渠道（gitee / brew / scoop）、凭据、唯一发布者规则 |
 | [docs/verify-1.0.md](docs/verify-1.0.md) | 1.0 前实装验证记录（6 平台矩阵、发现的问题与修复） |
 | [docs/providers.md](docs/providers.md) | **外部清单的字段级说明**：`[index]/[artifact]/[checksum]/[layout]/[companions]/[toolchain]` 每个字段的合法值与占位符 |
-| [docs/verify-manual.md](docs/verify-manual.md) | 需要人工确认的三项（Windows ARM64 运行时、`.cmd` shim、macOS Gatekeeper 首启）的步骤与通过标准 |
+| [docs/verify-manual.md](docs/verify-manual.md) | 需要人工确认的两项（Windows ARM64 运行时、macOS Gatekeeper 首启）的步骤与通过标准；`.cmd` shim 已自动化进 smoke |
 | [docs/gui.md](docs/gui.md) | **桌面端使用说明**：下载/安装/首次放行、界面与 CLI 命令的对照、故障排查 |
 | [cmd/pk-desktop/README.md](cmd/pk-desktop/README.md) | **GUI（可视化补充）**：必须先装 CLI，子进程调 `pk --json`；`--serve` 浏览器形态与 macOS `.app` 打包 |
 

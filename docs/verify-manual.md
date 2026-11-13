@@ -1,8 +1,14 @@
-# 需要人工确认的三项（自动化覆盖不到）
+# 需要人工确认的两项（自动化覆盖不到）
 
-> 出处：`docs/progress.md` 的「剩余项」表。这三项**不是没做**，而是没有可信的自动化环境：
-> 无公共 ARM Windows runner、`.cmd` shim 只能被 PowerShell 解释、Gatekeeper 首启只能由真人点。
+> 出处：`docs/progress.md` 的「剩余项」表。这两项**不是没做**，而是没有可信的自动化环境：
+> 无公共 ARM Windows runner、Gatekeeper 首启只能由真人点。
 > 下面每条都写了"怎么做"和"通过的标准"，做完把结论追加到本文件末尾。
+>
+> **2026-11-13 更新**：原来第 2 条「Windows `.cmd` shim 被 PowerShell 调用」已自动化 ——
+> `smoke.yml` 新增 Windows 专属 `pwsh` 步骤，真 PowerShell 调 `pk.cmd` / `packnest.cmd` /
+> `node.cmd` / `npm.cmd` 并断言输出，再走零残留卸载（首次运行即通过：`pk.cmd --version ->
+> packnest v1.3.1 (windows/amd64)`、`node.cmd -v -> v22.23.5`、`npm.cmd -v -> 12.2.2`）。
+> 下面保留原文，作为"如果 CI 挂了怎么手动复核"的步骤清单。
 
 ## 1. Windows ARM64 运行时
 
@@ -25,10 +31,11 @@ Test-Path $env:PK_ROOT                          # 期望：False（零残留）
 **通过标准**：`--version` 显示 `windows/arm64`；`pk install node@22` 成功且 `node -v` 正常；
 `uninstall --all --purge` 后 `PK_ROOT` 目录消失、用户 Path 里的 packnest 条目被清掉。
 
-## 2. Windows `.cmd` shim 被 PowerShell 调用
+## 2. Windows `.cmd` shim 被 PowerShell 调用（✅ 2026-11-13 已自动化，见文首说明）
 
-**为什么只能人工**：git-bash 不认 `.cmd` 分派，`smoke.yml` 在 Windows 上只核对台账，真实的
-`npm.cmd` / `npx.cmd` 调起行为必须由 PowerShell 验证。
+**自动化位置**：`.github/workflows/smoke.yml` 的 `Windows：PowerShell 调 .cmd shim` 步骤
+（`shell: pwsh`，装完 node 后逐个调 `pk.cmd` / `packnest.cmd` / `node.cmd` / `npm.cmd`）。
+**手动复核为什么仍需这份清单**：本地 git-bash 不认 `.cmd` 分派，CI 挂了时要有人真机确认。
 
 **怎么做**（amd64 Windows 即可）：
 

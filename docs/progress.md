@@ -513,8 +513,8 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ### 接下来可做的（1.3 已落地，待发版）
 
-1. **3 项人工确认**（唯一挡在「全部自动化跑通」前面的）：Windows ARM64 运行时、PowerShell 调 `.cmd` shim、
-   macOS Gatekeeper 首启 —— 步骤与通过标准在 `docs/verify-manual.md`，缺的是对应硬件/真人操作
+1. **2 项人工确认**（唯一挡在「全部自动化跑通」前面的）：Windows ARM64 运行时、macOS Gatekeeper 首启 ——
+   步骤与通过标准在 `docs/verify-manual.md`，缺的是对应硬件/真人操作（`.cmd` shim 已在 1.4 自动化进 smoke）
 2. **已无阻塞项**：1.1/1.2/1.3 的可选增强与偿债全部完成；`v1.3.1` 已发（2026-11-13）
 3. **下一轮候选**在 `~/Documents/Plan/17-包管理器/pn-1.3-候选清单.md` 的“不做”一栏（`pk upgrade` 独立命令、自更新器、daemon）
 
@@ -535,6 +535,22 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   smoke 5/5 装的都是真 1.2.0，`install.sh --dir` 端到端装出 1.2.0 并跑通 install/doctor/uninstall 零残留）。
 - 顺手修：`smoke.yml` 的版本号改成先查**线上最新 release**再回退 `scripts/latest` —— 否则"刚发完版但还没推
   scripts/latest"时会装到上一个版本（本轮连踩两次，第一次 smoke 装的是 1.1.0）。
+
+### 1.4 已完成（2026-11-13，未发版）
+
+- **索引并行拉取**：`internal/provider` 新增 `IndexLoader.LoadAll`（并发加载多工具索引、结果顺序与入参一致、
+  单个失败只写自己的 `Err`），`pk list --available` 改用它。实测 6 工具冷缓存 `--refresh`：
+  串行 4.8s → 并行 **2.9s**（1.6×；瓶颈是 go 索引 `go.dev` 单次 2.0s，其余 0.15~0.52s）。
+  单测 `TestLoadAllConcurrent`（6×80ms 慢源，断言最大并发 ≥2、总耗时 <400ms、顺序稳定、单项失败不影响其他）。
+- **Windows `.cmd` shim 自动化**：`smoke.yml` 加 Windows 专属 `pwsh` 步骤，真 PowerShell 调
+  `pk.cmd` / `packnest.cmd` / `node.cmd` / `npm.cmd` 并断言输出，再零残留卸载。
+  首次运行即通过（`packnest v1.3.1 (windows/amd64)`、`node.cmd -v -> v22.23.5`、`npm.cmd -v -> 12.2.2`），
+  人工确认 3 项 → **2 项**（`docs/verify-manual.md` 同步）。
+- 行数红线 11,200 → **11,300**（本轮实测 11,191；余量留给零碎修复）。
+- **顺带修一个自己刚拖出来的事故**：发完 `gui-v0.10.4` 后 `releases/latest` 指向了 `gui-v0.10.4`，
+  `scripts/install.sh` 拼出 `…/download/vgui-v0.10.4/…` —— **所有新用户的一行安装 404**，
+  `smoke` 全矩阵也红。三处修法一致：只认 `^v\d+\.\d+\.\d+$` 的 tag，否则退回 `scripts/latest`
+  （`scripts/install.sh`、`scripts/install.ps1`、`.github/workflows/smoke.yml`）；`docs/publishing.md` 记了这条坑。
 
 ### 1.3 已完成（2026-11-13，v1.3.1 已发）
 
@@ -740,7 +756,8 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 | 拒绝 https→http 的降级重定向 | ✅ 已做：`fetch.checkRedirect` 拒绝任何 https→http 的降级与 >10 次重定向 | — |
 | 卸载编排挪进 `internal/install`（清 `cmd/pk` 3,220 warn） | ✅ 部分完成：渠道识别（`DetectInstallChannel` / `SelfRemoveHint`）已挪进 `internal/install`，`cmd/pk` 3,220 → **3,181**（warn 消失）；剩余打印/交互编排仍留在 cmd | — |
 | winget 渠道 | ❌ 已放弃（2026-11-11 拍板）：不再生成草稿、不提 PR；`packaging/winget/` 与渠道识别已删 | — |
-| windows-arm64 运行时、Windows `.cmd` shim、Gatekeeper 首启 | ⏳ 人工确认（步骤与通过标准见 `docs/verify-manual.md`） | 无公共 ARM Windows runner；ad-hoc 签名首启只能真人放行 |
+| windows-arm64 运行时、Gatekeeper 首启 | ⏳ 人工确认（步骤与通过标准见 `docs/verify-manual.md`） | 无公共 ARM Windows runner；ad-hoc 签名首启只能真人放行 |
+| Windows `.cmd` shim | ✅ 2026-11-13 自动化（`smoke.yml` 的 `pwsh` 步骤） | — |
 
 ## 已知缺口（按计划补齐，不是遗漏）
 
