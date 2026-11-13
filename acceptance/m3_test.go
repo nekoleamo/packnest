@@ -22,7 +22,6 @@ import (
 	"github.com/packnest/packnest/internal/spec"
 	"github.com/packnest/packnest/internal/store"
 	"github.com/packnest/packnest/internal/testkit"
-	"github.com/packnest/packnest/internal/toolchain"
 	"github.com/packnest/packnest/internal/verify"
 )
 
@@ -87,11 +86,11 @@ func TestAcceptance_M3_GoNoDoubleDownload(t *testing.T) {
 	if !strings.Contains(vars["GOPROXY"], "goproxy.cn") {
 		t.Fatalf("cn 档的 GOPROXY 应指向国内代理: %q", vars["GOPROXY"])
 	}
-	if msg := toolchain.CheckGoEnv(func(k string) string { return vars[k] }); msg != "" {
+	if msg := env.CheckGoToolchain(func(k string) string { return vars[k] }); msg != "" {
 		t.Fatalf("环境齐全时不该告警: %q", msg)
 	}
 	// 缺了就要告警并给出处置（doctor 对应用例在 cmd/pk 里）
-	if msg := toolchain.CheckGoEnv(func(string) string { return "" }); !strings.Contains(msg, "GOTOOLCHAIN") {
+	if msg := env.CheckGoToolchain(func(string) string { return "" }); !strings.Contains(msg, "GOTOOLCHAIN") {
 		t.Fatalf("缺 GOTOOLCHAIN 时应告警: %q", msg)
 	}
 }
@@ -144,7 +143,7 @@ func TestAcceptance_M3_PbsDirectoryIndex(t *testing.T) {
 		Tags:     []string{"20261020", "20261026"},
 		Versions: []string{"3.11.18", "3.12.16", "3.13.18"},
 	})
-	loader := &provider.IndexLoader{Client: fetch.New(), CacheDir: t.TempDir(), Custom: toolchain.LoadPBSIndex}
+	loader := &provider.IndexLoader{Client: fetch.New(), CacheDir: t.TempDir()}
 	idx, err := loader.Load(context.Background(), fp.Provider, "cn")
 	if err != nil {
 		t.Fatalf("索引加载: %v", err)

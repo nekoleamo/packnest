@@ -73,9 +73,6 @@ type IndexLoader struct {
 	Client   *fetch.Client
 	CacheDir string
 	TTL      time.Duration
-	// Custom 是自定义索引形态的钩子（目前只有 pbs 两级目录列举，实现在 internal/toolchain，
-	// 这样 provider 不必反过来依赖 toolchain，避免成环）。
-	Custom func(ctx context.Context, p *Provider, profile string, client *fetch.Client, cacheDir string) ([]Version, error)
 	// Stable 为真时只要稳定版的轻量索引（清单声明了 stable_urls 才有效），
 	// 缓存文件也分开存（<id>.stable.json），不覆盖完整索引。
 	Stable bool
@@ -119,10 +116,7 @@ func (l *IndexLoader) Load(ctx context.Context, p *Provider, profile string) (*I
 		return nil, fmt.Errorf("%s: 没有可用的索引源", p.ID)
 	}
 	if p.Index.Kind == IndexPBS {
-		if l.Custom == nil {
-			return nil, fmt.Errorf("%s: pbs 索引需要 toolchain 钩子（内部错误）", p.ID)
-		}
-		versions, err := l.Custom(ctx, p, profile, l.client(), l.CacheDir)
+		versions, err := l.loadPBS(ctx, p, profile)
 		if err != nil {
 			return nil, err
 		}

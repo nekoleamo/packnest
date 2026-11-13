@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 )
 
 // RootEnv 是覆盖根目录的环境变量。测试全用它指向 t.TempDir()。
@@ -170,4 +171,28 @@ func SafeJoin(base, name string) (string, error) {
 		return "", fmt.Errorf("归档内路径非法（越界）: %q", name)
 	}
 	return filepath.Join(base, cleaned), nil
+}
+
+// ---- 原子落盘（原 atomic.go）：全项目只有这一份实现 ----
+
+var tmpSeq atomic.Uint64 // 临时文件编号（进程内唯一即可）
+
+// WriteAtomic 原子写文件（自动建父目录）。data 已完整在内存里，失败不留半个文件。
+func WriteAtomic(path string, data []byte) error {
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("创建目录 %q 失败: %w", dir, err)
+		}
+	}
+	// 临时名带随机后缀：同一文件可能被并发写（索引预取、并发下载的探测缓存），
+	// 固定 ".tmp" 会让两个 goroutine 抢同一个临时文件，rename 必有一个失败。
+	tmp := fmt.Sprintf("%s.tmp.%d", path, tmpSeq.Add(1))
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return fmt.Errorf("写 %q 失败: %w", path, err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("替换 %q 失败: %w", path, err)
+	}
+	return nil
 }

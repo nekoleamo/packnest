@@ -12,7 +12,6 @@ import (
 	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/shim"
 	"github.com/packnest/packnest/internal/store"
-	"github.com/packnest/packnest/internal/toolchain"
 	"os"
 	"path/filepath"
 	"strings"
@@ -163,7 +162,7 @@ func (a *app) cmdDoctor(args []string) int {
 
 	// 6b. go 的 GOTOOLCHAIN（方案 §6.6：不是 local 就多一个下载面）
 	if ledger != nil && len(ledger.Versions("go")) > 0 {
-		if msg := toolchain.CheckGoEnv(os.Getenv); msg != "" {
+		if msg := env.CheckGoToolchain(os.Getenv); msg != "" {
 			add(jsonout.SeverityWarn, "GO_TOOLCHAIN_NOT_LOCAL", msg, map[string]any{"current": os.Getenv("GOTOOLCHAIN")})
 		}
 	}

@@ -413,3 +413,46 @@ func DetectShellFor(goos string, getenv func(string) string) string {
 
 // projectBins 读取项目 node_modules/.bin 的命令名 → 所属包（L3 命令遮蔽检测）。
 // globalPrefix 是一个包管理器的"全局包前缀"（都套 lib/node_modules 或 node_modules 布局）。
+// OnSyncDir 判断路径是否落在常见的云同步目录里（OneDrive / Dropbox / iCloud / Google Drive / 坚果云）。
+//
+// 为什么值得单独报警：同步客户端会在后台改写/回滚文件，`flock` 在同步盘上常常形同虚设、
+// 原子 rename 也可能被同步进程抢成半成品 —— 把 PK_ROOT 放进去会偶发"锁不住""台账回滚成旧版本"。
+func OnSyncDir(path string) bool {
+	// 按路径段比对，避免 "onedrive-backup-local" 这种自家目录被误判
+	segs := strings.Split(strings.ToLower(strings.ReplaceAll(path, `\`, "/")), "/")
+	for _, seg := range segs {
+		for _, name := range []string{"onedrive", "dropbox", "icloud", "mobile documents",
+			"google drive", "googledrive", "nutstore", "坚果云", "百度网盘"} {
+			if seg == name || strings.HasPrefix(seg, name+" ") { // 真实目录常带后缀，如 "OneDrive - Contoso"
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ---------------------------------------------------------------------------
+// 云同步目录判定（原 syncdir.go）：doctor 用，PK_ROOT 落在 OneDrive/iCloud 里时锁与台账不可靠。
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// go 的 GOTOOLCHAIN（原 env/toolchain.go，更早是 internal/toolchain 包）。
+// ---------------------------------------------------------------------------
+
+// GoToolchainEnv / CheckGoToolchain：装完必须让 GOTOOLCHAIN=local 生效（方案 §6.6），
+// 否则 go 会按 go.mod 的 toolchain 声明自己再下一次工具链（多一个下载面）。
+// GoToolchainEnv 是 go 必须写进环境的那一条。
+const GoToolchainEnv = "GOTOOLCHAIN=local"
+
+// CheckGoToolchain 检查已生效的环境里是否有 GOTOOLCHAIN=local（doctor 用）。
+// 返回空字符串表示没问题；否则返回给人看的告警文本。
+func CheckGoToolchain(lookup func(string) string) string {
+	if lookup == nil {
+		return ""
+	}
+	if v := strings.TrimSpace(lookup("GOTOOLCHAIN")); v != "local" {
+		return "GOTOOLCHAIN 不是 local：go 会按 go.mod 的 toolchain 声明自己再下一次工具链（多一个下载面）。" +
+			"用 `eval \"$(pk env --shell bash)\"` 让 GOTOOLCHAIN=local 生效"
+	}
+	return ""
+}

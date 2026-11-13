@@ -7,8 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/mirror"
 	"github.com/packnest/packnest/internal/provider"
@@ -294,4 +296,51 @@ func checkMinVersion(p *provider.Provider, version string) error {
 			p.ID, p.Artifact.MinVersion, p.ID, version)
 	}
 	return nil
+}
+
+// Target 是一个待安装目标（工具 + 版本说明符），批量预取下载用。
+type Target struct{ Tool, Spec string }
+
+// PrefetchArtifacts 并发把多个目标的产物先下到缓存："装 3 个工具"的网络时间从 3 次相加压成最慢那个。
+// 每一路用独立的 Installer（独立 Client、单流、不发事件、不写台账），只让随后的串行 Install 命中缓存；
+// 失败一律吞掉，真正的错误由串行 Install 带上下文报。
+func (i *Installer) PrefetchArtifacts(ctx context.Context, targets []Target) {
+	if i.opt.DryRun || i.opt.Force || i.opt.Offline || len(targets) < 2 {
+		return // 预览 / 强制重装 / 离线都不预取
+	}
+	sem := make(chan struct{}, 3) // 同时最多 3 路，别把镜像与本机带宽打爆
+	var wg sync.WaitGroup
+	for _, t := range targets {
+		wg.Add(1)
+		go func(t Target) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			i.fetchOnly(ctx, t)
+		}(t)
+	}
+	wg.Wait()
+}
+
+// fetchOnly 只做"解析 + 下载到缓存"（自己的 Client、单流，不碰进度回调与分片配额）。
+func (i *Installer) fetchOnly(ctx context.Context, t Target) {
+	client := fetch.New()
+	client.Jobs = 1
+	sub, err := New(Options{
+		Paths: i.opt.Paths, Client: client, Cfg: i.opt.Cfg, Profile: i.opt.Profile,
+		GOOS: i.opt.GOOS, GOARCH: i.opt.GOARCH,
+		Project: i.opt.Project, LookupProvider: i.opt.LookupProvider,
+	})
+	if err != nil {
+		return
+	}
+	p, err := sub.opt.LookupProvider(t.Tool)
+	if err != nil {
+		return
+	}
+	v, idx, err := sub.resolveVersion(ctx, p, t.Spec)
+	if err != nil {
+		return
+	}
+	_, _, _, _ = sub.fetchArtifact(ctx, p, v, idx) // 只要文件落进缓存
 }

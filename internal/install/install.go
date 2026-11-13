@@ -25,7 +25,6 @@ import (
 	"github.com/packnest/packnest/internal/shim"
 	"github.com/packnest/packnest/internal/spec"
 	"github.com/packnest/packnest/internal/store"
-	"github.com/packnest/packnest/internal/toolchain"
 	"github.com/packnest/packnest/internal/verify"
 )
 
@@ -517,7 +516,6 @@ func (i *Installer) loadIndex(ctx context.Context, p *provider.Provider) (*provi
 		Client:   i.opt.Client,
 		CacheDir: i.opt.Paths.CacheMeta(),
 		TTL:      i.opt.TTL,
-		Custom:   toolchain.LoadPBSIndex,
 	}
 	idx, err := loader.Load(ctx, p, i.opt.Profile)
 	if err != nil {

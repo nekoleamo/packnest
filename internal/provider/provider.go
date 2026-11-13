@@ -42,7 +42,7 @@ const (
 	// IndexGitHub 是 GitHub Releases API（bun 的"官方源"）。
 	IndexGitHub = "github-releases"
 	// IndexPBS 是 python-build-standalone 的两级目录列举（release 标签 → 文件）。
-	// 解析在 internal/toolchain 里，provider 只负责声明。
+	// 解析在 provider 自己的 pbs.go 里（两级目录列举）。
 	IndexPBS = "pbs"
 )
 

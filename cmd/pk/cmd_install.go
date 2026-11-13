@@ -138,6 +138,13 @@ func (a *app) cmdInstall(args []string) int {
 		tools[i] = t.tool
 	}
 	inst.PrefetchIndexes(a.context(), tools)
+	if len(targets) > 1 { // 多目标：先把产物并发下到缓存，装的时候就是纯本地工作
+		pre := make([]install.Target, len(targets))
+		for i, t := range targets {
+			pre[i] = install.Target{Tool: t.tool, Spec: t.spec}
+		}
+		inst.PrefetchArtifacts(a.context(), pre)
+	}
 
 	var failed bool
 	for _, t := range targets {

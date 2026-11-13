@@ -427,7 +427,7 @@ func SweepStale(p paths.Paths, now time.Time, maxAge time.Duration) (SweepResult
 		filepath.Join(p.Tools(), "*", "*.old"),
 		filepath.Join(p.CacheArchives(), "*.part"),
 		filepath.Join(p.CacheArchives(), "*.part.meta"),
-		filepath.Join(p.CacheMeta(), "*.tmp"),
+		filepath.Join(p.CacheMeta(), "*.tmp*"),
 	}
 	for _, pattern := range patterns {
 		matches, err := filepath.Glob(pattern)

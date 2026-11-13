@@ -951,3 +951,29 @@ warn 消失。
 而"国内网络"正是本项目的目标场景；收益确定但难以在本机稳定复现，所以用并发测试而非计时断言。
 
 行数：**11,599 / 11,600**（余 1），`cmd/pk` 3,077 / 3,200。
+
+## 1.6 第三轮：结构精简（删掉一个包）+ 多工具并发下载（2026-11-13，未发版）
+
+### 结构：15 个 internal 包 → 14 个，并摘掉一个注入钩子
+
+| 改动 | 效果 |
+|---|---|
+| **删掉 `internal/toolchain`**：pbs 两级目录列举搬进 `provider/pbs.go`（它只用到 provider 自己的类型），go 的 `GOTOOLCHAIN` 检查搬进 `env`（本来就是环境变量的事） | 少一个包；`IndexLoader.Custom` 注入钩子连同它的 nil 检查与三处调用一起删除 —— 之前"避免成环"的理由只对测试成立（pbs 用例要用 testkit，而 testkit 依赖 provider），那部分用例搬去 `acceptance` 走真实的 `Load` 入口 |
+| 文件合并（同语义归一处）：`install/project.go` → `lock.go`、`install/uninstallplan.go` → `m4.go`、`install/listview.go` → `upgrade.go`、`env/syncdir.go` + `env/toolchain.go` → `env.go`、`cmd_upgrade.go` → `cmd_use.go`、`cmd_mirror.go` → `cmd_env.go`、`cmd/progress.go` → `main.go`、`paths/atomic.go` → `paths.go` | 少 8 个文件、少 8 份 package/import 样板 |
+
+### 功能：#7 多工具并发下载（`pk install a b c`）
+
+每个工具的产物先并发下到缓存（最多 3 路，每路独立 Client、单流、不发事件、不写台账），
+随后仍按顺序串行安装：解析 → 校验 → 解压 → 伴生包 → 台账 → shim 全部是原来的单线程语义，
+所以进度条、`--json` 事件流、锁与回滚都没变。`--dry-run` / `--force` / `--offline` / 单目标不预取。
+
+**实测（冷根目录，`pk install node bun`，两组各两次）**：7.45 / 7.17 / 6.44s → **6.12 / 6.03 / 5.93s**，
+约 **快 0.5~1.4s（10~18%）**。用例 `TestPrefetchArtifactsFillsCache`（产物落缓存、台账为空、零事件、四种不预取的情形）。
+
+### 顺带修一个并发写文件的隐患
+
+预取让"同一份缓存文件被两个 goroutine 同时写"成为现实：`paths.WriteAtomic` 原来的临时名是固定的
+`<file>.tmp`，两边会抢同一个临时文件，`rename` 必有一个失败（`upgrade` 的 dry-run 用例当场报出来）。
+现在临时名带自增序号（`<file>.tmp.<n>`），`SweepStale` 的 glob 同步放宽到 `*.tmp*`。
+
+行数：11,599 / 11,600（余 1），`cmd/pk` 3,064 / 3,200，文件数 61 → 52（非测试 .go）。

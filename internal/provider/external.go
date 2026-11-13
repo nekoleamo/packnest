@@ -135,7 +135,7 @@ func readExternal(path, name string) (*Provider, string) {
 // validateExternal 只查"外部清单特有"的安全边界（方案 A.4）。
 func validateExternal(p *Provider, known map[string]bool) error {
 	if p.Index.Kind == IndexPBS {
-		return fmt.Errorf("pbs 索引只支持内嵌清单（解析在 internal/toolchain）")
+		return fmt.Errorf("pbs 索引只支持内嵌清单（解析在 provider 自己的 pbs.go）")
 	}
 	httpOK := os.Getenv(AllowHTTPEnv) == "1"
 	// 占位符校验：render 自带"未知占位符"报错，这里用假值提前跑一遍。

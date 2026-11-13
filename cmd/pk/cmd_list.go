@@ -12,7 +12,6 @@ import (
 	"github.com/packnest/packnest/internal/shim"
 	"github.com/packnest/packnest/internal/spec"
 	"github.com/packnest/packnest/internal/store"
-	"github.com/packnest/packnest/internal/toolchain"
 )
 
 // cmdList 列出已装工具（--available 时附带内嵌 provider 目录）。
@@ -160,7 +159,7 @@ func (a *app) indexLoader() *provider.IndexLoader {
 	if a.refreshIndex {
 		ttl = 0
 	}
-	return &provider.IndexLoader{Client: a.client, CacheDir: a.paths.CacheMeta(), TTL: ttl, Custom: toolchain.LoadPBSIndex}
+	return &provider.IndexLoader{Client: a.client, CacheDir: a.paths.CacheMeta(), TTL: ttl}
 }
 
 // listToolVersions 打印某一个工具的全部可装版本 + 本机已装（`pk list node`）。
