@@ -76,6 +76,9 @@ type IndexLoader struct {
 	// Custom 是自定义索引形态的钩子（目前只有 pbs 两级目录列举，实现在 internal/toolchain，
 	// 这样 provider 不必反过来依赖 toolchain，避免成环）。
 	Custom func(ctx context.Context, p *Provider, profile string, client *fetch.Client, cacheDir string) ([]Version, error)
+	// Stable 为真时只要稳定版的轻量索引（清单声明了 stable_urls 才有效），
+	// 缓存文件也分开存（<id>.stable.json），不覆盖完整索引。
+	Stable bool
 }
 
 // LoadResult 是 LoadAll 的一项结果（Provider 一定非 nil，Index/Err 二选一）。
@@ -108,7 +111,10 @@ func (l *IndexLoader) LoadAll(ctx context.Context, ps []*Provider, profile strin
 
 // Load 按镜像回退链依次尝试索引源。
 func (l *IndexLoader) Load(ctx context.Context, p *Provider, profile string) (*Index, error) {
-	urls := p.IndexURLs(profile)
+	urls, cacheName := p.IndexURLs(profile), p.ID+".json"
+	if l.Stable && len(p.Index.StableURLs) > 0 { // 没声明轻量索引的工具照旧用完整索引（也不多存一份缓存）
+		urls, cacheName = p.StableIndexURLs(profile), p.ID+".stable.json"
+	}
 	if len(urls) == 0 {
 		return nil, fmt.Errorf("%s: 没有可用的索引源", p.ID)
 	}
@@ -125,7 +131,7 @@ func (l *IndexLoader) Load(ctx context.Context, p *Provider, profile string) (*I
 
 	var errs []string
 	for _, url := range urls {
-		bodyPath := filepath.Join(l.CacheDir, p.ID+".json")
+		bodyPath := filepath.Join(l.CacheDir, cacheName)
 		metaPath := filepath.Join(l.CacheDir, p.ID+".meta.json")
 		// registry 用 abbreviated 元数据：同一个包的完整元数据可能有几十 MB，
 		// 而我们只要 versions[].version/engines/dist —— 小一个数量级，慢源上差别很大。

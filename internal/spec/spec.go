@@ -10,7 +10,7 @@ package spec
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
@@ -215,7 +215,7 @@ func SortDesc(candidates []string) []string {
 		kept = append(kept, ver)
 		orig[ver.String()] = c
 	}
-	sort.Slice(kept, func(i, j int) bool { return kept[i].GreaterThan(kept[j]) })
+	slices.SortFunc(kept, func(a, b *semver.Version) int { return b.Compare(a) })
 	out := make([]string, 0, len(kept))
 	for _, v := range kept {
 		out = append(out, orig[v.String()])

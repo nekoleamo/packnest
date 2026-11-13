@@ -3,7 +3,8 @@ package install
 
 import (
 	"context"
-	"sort"
+	"slices"
+	"strings"
 
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/jsonout"
@@ -59,11 +60,11 @@ func InstalledEntries(ledger *store.Ledger, active map[string]string) []jsonout.
 		}
 		entries = append(entries, entry)
 	}
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].Name != entries[j].Name {
-			return entries[i].Name < entries[j].Name
+	slices.SortFunc(entries, func(a, b jsonout.ToolEntry) int {
+		if c := strings.Compare(a.Name, b.Name); c != 0 {
+			return c
 		}
-		return entries[i].Version < entries[j].Version
+		return strings.Compare(a.Version, b.Version)
 	})
 	return entries
 }
@@ -96,6 +97,6 @@ func OutdatedHints(ctx context.Context, p paths.Paths, profile string, entries [
 			out = append(out, jsonout.OutdatedEntry{Name: name, Installed: cur, Latest: latest.Version, Advice: "pk upgrade " + name})
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	slices.SortFunc(out, func(a, b jsonout.OutdatedEntry) int { return strings.Compare(a.Name, b.Name) })
 	return out
 }

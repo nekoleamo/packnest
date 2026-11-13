@@ -1,106 +1,43 @@
 package main
 
 import (
+	"embed"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
 
-// commandHelp 是 9 个命令的 `--help` 文本（方案 §12.2 第 10 条：命令要能自解释）。
-var commandHelp = map[string]string{
-	"install": `pk install [工具[@版本]]... [--frozen] [--insecure] [--force] [--force-rehash] [--quiet] [--corepack|--no-corepack]
+// commandHelp 是各命令的 `--help` 文本（方案 §12.2 第 10 条：命令要能自解释）。
+// 文本放 cmd/pk/help/<命令>.txt 并 //go:embed 进来：它们是"数据"，不该占代码行数预算
+// （与 providers/*.toml 同一思路）。
+//
+//go:embed help/*.txt
+var helpFS embed.FS
 
-  装工具。不带参数时按当前目录的 pk.toml 全装。
-  作用域：没有 --global/--project 开关，由当前目录决定：
-    当前目录有 pk.toml → 按项目声明装，并生成/更新 pk.lock（项目级）
-    没有 pk.toml        → 装进共享目录；若该工具还没有全局默认，则自动设为默认
-  磁盘上永远只有一份（~/.packnest/tools/<tool>/<ver>），项目级只体现"锁定 + PATH 顺序"，
-  不复制副本；项目内生效用 pk env --project（direnv 里跑）。
-  语义（方案 §18.9）：
-    pk install                 按 pk.toml 全装（没有 pk.toml 则报错）
-    pk install node            装 pk.toml 里 pin 的 node；没有则最新稳定版
-    pk install node@22         显式 spec，不受 pk.toml 影响
-  退出码：0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用`,
+// 补全脚本同理：是数据，不是代码（`pk env --completion bash|zsh|powershell`）。
+//
+//go:embed completion/*.txt
+var completionFS embed.FS
 
-	"uninstall": `pk uninstall <工具>[@<版本>] [--force]
-pk uninstall --all [--purge] [--keep-cache] [--yes]
-
-  单个：台账驱动卸载，只删台账里记录过的目录（不在台账里的只提示不删）；
-        被引用（全局默认 / 项目锁 / 其他工具依赖）的版本需要 --force。
-  全部：--all 清掉 pk 装过的一切 —— 所有运行时 + shim + shell rc / Windows 用户 Path 里的托管块，
-        最后按"自己是怎么装的"给出删除 pk 二进制的命令（brew / npm / scoop / 脚本）。
-        不带 --yes 只打印计划，不动任何东西；交互终端会列出版本再问一次 y/N。`,
-
-	"use": `pk use <工具>@<版本> [--project]
-pk use --lock
-
-  切换全局默认版本：写 config.toml、更新台账引用、把 shim 重指到该版本。
-  只会切到**已安装**的版本（先 pk install）。
-`,
-
-	"list": `pk list [工具] [--major N] [--available] [--refresh] [--all|--limit N] [--json]
-
-  不带参数：列出已装工具（* 是当前全局默认），带版本占用空间。这个不带网络。
-  pk list node：只看 node —— 已装版本 + 可装版本，旧 → 新、最新在最下面；
-                版本 ≤40 个时一版一行（带 latest / lts: <代号> / 已装 标签），
-                更多时自动换成「按大版本分组 + 多列网格」（列数按终端宽度算），
-                标记：* 最新 · l LTS · + 已装 · @ 当前默认。
-`,
-
-	"which": `pk which <命令> [--json]
-
-  解析 shim 到真实二进制路径（调试 shim / 双名一致性检查）。
-  例：pk which node；pk which pk 与 pk which packnest 必须指向同一个文件。`,
-
-	"mirror": `pk mirror list|probe|use <档位>|write
-
-  list    列出内嵌档位（default/cn/tuna/aliyun/ustc/auto）与当前档位
-  probe   并行探测各工具索引源（结果缓存 6h；--tool 只探一个）
-  use     切换档位（写 config.toml）
-  write   把当前档位的 registry 写进 ~/.npmrc（先备份、只增不改）`,
-
-	"doctor": `pk doctor [--json] [--globals] [--probe]
-
-  环境体检，问题码固定（GUI 与脚本依赖）：
-    PATH_ORDER / PATH_MISSING         bin 目录不在 PATH 最前
-    LEDGER_BROKEN / LEDGER_RECOVERED  台账损坏 / 已从 .bak 恢复
-    CONFIG_BROKEN / MIRROR_PROFILE_INVALID
-    MIRROR_UNREACHABLE（--probe）      索引源不可达
-    GO_TOOLCHAIN_NOT_LOCAL            装了 go 但 GOTOOLCHAIN 不是 local
-    GLOBAL_ENGINES_UNMET / GLOBAL_NATIVE_ABI / GLOBAL_SHADOWS_PROJECT（--globals）
-    FOREIGN_MANAGER                   检测到 proto/nvm/mise 等其他管理器（--foreign 列出版本）
-    FOREIGN_SHIM_PRIORITY             别人的 shim 排在 pk 前面，会抢走 node
-    PROVIDERS_DIRS                    生效的外部清单目录（info）
-    PROVIDER_EXTERNAL_INVALID / _CONFLICT / PROVIDER_HTTP_URL  外部清单问题
-    GO_INSTALL_NOT_IN_PATH            go install 的产物目录不在 PATH（info）
-    PIP_USER_SITE_UNMANAGED           pip 用户级安装不在治理范围（info）
-  退出码：有 error 级问题时为 1。`,
-
-	"env": `pk env [--shell bash|zsh|sh|powershell] [--write] [--unset] [--completion SHELL] [--json]
-
-  输出 shell 片段（PATH 五段 + registry/共享前缀/镜像档变量）。
-  默认只打印不落盘；--write 才写进 rc 的托管块（幂等，块外内容不动）。
-`,
-
-	"gc": `pk gc [--dry-run] [--cache-max 5GB] [--json]
-
-  回收零引用版本（被引用的列在 KeptRef 里）与超限的产物缓存（LRU）。
-  默认上限取 config.toml 的 cache_max。`,
-
-	"upgrade": `pk upgrade [工具...] [--dry-run] [--json]
-
-  把已装工具升到各自索引的最新稳定版，并把全局默认切到新版；**旧版本保留**（用 pk gc --keep N 清理）。
-  不带参数 = 升台账里所有工具；给名字只升那些。
-  npm 是 node 的伴生包，跟着 node 一起换（会跳过并说明原因）。
-  退出码：全部成功 0；有工具失败 1（其余已完成）。`,
-
-	"version": `pk version [--json]
-
-  打印版本与构建信息（渠道安装时是机器可读输出）。`,
-}
+var commandHelp = func() map[string]string {
+	entries, err := helpFS.ReadDir("help")
+	if err != nil {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(entries))
+	for _, e := range entries {
+		data, err := helpFS.ReadFile("help/" + e.Name())
+		if err != nil {
+			continue
+		}
+		out[strings.TrimSuffix(e.Name(), ".txt")] = strings.TrimRight(string(data), "\n")
+	}
+	return out
+}()
 
 // printCommandHelp 打印某个命令的详细帮助。
 func printCommandHelp(w io.Writer, cmd string) bool {
@@ -137,64 +74,16 @@ var completionCommands = []string{
 }
 
 func writeCompletion(w io.Writer, shell string) error {
-	commands := strings.Join(completionCommands, " ")
-	switch shell {
-	case "bash":
-		fmt.Fprintf(w, `# packnest bash 补全：eval "$(pk env --completion bash)"
-_packnest() {
-  local cur prev
-  cur="${COMP_WORDS[COMP_CWORD]}"
-  prev="${COMP_WORDS[COMP_CWORD-1]}"
-  case "$prev" in
-    mirror) COMPREPLY=( $(compgen -W "list probe use write" -- "$cur") ); return ;;
-    env) COMPREPLY=( $(compgen -W "--shell --write --unset --completion --json" -- "$cur") ); return ;;
-    doctor) COMPREPLY=( $(compgen -W "--globals --probe --json" -- "$cur") ); return ;;
-    gc) COMPREPLY=( $(compgen -W "--dry-run --cache-max --json" -- "$cur") ); return ;;
-    upgrade) COMPREPLY=( $(compgen -W "--dry-run --json" -- "$cur") ); return ;;
-    install) COMPREPLY=( $(compgen -W "--frozen --insecure --force --force-rehash --quiet --json" -- "$cur") ); return ;;
-  esac
-  if [ "$COMP_CWORD" -eq 1 ]; then
-    COMPREPLY=( $(compgen -W "%s" -- "$cur") )
-  fi
-}
-complete -F _packnest pk
-complete -F _packnest packnest
-`, commands)
-	case "zsh":
-		fmt.Fprintf(w, `# packnest zsh 补全：eval "$(pk env --completion zsh)"
-_packnest() {
-  local -a cmds
-  cmds=(%s)
-  if (( CURRENT == 2 )); then
-    _describe 'command' cmds
-    return
-  fi
-  case $words[2] in
-    mirror) _values 'subcommand' list probe use write ;;
-    install) _values 'flag' --frozen --insecure --force --force-rehash --quiet --json ;;
-    gc) _values 'flag' --dry-run --cache-max --json ;;
-    upgrade) _values 'flag' --dry-run --json ;;
-    doctor) _values 'flag' --globals --probe --json ;;
-    env) _values 'flag' --shell --write --unset --completion --json ;;
-  esac
-}
-compdef _packnest pk
-compdef _packnest packnest
-`, commands)
-	case "powershell":
-		fmt.Fprintf(w, `# packnest PowerShell 补全：pk env --completion powershell | Out-String | Invoke-Expression
-$packnestCommands = @(%s)
-Register-ArgumentCompleter -Native -CommandName pk,packnest -ScriptBlock {
-  param($wordToComplete, $commandAst, $cursorPosition)
-  $packnestCommands | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
-    [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_)
-  }
-}
-`, quoteList(completionCommands))
-	default:
+	data, err := completionFS.ReadFile("completion/" + shell + ".txt")
+	if err != nil {
 		return fmt.Errorf("不支持的 shell %q（bash/zsh/powershell）", shell)
 	}
-	return nil
+	arg := strings.Join(completionCommands, " ")
+	if shell == "powershell" { // PowerShell 的数组要带引号
+		arg = quoteList(completionCommands)
+	}
+	_, err = fmt.Fprintf(w, string(data), arg)
+	return err
 }
 
 func quoteList(items []string) string {
@@ -257,7 +146,7 @@ func scanForeignManagers(home string) []foreignManager {
 		sort.Strings(versions)
 		out = append(out, foreignManager{Name: c.name, Path: dir, Versions: versions})
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	slices.SortFunc(out, func(a, b foreignManager) int { return strings.Compare(a.Name, b.Name) })
 	return out
 }
 

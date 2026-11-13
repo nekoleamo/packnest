@@ -1,0 +1,19 @@
+# packnest zsh 补全：eval "$(pk env --completion zsh)"
+_packnest() {
+  local -a cmds
+  cmds=(%s)
+  if (( CURRENT == 2 )); then
+    _describe 'command' cmds
+    return
+  fi
+  case $words[2] in
+    mirror) _values 'subcommand' list probe use write ;;
+    install) _values 'flag' --frozen --insecure --force --force-rehash --quiet --json ;;
+    gc) _values 'flag' --dry-run --cache-max --json ;;
+    upgrade) _values 'flag' --dry-run --json ;;
+    doctor) _values 'flag' --globals --probe --json ;;
+    env) _values 'flag' --shell --write --unset --completion --json ;;
+  esac
+}
+compdef _packnest pk
+compdef _packnest packnest

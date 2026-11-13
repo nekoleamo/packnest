@@ -1,0 +1,4 @@
+pk gc [--dry-run] [--cache-max 5GB] [--json]
+
+  回收零引用版本（被引用的列在 KeptRef 里）与超限的产物缓存（LRU）。
+  默认上限取 config.toml 的 cache_max。

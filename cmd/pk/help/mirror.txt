@@ -1,0 +1,6 @@
+pk mirror list|probe|use <档位>|write
+
+  list    列出内嵌档位（default/cn/tuna/aliyun/ustc/auto）与当前档位
+  probe   并行探测各工具索引源（结果缓存 6h；--tool 只探一个）
+  use     切换档位（写 config.toml）
+  write   把当前档位的 registry 写进 ~/.npmrc（先备份、只增不改）

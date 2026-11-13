@@ -14,6 +14,12 @@ default = "https://go.dev/dl/?mode=json&include=all"
 # ⚠️ aliyun/tuna/ustc/huaweicloud 的 /golang/ 路径**不提供** ?mode=json（实测返回 HTML/404），别照抄。
 cn      = "https://golang.google.cn/dl/?mode=json&include=all"
 
+# 轻量索引：只含当前稳定版（`pk list --available` 用）。实测 include=all 是 557KB/1.1s，
+# ?mode=json 只有 5.9KB/0.4s；完整索引仍然照旧，`pk list go` 与按精确版本装都走它。
+[index.stable_urls]
+default = "https://go.dev/dl/?mode=json"
+cn      = "https://golang.google.cn/dl/?mode=json"
+
 [artifact]
 # 文件名直接用索引给的（go{version}.{platform}.{ext}），{filename} 更稳。
 [artifact.urls]

@@ -43,7 +43,7 @@ func (i *Installer) applyCompanion(ctx context.Context, p *provider.Provider, no
 	npmP, err := i.opt.LookupProvider(c.Registry)
 	var npmIdx *provider.Index // 一次索引加载复用两处（候选版本 + shasum）
 	if err == nil {
-		if idx, err := i.loadIndex(ctx, npmP); err == nil {
+		if idx, err := i.loadOrTakeIndex(ctx, npmP); err == nil {
 			npmIdx, indexAvailable = idx, true
 			for _, v := range idx.Versions {
 				candidates = append(candidates, companion.Candidate{Version: v.Version, Engines: v.Engines["node"]})
@@ -248,4 +248,52 @@ func readNpmVersion(pkgPath string) string {
 		return ""
 	}
 	return pkg.Version
+}
+
+// indexFuture 是一次后台索引加载的结果槽。
+type indexFuture struct {
+	done chan struct{}
+	idx  *provider.Index
+}
+
+// prefetchCompanionIndex 后台加载伴生包的索引（只在解压前调用；失败不报错，交给 applyCompanion 再试）。
+// --dry-run 不预取：预览不额外发请求。
+func (i *Installer) prefetchCompanionIndex(ctx context.Context, p *provider.Provider) {
+	c, ok := p.Companions["npm"]
+	if !ok || i.opt.DryRun {
+		return
+	}
+	npmP, err := i.opt.LookupProvider(c.Registry)
+	if err != nil {
+		return
+	}
+	if _, started := i.prefetched[npmP.ID]; started {
+		return
+	}
+	f := &indexFuture{done: make(chan struct{})}
+	i.prefetched[npmP.ID] = f
+	go func() {
+		defer close(f.done)
+		if idx, err := i.loadIndex(ctx, npmP); err == nil {
+			f.idx = idx
+		}
+	}()
+}
+
+// loadOrTakeIndex 优先用预取结果（等它结束），没有预取就现加载。
+func (i *Installer) loadOrTakeIndex(ctx context.Context, p *provider.Provider) (*provider.Index, error) {
+	f, ok := i.prefetched[p.ID]
+	if !ok {
+		return i.loadIndex(ctx, p)
+	}
+	delete(i.prefetched, p.ID)
+	select {
+	case <-f.done:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	if f.idx != nil {
+		return f.idx, nil
+	}
+	return i.loadIndex(ctx, p) // 预取失败：再试一次，报错信息才算准确
 }

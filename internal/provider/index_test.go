@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"strconv"
 	"sync/atomic"
@@ -441,5 +442,61 @@ func TestLoadAllConcurrent(t *testing.T) {
 	mixed := loader.LoadAll(context.Background(), []*Provider{badP, ps[0]}, "cn")
 	if mixed[0].Err == nil || mixed[1].Err != nil {
 		t.Fatalf("一个失败不该影响其他: %v / %v", mixed[0].Err, mixed[1].Err)
+	}
+}
+
+// 轻量索引（stable_urls）：只有声明了它的工具才另走一条 URL、另存一份缓存，
+// 完整索引（`pk list <tool>` / 按精确版本装）不受影响。
+func TestStableIndexView(t *testing.T) {
+	full := []byte(`[{"version":"v1.26.0"},{"version":"v1.27.1"},{"version":"v1.27.4"}]`)
+	stable := []byte(`[{"version":"v1.27.4"}]`)
+	srv := localMirror(t, map[string][]byte{
+		"/all/index.json":    full,
+		"/stable/index.json": stable,
+	})
+	p := &Provider{
+		ID: "go",
+		Index: IndexBlock{
+			Kind:       IndexJSON,
+			URLs:       map[string]string{"cn": srv.URL + "/all/index.json"},
+			StableURLs: map[string]string{"cn": srv.URL + "/stable/index.json"},
+		},
+	}
+	if got := p.StableIndexURLs("cn"); len(got) != 1 || got[0] != srv.URL+"/stable/index.json" {
+		t.Fatalf("StableIndexURLs = %v", got)
+	}
+	// 没声明 stable_urls → 退回完整索引（老清单必须照常工作）
+	bare := &Provider{ID: "node", Index: IndexBlock{Kind: IndexJSON, URLs: map[string]string{"cn": srv.URL + "/all/index.json"}}}
+	if got := bare.StableIndexURLs("cn"); len(got) != 1 || got[0] != bare.IndexURLs("cn")[0] {
+		t.Fatalf("没有 stable_urls 应退回完整索引，得到 %v", got)
+	}
+
+	cache := t.TempDir()
+	fullIdx, err := (&IndexLoader{Client: fetch.New(), CacheDir: cache, TTL: time.Hour}).Load(context.Background(), p, "cn")
+	if err != nil {
+		t.Fatalf("完整索引: %v", err)
+	}
+	if len(fullIdx.Versions) != 3 {
+		t.Fatalf("完整索引应有 3 个版本: %+v", fullIdx.Versions)
+	}
+	stableIdx, err := (&IndexLoader{Client: fetch.New(), CacheDir: cache, TTL: time.Hour, Stable: true}).Load(context.Background(), p, "cn")
+	if err != nil {
+		t.Fatalf("轻量索引: %v", err)
+	}
+	if len(stableIdx.Versions) != 1 || stableIdx.Versions[0].Version != "1.27.4" {
+		t.Fatalf("轻量索引应只含最新稳定版，得到 %+v", stableIdx.Versions)
+	}
+	// 两份缓存互不覆盖
+	for _, name := range []string{"go.json", "go.stable.json"} {
+		if _, err := os.Stat(filepath.Join(cache, name)); err != nil {
+			t.Fatalf("缺少缓存 %s: %v", name, err)
+		}
+	}
+	// 没声明 stable_urls 的工具不该平白多存一份
+	if _, err := (&IndexLoader{Client: fetch.New(), CacheDir: cache, TTL: time.Hour, Stable: true}).Load(context.Background(), bare, "cn"); err != nil {
+		t.Fatalf("bare: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(cache, "node.stable.json")); !os.IsNotExist(err) {
+		t.Fatal("没有 stable_urls 时不该另存轻量缓存")
 	}
 }

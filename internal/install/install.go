@@ -98,6 +98,9 @@ type Installer struct {
 	opt    Options
 	ledger *store.Ledger
 	known  *verify.Known
+	// prefetched 是"正在后台加载的索引"（键为 provider ID）：解压是纯 CPU 的 1s 级工作，
+	// 期间把伴生包的索引先拉回来，别让网络串在解压后面。
+	prefetched map[string]*indexFuture
 }
 
 // New 加载台账与校验表。
@@ -136,7 +139,7 @@ func New(opt Options) (*Installer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Installer{opt: opt, ledger: ledger, known: known}, nil
+	return &Installer{opt: opt, ledger: ledger, known: known, prefetched: map[string]*indexFuture{}}, nil
 }
 
 // Ledger 暴露台账（CLI 的 list 复用）。
@@ -245,6 +248,9 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 	if err != nil {
 		return Result{}, err
 	}
+	// 解压要 1s 上下（纯 CPU），这段时间把伴生包的索引先拉回来（npm 索引冷拉实测 0.23s）。
+	i.prefetchCompanionIndex(ctx, p)
+
 	// Ctrl-C / panic 也不许留半成品目录（方案 §12.1 `_M4_CtrlCNoPartial`）。
 	placed := false
 	defer func() {

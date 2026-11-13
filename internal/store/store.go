@@ -11,6 +11,7 @@ import (
 	"github.com/packnest/packnest/internal/paths"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -505,7 +506,7 @@ func PruneCache(p paths.Paths, limit int64, now time.Time, dryRun bool) (SweepRe
 	for name, e := range idx.Entries {
 		cands = append(cands, candidate{name, e})
 	}
-	sort.Slice(cands, func(i, j int) bool { return cands[i].entry.LastUsed.Before(cands[j].entry.LastUsed) })
+	slices.SortFunc(cands, func(a, b candidate) int { return a.entry.LastUsed.Compare(b.entry.LastUsed) })
 
 	for _, c := range cands {
 		if total <= limit {

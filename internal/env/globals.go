@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -77,7 +78,7 @@ func ScanGlobals(prefix, goos string) ([]GlobalPackage, error) {
 			}
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	slices.SortFunc(out, func(a, b GlobalPackage) int { return strings.Compare(a.Name, b.Name) })
 	return out, nil
 }
 
@@ -201,7 +202,9 @@ func CheckShadowing(pkgs []GlobalPackage, projectBins map[string]string) []Globa
 			}
 		}
 	}
-	sort.Slice(problems, func(i, j int) bool { return problems[i].Detail["bin"].(string) < problems[j].Detail["bin"].(string) })
+	slices.SortFunc(problems, func(a, b GlobalProblem) int {
+		return strings.Compare(a.Detail["bin"].(string), b.Detail["bin"].(string))
+	})
 	return problems
 }
 

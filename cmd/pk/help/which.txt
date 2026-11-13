@@ -1,0 +1,4 @@
+pk which <命令> [--json]
+
+  解析 shim 到真实二进制路径（调试 shim / 双名一致性检查）。
+  例：pk which node；pk which pk 与 pk which packnest 必须指向同一个文件。

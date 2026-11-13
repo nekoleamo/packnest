@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -78,6 +79,10 @@ type Provider struct {
 type IndexBlock struct {
 	Kind string            `toml:"kind"`
 	URLs map[string]string `toml:"urls"`
+	// StableURLs 是"只要稳定版/最近几个"的轻量索引（可选）。
+	// 给 `pk list --available` 这类视图用：go 的 include=all 是 557KB/1.1s，
+	// 而 ?mode=json 只有 5.9KB/0.4s —— 少一个数量级，装的还是同一套东西。
+	StableURLs map[string]string `toml:"stable_urls"`
 	// Path 是索引里的字段路径（如 "versions"），dirlist 时不用。
 	Path string `toml:"path"`
 	// VersionPrefix 是版本号前缀（go 的 "go1.27.3" → 去掉 "go"）。
@@ -143,7 +148,7 @@ func All() ([]*Provider, error) {
 			return
 		}
 		cache = append(cache, loadExternal(ExternalDirs(), cache)...)
-		sort.Slice(cache, func(i, j int) bool { return cache[i].ID < cache[j].ID })
+		slices.SortFunc(cache, func(a, b *Provider) int { return strings.Compare(a.ID, b.ID) })
 	})
 	return cache, err
 }
@@ -320,6 +325,18 @@ func registryBase(profile string) string {
 // IndexURLs 返回按镜像回退链排好序的索引 URL 列表。
 func (p *Provider) IndexURLs(profile string) []string {
 	urls := mirror.PickURLs(p.Index.URLs, mirror.Chain(profile))
+	if override := envOverride(p.ID, "INDEX"); override != "" {
+		urls = append([]string{override}, urls...)
+	}
+	return urls
+}
+
+// StableIndexURLs 返回轻量索引的 URL 列表；清单没声明时退回完整索引。
+func (p *Provider) StableIndexURLs(profile string) []string {
+	if len(p.Index.StableURLs) == 0 {
+		return p.IndexURLs(profile)
+	}
+	urls := mirror.PickURLs(p.Index.StableURLs, mirror.Chain(profile))
 	if override := envOverride(p.ID, "INDEX"); override != "" {
 		urls = append([]string{override}, urls...)
 	}

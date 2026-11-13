@@ -904,3 +904,28 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 | tap / scoop | 推到 1.5.1，远端回读一致；本机 `brew install` 装到 1.5.1 |
 | smoke / CI | smoke 5/5 + gui-contract 全绿；main 门禁云端复跑通过 |
 | 官网 | 中英文均为 v1.5.1 |
+
+## 1.6 第一轮：腾预算 + 两处延迟（2026-11-13，未发版）
+
+动手前的余量只有 6 行，所以先"挣预算"再优化；三件事全部有实测数字。
+
+### 腾预算（11,594 → 11,482，共 −112 行；两项优化再加回 87 行，落地 **11,569 / 11,600**）
+
+| 改动 | 行数 | 说明 |
+|---|---|---|
+| 帮助文本外置：`cmd/pk/help/<命令>.txt` + `//go:embed help/*.txt` | −69 | 11 个命令的 `--help` 是**数据**，不该占代码预算（与 `providers/*.toml` 同思路）；`help.go` 281 → 212 |
+| 补全脚本外置：`cmd/pk/completion/{bash,zsh,powershell}.txt` + embed | −45 | 同一思路；`pk env --completion <shell>` 输出逐字节不变（PowerShell 仍需带引号的数组，走 `quoteList`） |
+| 9 处 `sort.Slice` → `slices.SortFunc` | ±0 | 去掉索引式比较（`x[i] < x[j]`）写法，顺带统一风格；`sort` 仍用于 `sort.Strings` |
+
+### 延迟（两处，都是"该并行的没并行"）
+
+| # | 改动 | 前 → 后 |
+|---|---|---|
+| 1 | **伴生索引预取**：node 解压是 1s 级的纯 CPU 工作，期间把 npm 的索引先拉回来（`prefetchCompanionIndex` + `loadOrTakeIndex`，结果用一个 future 槽传递，取一次即清；dry-run 不预取） | 冷装省掉串行的 npm 索引加载（实测 `pk list npm --refresh` 冷拉 **0.23s**）；解析顺序与产物不变 |
+| 2 | **go 索引分档**：`[index.stable_urls]`（`?mode=json`，只含稳定版）给 `pk list --available`，完整索引留给 `pk list go` 与按精确版本装 | 冷 `pk list --available` **0.98s → 0.39~0.43s**（go 索引 557KB/1.1s → 5.9KB/0.4s，它就是那条关键路径） |
+
+新增用例：`TestCompanionIndexPrefetchedOnce`（预取只发一次请求、取用后槽位清空、dry-run 不预取）、
+`TestStableIndexView`（声明了 `stable_urls` 才走轻量视图与独立缓存；老清单退回完整索引且不多存缓存）。
+
+**顺手记一笔**：`install.go` 加了预取后越过 600 行 warn，把预取实现挪进 `companion.go`（伴生包的事归伴生包），
+warn 消失。

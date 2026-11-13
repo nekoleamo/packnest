@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -53,7 +54,7 @@ func LoadLock(dir string) (*Lock, error) {
 
 // Save 原子写项目锁（按名字排序，保证 diff 稳定）。
 func (l *Lock) Save(dir string) error {
-	sort.Slice(l.Tool, func(i, j int) bool { return l.Tool[i].Name < l.Tool[j].Name })
+	slices.SortFunc(l.Tool, func(a, b LockTool) int { return strings.Compare(a.Name, b.Name) })
 	data, err := toml.Marshal(l)
 	if err != nil {
 		return fmt.Errorf("序列化 %s 失败: %w", LockFileName, err)

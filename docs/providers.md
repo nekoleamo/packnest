@@ -63,6 +63,7 @@ bins  = ["rg"]
 | `urls` | map（`default` + 可选 `cn`/`tuna`…） | 按镜像档选：没配当前档就用 `default`；值可以是**同一个数组** |
 | `path` | string | `json` 型索引里版本列表的字段路径（默认自动猜 `versions`） |
 | `version_prefix` | string | 去掉版本号前缀（go 的 `go1.27.3` → `version_prefix = "go"`） |
+| `[index.stable_urls]` | map | 可选。**只要稳定版/最近几个**的轻量索引，给 `pk list --available` 用；没声明就退回 `urls`。go 的实测：`include=all` 557KB/1.1s vs `?mode=json` 5.9KB/0.4s。缓存分开存（`<id>.stable.json`），完整索引不受影响 |
 
 四种 `kind` 分别要什么样的响应：
 
@@ -73,6 +74,20 @@ bins  = ["rg"]
 | `dirlist` | 目录列举：`[{"name":"v1.2.3/","type":"directory"}]` | npmmirror 的 `/-/binary/<tool>/` |
 | `github-releases` | GitHub Releases API 数组（读 `tag_name` 与 `assets[]`） | 大部分 Rust/Go 工具 |
 | `pbs` | python-build-standalone 的两级目录（**只能内嵌**） | python |
+
+示例（go，1.6 起）：
+
+```toml
+[index]
+kind = "json"
+version_prefix = "go"
+[index.urls]                                # 完整索引：装任意版本、pk list go
+default = "https://go.dev/dl/?mode=json&include=all"
+cn      = "https://golang.google.cn/dl/?mode=json&include=all"
+[index.stable_urls]                         # 轻量索引：pk list --available
+default = "https://go.dev/dl/?mode=json"
+cn      = "https://golang.google.cn/dl/?mode=json"
+```
 
 > `github-releases` 的好处是顺带拿到了每个 asset 的文件名，产物模板里可以用 `{filename}`；
 > 其它 kind 没有文件清单，`{filename}` 会**回落成产物 URL 的末段**（1.0.1 起）。

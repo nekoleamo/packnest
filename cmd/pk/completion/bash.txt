@@ -1,0 +1,19 @@
+# packnest bash 补全：eval "$(pk env --completion bash)"
+_packnest() {
+  local cur prev
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+  case "$prev" in
+    mirror) COMPREPLY=( $(compgen -W "list probe use write" -- "$cur") ); return ;;
+    env) COMPREPLY=( $(compgen -W "--shell --write --unset --completion --json" -- "$cur") ); return ;;
+    doctor) COMPREPLY=( $(compgen -W "--globals --probe --json" -- "$cur") ); return ;;
+    gc) COMPREPLY=( $(compgen -W "--dry-run --cache-max --json" -- "$cur") ); return ;;
+    upgrade) COMPREPLY=( $(compgen -W "--dry-run --json" -- "$cur") ); return ;;
+    install) COMPREPLY=( $(compgen -W "--frozen --insecure --force --force-rehash --quiet --json" -- "$cur") ); return ;;
+  esac
+  if [ "$COMP_CWORD" -eq 1 ]; then
+    COMPREPLY=( $(compgen -W "%s" -- "$cur") )
+  fi
+}
+complete -F _packnest pk
+complete -F _packnest packnest

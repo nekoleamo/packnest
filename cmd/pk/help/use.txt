@@ -1,0 +1,5 @@
+pk use <工具>@<版本> [--project]
+pk use --lock
+
+  切换全局默认版本：写 config.toml、更新台账引用、把 shim 重指到该版本。
+  只会切到**已安装**的版本（先 pk install）。

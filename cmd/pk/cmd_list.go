@@ -114,8 +114,11 @@ func (a *app) cmdList(args []string) int {
 }
 
 // availableRows 拉各工具的可用版本（失败只记录，不影响其他工具；并发在 provider 里）。
+// 只给"最新 + 近几个 + LTS"，所以走轻量索引（清单声明了 stable_urls 的工具会快一个数量级）。
 func (a *app) availableRows() []provider.AvailableRow {
-	return provider.AvailableRows(a.context(), a.indexLoader(), nil, a.cfg.Mirror)
+	loader := a.indexLoader()
+	loader.Stable = true
+	return provider.AvailableRows(a.context(), loader, nil, a.cfg.Mirror)
 }
 
 // printAvailable 打印各工具的最新可装版本（索引走缓存；离线时读 24h 内缓存）。
