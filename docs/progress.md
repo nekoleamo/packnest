@@ -886,6 +886,8 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 | 项目里 `pk install --dry-run` 会**写 pk.lock** | 一次预览就改了仓库；更糟的是项目里还没装该工具时 `BuildProjectLock` 直接报错，dry-run 退出 1（`node 还没装，无法生成锁`） | `--dry-run` / `--frozen` / 无项目声明三种情况都不碰锁；"没写 pk.lock"的提示也只在真安装时出现 |
 | 已装版本 + `--corepack` 时，dry-run 仍会**重放 corepack** | 往 `global/corepack/bin` 真写 shim | `enableCorepack` 加 `!DryRun` 门槛 |
 | dry-run 前仍会 `SweepStale` 清残留 | 预览阶段删文件 | 整个清扫块由 `!*dryRun` 包住 |
+| `--dry-run --corepack` 会把 corepack 开关**写进 config.toml** | 预览改了持久配置 | 开关落盘加 `!*dryRun` 门槛 |
 
 回归用例：`TestInstallDryRunWritesNoLock`（CLI 层：预置索引缓存 + `--offline`，断言不写锁、退出 0）、
-`TestAcceptance_CP_DryRunNoCorepack`（已装版本 dry-run 不执行 `corepack enable`、不写 shim）。两条都验过"去掉修复即失败"。
+`TestAcceptance_CP_DryRunNoCorepack`（已装版本 dry-run 不执行 `corepack enable`、不写 shim）、
+`TestInstallDryRunLeavesConfigAlone`（`--dry-run --corepack` 不改 config.toml）。四条都验过"去掉修复即失败"。

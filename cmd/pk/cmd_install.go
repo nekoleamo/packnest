@@ -56,7 +56,8 @@ func (a *app) cmdInstall(args []string) int {
 	}
 
 	// corepack 是全局开关（方案 B2-2）：翻一下就落盘，之后装/切带 corepack 的 node 自动重放。
-	if *corepack != *noCorepack {
+	// --dry-run 不落盘（预览不该改 config.toml）。
+	if *corepack != *noCorepack && !*dryRun {
 		a.cfg.Corepack = *corepack
 		if err := a.cfg.Save(a.paths.Config()); err != nil {
 			return a.fail(err)

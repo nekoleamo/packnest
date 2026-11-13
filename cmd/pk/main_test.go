@@ -1456,3 +1456,29 @@ func TestInstallDryRunWritesNoLock(t *testing.T) {
 		t.Fatalf("dry-run 不该声称更新了锁: %q", out)
 	}
 }
+
+// dry-run 连 config.toml 也不该动：`--corepack` 是持久开关，预览时翻它等于改配置。
+func TestInstallDryRunLeavesConfigAlone(t *testing.T) {
+	root := t.TempDir()
+	meta := filepath.Join(root, "cache", "meta")
+	if err := os.MkdirAll(meta, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(meta, "node.json"), []byte(`[{"version":"v22.22.2"}]`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stamp := `{"url":"https://example.invalid/i.json","fetched_at":"` + time.Now().UTC().Format(time.RFC3339) + `"}`
+	if err := os.WriteFile(filepath.Join(meta, "node.meta.json"), []byte(stamp), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, errOut := execCLI(t, "--root", root, "--offline", "install", "node@22", "--dry-run", "--corepack"); code != 0 {
+		t.Fatalf("dry-run 应成功，得到 %d: %q", code, errOut)
+	}
+	cfg, err := store.LoadConfig(filepath.Join(root, "config.toml"))
+	if err != nil {
+		t.Fatalf("读配置: %v", err)
+	}
+	if cfg.Corepack {
+		t.Fatal("dry-run 不该把 corepack 开关写进 config.toml")
+	}
+}
