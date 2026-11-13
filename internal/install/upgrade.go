@@ -29,6 +29,9 @@ type UpgradeItem struct {
 //   - **dry-run 只算不装**：返回每个工具将要从哪升到哪。
 func (i *Installer) Upgrade(ctx context.Context, tools []string, dryRun bool) ([]UpgradeItem, error) {
 	targets, skipped := i.upgradeTargets(tools)
+	// 先把待升工具的索引一起拉回来（网络并行），后面逐个升时才不会排队等索引。
+	i.PrefetchIndexes(ctx, targets)
+
 	items := make([]UpgradeItem, 0, len(targets)+len(skipped))
 	items = append(items, skipped...)
 

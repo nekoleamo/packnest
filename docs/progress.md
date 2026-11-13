@@ -929,3 +929,25 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 
 **顺手记一笔**：`install.go` 加了预取后越过 600 行 warn，把预取实现挪进 `companion.go`（伴生包的事归伴生包），
 warn 消失。
+
+## 1.6 第二轮：多工具索引预取（2026-11-13，未发版）
+
+`pk install a b c` 与 `pk upgrade` 是"逐个工具：拉索引 → 下载 → 解压"，索引那一段彼此无关，
+串着做等于把 N 次网络延迟相加（go 的完整索引冷拉 ~1.1s、npm ~0.23s）。现在开工前先用
+`Installer.PrefetchIndexes` 把待办工具的索引并发拉回来，装/写台账仍严格串行（台账、锁、进度条都是单线程语义）。
+
+- 复用已有的 future 槽（`indexFuture` + `loadOrTakeIndex`）：`resolveVersion` / `applyCompanion` 取用时直接拿结果，
+  取一次即清；同一工具只起一个加载，失败不报错（真到那一步会重试，报错信息才准确）。
+- 顺手修掉两个自己刚写出来的 bug，都是 `go test -race` 抓的：
+  ①`startPrefetch` 在"槽已存在"时**又起了一个 goroutine 去写同一个槽**（两个写者 → DATA RACE）；
+  ②预取协程读 `i.opt.Profile` 的同时，`Install` 里的 `resolveAutoProfile` 在写它（cmd 层的
+  `TestCLIInstallAndUninstall` 直接报出来）。修法：已存在的槽直接复用；`PrefetchIndexes`
+  先用第一个 provider 把 auto 档位**定下来**（幂等，之后再无写入），预取也就不会拿错档位的 URL。
+- 用例 `TestPrefetchIndexesParallel`：两个各慢 120ms 的假索引源，断言总耗时 <200ms 且最大并发 ≥2
+  （串行会是 240ms）。
+
+**如实记录**：在本机快网（36MB/s）上，3 个工具的 `--dry-run` 只差 0.1~0.2s，**淹没在网络抖动里**
+（0.56/1.24/1.07 vs 无预取的 1.30/0.97/0.89）。它的价值在于慢速网络下把 O(N) 的索引延迟压成一个，
+而"国内网络"正是本项目的目标场景；收益确定但难以在本机稳定复现，所以用并发测试而非计时断言。
+
+行数：**11,599 / 11,600**（余 1），`cmd/pk` 3,077 / 3,200。

@@ -98,8 +98,8 @@ type Installer struct {
 	opt    Options
 	ledger *store.Ledger
 	known  *verify.Known
-	// prefetched 是"正在后台加载的索引"（键为 provider ID）：解压是纯 CPU 的 1s 级工作，
-	// 期间把伴生包的索引先拉回来，别让网络串在解压后面。
+	// prefetched 是"正在后台加载的索引"（键为 provider ID）：多工具的索引互不相干，
+	// 别让网络串行地在解压/解析后面排队。
 	prefetched map[string]*indexFuture
 }
 
@@ -482,7 +482,7 @@ func (i *Installer) resolveVersion(ctx context.Context, p *provider.Provider, sp
 		// 所以即便钉了精确版本也要读索引；读不到不算失败（会走 --insecure 或报缺校验和）。
 		if p.Index.Kind == provider.IndexRegistry || p.Checksum.Format == provider.ChecksumIndexInline ||
 			artifactNeedsFilename(p) {
-			if idx, err := i.loadIndex(ctx, p); err == nil {
+			if idx, err := i.loadOrTakeIndex(ctx, p); err == nil {
 				if v, ok := idx.Find(version); ok {
 					return v, idx, nil
 				}
@@ -491,7 +491,7 @@ func (i *Installer) resolveVersion(ctx context.Context, p *provider.Provider, sp
 		}
 		return provider.Version{Version: version}, nil, nil
 	}
-	idx, err := i.loadIndex(ctx, p)
+	idx, err := i.loadOrTakeIndex(ctx, p)
 	if err != nil {
 		return provider.Version{}, nil, err
 	}

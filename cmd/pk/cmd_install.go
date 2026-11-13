@@ -132,6 +132,13 @@ func (a *app) cmdInstall(args []string) int {
 		}
 	}
 
+	// 多工具时先把索引一起拉回来（网络并行），装本身仍按顺序（台账/锁/进度都是单线程语义）。
+	tools := make([]string, len(targets))
+	for i, t := range targets {
+		tools[i] = t.tool
+	}
+	inst.PrefetchIndexes(a.context(), tools)
+
 	var failed bool
 	for _, t := range targets {
 		res, err := inst.Install(a.context(), t.tool, t.spec)

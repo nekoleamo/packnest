@@ -256,37 +256,57 @@ type indexFuture struct {
 	idx  *provider.Index
 }
 
-// prefetchCompanionIndex 后台加载伴生包的索引（只在解压前调用；失败不报错，交给 applyCompanion 再试）。
-// --dry-run 不预取：预览不额外发请求。
+// PrefetchIndexes 并发预热多个工具的索引（网络并行，装/写台账仍串行）：逐个工具走
+// "拉索引 → 下载 → 解压"，索引那段彼此无关，串着做就是把 N 次延迟相加。失败不报错，真到那一步会重试。
+func (i *Installer) PrefetchIndexes(ctx context.Context, tools []string) {
+	for _, tool := range tools {
+		p, err := i.opt.LookupProvider(tool)
+		if err != nil {
+			continue
+		}
+		// 先把 auto 档位定下来：不改的话后台协程会读到 "auto"，主协程又在 Install 里改 i.opt.Profile
+		// （race），而且预取也会拿错档位的 URL。resolveAutoProfile 自己幂等，第二次起直接返回。
+		i.resolveAutoProfile(ctx, p)
+		i.startPrefetch(ctx, p)
+	}
+}
+
+// prefetchCompanionIndex 在解压（纯 CPU 的秒级工作）期间先拉伴生包的索引；--dry-run 不预取。
 func (i *Installer) prefetchCompanionIndex(ctx context.Context, p *provider.Provider) {
-	c, ok := p.Companions["npm"]
-	if !ok || i.opt.DryRun {
-		return
+	if c, ok := p.Companions["npm"]; ok && !i.opt.DryRun {
+		if npmP, err := i.opt.LookupProvider(c.Registry); err == nil {
+			i.startPrefetch(ctx, npmP)
+		}
 	}
-	npmP, err := i.opt.LookupProvider(c.Registry)
-	if err != nil {
-		return
+}
+
+// startPrefetch 起一个后台索引加载（同一工具只起一次），返回它的结果槽。
+//
+// prefetched 这张表只在"安装协程"里读写（cmd → Install/Upgrade → 这里 / loadOrTakeIndex），
+// 后台协程只写自己的 f.idx 再 close(f.done)，读侧靠 channel 的 happens-before，所以不需要锁。
+func (i *Installer) startPrefetch(ctx context.Context, p *provider.Provider) *indexFuture {
+	f, ok := i.prefetched[p.ID]
+	if ok { // 已经起过：直接复用它的结果槽（绝不能再起一个 goroutine 去写同一个槽）
+		return f
 	}
-	if _, started := i.prefetched[npmP.ID]; started {
-		return
-	}
-	f := &indexFuture{done: make(chan struct{})}
-	i.prefetched[npmP.ID] = f
+	f = &indexFuture{done: make(chan struct{})}
+	i.prefetched[p.ID] = f
 	go func() {
 		defer close(f.done)
-		if idx, err := i.loadIndex(ctx, npmP); err == nil {
+		if idx, err := i.loadIndex(ctx, p); err == nil {
 			f.idx = idx
 		}
 	}()
+	return f
 }
 
-// loadOrTakeIndex 优先用预取结果（等它结束），没有预取就现加载。
+// loadOrTakeIndex 优先用预取结果（等它结束）；没有预取就现加载。
 func (i *Installer) loadOrTakeIndex(ctx context.Context, p *provider.Provider) (*provider.Index, error) {
 	f, ok := i.prefetched[p.ID]
+	delete(i.prefetched, p.ID)
 	if !ok {
 		return i.loadIndex(ctx, p)
 	}
-	delete(i.prefetched, p.ID)
 	select {
 	case <-f.done:
 	case <-ctx.Done():
