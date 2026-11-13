@@ -504,7 +504,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 | 线 | 状态 |
 |---|---|
-| CLI | **v1.3.1 已发（2026-11-13）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、9 个命令 |
+| CLI | **v1.4.0 已发（2026-11-13）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、**10 个命令**（新增 `upgrade`） |
 | 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
 | 行数 | **11,150 / 11,200**（余量 50）；`cmd/pk` 3,204 / 3,200（warn）；单文件无 >600 行 |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
@@ -536,7 +536,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - 顺手修：`smoke.yml` 的版本号改成先查**线上最新 release**再回退 `scripts/latest` —— 否则"刚发完版但还没推
   scripts/latest"时会装到上一个版本（本轮连踩两次，第一次 smoke 装的是 1.1.0）。
 
-### 1.4 已完成（2026-11-13，未发版）
+### 1.4 已完成（2026-11-13，v1.4.0 已发 + GUI gui-v0.11.0）
 
 - **索引并行拉取**：`internal/provider` 新增 `IndexLoader.LoadAll`（并发加载多工具索引、结果顺序与入参一致、
   单个失败只写自己的 `Err`），`pk list --available` 改用它。实测 6 工具冷缓存 `--refresh`：

@@ -325,7 +325,7 @@ the new version. **Old versions are kept** — clean them up with `pk gc --keep 
 ## 11. version / help
 
 ```bash
-$ pk version          # packnest v0.7.x (go1.27.3, darwin/arm64)
+$ pk version          # packnest v1.4.0 (go1.27.3, darwin/arm64)
 $ pk version --json   # {schema, name, version, go, os, arch}
 $ pk help install     # per-command help
 ```

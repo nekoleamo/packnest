@@ -495,7 +495,7 @@ $ pk upgrade --json       # {schema, changed, failed, items[{tool,from,to,change
 
 ```bash
 $ pk --version
-packnest v0.7.x (go1.27.3, darwin/arm64)
+packnest v1.4.0 (go1.27.3, darwin/arm64)
 
 $ pk --json version
 {
