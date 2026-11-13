@@ -566,6 +566,8 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
   默认关、只写用户级条目、关闭只删自己那条；`/api/autostart` GET 读状态、POST 开关；设置页一个开关 + 条目路径。
   单测 `TestEnableDisableWritesUserLevelEntry`（HOME 沙箱：默认关 / 打开写文件 / 关闭删文件 / 重复关闭幂等）。
   实测：打开后 `~/Library/LaunchAgents/packnest-desktop.plist` 出现，关闭后消失。
+- **go 索引换官方 CN 镜像**（1.4 #11）：`providers/go.toml` 的 `[index.urls]` 加 `cn = golang.google.cn/...`，
+  cn 档拿索引从 2.0s 降到 **1.35s**，go.dev 留作回退；`TestGoIndexHasCNMirror` 锁住顺序（cn 先、default 先官方）。
 - 用过 headless Chrome 分别以 `zh / en` 渲染自查（`--lang=en-US` 触发英文）：主面板、按钮、对话框、GC 分组标题都跟语言走。
 
 ### 1.3 已完成（2026-11-13，v1.3.1 已发）
@@ -777,8 +779,10 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 
 ## 已知缺口（按计划补齐，不是遗漏）
 
-- go 的国内索引源：npmmirror 没有 go 的产物/索引（实测），所以索引只声明官方 `?mode=json&include=all`，
-  拿不到时走 24h stale 缓存；产物与校验和可以走 aliyun/index-inline，不影响安装。
+- go 的国内索引源：npmmirror 没有 go 的产物/索引（实测）。**2026-11-13 补了 cn 档**：索引用官方 CN 镜像
+  `golang.google.cn/dl/?mode=json&include=all`（实测 1.35s vs go.dev 2.0s，且 host 不同是天然灾备），
+  default 档仍先 go.dev；两档都拿不到时走 24h stale 缓存。产物与校验和本来就能走 aliyun/index-inline。
+  ⚠️ aliyun/tuna/ustc/huaweicloud 的 `/golang/` 路径**不提供** `?mode=json`（实测 HTML/404），别照着换源。
 - python 的索引只声明 npmmirror（官方 GitHub 没有目录列举接口），官方只作为产物/校验和的回退源；
   若镜像索引整体不可用，只能靠 stale 缓存。
 - **pnpm 已改成平台包**（2026-11-11）：产物换成 registry 上的 `@pnpm/exe.<os>-<arch>`（真二进制，~23MB），

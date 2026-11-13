@@ -10,6 +10,9 @@ kind = "json"
 version_prefix = "go"
 [index.urls]
 default = "https://go.dev/dl/?mode=json&include=all"
+# 国内档用官方 CN 镜像（同一份 JSON，实测 1.2s vs go.dev 1.5s；host 不同也是天然灾备）。
+# ⚠️ aliyun/tuna/ustc/huaweicloud 的 /golang/ 路径**不提供** ?mode=json（实测返回 HTML/404），别照抄。
+cn      = "https://golang.google.cn/dl/?mode=json&include=all"
 
 [artifact]
 # 文件名直接用索引给的（go{version}.{platform}.{ext}），{filename} 更稳。
