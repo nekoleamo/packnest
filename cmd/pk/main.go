@@ -247,7 +247,7 @@ func printUsage(w io.Writer) {
 用法: pk <命令> [参数] [--json] [--offline] [--yes]
 
 命令:
-  install [工具@版本]     安装（无参数按 pk.toml；7 个工具全支持）
+  install [工具@版本]     安装（无参数按 pk.toml；6 个内嵌工具）
   uninstall 工具@版本     台账驱动卸载（被引用需 --force）
   use 工具@版本           切换全局默认版本                  [M4]
   list [--available]      已装/可装工具
