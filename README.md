@@ -122,7 +122,7 @@ pk install node@22.22.2   # 精确版本（跳过索引解析，仍取校验和�
 pk install node@22        # 22.x 最新补丁
 pk install node@latest    # 最新稳定
 pk install node@lts       # 最新 LTS
-pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式，不下载
+pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式：不下载、不写 pk.lock、不动盘
 ```
 
 ## 全局 vs 项目级

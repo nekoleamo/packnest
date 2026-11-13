@@ -106,7 +106,7 @@ pk install node@22.22.2   # exact (skips index resolution, still verifies checks
 pk install node@22        # newest 22.x patch
 pk install node@latest    # newest stable
 pk install node@lts       # newest LTS
-pk install node@22 --dry-run   # print version / artifact URL / checksum mode, download nothing
+pk install node@22 --dry-run   # print version / artifact URL / checksum mode — writes nothing
 ```
 
 ## Global vs project scope
