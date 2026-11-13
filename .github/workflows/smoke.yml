@@ -40,7 +40,9 @@ jobs:
         run: |
           # 以"线上最新 release"为准：用 scripts/latest 会在"刚发完版但还没推 scripts/latest"时
           # 装到上一个版本（2026-11-12 连踩两次），所以先查 GitHub Releases，查不到才回退仓库文件。
-          v="$(gh api "repos/${{ github.repository }}/releases/latest" -q .tag_name 2>/dev/null | sed 's/^v//' || true)"
+          v="$(gh api "repos/${{ github.repository }}/releases/latest" -q .tag_name 2>/dev/null || true)"
+          # releases/latest 会指到 GUI 的独立 tag（gui-vX.Y.Z）——那不是 CLI 产物，不认
+          case "$v" in v[0-9]*.[0-9]*.[0-9]*) v="$(printf '%s' "$v" | sed 's/^v//')" ;; *) v="" ;; esac
           if [ -z "$v" ]; then
             v="$(tr -d ' \t\r\n' < scripts/latest)"
             echo "::warning::线上没有 release，回退 scripts/latest=$v"

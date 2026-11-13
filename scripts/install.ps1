@@ -109,7 +109,9 @@ function Get-LatestVersion {
   }
   try {
     $release = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/$GiteeRepo/releases/latest" -TimeoutSec 15
-    if ($release.tag_name) { return $release.tag_name.TrimStart('v') }
+    # releases/latest can point at the GUI's own tag (gui-vX.Y.Z), which has no CLI artifacts —
+    # relying on it produced a "vgui-v0.10.4" download URL (404). Only accept plain vX.Y.Z.
+    if ($release.tag_name -match '^v\d+\.\d+\.\d+$') { return $release.tag_name.TrimStart('v') }
   } catch { }
   # gitee's API occasionally answers 401 anonymously: fall back to the single source of truth
   # in the repo (scripts/latest, bumped by `make release` and checked by verify-release).

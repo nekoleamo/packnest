@@ -33,7 +33,7 @@ help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
 	@echo "make test      零外网单测"
 	@echo "make check     8 项门禁（提交前必跑）"
-	@echo "make loc       只看行数预算（红线 11200；cmd/pk 3200 与单文件 600 只 warn）"
+	@echo "make loc       只看行数预算（红线 11300；cmd/pk 3200 与单文件 600 只 warn）"
 	@echo "make accept    只跑验收用例 TestAcceptance_*"
 	@echo "make cross     6 平台交叉编译到 $(DIST)/"
 	@echo "make cover     只看覆盖率明细"

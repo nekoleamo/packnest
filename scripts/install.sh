@@ -85,6 +85,12 @@ if [ -z "$VERSION" ]; then
   # 版本号跟着下载渠道走：gitee release API → 仓库里的单一真源 scripts/latest。
   VERSION=$(curl -fsSL --max-time 15 "https://gitee.com/api/v5/repos/${GITEE_REPO}/releases/latest" 2>/dev/null \
     | sed -n 's/.*"tag_name":"\([^"]*\)".*/\1/p' | head -1 || true)
+  # releases/latest 会指到 GUI 的独立 tag（gui-vX.Y.Z）：那不是 CLI 的产物，直接不认
+  # （2026-11-13 实测踩到：发完 gui-v0.10.4 后一行安装拼出了 vgui-v0.10.4 的 URL，404）。
+  case "$VERSION" in
+    v[0-9]*.[0-9]*.[0-9]*) : ;;
+    *) VERSION="" ;;
+  esac
   if [ -z "$VERSION" ]; then
     # gitee API 匿名偶发 401 / 限流：退回仓库里的单一真源文件（发布时由 make release 更新）
     VERSION=$(curl -fsSL --max-time 15 "https://gitee.com/${GITEE_REPO}/raw/main/scripts/latest" 2>/dev/null \
