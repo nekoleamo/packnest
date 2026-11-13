@@ -182,6 +182,36 @@ td code{padding:.06rem .3rem;background:var(--accent-soft);border-radius:4px;fon
 .after{margin:1rem 0 0;color:var(--muted);font-size:.88rem}
 .after code{padding:.06rem .3rem;background:var(--accent-soft);border-radius:4px;color:var(--accent-text)}
 
+/* ---------- 桌面端（GUI）：定位单独成块，与清单拉开层次 ---------- */
+.gui-lede{
+  margin:1.35rem 0 0;padding:.95rem 1.15rem;border:1px solid var(--line);border-radius:12px;
+  background:var(--panel);color:var(--muted);font-size:.9rem;line-height:1.85;
+}
+.gui-lede code{padding:.06rem .3rem;background:var(--accent-soft);border-radius:4px;color:var(--accent-text)}
+/* 代码片段不跨行断：`--probe` 若在连字符处断开，就成了 "-" + "-probe"，读起来像另一个参数。
+   这些片段最长约 22 字符（pk install <工具>@latest），500px 视口下仍放得下。 */
+.feats code,.gui-lede code{white-space:nowrap}
+/* 1fr 的隐式最小宽度是 min-content：长 mono 文件名会把整列撑出视口，显式用 minmax(0,1fr) */
+.gui-facts{margin:2.1rem 0 0;grid-template-columns:8.5rem minmax(0,1fr)}
+.gui-facts dt{
+  padding-top:.2rem;font-family:var(--mono);font-size:.76rem;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);
+}
+.feats{list-style:none;margin:0;padding:0;display:grid;gap:.5rem}
+.feats li{position:relative;padding-left:1.05rem;line-height:1.72}
+.feats li::before{
+  content:"";position:absolute;left:0;top:.62em;width:.34rem;height:.34rem;border-radius:50%;
+  background:var(--accent);opacity:.75;
+}
+.feats b{font-weight:640;color:var(--fg)}
+.artifacts{margin:.35rem 0 0;padding:0;list-style:none;font-family:var(--mono);font-size:.82rem;color:var(--muted)}
+.artifacts li{padding:.12rem 0;overflow-wrap:anywhere}
+/* 网格项默认 min-width:auto → 长的 mono 文件名会把整列撑出视口（窄屏横向溢出），这里允许收缩 */
+.gui-facts dd,.gui-facts dt,.feats li{min-width:0}
+@media (min-width:52rem){
+  .feats{grid-template-columns:1fr 1fr;gap:.5rem 1.8rem}
+}
+
 /* ---------- 英文摘要 ---------- */
 .en{
   margin:4rem 0 0;padding:1.3rem 1.4rem;border:1px solid var(--line);border-radius:12px;
@@ -225,7 +255,10 @@ footer .fine{margin-left:auto;font-size:.8rem;opacity:.9}
   .stats{grid-template-columns:repeat(3,1fr);gap:1.1rem 0}
   .stats li:nth-child(4){padding-left:0}
   .stats li:nth-child(4)::before{display:none}
-  dl{grid-template-columns:1fr;gap:.2rem}
+  dl,.gui-facts{grid-template-columns:1fr;gap:.2rem}
+  /* 窄屏时标题与右侧小字各占一行，否则 "Desktop app" 会被挤成两行 */
+  h2{flex-wrap:wrap}
+  h2 .hint{flex-basis:100%;margin-left:calc(.42rem + .6rem)}
   dt{margin-top:.9rem}
   table,thead,tbody,tr,td,th{display:block}
   thead{display:none}

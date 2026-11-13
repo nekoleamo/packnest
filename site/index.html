@@ -154,26 +154,42 @@
 
 <section id="gui">
   <h2>桌面端 <span class="hint">可选 · 独立产物 · 必须先装 CLI</span></h2>
-  <p class="after">GUI（<code>pk-desktop</code>，Wails + Vue3）只是 CLI 的可视化补充：不 import 任何内部包，
-  每个操作都是子进程调 <code>pk &lt;命令&gt; --json</code>，业务真相始终在 CLI 和 <code>~/.packnest</code> 里。
+  <p class="gui-lede">GUI（<code>pk-desktop</code>，Wails + Vue3）只是 CLI 的可视化补充：不 import 任何内部包，
+  每个操作都是子进程调 <code>pk &lt;命令&gt;</code> <code>--json</code>，业务真相始终在 CLI 和 <code>~/.packnest</code> 里。
   所以它永远比 CLI 晚半步，也不会替你下载第二份运行时。</p>
-  <dl>
+
+  <dl class="gui-facts">
     <dt>能做什么</dt>
-    <dd>已装工具表（含 <b>可升级</b> 提示，点一下就 <code>pk install &lt;工具&gt;@latest</code>）、多 spec 安装队列与每行进度、
-    镜像档切换 + 各源延迟探测、体检页（全局包表格化、<code>--probe</code> 用 node 实测原生模块、<b>一键修复</b> = <code>pk doctor --fix</code>）、
-    回收页（预演/真删、<code>--keep N</code> 每个工具保留最近 N 个版本）、<code>which</code> 与 <code>env</code> 只读查看、
-    深浅色切换、<b>中英双语</b>（顶栏切换，默认跟系统语言）、<b>开机自启</b>（默认关，只写用户级条目）。</dd>
+    <dd>
+      <ul class="feats">
+        <li>已装工具表：<b>可升级</b>提示（点一下就 <code>pk install &lt;工具&gt;@latest</code>）、weak / 未校验 / npm 徽标、复制安装路径</li>
+        <li>安装队列：多条 spec 依次装，每行独立进度（NDJSON 的 <code>progress</code> 事件）</li>
+        <li>镜像档切换 + 各源延迟探测，写 <code>~/.npmrc</code> 前自动备份</li>
+        <li>体检页：全局包表格化、<code>--probe</code> 用 node 实测原生模块、<b>一键修复</b>（<code>pk doctor --fix</code>）</li>
+        <li>回收页：预演 / 真删、<code>--keep N</code> 每个工具保留最近 N 个版本</li>
+        <li>只读查看 <code>which</code>（命令 → 真实路径）与 <code>env</code>（PATH / 变量）</li>
+        <li>深浅色切换、<b>中英双语</b>（顶栏切换，默认跟系统语言）</li>
+        <li><b>开机自启</b>（默认关，只写用户级条目：LaunchAgent / HKCU Run / XDG autostart）</li>
+      </ul>
+    </dd>
+
     <dt>下载</dt>
     <dd>独立 tag <code>gui-v__GUI_VERSION__</code>，三个产物：
-    <code>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</code>、<code>…_windows_amd64.zip</code>、<code>…_linux_amd64.tar.gz</code> ——
-    从 <a href="https://gitee.com/null_593_5354/packnest/releases/tag/gui-v__GUI_VERSION__">gitee</a> 或
-    <a href="https://github.com/nekoleamo/packnest/releases/tag/gui-v__GUI_VERSION__">GitHub</a> 取。</dd>
+      <ul class="artifacts">
+        <li>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</li>
+        <li>packnest-desktop___GUI_VERSION___windows_amd64.zip</li>
+        <li>packnest-desktop___GUI_VERSION___linux_amd64.tar.gz</li>
+      </ul>
+      从 <a href="https://gitee.com/null_593_5354/packnest/releases/tag/gui-v__GUI_VERSION__">gitee</a> 或
+      <a href="https://github.com/nekoleamo/packnest/releases/tag/gui-v__GUI_VERSION__">GitHub</a> 取。</dd>
+
     <dt>前置条件</dt>
-    <dd>先装 CLI（<code>pk</code>）—— 没装时界面顶部会直接给出<b>当前平台</b>的安装命令（Windows 走 PowerShell，其余走 <code>sh</code>）并带复制按钮。macOS 是 ad-hoc 签名，首次打开要在
-    「系统设置 → 隐私与安全性」放行一次；Linux 需要 GTK4 + WebKitGTK 6.0（<code>libgtk-4-dev libwebkitgtk-6.0-dev</code>）。
+    <dd>先装 CLI（<code>pk</code>）—— 没装时界面顶部会直接给出<b>当前平台</b>的安装命令（Windows 走 PowerShell，其余走 <code>sh</code>）并带复制按钮。
+    macOS 是 ad-hoc 签名，首次打开要在「系统设置 → 隐私与安全性」放行一次；Linux 需要 GTK4 + WebKitGTK 6.0（<code>libgtk-4-dev</code> <code>libwebkitgtk-6.0-dev</code>）。
     不想装桌面运行时也能用浏览器形态：<code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code>，功能与桌面壳一致。</dd>
+
     <dt>不是什么</dt>
-    <dd>不是第二个安装器：没有自己的下载器、台账或更新器；卸载/升级仍指回 CLI（<code>brew upgrade packnest</code>、
+    <dd>不是第二个安装器：没有自己的下载器、台账或更新器；卸载与升级仍指回 CLI（<code>brew upgrade packnest</code>、
     <code>pk uninstall --all --self</code>）。</dd>
   </dl>
 </section>

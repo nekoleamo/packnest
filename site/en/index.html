@@ -155,29 +155,42 @@
 
 <section id="gui">
   <h2>Desktop app <span class="hint">optional · separate artifact · requires the CLI</span></h2>
-  <p class="after">The GUI (<code>pk-desktop</code>, Wails + Vue3) is a visual supplement to the CLI, not a second installer:
-  it imports no internal packages and every action is a subprocess call to <code>pk &lt;command&gt; --json</code>,
+  <p class="gui-lede">The GUI (<code>pk-desktop</code>, Wails + Vue3) is a visual supplement to the CLI, not a second installer:
+  it imports no internal packages and every action is a subprocess call to <code>pk &lt;command&gt;</code> <code>--json</code>,
   so the truth always stays in the CLI and in <code>~/.packnest</code>.</p>
-  <dl>
+
+  <dl class="gui-facts">
     <dt>What it does</dt>
-    <dd>Installed-tools table with an <b>upgrade</b> hint (one click = <code>pk install &lt;tool&gt;@latest</code>), a multi-spec
-    install queue with per-row progress, mirror profile switching plus latency probing, a doctor page (global packages in a
-    table, <code>--probe</code> to really load native modules with node, and <b>Fix&nbsp;now</b> = <code>pk doctor --fix</code>),
-    a reclaim page (preview or delete, <code>--keep N</code> to keep the newest N versions per tool), read-only
-    <code>which</code> / <code>env</code> views, a light/dark toggle, <b>Chinese/English UI</b> (header switch, follows the
-    system language by default) and <b>launch at login</b> (off by default, user-level entry only).</dd>
+    <dd>
+      <ul class="feats">
+        <li>Installed-tools table with an <b>upgrade</b> hint (one click = <code>pk install &lt;tool&gt;@latest</code>), weak / unverified / npm badges, copy install path</li>
+        <li>Install queue: multiple specs run one after another, per-row progress (the NDJSON <code>progress</code> event)</li>
+        <li>Mirror profile switching with latency probing; writing <code>~/.npmrc</code> backs it up first</li>
+        <li>Doctor page: global packages in a table, <code>--probe</code> to really load native modules with node, <b>Fix now</b> (<code>pk doctor --fix</code>)</li>
+        <li>Reclaim page: preview or delete, <code>--keep N</code> keeps the newest N versions per tool</li>
+        <li>Read-only <code>which</code> (command → real path) and <code>env</code> (PATH / variables) views</li>
+        <li>Light/dark toggle and a <b>Chinese/English UI</b> (header switch, follows the system language)</li>
+        <li><b>Launch at login</b> (off by default; user-level entry only: LaunchAgent / HKCU Run / XDG autostart)</li>
+      </ul>
+    </dd>
+
     <dt>Download</dt>
     <dd>Separate tag <code>gui-v__GUI_VERSION__</code> with three artifacts:
-    <code>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</code>, <code>…_windows_amd64.zip</code>,
-    <code>…_linux_amd64.tar.gz</code> — from
-    <a href="https://gitee.com/null_593_5354/packnest/releases/tag/gui-v__GUI_VERSION__">gitee</a> or
-    <a href="https://github.com/nekoleamo/packnest/releases/tag/gui-v__GUI_VERSION__">GitHub</a>.</dd>
+      <ul class="artifacts">
+        <li>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</li>
+        <li>packnest-desktop___GUI_VERSION___windows_amd64.zip</li>
+        <li>packnest-desktop___GUI_VERSION___linux_amd64.tar.gz</li>
+      </ul>
+      from <a href="https://gitee.com/null_593_5354/packnest/releases/tag/gui-v__GUI_VERSION__">gitee</a> or
+      <a href="https://github.com/nekoleamo/packnest/releases/tag/gui-v__GUI_VERSION__">GitHub</a>.</dd>
+
     <dt>Requirements</dt>
     <dd>The CLI must be installed first — if it is missing, the header shows the install command for <b>your platform</b>
-    (PowerShell on Windows, <code>sh</code> elsewhere) with a copy button. macOS builds are
-    ad-hoc signed: allow the app once under System Settings → Privacy &amp; Security. Linux needs GTK4 + WebKitGTK 6.0
-    (<code>libgtk-4-dev libwebkitgtk-6.0-dev</code>). No desktop runtime? Use the browser form:
+    (PowerShell on Windows, <code>sh</code> elsewhere) with a copy button.
+    macOS builds are ad-hoc signed: allow the app once under System Settings → Privacy &amp; Security. Linux needs GTK4 + WebKitGTK 6.0
+    (<code>libgtk-4-dev</code> <code>libwebkitgtk-6.0-dev</code>). No desktop runtime? Use the browser form:
     <code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code>, same features.</dd>
+
     <dt>What it is not</dt>
     <dd>Not a second package manager: no downloader of its own, no separate ledger, no self-updater. Uninstall and upgrade
     still go through the CLI (<code>brew upgrade packnest</code>, <code>pk uninstall --all --self</code>).</dd>
