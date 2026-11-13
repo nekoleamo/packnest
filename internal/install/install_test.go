@@ -1340,3 +1340,31 @@ func TestUninstallToolAllVersions(t *testing.T) {
 		t.Fatal("没有版本时应报错")
 	}
 }
+
+// PK_CACHE：缓存落到独立目录时，产物与索引缓存都不该再出现在 PK_ROOT 里。
+func TestCacheOutsideRoot(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.22.2"}},
+		NPM:      npmMatrix(),
+	})
+	cacheDir := t.TempDir()
+	inst := newInstaller(t, fm, func(o *Options) { o.Paths.CacheRoot = cacheDir })
+	if _, err := inst.Install(context.Background(), "node", "22.22.2"); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	root := rootOf(t, inst)
+	entries, err := os.ReadDir(filepath.Join(cacheDir, "archives"))
+	if err != nil || len(entries) == 0 {
+		t.Fatalf("产物应落在 PK_CACHE 的 archives 里: %v %v", entries, err)
+	}
+	if _, err := os.Stat(filepath.Join(root.Root, "cache")); !os.IsNotExist(err) {
+		t.Fatalf("PK_ROOT/cache 不该被创建: %v", err)
+	}
+	// 卸载只清运行时，独立缓存跟着自己的目录走（不被连带删）
+	if err := inst.Uninstall("node", "22.22.2", true); err != nil {
+		t.Fatalf("Uninstall: %v", err)
+	}
+	if entries, err := os.ReadDir(filepath.Join(cacheDir, "archives")); err != nil || len(entries) == 0 {
+		t.Fatalf("卸载不该删独立缓存: %v %v", entries, err)
+	}
+}

@@ -20,10 +20,12 @@ type UninstallAllOptions struct {
 
 // UninstallPlan 描述"会删什么"，只看台账与配置、**不动盘**（打印、预览、单测都用它）。
 type UninstallPlan struct {
-	Tools     []string          // "node@22.23.5"，已排序
-	Active    map[string]string // 工具 → 当前全局默认版本（打印 * 标记用）
-	BinDir    string
-	Root      string
+	Tools  []string          // "node@22.23.5"，已排序
+	Active map[string]string // 工具 → 当前全局默认版本（打印 * 标记用）
+	BinDir string
+	Root   string
+	// Cache 是 PK_CACHE 指定的独立缓存目录（空 = 缓存在 <Root>/cache 里，随之一起删）。
+	Cache     string
 	Purge     bool
 	KeepCache bool
 }
@@ -39,7 +41,7 @@ type UninstallResult struct {
 func (i *Installer) PlanUninstallAll(opts UninstallAllOptions) UninstallPlan {
 	p := UninstallPlan{
 		Active: map[string]string{}, BinDir: i.opt.Paths.Bin(), Root: i.opt.Paths.Root,
-		Purge: opts.Purge, KeepCache: opts.KeepCache,
+		Cache: i.opt.Paths.CacheRoot, Purge: opts.Purge, KeepCache: opts.KeepCache,
 	}
 	for _, in := range i.ledger.Installs {
 		p.Tools = append(p.Tools, in.Tool+"@"+in.Version)

@@ -139,6 +139,25 @@ pk: 清单与 pk.lock 不一致（--frozen 不做解析）：
 建议：本地 `pk install` 更新锁并提交
 ```
 
+**没有 pk.toml 也能按项目装（1.5 起）**：目录里只有 `package.json` 时，读它的 `engines.node`：
+
+```bash
+$ cat package.json
+{ "engines": { "node": "^20.17 || >=22.9" } }
+$ pk install
+按 package.json 的 engines.node 装 node：^20.17 || >=22.9
+装好 node@24.15.0 → …/tools/node/24.15.0
+没写 pk.lock（这个项目没有 pk.toml；想固化版本就加一份）
+```
+
+优先顺序：命令行参数 > `pk.toml` 的 `[tools]` > `package.json` 的 `engines.node`（只补 node，只读）。
+`engines.node` 解析不了会当场报错并给建议；`package.json` 本身写坏了只提示一行、不拦安装。
+只有 `pk.toml` 存在时 pk 才写 `pk.lock` —— 它不往你的仓库里多放文件。
+
+**缓存可以搬出 `PK_ROOT`**：`PK_CACHE=/mnt/ci-cache`（CI 挂卷、多机预热）后，产物缓存
+（`archives/`）、索引缓存（`meta/`）、corepack/npm 缓存都落到那个目录；台账、锁、shim 仍在 `PK_ROOT`。
+`pk uninstall --all --purge` **不会**删 `PK_CACHE` 指定的目录（那通常是挂载卷），要清自己删。
+
 ### 1.6 其他开关
 
 ```bash

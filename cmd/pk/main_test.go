@@ -1398,3 +1398,23 @@ func TestUninstallResolvesMajorSpec(t *testing.T) {
 		t.Fatalf("卸载后台账里不该再有该版本: %d %q", code, out)
 	}
 }
+
+// 没有 pk.toml、但 package.json 有 engines.node：`pk install` 要把这条告诉用户并按它解析。
+// 这里只断言"读到了、用上了"这一层（离线，不起网络）；完整解析/落地在
+// acceptance 的 TestAcceptance_M7_PackageJSONEngines 里。
+func TestInstallFromPackageJSONEngines(t *testing.T) {
+	root := t.TempDir()
+	dir := t.TempDir()
+	if err := os.WriteFile(dir+"/package.json", []byte(`{"engines":{"node":">=22.9"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	code, out, errOut := execCLI(t, "--root", root, "--offline", "install")
+	if strings.Contains(errOut, "没有 pk.toml") {
+		t.Fatalf("有 engines.node 时不该报「没有 pk.toml」: %q", errOut)
+	}
+	if !strings.Contains(out, "engines.node") {
+		t.Fatalf("应说明 node 规格来自 package.json: %q（stderr %q）", out, errOut)
+	}
+	_ = code // 离线拿不到索引 → 退出码是网络（3），不在这里断言
+}

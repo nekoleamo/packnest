@@ -211,3 +211,32 @@ func TestRemoveManagedBlockLeavesNoBlankLine(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestCorepackHomeFollowsCache(t *testing.T) {
+	p, err := paths.New("/root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := kvs(SharedVars(p, "/home/u/.npm"))["COREPACK_HOME"]; got != "/root/cache/corepack" {
+		t.Fatalf("COREPACK_HOME = %q，期望 /root/cache/corepack", got)
+	}
+	p.CacheRoot = "/ci-cache"
+	if got := kvs(SharedVars(p, "/home/u/.npm"))["COREPACK_HOME"]; got != "/ci-cache/corepack" {
+		t.Fatalf("PK_CACHE 下的 COREPACK_HOME = %q", got)
+	}
+}
+
+func TestNpmCacheDirFollowsCache(t *testing.T) {
+	t.Setenv("HOME", t.TempDir()) // 隔离真实 ~/.npm（存在时会被沿用）
+	p, err := paths.New("/root")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := NpmCacheDir(p); got != "/root/cache/npm" {
+		t.Fatalf("NpmCacheDir = %q", got)
+	}
+	p.CacheRoot = "/ci-cache"
+	if got := NpmCacheDir(p); got != "/ci-cache/npm" {
+		t.Fatalf("PK_CACHE 下的 NpmCacheDir = %q", got)
+	}
+}

@@ -16,8 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/BurntSushi/toml"
-
 	"github.com/packnest/packnest/internal/archive"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/jsonout"
@@ -564,25 +562,6 @@ func removeDirWithRetry(dir string, attempts int) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 	return err
-}
-
-// LoadProject 读取项目 pk.toml 的 [tools]（项目锁的另一半在 M4）。
-func LoadProject(dir string) (map[string]string, error) {
-	path := filepath.Join(dir, "pk.toml")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("读取 %q 失败: %w", path, err)
-	}
-	var doc struct {
-		Tools map[string]string `toml:"tools"`
-	}
-	if err := toml.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("解析 %q 失败: %w", path, err)
-	}
-	return doc.Tools, nil
 }
 
 func boolPtr(b bool) *bool { return &b }

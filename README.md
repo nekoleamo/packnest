@@ -132,6 +132,7 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式，不�
 | 动作 | 行为 |
 |---|---|
 | `pk install`（目录**没有** `pk.toml`） | 装进共享目录 `~/.packnest/tools/<tool>/<ver>`；该工具还没有全局默认时**自动设为默认** |
+| `pk install`（只有 `package.json`） | 读它的 `engines.node` 当 node 的版本范围（`pk.toml` 有声明则以其为准），**不写 `pk.lock`** |
 | `pk install`（目录**有** `pk.toml`） | 按声明安装，并生成/更新 `pk.lock`（项目级锁定） |
 | `pk use node@22.22.2` | 固定**全局**默认（config.toml + 台账引用 + 重指 shim 三处同步） |
 | `pk use node@22.22.2 --project` | 固定**项目**：写当前目录 `pk.toml` + 重新生成 `pk.lock`，不动全局默认 |
@@ -146,6 +147,7 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式，不�
 - 第三方依赖 **2 个**：`Masterminds/semver/v3`、`BurntSushi/toml`
 - 归档只支持 **tar.gz / zip**，解压零第三方（`archive/tar` + `compress/gzip` + `archive/zip`）
 - 单根 `PK_ROOT`（默认 `~/.packnest`），**永不 sudo、永不写 shell rc**（`pk env --write` 的托管块除外）
+- 唯一的例外是缓存：`PK_CACHE=<目录>` 可把 `archives/`、`meta/`、corepack/npm 缓存搬到别处（CI 挂卷），台账/shim/锁不动
 - 默认**不动**用户已有配置：不写 `~/.npmrc`（要写用 `pk mirror write`，写前备份、只增不改）
 - 默认 `go test ./...` **零外网**；真网测试一律 `//go:build nettest`，不进门禁
 

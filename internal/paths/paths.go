@@ -14,22 +14,39 @@ import (
 // RootEnv 是覆盖根目录的环境变量。测试全用它指向 t.TempDir()。
 const RootEnv = "PK_ROOT"
 
+// CacheEnv 把缓存目录从 PK_ROOT 里抽出来（CI 挂载缓存、多机预热用）。
+const CacheEnv = "PK_CACHE"
+
 // Paths 是 ~/.packnest 的目录视图（单根布局）。
 type Paths struct {
 	// Root 为绝对路径的根目录。
 	Root string
+	// CacheRoot 是缓存根；为空时用 <Root>/cache（默认形态）。只有 PK_CACHE 能改它。
+	CacheRoot string
 }
 
-// Resolve 按 PK_ROOT → ~/.packnest 的顺序解析根目录。
+// Resolve 按 PK_ROOT → ~/.packnest 的顺序解析根目录，再按 PK_CACHE 覆盖缓存根。
 func Resolve() (Paths, error) {
-	if root := strings.TrimSpace(os.Getenv(RootEnv)); root != "" {
-		return New(root)
+	root := strings.TrimSpace(os.Getenv(RootEnv))
+	if root == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return Paths{}, fmt.Errorf("解析用户主目录失败: %w", err)
+		}
+		root = filepath.Join(home, ".packnest")
 	}
-	home, err := os.UserHomeDir()
+	p, err := New(root)
 	if err != nil {
-		return Paths{}, fmt.Errorf("解析用户主目录失败: %w", err)
+		return Paths{}, err
 	}
-	return New(filepath.Join(home, ".packnest"))
+	if cache := strings.TrimSpace(os.Getenv(CacheEnv)); cache != "" {
+		c, err := New(cache)
+		if err != nil {
+			return Paths{}, fmt.Errorf("解析 %s 失败: %w", CacheEnv, err)
+		}
+		p.CacheRoot = c.Root
+	}
+	return p, nil
 }
 
 // New 以给定根目录构造 Paths：展开 ~、转绝对路径，不做任何磁盘操作。
@@ -69,11 +86,22 @@ func (p Paths) ToolVersion(name, version string) string {
 	return p.join("tools", name, version)
 }
 
+// Cache 是缓存根：PK_CACHE 覆盖，默认 <Root>/cache。
+func (p Paths) Cache() string {
+	if p.CacheRoot != "" {
+		return p.CacheRoot
+	}
+	return p.join("cache")
+}
+
+// CacheDir 是缓存根下的子目录（corepack/npm 等派生缓存跟着走）。
+func (p Paths) CacheDir(name string) string { return filepath.Join(p.Cache(), name) }
+
 // CacheArchives 是内容寻址的产物缓存。
-func (p Paths) CacheArchives() string { return p.join("cache", "archives") }
+func (p Paths) CacheArchives() string { return p.CacheDir("archives") }
 
 // CacheMeta 是索引元数据缓存（ETag/Last-Modified）。
-func (p Paths) CacheMeta() string { return p.join("cache", "meta") }
+func (p Paths) CacheMeta() string { return p.CacheDir("meta") }
 
 // State 是台账与锁。
 func (p Paths) State() string { return p.join("state") }

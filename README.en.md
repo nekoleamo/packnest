@@ -116,6 +116,7 @@ pk install node@22 --dry-run   # print version / artifact URL / checksum mode, d
 | Action | Behaviour |
 |---|---|
 | `pk install` (**no** `pk.toml` here) | installs into `~/.packnest/tools/<tool>/<ver>`; becomes the global default if that tool has none |
+| `pk install` (`package.json` only) | uses its `engines.node` as the node range (`pk.toml` wins when both exist) and does **not** write `pk.lock` |
 | `pk install` (**with** `pk.toml`) | installs what is declared and writes/refreshes `pk.lock` (project pinning) |
 | `pk use node@22.22.2` | pins the **global** default (config.toml + ledger reference + shim re-point) |
 | `pk use node@22.22.2 --project` | pins the **project**: writes `pk.toml` and regenerates `pk.lock`, global default untouched |
@@ -130,6 +131,7 @@ There is only ever one copy on disk; project scope means "pinning + PATH order",
 - **Two** third-party dependencies: `Masterminds/semver/v3`, `BurntSushi/toml`
 - Archives: **tar.gz / zip** only, extracted with the standard library (`archive/tar` + `compress/gzip` + `archive/zip`)
 - Single `PK_ROOT` (default `~/.packnest`), **never sudo, never writes your shell rc** (except the managed block from `pk env --write`)
+- Cache is the one exception: `PK_CACHE=<dir>` moves `archives/`, `meta/` and the corepack/npm caches elsewhere (CI volumes); ledger, shims and locks stay put
 - Never modifies existing user configuration by default: no writes to `~/.npmrc` (use `pk mirror write`, which backs up and is additive)
 - `go test ./...` is **offline** by default; real-network tests are `//go:build nettest` and stay out of the gate
 

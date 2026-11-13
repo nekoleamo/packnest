@@ -110,6 +110,23 @@ $ pk install --frozen
 `pk.toml` and the lock disagree (floating aliases such as `latest`/`lts` are rejected — pin them with
 `pk use --lock` first).
 
+**No `pk.toml`? `package.json` is enough (since 1.5).** When the directory only has a `package.json`,
+its `engines.node` becomes the node range:
+
+```bash
+$ pk install                      # engines.node: "^20.17 || >=22.9"
+按 package.json 的 engines.node 装 node：^20.17 || >=22.9
+```
+
+Precedence: command-line args > `pk.toml` `[tools]` > `package.json` `engines.node` (node only, read-only).
+An unparsable range fails immediately with advice; a malformed `package.json` only prints a note and never
+blocks an explicit install. `pk.lock` is written **only** when `pk.toml` exists — pk does not drop extra files
+into your repo.
+
+**Cache outside `PK_ROOT`:** `PK_CACHE=/mnt/ci-cache` moves the artifact cache (`archives/`), the index cache
+(`meta/`) and the corepack/npm caches there; ledger, lock and shims stay in `PK_ROOT`.
+`pk uninstall --all --purge` does **not** delete the `PK_CACHE` directory (it is usually a mounted volume).
+
 ### 1.5 Other flags
 
 | Flag | Effect |

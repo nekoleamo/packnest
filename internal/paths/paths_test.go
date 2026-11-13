@@ -118,3 +118,41 @@ func TestRemainingLayoutHelpers(t *testing.T) {
 		}
 	}
 }
+
+func TestCacheEnvOverride(t *testing.T) {
+	t.Setenv(RootEnv, "")
+	t.Setenv(CacheEnv, "~/ci-cache")
+	p, err := Resolve()
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	home, _ := os.UserHomeDir()
+	want := filepath.Join(home, "ci-cache")
+	if p.Cache() != want {
+		t.Fatalf("Cache = %q，期望 %q", p.Cache(), want)
+	}
+	if got := p.CacheArchives(); got != filepath.Join(want, "archives") {
+		t.Errorf("CacheArchives = %q", got)
+	}
+	if got := p.CacheMeta(); got != filepath.Join(want, "meta") {
+		t.Errorf("CacheMeta = %q", got)
+	}
+	if got := p.CacheDir("corepack"); got != filepath.Join(want, "corepack") {
+		t.Errorf("CacheDir = %q", got)
+	}
+	// 台账/锁/产物目录不受影响，仍在 PK_ROOT 里
+	if got := p.Ledger(); got == "" || filepath.Dir(got) != filepath.Join(p.Root, "state") {
+		t.Errorf("Ledger = %q，应留在 PK_ROOT", got)
+	}
+}
+
+func TestCacheDefaultsUnderRoot(t *testing.T) {
+	t.Setenv(CacheEnv, "")
+	p := Paths{Root: "/r"}
+	if got := p.Cache(); got != "/r/cache" {
+		t.Fatalf("Cache = %q，期望 /r/cache", got)
+	}
+	if got := p.CacheDir("npm"); got != "/r/cache/npm" {
+		t.Fatalf("CacheDir = %q", got)
+	}
+}

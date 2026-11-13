@@ -506,7 +506,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 |---|---|
 | CLI | **v1.4.0 已发（2026-11-13）**：gitee + GitHub Releases + brew tap + scoop；6 平台产物、`--json` 契约冻结（schema 1）、**10 个命令**（新增 `upgrade`） |
 | 门禁 | `make check` 8 项全绿（含 `make loc`），**并已上云**（`.github/workflows/ci.yml`：同 8 项 + GUI 契约测试）；`make accept` 37 项；smoke CI 5/5；staticcheck/vet 干净 |
-| 行数 | **11,150 / 11,200**（余量 50）；`cmd/pk` 3,204 / 3,200（warn）；单文件无 >600 行 |
+| 行数 | **11,597 / 11,600**（余量 3）；`cmd/pk` 3,191 / 3,200；单文件无 >600 行（`cmd_list.go` 497） |
 | GUI | `cmd/pk-desktop`（Wails v3.1.0 + Vue3/TS/Vite，**独立模块、不 import internal/***），子进程调 `pk --json`；托盘 + 单实例 + `--serve` 浏览器形态；mac `.app` 只发 arm64（intel 2026-11-12 放弃；图标就绪，ad-hoc 签名，公证不做） |
 | GUI 发布 | 独立 tag **`gui-v0.10.4`**（gitee + GitHub 各 3 产物：mac arm64 `.app.zip`、win amd64 `.zip`、linux amd64 `.tar.gz`）；mac intel 已放弃，`gui-v0.10.1` 是补差异页之前那版 |
 | 发布流程 | 唯一清单在 `docs/publishing.md`（「三、发布流程」第 ⑦ 步 + 「五点五、GUI 的产物」） |
@@ -800,3 +800,29 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
   `bundled` 跳过、`latest-compatible` 取该 provider 最新版、`pinned` 读 `version`；装进宿主 `<target>`，
   跟着宿主一起卸载/回收（不单独进台账）。node→npm 仍是 `applyCompanion` 的 engines 反查特例。
   验收 `TestGenericCompanionInstalled`、`TestCompanionPinnedNeedsVersion`。
+
+## 1.5（2026-11-13，未发版）
+
+候选清单见 `~/Documents/Plan/17-包管理器/pn-1.5-候选清单.md`。三条一起做：两条功能 + 一条偿债。
+
+- **#5 `PK_CACHE` 独立缓存目录**：`internal/paths` 多一个 `CacheRoot`（`Resolve` 读环境变量，`~`/相对路径照常展开），
+  产物缓存 `archives/`、索引缓存 `meta/`、`COREPACK_HOME`、`npm_config_cache` 的兜底值全部跟着走；
+  台账/锁/shim/`config.toml` 仍在 `PK_ROOT`。`pk uninstall --all --purge` **不动**外部缓存目录（通常是 CI 挂卷），
+  预览里会明说一句。用例：`TestCacheEnvOverride`、`TestCacheDefaultsUnderRoot`、`TestCacheOutsideRoot`（装完
+  产物在 `PK_CACHE/archives`、`PK_ROOT/cache` 不被创建、卸载不连带删）、`TestCorepackHomeFollowsCache`、
+  `TestNpmCacheDirFollowsCache`。
+- **#6 读 `package.json` 的 `engines.node`**：`internal/install/project.go` 的 `ProjectSpecs` ——
+  优先级「命令行 > `pk.toml` `[tools]` > `package.json` `engines.node`」，engines 只补 `node` 且只读。
+  `engines.node` 解析不了当场报错并给 `pk install node@<版本>` 的建议；`package.json` 写坏只提示一行、不拦安装。
+  **只有在 `pk.toml` 存在时才写 `pk.lock`**（`HasProjectFile`）—— 不往没有 pk.toml 的仓库里多放文件，
+  装完给一行"没写 pk.lock（想固化版本就加一份）"。用例：`TestProjectSpecs*`（6 个）、`TestHasProjectFile`、
+  `TestInstallFromPackageJSONEngines`（CLI 层：提示出现、不再报"没有 pk.toml"）、
+  `TestAcceptance_M7_PackageJSONEngines`（`>=22.9 <23` 选出 22.98.0；pk.toml 说 20 就赢）。
+- **偿债：`pk list` 的数据装配下沉**：`internal/install/listview.go`（`ActiveVersions` / `InstalledEntries` /
+  `OutdatedHints`）+ `internal/provider/rows.go`（`AvailableRows` + `AvailableRow`，`--json` 的 `available[]` 契约
+  与 `tools[]` 形状不变，golden 未改）。`cmd/pk` 3,320 → **3,191**（回到 warn 线内），`cmd_list.go` 626 → **497**。
+  代价是总量 +166（接口税），红线 11,450 → **11,600**（2026-11-13 拍板），落地 11,597。
+
+**1.5 的取舍记录**：`engines.node` 只补 node、不补 pnpm/bun —— `packageManager` 字段（corepack 那套）语义不同，
+混进来会让"pk.toml 权威"这条变模糊，留作以后单独评估。`PK_CACHE` 只搬缓存，没搬台账：台账与锁必须和 shim 在同一处，
+否则"删了缓存目录"会连安装记录一起丢。

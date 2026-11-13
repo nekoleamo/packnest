@@ -63,9 +63,14 @@ func (a *app) cmdInstall(args []string) int {
 		}
 	}
 
-	project, err := install.LoadProject(a.cwd())
+	project, notes, err := install.ProjectSpecs(a.cwd())
 	if err != nil {
 		return a.fail(err)
+	}
+	for _, n := range notes {
+		if !a.json {
+			fmt.Fprintln(a.out, n)
+		}
 	}
 	targets, err := installTargets(fs.Args(), project)
 	if err != nil {
@@ -172,7 +177,8 @@ func (a *app) cmdInstall(args []string) int {
 		return jsonout.ExitFail
 	}
 	// 项目里安装成功就刷新 pk.lock（--frozen 不动锁）。
-	if !*frozen && len(project) > 0 {
+	// 只有 pk.toml 存在时才写：engine 来自 package.json 的项目不该凭空多出一个 pk 文件。
+	if !*frozen && len(project) > 0 && install.HasProjectFile(a.cwd()) {
 		lock, err := a.writeProjectLock(project, inst)
 		if err != nil {
 			return a.fail(err)
@@ -180,6 +186,8 @@ func (a *app) cmdInstall(args []string) int {
 		if !a.json {
 			fmt.Fprintf(a.out, "已更新 %s（%s）\n", install.LockFileName, lock.LockTools())
 		}
+	} else if !*frozen && len(project) > 0 && !a.json {
+		fmt.Fprintln(a.out, "没写 "+install.LockFileName+"（这个项目没有 pk.toml；想固化版本就加一份）")
 	}
 	return jsonout.ExitOK
 }
@@ -284,7 +292,7 @@ func installTargets(args []string, project map[string]string) ([]installTarget, 
 		return out, nil
 	}
 	if len(project) == 0 {
-		return nil, fmt.Errorf("没有 pk.toml，也没有指定工具；用 `pk install node@22` 或先写 pk.toml")
+		return nil, fmt.Errorf("没有 pk.toml / package.json 的 engines.node，也没指定工具；用 `pk install node@22` 或先写 pk.toml")
 	}
 	keys := make([]string, 0, len(project))
 	for k := range project {

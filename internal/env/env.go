@@ -67,8 +67,8 @@ func globalVars(prefix string, p paths.Paths, npmCache string) []KV {
 		{"npm_config_prefer_offline", "true"},
 		{"PNPM_HOME", filepath.Join(prefix, "pnpm")},
 		{"BUN_INSTALL", filepath.Join(prefix, "bun")},
-		// corepack 的缓存也进我们的根（--purge 能一起清）
-		{"COREPACK_HOME", filepath.Join(p.Root, "cache", "corepack")},
+		// corepack 的缓存也进我们的缓存根（--purge 能一起清）
+		{"COREPACK_HOME", p.CacheDir("corepack")},
 	}
 }
 
@@ -344,7 +344,7 @@ func samePath(a, b string) bool {
 	return norm(a) == norm(b)
 }
 
-func NpmCacheDir(root string) string {
+func NpmCacheDir(p paths.Paths) string {
 	home, err := os.UserHomeDir()
 	if err == nil {
 		existing := filepath.Join(home, ".npm")
@@ -352,7 +352,7 @@ func NpmCacheDir(root string) string {
 			return existing
 		}
 	}
-	return filepath.Join(root, "cache", "npm")
+	return p.CacheDir("npm")
 }
 
 // MergeVars 按键去重（后者覆盖前者，保留首次出现的位置）。

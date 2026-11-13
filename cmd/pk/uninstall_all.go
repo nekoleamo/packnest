@@ -53,6 +53,10 @@ func (a *app) uninstallAll(inst *install.Installer, purge, keepCache, self bool)
 			} else {
 				fmt.Fprintf(a.out, "  · 整个 %s（含缓存）\n", plan.Root)
 			}
+			// PK_CACHE 指到 PK_ROOT 外面时，--purge 不动它：那通常是 CI 挂的共享卷
+			if plan.Cache != "" {
+				fmt.Fprintf(a.out, "  · 缓存目录 %s 由 PK_CACHE 单独指定，--purge 不动它（要清就自己删）\n", plan.Cache)
+			}
 		} else {
 			fmt.Fprintf(a.out, "  · 保留 %s（缓存/台账仍在；要连根删加 --purge）\n", plan.Root)
 		}

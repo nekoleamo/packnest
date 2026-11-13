@@ -3,10 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 
-	"github.com/packnest/packnest/internal/fetch"
+	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/shim"
@@ -48,47 +47,21 @@ func (a *app) cmdList(args []string) int {
 		fmt.Fprintf(a.errOut, "pk: 台账损坏，已从 %s.bak 恢复（`pk doctor` 查看详情）\n", a.paths.Ledger())
 	}
 
-	entries := make([]jsonout.ToolEntry, 0, len(ledger.Installs))
-	active := a.activeVersions(ledger)
-	for _, in := range ledger.Installs {
-		p, _ := provider.Get(in.Tool)
-		entry := jsonout.ToolEntry{
-			Name:     in.Tool,
-			Version:  in.Version,
-			Active:   active[in.Tool] == in.Version,
-			Path:     in.Path,
-			Requires: requiresOf(p),
-			Verified: in.Verified,
-			Source:   sourceOf(p),
-		}
-		if in.Tool == "node" {
-			entry.NPM = &jsonout.ToolNPM{Version: in.NpmVersion, Replaced: in.NpmBundled}
-		}
-		if in.Path != "" {
-			entry.SizeBytes = store.DirSize(in.Path)
-		}
-		entries = append(entries, entry)
-	}
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].Name != entries[j].Name {
-			return entries[i].Name < entries[j].Name
-		}
-		return entries[i].Version < entries[j].Version
-	})
+	entries := install.InstalledEntries(ledger, install.ActiveVersions(a.cfg, ledger))
 
 	if a.json {
 		if *available {
 			a.refreshIndex = *refresh
 			rows := a.availableRows()
 			return a.emit(struct {
-				Schema    int                 `json:"schema"`
-				Mirror    string              `json:"mirror"`
-				Tools     []jsonout.ToolEntry `json:"tools"`
-				Available []availableEntry    `json:"available"`
+				Schema    int                     `json:"schema"`
+				Mirror    string                  `json:"mirror"`
+				Tools     []jsonout.ToolEntry     `json:"tools"`
+				Available []provider.AvailableRow `json:"available"`
 			}{jsonout.SchemaVersion, a.cfg.Mirror, entries, rows})
 		}
 		out := jsonout.NewList(entries)
-		out.Outdated = a.outdated(entries)
+		out.Outdated = install.OutdatedHints(a.context(), a.paths, a.cfg.Mirror, entries)
 		return a.emit(out)
 	}
 
@@ -124,7 +97,7 @@ func (a *app) cmdList(args []string) int {
 		a.refreshIndex = *refresh
 		return a.printAvailable()
 	}
-	if hints := a.outdated(entries); len(hints) > 0 {
+	if hints := install.OutdatedHints(a.context(), a.paths, a.cfg.Mirror, entries); len(hints) > 0 {
 		fmt.Fprintln(a.out, "可升级（索引缓存；详情 `pk list --available`）:")
 		for _, h := range hints {
 			fmt.Fprintf(a.out, "  %-6s %s → %s   %s\n", h.Name, h.Installed, h.Latest, h.Advice)
@@ -139,24 +112,9 @@ func (a *app) cmdList(args []string) int {
 	return jsonout.ExitOK
 }
 
-// sourceOf 标出清单来源（GUI 与脚本据此判断"官方内嵌"还是"用户自带"）。
-func sourceOf(p *provider.Provider) string {
-	if p == nil {
-		return ""
-	}
-	return p.Source
-}
-
-// availableEntry 是 `list --available` 的一项。
-type availableEntry struct {
-	Name     string   `json:"name"`
-	Latest   string   `json:"latest,omitempty"`
-	LTS      string   `json:"lts,omitempty"`
-	Recent   []string `json:"recent,omitempty"`
-	Requires []string `json:"requires"`
-	Stale    bool     `json:"stale,omitempty"`
-	Source   string   `json:"source,omitempty"`
-	Err      string   `json:"error,omitempty"`
+// availableRows 拉各工具的可用版本（失败只记录，不影响其他工具；并发在 provider 里）。
+func (a *app) availableRows() []provider.AvailableRow {
+	return provider.AvailableRows(a.context(), a.indexLoader(), nil, a.cfg.Mirror)
 }
 
 // printAvailable 打印各工具的最新可装版本（索引走缓存；离线时读 24h 内缓存）。
@@ -164,9 +122,9 @@ func (a *app) printAvailable() int {
 	rows := a.availableRows()
 	if a.json {
 		return a.emit(struct {
-			Schema int              `json:"schema"`
-			Mirror string           `json:"mirror"`
-			Tools  []availableEntry `json:"tools"`
+			Schema int                     `json:"schema"`
+			Mirror string                  `json:"mirror"`
+			Tools  []provider.AvailableRow `json:"tools"`
 		}{jsonout.SchemaVersion, a.cfg.Mirror, rows})
 	}
 	fmt.Fprintf(a.out, "可装版本（档位 %s；缓存 24h，离线读缓存）:\n", a.cfg.Mirror)
@@ -201,66 +159,6 @@ func (a *app) indexLoader() *provider.IndexLoader {
 	return &provider.IndexLoader{Client: a.client, CacheDir: a.paths.CacheMeta(), TTL: ttl, Custom: toolchain.LoadPBSIndex}
 }
 
-// availableRows 拉取各工具的可用版本（失败只记录，不影响其他工具）。
-func (a *app) availableRows() []availableEntry {
-	all, err := provider.All()
-	if err != nil {
-		return []availableEntry{{Name: "-", Err: err.Error()}}
-	}
-	loader := a.indexLoader()
-	// 并行拉：6 个工具串行时总耗时是"所有工具之和"（实测 3.8s，最慢的 go 占 2.0s），并发后接近最慢那个
-	res := loader.LoadAll(a.context(), all, a.cfg.Mirror)
-	rows := make([]availableEntry, 0, len(res))
-	for _, r := range res {
-		p, idx, err := r.Provider, r.Index, r.Err
-		row := availableEntry{Name: p.ID, Requires: requiresOf(p), Source: p.Source}
-		if err != nil {
-			row.Err = err.Error()
-			rows = append(rows, row)
-			continue
-		}
-		row.Stale = idx.Stale
-		if latest, ok := idx.Latest(); ok {
-			row.Latest = latest.Version
-		}
-		if lts, ok := idx.Resolve(mustAlias("lts")); ok == nil {
-			row.LTS = lts.Version
-		}
-		sorted := spec.SortDesc(idx.VersionList())
-		if len(sorted) > 5 {
-			sorted = sorted[:5]
-		}
-		row.Recent = sorted
-		rows = append(rows, row)
-	}
-	return rows
-}
-
-// outdated 算“已装最大版本 vs 索引最新”：只读索引缓存（离线假客户端，零网络），没缓存不提示。
-func (a *app) outdated(entries []jsonout.ToolEntry) []jsonout.OutdatedEntry {
-	byTool := map[string][]string{}
-	for _, e := range entries {
-		byTool[e.Name] = append(byTool[e.Name], e.Version)
-	}
-	cacheOnly := &provider.IndexLoader{Client: &fetch.Client{Offline: true}, CacheDir: a.paths.CacheMeta(), TTL: provider.DefaultIndexTTL}
-	var out []jsonout.OutdatedEntry
-	for name, versions := range byTool {
-		p, err := provider.Get(name)
-		if err != nil {
-			continue
-		}
-		if idx, err := cacheOnly.Load(a.context(), p, a.cfg.Mirror); err == nil {
-			latest, ok := idx.Latest()
-			cur := spec.SortDesc(versions)[0]
-			if ok && cur != latest.Version && spec.SortDesc([]string{cur, latest.Version})[0] == latest.Version {
-				out = append(out, jsonout.OutdatedEntry{Name: name, Installed: cur, Latest: latest.Version, Advice: "pk upgrade " + name})
-			}
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	return out
-}
-
 // listToolVersions 打印某一个工具的全部可装版本 + 本机已装（`pk list node`）。
 //
 // 单工具视图和 `--available` 的"每个工具一行"是两件事：这里要能看见完整版本集，
@@ -274,7 +172,7 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 	if lerr != nil {
 		return a.fail(lerr)
 	}
-	active := a.activeVersions(ledger)
+	active := install.ActiveVersions(a.cfg, ledger)
 	installed := make([]string, 0, 4)
 	for _, in := range ledger.Installs {
 		if in.Tool == name {
@@ -486,33 +384,6 @@ func firstLine(s string) string {
 		return s[:idx]
 	}
 	return s
-}
-
-// activeVersions 汇总"当前生效版本"：config 的全局默认优先，台账引用兜底。
-func (a *app) activeVersions(ledger *store.Ledger) map[string]string {
-	active := make(map[string]string, len(ledger.Installs))
-	for tool, version := range a.cfg.Tools {
-		active[tool] = version
-	}
-	for _, in := range ledger.Installs {
-		if _, ok := active[in.Tool]; ok {
-			continue
-		}
-		for _, ref := range in.References {
-			if ref.Kind == store.RefGlobal {
-				active[in.Tool] = in.Version
-				break
-			}
-		}
-	}
-	return active
-}
-
-func requiresOf(p *provider.Provider) []string {
-	if p == nil || len(p.Requires) == 0 {
-		return []string{}
-	}
-	return append([]string{}, p.Requires...)
 }
 
 // cmdWhich 解析 shim 到真实二进制路径（调试 shim / 双名一致性的唯一手段）。

@@ -96,3 +96,55 @@ func TestAcceptance_M7_Upgrade(t *testing.T) {
 		t.Fatalf("未装工具应给 skipped 提示: %+v", miss)
 	}
 }
+
+// TestAcceptance_M7_PackageJSONEngines：进一个已有前端项目 → `pk install` 不带参数时按
+// package.json 的 engines.node 选 node 版本；pk.toml 有声明时以 pk.toml 为准。
+func TestAcceptance_M7_PackageJSONEngines(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{
+			{Version: "20.19.5", NPMVersion: "11.20.0"},
+			{Version: "22.98.0", NPMVersion: "11.20.0"},
+			{Version: "24.1.0", NPMVersion: "12.2.2"},
+		},
+		NPM: npmMatrixAcceptance(),
+	})
+	inst, _ := newToolInstaller(t, "darwin", "arm64", func(id string) (*provider.Provider, error) {
+		switch id {
+		case "node":
+			return fm.NodeProvider, nil
+		case "npm":
+			return fm.NPMProvider, nil
+		}
+		return nil, errors.New("未知工具 " + id)
+	})
+	dir := t.TempDir()
+	if err := os.WriteFile(dir+"/package.json", []byte(`{"engines":{"node":">=22.9 <23"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	specs, _, err := install.ProjectSpecs(dir)
+	if err != nil {
+		t.Fatalf("ProjectSpecs: %v", err)
+	}
+	res, err := inst.Install(context.Background(), "node", specs["node"])
+	if err != nil {
+		t.Fatalf("按 engines.node 装: %v", err)
+	}
+	if err := inst.Finalize(); err != nil {
+		t.Fatal(err)
+	}
+	if res.Version != "22.98.0" {
+		t.Fatalf("engines `>=22.9 <23` 应选出 22.98.0，得到 %q", res.Version)
+	}
+
+	// pk.toml 的声明优先：同一个 package.json，pk.toml 说 20 就装 20。
+	if err := os.WriteFile(dir+"/pk.toml", []byte("[tools]\nnode = \"20\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	specs, _, err = install.ProjectSpecs(dir)
+	if err != nil {
+		t.Fatalf("ProjectSpecs: %v", err)
+	}
+	if specs["node"] != "20" {
+		t.Fatalf("pk.toml 应优先，得到 %q", specs["node"])
+	}
+}

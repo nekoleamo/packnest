@@ -39,7 +39,7 @@ func (a *app) cmdEnv(args []string) int {
 		return a.failUsage(err)
 	}
 
-	vars := append(env.RegistryVars(a.cfg.Mirror), env.SharedVars(a.paths, env.NpmCacheDir(a.paths.Root))...)
+	vars := append(env.RegistryVars(a.cfg.Mirror), env.SharedVars(a.paths, env.NpmCacheDir(a.paths))...)
 	if p, err := provider.Get("go"); err == nil && p.Toolchain != nil {
 		vars = append(vars, env.ToolchainVars(p.Toolchain.Env)...)
 	}
