@@ -858,3 +858,21 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 
 文档同步：`docs/cli.md` / `docs/en/cli.md`（auto 缓存语义、`engines.node`、`PK_CACHE`）、`README.md` / `README.en.md`
 （项目作用域表 + 工程约束的缓存例外）、官网中英文（install 行的 engines、下载段加 gzip、新增"缓存"一条）。
+
+## v1.5.0 发版记录（2026-11-13）
+
+| 步骤 | 结果 |
+|---|---|
+| `make check` | 8 项全绿（行数 11,584 / 11,600，`cmd/pk` 3,169 / 3,200，覆盖率全包达标） |
+| `make release VERSION=1.5.0` | 6 产物 + checksums；解出的二进制 `packnest v1.5.0 (go1.27.3, darwin/arm64)` |
+| gitee | release `v1.5.0`（id 1306169）7 个附件，`/releases/latest` 指向 v1.5.0 |
+| GitHub Releases | `v1.5.0` 6 产物 + checksums，`release-github.sh` 强制非 draft |
+| `make verify-release` | 6 个线上产物 sha256 与 checksums.txt **全部一致** |
+| `make publish-manifests` | tap + bucket 推到 1.5.0，远端回读核对一致；本机 `brew install` 装到 1.5.0 并 `pk --version` 通过 |
+| smoke（tag v1.5.0） | 5/5 + gui-contract 全绿 |
+| CI（main） | 8 项门禁云端复跑通过（6m35s） |
+| 官网 | 中英文都是 v1.5.0（`pages.yml` 由 tag 与 main 两路触发） |
+
+**发版时踩到的一个新坑**（已写进 `docs/publishing.md`）：`github-pages` 环境的部署保护策略只放行了 `main`，
+`pages.yml` 的 `v*` tag 触发被直接拒绝（`Tag "v1.5.0" is not allowed to deploy...`）。
+已通过 API 补了一条 `v*`（tag）策略，`gh run rerun` 后转绿 —— 以后打 tag 能直接刷新官网，不用等下一次 main 推送。

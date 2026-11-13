@@ -184,6 +184,22 @@ sh scripts/release-gui.sh --version 0.10.2             # 重建 + 上传
   取不到就依次回退 `scripts/latest` → `dist/latest`，最后才 `dev`。
 站点里的安装命令与渠道矩阵要和本文件保持一致（npm 那条已删）。
 
+**第三个坑（2026-11-13，v1.5.0 踩到）：`github-pages` 环境保护规则默认只放行 `main`**，
+而 `pages.yml` 也在 `v*` tag 上触发 —— 直接用 tag 触发会被拒：
+`Tag "v1.5.0" is not allowed to deploy to github-pages due to environment protection rules`，
+run 显示红叉（虽然随后的 main 推送会把站点刷成新版本）。一次修好：
+
+```bash
+gh api repos/nekoleamo/packnest/environments/github-pages/deployment-branch-policies \
+  --jq '.branch_policies[] | {name,type}'          # 应同时有 main(branch) 与 v*(tag)
+# 缺 tag 策略就补一条：
+gh api -X POST repos/nekoleamo/packnest/environments/github-pages/deployment-branch-policies \
+  -f name='v*' -f type='tag'
+```
+
+补完后 `gh run rerun <run-id>` 会转绿。线上版本核对：
+`curl -s https://nekoleamo.github.io/packnest/ | grep -o 'v1\.[0-9]\.[0-9]'`（中英文各一次）。
+
 ## 七、为什么不再发 npm
 
 1. **2FA**：npm 的 staged publish 需要 `npm stage approve` 带 OTP 或浏览器批准，`www.npmjs.com`
