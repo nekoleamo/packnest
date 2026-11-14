@@ -26,24 +26,31 @@ VER=$(cat dist/latest 2>/dev/null || echo "")
 
 echo "owner=${OWNER} version=${VER}"
 
-# 预检（不联网）：清单里的 sha256 集合必须与 dist/v<ver>/checksums.txt 完全一致。
-# 为什么：0.8.0 的 tap 被一次"陈旧清单"覆盖，产物没变、hash 变成另一次构建的，
-# 用户 brew install 直接报 reports different checksum（Homebrew 会重下一次再报错）。
+# 预检（不联网）：**清单里的每个 hash 都必须在 checksums.txt 里**，且 checksums.txt 里的
+# 每个归档都必须在清单里。
+#
+# 为什么是"子集 + 覆盖归档"而不是"完全相等"：1.7 起 checksums.txt 里还有 provenance.json /
+# sbom.cdx.json（它们不进 brew/scoop 清单），1.8 发版时就因为这条判据写成了相等而卡住发布。
+# 为什么要双向：只查"清单 ⊆ checksums"会放过"某个平台产品忘了进清单"；只查"归档 ⊆ 清单"
+# 会放过"清单里混进上一次构建的 hash"（0.8.0 就这么把 tap 覆盖成了旧 hash）。
 SUMS="dist/v${VER}/checksums.txt"
 [ -f "$SUMS" ] || { echo "缺 ${SUMS}：先跑 make release && sh scripts/gen-manifests.sh" >&2; exit 1; }
 WANT=$(awk '{print tolower($1)}' "$SUMS" | sort)
+ARCHIVES=$(awk '/packnest_[0-9]/ {print tolower($1)}' "$SUMS" | sort)
 GOT=$(grep -hoE '[0-9a-f]{64}' packaging/brew/packnest.rb packaging/scoop/packnest.json | sort || true)
-if [ "$GOT" != "$WANT" ]; then
+if [ "$GOT" != "$ARCHIVES" ]; then
   echo "清单与 ${SUMS} 不一致（推上去用户必踩校验失败）：" >&2
-  w=$(mktemp); g=$(mktemp)
+  w=$(mktemp); g=$(mktemp); a=$(mktemp); b=$(mktemp)
+  printf '%s\n' "$ARCHIVES" > "$a"; printf '%s\n' "$GOT" > "$b"
   printf '%s\n' "$WANT" > "$w"; printf '%s\n' "$GOT" > "$g"
-  comm -13 "$w" "$g" | sed 's/^/  只在清单里: /' >&2
-  comm -23 "$w" "$g" | sed 's/^/  只在 checksums: /' >&2
-  rm -f "$w" "$g"
+  comm -13 "$w" "$g" | sed 's/^/  只在清单里（checksums 里没有这个 hash）: /' >&2
+  comm -23 "$a" "$b" | sed 's/^/  归档没进清单: /' >&2
+  comm -13 "$a" "$b" | sed 's/^/  清单里有 checksums 不认识的 hash: /' >&2
+  rm -f "$w" "$g" "$a" "$b"
   echo "先跑 sh scripts/gen-manifests.sh 重新生成" >&2
   exit 1
 fi
-echo "预检 OK：清单 6 个 hash 与 checksums.txt 一致"
+echo "预检 OK：清单覆盖 checksums.txt 里的全部归档（$(printf '%s\n' "$ARCHIVES" | wc -l | tr -d ' ') 个），且没有多余 hash"
 
 # GUI 清单（如果这次也发了桌面端）：单独对自己的 checksums.txt 核对
 GUI_JSON="packaging/scoop/packnest-desktop.json"
@@ -118,17 +125,18 @@ verify_pushed_gui() { # GUI 清单单独回读（不与 CLI 的 hash 集合混�
   return 1
 }
 
-verify_pushed() { # 推完回读：远端 hash 必须与本地清单逐条一致（防"推了旧文件"）
+verify_pushed() { # 推完回读：远端 hash 必须与本地**归档**清单逐条一致（防"推了旧文件"）
+  # 注意比的是 $ARCHIVES 而不是 $WANT：checksums.txt 里还有 provenance/sbom，它们不进渠道清单。
   i=0
   while [ $i -lt 4 ]; do
-    if [ "$(remote_hashes 2>/dev/null | sort)" = "$WANT" ]; then
+    if [ "$(remote_hashes 2>/dev/null | sort)" = "$ARCHIVES" ]; then
       echo "远端核对 OK：tap + bucket 的 hash 与本地清单一致"
       return 0
     fi
     i=$((i + 1)); sleep 5
   done
   echo "⚠ 远端清单与本地不一致（推送没生效，或推的是旧清单）" >&2
-  printf '%s\n' "$WANT" | sed 's|^|  本地 |' >&2
+  printf '%s\n' "$ARCHIVES" | sed 's|^|  本地 |' >&2
   return 1
 }
 
