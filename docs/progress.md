@@ -1776,3 +1776,18 @@ sh scripts/install-gui.sh --version 0.11.1 --dir /tmp/x   # 用户视角实测�
 
 现状：`scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket && scoop install packnest-desktop`
 可用（0.11.1，amd64，depends packnest）。
+
+## GUI 0.11.2：Windows ARM64 产物（2026-11-15）
+
+用户要求桌面端也覆盖 Windows ARM64。改动很小但要点明确：
+
+| 项 | 做法 |
+|---|---|
+| 构建 | `gui-build.yml` 矩阵加 `windows-latest/arm64`；**windows 改 `CGO_ENABLED=0`**（Wails v3 的 windows 后端是纯 Go，webview2 走 syscall/go-ole；关掉 cgo 才能由 x64 runner 交叉出 arm64）。Linux 仍 `cgo=1`（GTK4/WebKitGTK） |
+| 版本 | `guiVersion` 0.11.1 → **0.11.2**（gitee 不允许替换同名附件，加平台必须发新版本） |
+| 产物 | 4 件：mac arm64 `.app.zip` · win amd64 `.zip` · **win arm64 `.zip`** · linux amd64 `.tar.gz` + `checksums.txt` + `.sig` |
+| 核对 | `verify-release --gui`：签名 OK，**4/4** 逐条一致；`install-gui.sh` 实测 sshsig OK → sha256 OK → `pk-desktop 0.11.2` |
+| Scoop | 清单重新生成后自动带 `64bit` + `arm64` 两个架构（生成器上一轮已改成按实际产物写），已推 bucket 并回读核对 |
+
+安装方式也一并进了官网与 README（中/英）：从"一段文字"改成按平台分行的表格（脚本一行 / Scoop / 手动），
+标注校验强度、平台依赖与"不发 Intel Mac、不做 Homebrew cask"。

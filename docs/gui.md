@@ -19,7 +19,7 @@ https://github.com/nekoleamo/packnest/releases/tag/gui-v<版本>
 | 平台 | 文件 | 怎么用 |
 |---|---|---|
 | macOS（arm64） | `packnest-desktop_<版本>_darwin_arm64.app.zip` | 解压得到 `packnest.app`，拖进「应用程序」；**首次打开**去「系统设置 → 隐私与安全性」点「仍要打开」（ad-hoc 签名，没有公证） |
-| Windows（amd64） | `packnest-desktop_<版本>_windows_amd64.zip` | 解压后直接跑 `pk-desktop.exe`；需要系统自带的 WebView2 运行时（Win10/11 默认有） |
+| Windows（amd64 / **arm64**） | `packnest-desktop_<版本>_windows_{amd64,arm64}.zip` | 解压后直接跑 `pk-desktop.exe`；需要系统自带的 WebView2 运行时（Win10/11 默认有）。ARM64 机器用 `arm64` 那份（2026-11-15 起提供） |
 | Linux（amd64） | `packnest-desktop_<版本>_linux_amd64.tar.gz` | 解压跑 `pk-desktop`；需要 GTK4 + WebKitGTK 6.0（Debian/Ubuntu：`sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev`） |
 
 macOS 只发 arm64（Apple Silicon）；Intel Mac 需要自己 `make gui-app`（2026-11-12 拍板放弃 intel 产物）。
@@ -42,7 +42,7 @@ iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -U
 |---|---|---|
 | 安装脚本（curl / iwr） | ✅ 已提供 | 与 CLI 同一把发布密钥、同一套清单校验；`--skip-verify` 只在拿不到清单时用 |
 | 手动下载 zip | ✅ | 见上面表格；先 `shasum -a 256` 对清单 |
-| Scoop | ✅ 已发布（0.11.1） | `scoop install packnest-desktop`（`depends: packnest`，会先装 CLI）；manifest 带 `shortcuts`（开始菜单），GUI 不进 PATH；未签名 exe 首次启动有 SmartScreen 提示。**只声明 windows-amd64**（GUI 没有 ARM Windows 产物），清单里不写空 hash 的架构 |
+| Scoop | ✅ 已发布（0.11.2，amd64 + arm64） | `scoop install packnest-desktop`（`depends: packnest`，会先装 CLI）；manifest 带 `shortcuts`（开始菜单），GUI 不进 PATH；未签名 exe 首次启动有 SmartScreen 提示。**只声明 windows-amd64**（GUI 没有 ARM Windows 产物），清单里不写空 hash 的架构 |
 | **Homebrew cask** | ❌ **不做** | 产物是 ad-hoc 签名（未公证），过不了 Gatekeeper；而 Homebrew 已移除 `--no-quarantine` 并会禁用过不了检查的 cask。要做 cask 的前提是先买 **Developer ID + 公证（$99/年）**，2026-11-14 拍板**不排期** |
 | winget | ❌ 不做 | 2026-11-11 已放弃 |
 

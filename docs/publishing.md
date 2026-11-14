@@ -180,8 +180,12 @@ sh cmd/pk-desktop/packaging/build-macos.sh 0.10.2 arm64
 
 ### Windows / Linux
 
-由 `.github/workflows/gui-build.yml` 构建（Linux 需 GTK4 + WebKitGTK 6.0，Windows 需 WebView2 运行时），
+由 `.github/workflows/gui-build.yml` 构建（Linux 需 GTK4 + WebKitGTK 6.0；Windows 只需 WebView2 运行时），
 产物只进 workflow artifact，下载后用 `--from-dir` 上传。
+
+矩阵 **4 项**：`macos-15/arm64` · `windows-latest/amd64` · `windows-latest/arm64` · `ubuntu-latest/amd64`（optional）。
+Windows 那句 `CGO_ENABLED=0` 是刻意的：Wails v3 的 windows 后端是纯 Go（`go-webview2` 走 syscall/go-ole），
+关掉 cgo 才能在 x64 runner 上交叉出 arm64；Linux 的 GTK/WebKitGTK 必须有 cgo，保持 `1`。
 
 ### 三个实测坑（2026-11-13，gui-v0.10.3 / v0.10.4）
 

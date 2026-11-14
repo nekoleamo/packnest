@@ -20,7 +20,7 @@ https://github.com/nekoleamo/packnest/releases/tag/gui-v<version>
 | Platform | File | How to run |
 |---|---|---|
 | macOS (arm64) | `packnest-desktop_<version>_darwin_arm64.app.zip` | unzip → `packnest.app`; on first launch allow it once in System Settings → Privacy & Security (ad-hoc signed, not notarized) |
-| Windows (amd64) | `packnest-desktop_<version>_windows_amd64.zip` | unzip and run `pk-desktop.exe`; needs the built-in WebView2 runtime (present on Win10/11) |
+| Windows (amd64 / **arm64**) | `packnest-desktop_<version>_windows_{amd64,arm64}.zip` | unzip and run `pk-desktop.exe`; needs the built-in WebView2 runtime (present on Win10/11). Use the `arm64` one on ARM machines (available since 0.11.2) |
 | Linux (amd64) | `packnest-desktop_<version>_linux_amd64.tar.gz` | unzip and run `pk-desktop`; needs GTK4 + WebKitGTK 6.0 (`sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev`) |
 
 macOS ships arm64 only (Apple Silicon); Intel Macs must build it themselves with `make gui-app`.

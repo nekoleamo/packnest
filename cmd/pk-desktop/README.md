@@ -1,4 +1,4 @@
-# pk-desktop —— packnest 的可视化补充界面（0.11.1）
+# pk-desktop —— packnest 的可视化补充界面（0.11.2）
 
 > **定位**：GUI 不是独立端。**必须先装 CLI**（`pk`），这里只把 `pk <cmd> --json` 的结果投影成界面。
 > 不 import 主模块任何 `internal/*`，业务真相永远在 CLI 与 `PK_ROOT`（方案 §11 定案 2026-11-11）。
@@ -96,14 +96,14 @@ open dist/gui/packnest.app
 release 里有独立产物（需要先装 CLI），挂在 **`gui-v<版本>`** 这个 tag 下：
 
 ```
-https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.11.1/<文件名>
-https://github.com/nekoleamo/packnest/releases/download/gui-v0.11.1/<文件名>
+https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.11.2/<文件名>
+https://github.com/nekoleamo/packnest/releases/download/gui-v0.11.2/<文件名>
 ```
 
 | 平台 | 文件 | 用法 |
 |---|---|---|
 | macOS | `packnest-desktop_<ver>_darwin_arm64.app.zip` | 解压后 `open packnest.app`（ad-hoc 签名：首次启动需在"隐私与安全性"里放行）。**只发 Apple Silicon**（intel/amd64 2026-11-12 放弃；Intel Mac 自己 `make gui-app` 出本机构建） |
-| Windows | `packnest-desktop_<ver>_windows_amd64.zip` | 解压得到 `pk-desktop.exe`，双击即可（需要 WebView2 运行时） |
+| Windows（amd64 / arm64） | `packnest-desktop_<ver>_windows_{amd64,arm64}.zip` | 解压得到 `pk-desktop.exe`，双击即可（需要 WebView2 运行时）。arm64 由 x64 runner 交叉编译（windows 后端是纯 Go，`CGO_ENABLED=0`） |
 | Linux | `packnest-desktop_<ver>_linux_amd64.tar.gz` | 解压得到 `pk-desktop`，运行即可（需要 GTK4 + WebKitGTK 6.0，包名见上表；没有就 `--serve` 走浏览器） |
 
 Windows/Linux 的产物由 CI 的 `gui-build.yml` 构建（本机只有 macOS），发布时用
