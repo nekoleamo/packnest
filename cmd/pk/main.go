@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/packnest/packnest/cmd/pk/present"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/jsonout"
@@ -61,7 +62,7 @@ func (a *app) context() context.Context {
 // run 是可测试的入口：返回退出码（0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁占用）。
 func run(args []string, out, errOut io.Writer) int {
 	if err := initLangFromEnv(); err != nil {
-		fmt.Fprintf(errOut, "pk: %v\n", err)
+		fmt.Fprintf(errOut, "pk: %s\n", present.Text(err))
 		return jsonout.ExitUsage
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -205,7 +206,7 @@ func (a *app) fail(err error) int {
 		fmt.Fprintln(a.errOut, tr("pk: 另一个 pk 正在运行（退出码 5）", "pk: another pk is running (exit code 5)"))
 		return jsonout.ExitLocked
 	}
-	fmt.Fprintf(a.errOut, "pk: %v\n", err)
+	fmt.Fprintf(a.errOut, "pk: %s\n", present.Text(err))
 	return jsonout.ExitFail
 }
 
@@ -245,7 +246,7 @@ func (a *app) failUsage(err error) int {
 	if errors.Is(err, flag.ErrHelp) {
 		return jsonout.ExitOK // 子命令的 --help 是正常请求
 	}
-	fmt.Fprintf(a.errOut, "pk: %v\n", err)
+	fmt.Fprintf(a.errOut, "pk: %s\n", present.Text(err))
 	fmt.Fprintln(a.errOut, tr("运行 `pk help` 查看用法", "run `pk help` for usage"))
 	return jsonout.ExitUsage
 }

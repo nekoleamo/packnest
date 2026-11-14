@@ -13,6 +13,10 @@
 // 只比**码集合**，不比级别（severity）：同一码在不同分支可能是 warn/info（如 SHIM_*），
 // 文档表里写成 `warn/info`，机器判定谁是"正确"的那一半是伪精确。级别由文档表人工保证。
 //
+// 第二类校验（E1 / L2）：`internal/*` 里定义的**编码错误常量**（`CodeXxx = "命名空间.做法"`）
+// 必须在 `cmd/pk/present/codes.go` 的码表里有文案，否则用户会看到 `sig.magic_missing` 这种机器串。
+// 判据同上：两边排序集合必须一致。
+//
 // 用法：go run tools/codes.go [-v]
 package main
 
@@ -72,6 +76,21 @@ func main() {
 		for _, c := range codes {
 			fmt.Printf("  %-28s %s\n", c, byCode[c][0])
 		}
+	}
+
+	// 第二步：internal/* 的编码错误常量 ↔ present 码表
+	errCodes := scanErrorCodes(fset)
+	tplCodes := scanTemplateCodes()
+	missTpl, missConst := diff(errCodes, tplCodes)
+	if len(missTpl) > 0 {
+		fmt.Fprintf(os.Stderr, "✘ 定义了编码错误但 present 码表里没有文案（用户会看到机器串）：%s\n", strings.Join(missTpl, ", "))
+	}
+	if len(missConst) > 0 {
+		fmt.Fprintf(os.Stderr, "✘ present 码表里有、internal/* 里没有对应常量（码名写错或已删）：%s\n", strings.Join(missConst, ", "))
+	}
+	if len(missTpl) > 0 || len(missConst) > 0 {
+		fmt.Fprintf(os.Stderr, "  规矩：先在该包定义 Code* 常量，再在 cmd/pk/present/codes.go 补 zh/en 两条模板\n")
+		os.Exit(1)
 	}
 
 	missingInDoc, missingInCode := diff(codes, docCodes)
@@ -263,4 +282,75 @@ func diff(codeSide, docSide []string) (onlyCode, onlyDoc []string) {
 	sort.Strings(onlyCode)
 	sort.Strings(onlyDoc)
 	return onlyCode, onlyDoc
+}
+
+// scanErrorCodes 扫 internal/* 里形如 `CodeXxx = "sig.magic_missing"` 的常量值。
+func scanErrorCodes(fset *token.FileSet) []string {
+	seen := map[string]bool{}
+	var out []string
+	err := filepath.Walk("internal", func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		f, perr := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if perr != nil {
+			return perr
+		}
+		for _, decl := range f.Decls {
+			gd, ok := decl.(*ast.GenDecl)
+			if !ok || gd.Tok != token.CONST {
+				continue
+			}
+			for _, spec := range gd.Specs {
+				vs, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for i, name := range vs.Names {
+					if !strings.HasPrefix(name.Name, "Code") || i >= len(vs.Values) {
+						continue
+					}
+					lit, ok := vs.Values[i].(*ast.BasicLit)
+					if !ok || lit.Kind != token.STRING {
+						continue
+					}
+					v, uerr := strconv.Unquote(lit.Value)
+					if uerr != nil || !strings.Contains(v, ".") || seen[v] {
+						continue
+					}
+					seen[v] = true
+					out = append(out, v)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "✘ 扫 internal 编码错误失败:", err)
+		os.Exit(1)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// scanTemplateCodes 读 present 的码表键（`"sig.magic_missing": {...}`）。
+func scanTemplateCodes() []string {
+	src, err := os.ReadFile("cmd/pk/present/codes.go")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "✘ 读 present 码表失败:", err)
+		os.Exit(1)
+	}
+	// 只看 map 字面量的键：形如 `	"sig.xxx": {zh: ...`
+	re := regexp.MustCompile(`(?m)^\s*"([a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)"\s*:\s*\{`)
+	seen := map[string]bool{}
+	var out []string
+	for _, m := range re.FindAllStringSubmatch(string(src), -1) {
+		if seen[m[1]] {
+			continue
+		}
+		seen[m[1]] = true
+		out = append(out, m[1])
+	}
+	sort.Strings(out)
+	return out
 }

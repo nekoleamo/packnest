@@ -172,7 +172,7 @@ func (a *app) cmdInstall(args []string) int {
 				_ = inst.Finalize()
 				return jsonout.ExitFail
 			}
-			fmt.Fprintf(a.errOut, tr("pk: %s@%s 安装失败: %v\n", "pk: %s@%s failed to install: %v\n"), oc.Tool, oc.Spec, oc.Err)
+			fmt.Fprintf(a.errOut, tr("pk: %s@%s 安装失败: %s\n", "pk: %s@%s failed to install: %s\n"), oc.Tool, oc.Spec, present.Text(oc.Err))
 			if !a.json {
 				fmt.Fprintln(a.errOut, tr("下一步：pk mirror probe（看哪个源通）· pk doctor（看环境）· pk install <工具> --insecure（确认产物可信后）", "next: pk mirror probe (which source works) · pk doctor (environment) · pk install <tool> --insecure (only after verifying the artifact)"))
 			}
@@ -449,7 +449,7 @@ func (a *app) ensureSelfShims() error {
 
 // failWith 打印错误并按类型返回退出码。
 func (a *app) failWith(err error) int {
-	fmt.Fprintf(a.errOut, "pk: %v\n", err)
+	fmt.Fprintf(a.errOut, "pk: %s\n", present.Text(err))
 	return exitCodeFor(err)
 }
 

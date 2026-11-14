@@ -19,5 +19,6 @@ internal/archive       450
 internal/spec          300
 internal/paths         250
 internal/companion     250
+internal/coded         120
 internal/shim          250
 internal/jsonout       250

@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 )
@@ -42,26 +41,26 @@ func VerifySSHSIG(msg, armored []byte, allowed []SSHPublicKey) error {
 		return err
 	}
 	if len(blob) > maxSSHBlob {
-		return fmt.Errorf("%w: 签名块 %d 字节，超出上限", ErrSignature, len(blob))
+		return sigErr(CodeSigBlobTooLarge, len(blob))
 	}
 	pub, ns, reserved, hashAlg, sig, err := parseSSHSIG(blob)
 	if err != nil {
 		return err
 	}
 	if ns != SSHSigNamespace {
-		return fmt.Errorf("%w: namespace 是 %q，期望 %q", ErrSignature, ns, SSHSigNamespace)
+		return sigErr(CodeSigNamespaceMismatch, ns, SSHSigNamespace)
 	}
 	if hashAlg != "sha512" {
-		return fmt.Errorf("%w: 哈希算法是 %q，只接受 sha512", ErrSignature, hashAlg)
+		return sigErr(CodeSigHashAlg, hashAlg)
 	}
 	if !containsKey(allowed, pub) {
-		return fmt.Errorf("%w: 签名公钥不在内置白名单（可能换了发布密钥，先升级 pk）", ErrSignature)
+		return sigErr(CodeSigKeyNotAllowed)
 	}
 	// 签名数据不是"消息的摘要"本身，而是 PROTOCOL.sshsig §3 的结构：
 	// SSHSIG || string(namespace) || string(reserved) || string(hash_alg) || string(H(message))
 	digest := sha512.Sum512(msg)
 	if !ed25519.Verify(pub, signedData(ns, reserved, hashAlg, digest[:]), sig) {
-		return fmt.Errorf("%w: 摘要不匹配（清单被改过？）", ErrSignature)
+		return sigErr(CodeSigDigestMismatch)
 	}
 	return nil
 }
@@ -90,10 +89,10 @@ func parseSSHSIG(blob []byte) (pub ed25519.PublicKey, ns string, reserved []byte
 	r := bytes.NewReader(blob)
 	magic := make([]byte, len(sshSigMagic))
 	if _, err = io.ReadFull(r, magic); err != nil || string(magic) != sshSigMagic {
-		return nil, "", nil, "", nil, fmt.Errorf("%w: 缺少 SSHSIG 魔数", ErrSignature)
+		return nil, "", nil, "", nil, sigErr(CodeSigMagicMissing)
 	}
 	if ver, e := readU32(r); e != nil || ver != 1 {
-		return nil, "", nil, "", nil, fmt.Errorf("%w: 版本号不是 1", ErrSignature)
+		return nil, "", nil, "", nil, sigErr(CodeSigVersion)
 	}
 	pubBlob, err := readSSHString(r)
 	if err != nil {
@@ -131,11 +130,11 @@ func parseEd25519Pub(blob []byte) (ed25519.PublicKey, error) {
 	r := bytes.NewReader(blob)
 	alg, err := readSSHString(r)
 	if err != nil || string(alg) != ed25519Name {
-		return nil, fmt.Errorf("%w: 公钥算法只接受 %s", ErrSignature, ed25519Name)
+		return nil, sigErr(CodeSigPubAlg, ed25519Name)
 	}
 	key, err := readSSHString(r)
 	if err != nil || len(key) != ed25519.PublicKeySize {
-		return nil, fmt.Errorf("%w: ed25519 公钥长度不对", ErrSignature)
+		return nil, sigErr(CodeSigPubLen)
 	}
 	return ed25519.PublicKey(key), nil
 }
@@ -145,11 +144,11 @@ func parseEd25519Signature(blob []byte) ([]byte, error) {
 	r := bytes.NewReader(blob)
 	alg, err := readSSHString(r)
 	if err != nil || string(alg) != ed25519Name {
-		return nil, fmt.Errorf("%w: 签名算法只接受 %s", ErrSignature, ed25519Name)
+		return nil, sigErr(CodeSigAlg, ed25519Name)
 	}
 	sig, err := readSSHString(r)
 	if err != nil || len(sig) != ed25519.SignatureSize {
-		return nil, fmt.Errorf("%w: ed25519 签名长度不对", ErrSignature)
+		return nil, sigErr(CodeSigLen)
 	}
 	return sig, nil
 }
@@ -161,13 +160,13 @@ func dearmor(armored []byte) ([]byte, error) {
 	j := strings.Index(s, sshSigArmorE)
 	// 结束标记必须落在开始标记之后（否则 s[i+len(B):j] 会 slice 越界）。
 	if i < 0 || j < i+len(sshSigArmorB) {
-		return nil, fmt.Errorf("%w: 缺少 %s 外壳", ErrSignature, sshSigArmorB)
+		return nil, sigErr(CodeSigArmorMissing, sshSigArmorB)
 	}
 	body := s[i+len(sshSigArmorB) : j]
 	body = strings.NewReplacer("\r", "", "\n", "", "\t", "", " ", "").Replace(body)
 	blob, err := base64.StdEncoding.DecodeString(body)
 	if err != nil {
-		return nil, fmt.Errorf("%w: base64 解码失败: %v", ErrSignature, err)
+		return nil, sigErr(CodeSigBase64, err)
 	}
 	return blob, nil
 }
@@ -175,7 +174,7 @@ func dearmor(armored []byte) ([]byte, error) {
 func readU32(r *bytes.Reader) (uint32, error) {
 	var n uint32
 	if err := binary.Read(r, binary.BigEndian, &n); err != nil {
-		return 0, fmt.Errorf("%w: 结构被截断", ErrSignature)
+		return 0, sigErr(CodeSigTruncated)
 	}
 	return n, nil
 }
@@ -186,11 +185,11 @@ func readSSHString(r *bytes.Reader) ([]byte, error) {
 		return nil, err
 	}
 	if n > maxSSHString {
-		return nil, fmt.Errorf("%w: 字段长度 %d 超限", ErrSignature, n)
+		return nil, sigErr(CodeSigFieldTooLarge, n)
 	}
 	b := make([]byte, n)
 	if _, err := io.ReadFull(r, b); err != nil {
-		return nil, fmt.Errorf("%w: 结构被截断", ErrSignature)
+		return nil, sigErr(CodeSigTruncated)
 	}
 	return b, nil
 }

@@ -70,7 +70,9 @@ race:
 lang:
 	@go run tools/langcheck.go ./cmd/pk
 
-# 问题码契约：代码里扫出的 doctor 码必须与 docs/json-schema.md 的表格完全一致（完善路线 §E8a）。
+# 问题码契约（完善路线 §E8a + E1）：
+#   ① 代码里扫出的 doctor 码 ↔ docs/json-schema.md 的表格
+#   ② internal/* 的编码错误常量 ↔ cmd/pk/present/codes.go 的码表（缺文案就会露出机器串）
 codes:
 	@go run tools/codes.go
 

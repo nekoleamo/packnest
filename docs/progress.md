@@ -1368,3 +1368,20 @@ brew cask 是否排期（不排期就把 `docs/gui.md` 写明"mac 用 curl 脚�
 `PK_INSTALLER_SHA256` 两个仓库变量 → 打 `v1` tag），DoD 仍是仓库里 `self-test` 的 cold/warm 两 job 跑绿。
 **本仓库侧已全部就绪**（action.yml 的 YAML 能解析、五个步骤的 `run:` 抽出来过了 `sh -n`、
 `v1.6.0` 的 `install.sh` 实测可下载且 sha256 稳定）—— 剩下的动作只能在那个仓库里做。
+
+## E1 全量第一步：L2 机制 + `internal/verify`（sshsig 链路）
+
+> 这一步交付的是**机制**与一个完整样板包，后面按包复制即可（路线 §三 E1 第 2 步）。
+
+| 项 | 结果 |
+|---|---|
+| 新包 `internal/coded`（58 行） | `Error{Code, Args, Cause}`：`New`/`Wrap`/`Of`；`Error()` 只给日志（形如 `sig.magic_missing`），**不产出人类文案**；`Unwrap` 保住 `errors.Is(err, ErrSignature)` 这类既有判断 |
+| `internal/verify/codes.go` | 15 个稳定码 `sig.*` + `sigErr(code, args...)`（Cause 固定 `ErrSignature`）；`sshsig.go` 的 16 处 `fmt.Errorf("中文…")` 全部改成编码错误，**函数签名与行为不变** |
+| 渲染层 | `cmd/pk/present/codes.go`：码表（每条 zh + en）+ `Text(err)`（沿 `coded.Of` 查表，未登记则退回 `err.Error()`）+ `safeSprintf` 兜住模板/参数不匹配（不 panic） |
+| CLI 边界 | `a.fail` / `failUsage` / `failWith` / 安装失败行 / `PK_LANG` 非法 → 一律 `present.Text(err)`；**中文输出逐字节不变**（快照与既有测试全绿） |
+| 新门禁 | `make codes` 加了第二类校验：`internal/*` 的 `Code*` 常量 ↔ present 码表，**排序集合必须一致**。反向验证：删掉一条文案 → `✘ 定义了编码错误但 present 码表里没有文案（用户会看到机器串）：sig.sig_len` |
+| 测试 | `TestText`（中文/英文渲染 + 哨兵链 + 未登记码回退 + nil）、`TestCodeTableParity`（每条模板中英占位符**顺序与个数必须一致** —— 1.6 踩过 `%!d(string=…)`） |
+| 纪律 | `internal/*` 只给 code + 参数；文案全在 `present`。以后加码三步：定常量 → 补 zh/en 模板 → `make codes` 过 |
+
+**没动的**：`internal/verify/verify.go` 的 13 处（`sum.*` 摘要链路）、其余 6 个 internal 包 —— 按路线"按包分批"，
+下一个包沿用同一套（复制 `codes.go` + 补码表）。`--json` 零变更，人读快照逐字节未变。

@@ -2,10 +2,12 @@ package present
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/jsonout"
 )
 
@@ -216,5 +218,70 @@ func TestGroupThreeToolsDistinct(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("缺少 %q:\n%s", want, out)
 		}
+	}
+}
+
+// TestText 是 L2 的渲染入口：编码错误查码表（中文/英文），非编码错误原样返回。
+func TestText(t *testing.T) {
+	t.Cleanup(func() { _ = SetLang("zh") })
+	if err := SetLang("zh"); err != nil {
+		t.Fatal(err)
+	}
+	var errSig = errors.New("签名校验失败") // 模拟 internal/verify 的哨兵
+	e := coded.Wrap(errSig, "sig.namespace_mismatch", "other-ns", "pk-release")
+
+	if got := Text(e); got != `签名校验失败: namespace 是 "other-ns"，期望 "pk-release"` {
+		t.Fatalf("中文渲染不对: %q", got)
+	}
+	if err := SetLang("en"); err != nil {
+		t.Fatal(err)
+	}
+	if got := Text(e); got != `signature check failed: namespace is "other-ns", want "pk-release"` {
+		t.Fatalf("英文渲染不对: %q", got)
+	}
+	// 哨兵链没坏：errors.Is 仍能命中
+	if !errors.Is(e, errSig) {
+		t.Fatal("编码错误必须能 unwrap 到哨兵")
+	}
+	// 没有码 / 码没登记 → 原样返回（不丢信息）
+	if got := Text(errors.New("裸错误")); got != "裸错误" {
+		t.Fatalf("无码错误应原样返回: %q", got)
+	}
+	if got := Text(coded.New("nope.not_registered")); got != "nope.not_registered" {
+		t.Fatalf("未登记的码应退回紧凑形式: %q", got)
+	}
+	if got := Text(nil); got != "" {
+		t.Fatalf("nil 应返回空串: %q", got)
+	}
+}
+
+// TestCodeTableParity（E1 的纪律）：码表里每条模板的中英文占位符顺序与个数必须一致，
+// 否则英文输出会出现 %!d(string=…) 这种错位（1.6 踩过）。
+func TestCodeTableParity(t *testing.T) {
+	verbs := func(s string) string {
+		var out []string
+		for i := 0; i < len(s); i++ {
+			if s[i] == '%' && i+1 < len(s) {
+				j := i + 1
+				for j < len(s) && !strings.ContainsRune("sdvqxXfgt", rune(s[j])) {
+					j++
+				}
+				out = append(out, s[i:j+1])
+				i = j
+			}
+		}
+		return strings.Join(out, "|")
+	}
+	for _, code := range Codes() {
+		entry := codeTable[code]
+		if entry.zh == "" || entry.en == "" {
+			t.Fatalf("%s 缺中文或英文模板", code)
+		}
+		if verbs(entry.zh) != verbs(entry.en) {
+			t.Fatalf("%s 的占位符顺序不一致：zh=%v en=%v", code, verbs(entry.zh), verbs(entry.en))
+		}
+	}
+	if len(Codes()) < 15 {
+		t.Fatalf("码表应有至少 15 条（sshsig 那一批），实际 %d", len(Codes()))
 	}
 }
