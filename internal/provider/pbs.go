@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -32,7 +33,7 @@ type dirEntry struct {
 func versionDirs(data []byte) ([]string, error) {
 	var entries []dirEntry
 	if err := json.Unmarshal(data, &entries); err != nil {
-		return nil, fmt.Errorf("目录列举不是 JSON 数组（%v）", err)
+		return nil, coded.Wrap(err, CodeNotArray, "pbs-dirlist")
 	}
 	var tags []string
 	for _, e := range entries {
@@ -46,7 +47,7 @@ func versionDirs(data []byte) ([]string, error) {
 		tags = append(tags, name)
 	}
 	if len(tags) == 0 {
-		return nil, fmt.Errorf("目录列举里没有 release 标签目录")
+		return nil, coded.New(CodePBSTagEmpty)
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(tags)))
 	return tags, nil
@@ -69,7 +70,7 @@ func isTag(name string) bool {
 func parsePBSFiles(data []byte, tag string, platformByName map[string]string) ([]pbsFile, error) {
 	var entries []dirEntry
 	if err := json.Unmarshal(data, &entries); err != nil {
-		return nil, fmt.Errorf("tag 目录列举不是 JSON 数组（%v）", err)
+		return nil, coded.Wrap(err, CodeNotArray, "pbs-tags")
 	}
 	var out []pbsFile
 	for _, e := range entries {
@@ -86,7 +87,7 @@ func parsePBSFiles(data []byte, tag string, platformByName map[string]string) ([
 		out = append(out, pbsFile{Version: m[1], Tag: m[2], Platform: m[3], Filename: e.Name})
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("tag %s 里没有 install_only 产物", tag)
+		return nil, coded.New(CodePBSTagNoProduct, tag)
 	}
 	return out, nil
 }
@@ -100,7 +101,7 @@ func (l *IndexLoader) loadPBS(ctx context.Context, p *Provider, profile string) 
 	client, cacheDir := l.client(), l.CacheDir
 	urls := p.IndexURLs(profile)
 	if len(urls) == 0 {
-		return nil, fmt.Errorf("%s: 没有可用的索引源", p.ID)
+		return nil, coded.New(CodeNoIndexSource, p.ID)
 	}
 	root := strings.TrimRight(urls[0], "/")
 
@@ -115,7 +116,7 @@ func (l *IndexLoader) loadPBS(ctx context.Context, p *Provider, profile string) 
 	res, err := client.GetIndex(ctx, root+"/", filepath.Join(cacheDir, p.ID+"-tags.json"),
 		filepath.Join(cacheDir, p.ID+"-tags.meta.json"), DefaultIndexTTL)
 	if err != nil {
-		return nil, fmt.Errorf("%s 的 release 标签列表拉不到: %w", p.ID, err)
+		return nil, coded.Wrap(err, CodePBSTagList, p.ID)
 	}
 	tags, err := versionDirs(res.Body)
 	if err != nil {
@@ -144,9 +145,9 @@ func (l *IndexLoader) loadPBS(ctx context.Context, p *Provider, profile string) 
 		return versions, nil
 	}
 	if lastErr == nil {
-		lastErr = fmt.Errorf("没有可用的 release 标签")
+		lastErr = coded.New(CodePBSTagMissProd)
 	}
-	return nil, fmt.Errorf("%s: 目录列举里没找到可用产物: %w", p.ID, lastErr)
+	return nil, coded.Wrap(lastErr, CodePBSNoArtifact, p.ID)
 }
 
 // groupPBS 把文件列表按 cpython 版本聚合成 Version（每版本记下各平台文件名）。
@@ -167,7 +168,7 @@ func groupPBS(files []pbsFile, platformByName map[string]string, tag string) ([]
 		})
 	}
 	if len(order) == 0 {
-		return nil, fmt.Errorf("没有解析出任何 cpython 版本")
+		return nil, coded.New(CodePBSCPython)
 	}
 	out := make([]Version, 0, len(order))
 	for _, version := range order {

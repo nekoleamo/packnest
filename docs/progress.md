@@ -1544,3 +1544,23 @@ self-test `cold` ✓（41s）+ `warm` ✓（47s）：冷路径真的 `download`�
 **L2 累计**：10 个包清零 —— `install` 33 · `verify` 28 · `archive` 23 · `fetch` 23 · `store` 20 · `env` 7 ·
 `paths` 9 · `spec` 6 · `mirror` 5 · `companion` 3 = **157 处**，码表 **145 条**。只剩 `provider`（61 处）。
 行数：`internal/install` 2700 → **2800** 预算（码文件 +33 行）。
+
+### E1 收尾：`internal/provider` + `shim` + 零散站点 —— **L2 全库清零**
+
+| 包 | 码 | 说明 |
+|---|---|---|
+| `internal/provider` | **53** | `provider.*` 32（清单加载/校验/URL 模板/外部清单）+ `index.*` 17（索引解析、pbs）+ `ext_too_large` |
+| `internal/shim` | 7 | `shim.*`（创建/替换/写/读/软链失败、内容无法解析） |
+| `internal/companion` / `archive` / `install` 零散 | 3 | `companion.pinned_needs_version`、`archive.mkdir`、`install.remove_failed` |
+
+**结构性改动一处**：`provider.Issue` 加了 `Err error` 字段。外部清单的问题原来只把 `err.Error()`（编码后的机器串）
+塞进 `Message`，`pk doctor` 会把它原样打给用户；现在 provider 只给 `Err`，doctor 用 `present.Text` 渲染，
+`Message` 只作 `--json` 的兜底。对应的 6 处测试从"断中文原因"改成"断码"。
+
+**最终数字**：11 个包全部清零 —— **233 个编码错误站点、196 条码表文案（每条 zh + en）**。
+全库非测试代码里只剩 3 处 `fmt.Errorf`，都是**有意保留**的：
+
+- `internal/coded/coded.go`：`Error()` 的 `fmt.Sprint`（调试格式，不是文案）；
+- `internal/paths` / `internal/jsonout`：各 1 处，是给"底层原因"拼的调试串（不含人话）；
+- 4 个哨兵（`ErrChecksum` / `ErrSignature` / `ErrNoSingle` / `ErrLocked`）保留中文文案，但**只作身份**，
+  用户看到的文案一律来自码表 —— 这样 `errors.Is` 与"文案可翻译"两件事互不干扰。

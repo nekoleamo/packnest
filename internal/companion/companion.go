@@ -80,7 +80,7 @@ func Resolve(req Request) (Decision, error) {
 	}
 	// 2. companion.mode = pinned 需要显式版本，否则是配置错误。
 	if mode == ModePinned {
-		return Decision{}, fmt.Errorf("companion.mode=pinned 需要显式 npm 版本（pk.toml 里写 npm = \"<版本>\"）")
+		return Decision{}, coded.New(CodePinnedNeedsVersion)
 	}
 	// 3. bundled。
 	if mode == ModeBundled {

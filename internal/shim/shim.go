@@ -8,7 +8,7 @@
 package shim
 
 import (
-	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,10 +26,10 @@ const CmdExt = ".cmd"
 // Ensure 在 binDir 里为 name 建立指向 target 的入口。
 func Ensure(binDir, name, target, goos string) error {
 	if name == "" || target == "" {
-		return fmt.Errorf("shim 名称与目标不能为空")
+		return coded.New(CodeEmptyArgs)
 	}
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
-		return fmt.Errorf("创建 shim 目录失败: %w", err)
+		return coded.Wrap(err, CodeMkdir)
 	}
 	if goos == "windows" {
 		return writeCmd(binDir, name, target)
@@ -61,7 +61,7 @@ func Resolve(binDir, name, goos string) (string, bool, error) {
 		}
 		target, ok := parseCmdTarget(string(data))
 		if !ok {
-			return "", false, fmt.Errorf("shim %q 内容无法解析（缺少目标路径）", path)
+			return "", false, coded.New(CodeUnparsable, path)
 		}
 		return target, true, nil
 	}
@@ -77,7 +77,7 @@ func Resolve(binDir, name, goos string) (string, bool, error) {
 	if fi.Mode()&os.ModeSymlink != 0 {
 		target, err := os.Readlink(path)
 		if err != nil {
-			return "", false, fmt.Errorf("读取 shim %q 失败: %w", path, err)
+			return "", false, coded.Wrap(err, CodeReadFailed, path)
 		}
 		if !filepath.IsAbs(target) {
 			target = filepath.Join(binDir, target)
@@ -120,12 +120,12 @@ func writeSymlink(binDir, name, target string) error {
 	tmp := link + ".tmp"
 	_ = os.Remove(tmp)
 	if err := os.Symlink(target, tmp); err != nil {
-		return fmt.Errorf("创建符号链接 %q 失败: %w", link, err)
+		return coded.Wrap(err, CodeSymlinkFailed, link)
 	}
 	// rename 覆盖旧链接是原子的：切换版本不会出现半状态。
 	if err := os.Rename(tmp, link); err != nil {
 		_ = os.Remove(tmp)
-		return fmt.Errorf("替换 shim %q 失败: %w", link, err)
+		return coded.Wrap(err, CodeReplaceFailed, link)
 	}
 	return nil
 }
@@ -135,11 +135,11 @@ func writeCmd(binDir, name, target string) error {
 	content := "@ECHO off\r\nREM managed by packnest\r\n\"" + target + "\" %*\r\n"
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, []byte(content), 0o755); err != nil {
-		return fmt.Errorf("写 shim %q 失败: %w", path, err)
+		return coded.Wrap(err, CodeWriteFailed, path)
 	}
 	if err := os.Rename(tmp, path); err != nil {
 		_ = os.Remove(tmp)
-		return fmt.Errorf("替换 shim %q 失败: %w", path, err)
+		return coded.Wrap(err, CodeReplaceFailed, path)
 	}
 	return nil
 }

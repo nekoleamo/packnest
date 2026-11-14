@@ -5,7 +5,7 @@
 package provider
 
 import (
-	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"io/fs"
 	"os"
 	"path"
@@ -164,7 +164,7 @@ func Get(id string) (*Provider, error) {
 			return p, nil
 		}
 	}
-	return nil, fmt.Errorf("未知工具 %q，可用: %s", id, strings.Join(IDs(), " / "))
+	return nil, coded.New(CodeUnknownTool, id, strings.Join(IDs(), " / "))
 }
 
 // IDs 返回全部工具 ID（排序后）。
@@ -183,28 +183,28 @@ func IDs() []string {
 func loadFS(fsys fs.FS) ([]*Provider, error) {
 	entries, err := fs.Glob(fsys, "*.toml")
 	if err != nil {
-		return nil, fmt.Errorf("扫描内嵌 provider 失败: %w", err)
+		return nil, coded.Wrap(err, CodeEmbedScan)
 	}
 	sort.Strings(entries)
 	out := make([]*Provider, 0, len(entries))
 	for _, name := range entries {
 		data, err := fs.ReadFile(fsys, name)
 		if err != nil {
-			return nil, fmt.Errorf("读取 %s 失败: %w", name, err)
+			return nil, coded.Wrap(err, CodeReadManifest, name)
 		}
 		p, err := Parse(data)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", name, err)
+			return nil, coded.Wrap(err, CodeParseManifest, name)
 		}
 		want := strings.TrimSuffix(name, ".toml")
 		if p.ID != want {
-			return nil, fmt.Errorf("%s: id = %q 与文件名不一致", name, p.ID)
+			return nil, coded.New(CodeIDMismatch, name, p.ID)
 		}
 		p.Source = SourceEmbedded
 		out = append(out, p)
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("没有内嵌任何 provider")
+		return nil, coded.New(CodeNoneEmbedded)
 	}
 	return out, nil
 }
@@ -213,7 +213,7 @@ func loadFS(fsys fs.FS) ([]*Provider, error) {
 func Parse(data []byte) (*Provider, error) {
 	var p Provider
 	if err := toml.Unmarshal(data, &p); err != nil {
-		return nil, fmt.Errorf("TOML 解析失败: %w", err)
+		return nil, coded.Wrap(err, CodeTOML)
 	}
 	if err := p.Validate(); err != nil {
 		return nil, err
@@ -233,72 +233,72 @@ func (p *Provider) Compile(versionSpec string) (spec.Spec, error) {
 // Validate 校验清单自洽（启动即失败，别等运行时）。
 func (p *Provider) Validate() error {
 	if p.ID == "" {
-		return fmt.Errorf("缺少 id")
+		return coded.New(CodeMissingID)
 	}
 	if p.Display == "" {
-		return fmt.Errorf("%s: 缺少 display", p.ID)
+		return coded.New(CodeMissingDisplay, p.ID)
 	}
 	switch p.Index.Kind {
 	case IndexJSON, IndexRegistry, IndexDirList, IndexGitHub, IndexPBS:
 	default:
-		return fmt.Errorf("%s: index.kind = %q 非法（json/registry/dirlist/github-releases/pbs）", p.ID, p.Index.Kind)
+		return coded.New(CodeIndexKind, p.ID, p.Index.Kind)
 	}
 	if len(p.Index.URLs) == 0 {
-		return fmt.Errorf("%s: 缺少 index.urls", p.ID)
+		return coded.New(CodeMissingIndexURLs, p.ID)
 	}
 	for name, u := range p.Index.URLs {
 		if strings.TrimSpace(u) == "" {
-			return fmt.Errorf("%s: index.urls.%s 为空", p.ID, name)
+			return coded.New(CodeEmptyIndexURL, p.ID, name)
 		}
 	}
 	if len(p.Artifact.URLs) == 0 {
-		return fmt.Errorf("%s: 缺少 artifact.urls", p.ID)
+		return coded.New(CodeMissingArtifactURL, p.ID)
 	}
 	if p.Layout.Single == "" {
 		for _, goos := range []string{"darwin", "linux", "windows"} {
 			ext, ok := p.Artifact.Ext[goos]
 			if !ok || ext == "" {
-				return fmt.Errorf("%s: artifact.ext 缺少 %s（只允许 tar.gz/zip/tgz）", p.ID, goos)
+				return coded.New(CodeExtMissing, p.ID, goos)
 			}
 			switch ext {
 			case ExtTarGz, ExtZip, ExtTgz:
 			default:
-				return fmt.Errorf("%s: artifact.ext.%s = %q 非法（只允许 tar.gz/zip/tgz）", p.ID, goos, ext)
+				return coded.New(CodeExtInvalid, p.ID, goos, ext)
 			}
 		}
 	}
 	for _, key := range []string{"darwin-arm64", "linux-amd64", "windows-amd64"} {
 		if p.Artifact.Platform[key] == "" {
-			return fmt.Errorf("%s: artifact.platform 缺少 %s", p.ID, key)
+			return coded.New(CodePlatformMissing, p.ID, key)
 		}
 	}
 	if len(p.Layout.Bins) == 0 {
-		return fmt.Errorf("%s: layout.bins 不能为空", p.ID)
+		return coded.New(CodeEmptyBins, p.ID)
 	}
 	switch p.Checksum.Format {
 	case ChecksumGNUSums, ChecksumRegistry, ChecksumPerArtifact, ChecksumIndexInline:
 	default:
-		return fmt.Errorf("%s: checksum.format = %q 非法", p.ID, p.Checksum.Format)
+		return coded.New(CodeChecksumFormat, p.ID, p.Checksum.Format)
 	}
 	switch p.Checksum.Mode {
 	case "tofu-then-verify", "verify", "none":
 	default:
-		return fmt.Errorf("%s: checksum.mode = %q 非法（tofu-then-verify/verify/none）", p.ID, p.Checksum.Mode)
+		return coded.New(CodeChecksumMode, p.ID, p.Checksum.Mode)
 	}
 	if p.Checksum.Mode != "none" && p.Checksum.Format != ChecksumRegistry && p.Checksum.Format != ChecksumIndexInline && len(p.Checksum.URLs) == 0 {
-		return fmt.Errorf("%s: 缺少 checksum.urls（校验源必须与产物源解耦）", p.ID)
+		return coded.New(CodeMissingChecksum, p.ID)
 	}
 	for name, c := range p.Companions {
 		switch c.Mode {
 		case "bundled", "latest-compatible", "pinned":
 		default:
-			return fmt.Errorf("%s: companions.%s.mode = %q 非法", p.ID, name, c.Mode)
+			return coded.New(CodeCompanionMode, p.ID, name, c.Mode)
 		}
 		if c.Registry == "" || c.Target == "" {
-			return fmt.Errorf("%s: companions.%s 缺少 registry/target", p.ID, name)
+			return coded.New(CodeCompanionFields, p.ID, name)
 		}
 		if c.Mode == "pinned" && c.Version == "" {
-			return fmt.Errorf("%s: companions.%s 是 pinned，需同时给 version", p.ID, name)
+			return coded.New(CodeCompanionPinned, p.ID, name)
 		}
 	}
 	return nil
@@ -347,7 +347,7 @@ func (p *Provider) StableIndexURLs(profile string) []string {
 func (p *Provider) ArtifactURL(version, goos, goarch, profile string) (string, error) {
 	tmpl, ok := p.Artifact.URLs[pickProfileKey(p.Artifact.URLs, profile)]
 	if !ok {
-		return "", fmt.Errorf("%s: artifact.urls 缺少可用档位", p.ID)
+		return "", coded.New(CodeNoURLProfile, p.ID)
 	}
 	vars, err := p.urlVars(Version{Version: version}, goos, goarch, profile)
 	if err != nil {
@@ -404,7 +404,7 @@ func (p *Provider) ArtifactURLsFor(v Version, goos, goarch, profile string) ([]s
 	}
 	urls, err := renderAll(p.Artifact.URLs, vars, profile)
 	if err != nil {
-		return nil, fmt.Errorf("%s 产物 URL 渲染失败: %w", p.ID, err)
+		return nil, coded.Wrap(err, CodeArtifactRender, p.ID)
 	}
 	if override := envOverride(p.ID, "ARTIFACT"); override != "" {
 		if u, err := render(override, vars); err == nil {
@@ -412,7 +412,7 @@ func (p *Provider) ArtifactURLsFor(v Version, goos, goarch, profile string) ([]s
 		}
 	}
 	if len(urls) == 0 {
-		return nil, fmt.Errorf("%s: 没有可用的产物源", p.ID)
+		return nil, coded.New(CodeNoArtifactSource, p.ID)
 	}
 	return urls, nil
 }
@@ -433,7 +433,7 @@ func (p *Provider) ChecksumURLsFor(v Version, goos, goarch, profile string) ([]s
 	}
 	urls, err := renderAll(p.Checksum.URLs, vars, profile)
 	if err != nil {
-		return nil, fmt.Errorf("%s 校验和 URL 渲染失败: %w", p.ID, err)
+		return nil, coded.Wrap(err, CodeChecksumRender, p.ID)
 	}
 	if override := envOverride(p.ID, "CHECKSUM"); override != "" {
 		if u, err := render(override, vars); err == nil {
@@ -526,7 +526,7 @@ func (p *Provider) Platform(goos, goarch string) (string, error) {
 	if v, ok := p.Artifact.Platform[key]; ok && v != "" {
 		return v, nil
 	}
-	return "", fmt.Errorf("%s 不支持平台 %s（可支持: %s）", p.ID, key, strings.Join(PlatformKeys(p), " / "))
+	return "", coded.New(CodePlatformUnsupport, p.ID, key, strings.Join(PlatformKeys(p), " / "))
 }
 
 // PlatformKeys 返回清单里支持的平台键（排序）。
@@ -547,7 +547,7 @@ func (p *Provider) ExtFor(goos string) (string, error) {
 	if e, ok := p.Artifact.Ext[goos]; ok && e != "" {
 		return e, nil
 	}
-	return "", fmt.Errorf("%s: 不支持平台 %s", p.ID, goos)
+	return "", coded.New(CodeArtifactPlatform, p.ID, goos)
 }
 
 // pickProfileKey 选模板档位：先精确档位，再依次回落。
@@ -579,12 +579,12 @@ func render(tmpl string, vars map[string]string) (string, error) {
 		}
 		end := strings.IndexByte(tmpl[i:], '}')
 		if end < 0 {
-			return "", fmt.Errorf("URL 模板 %q 有大括号未闭合", tmpl)
+			return "", coded.New(CodeTemplateUnclosed, tmpl)
 		}
 		key := tmpl[i+1 : i+end]
 		val, ok := vars[key]
 		if !ok {
-			return "", fmt.Errorf("URL 模板 %q 含未知占位符 {%s}", tmpl, key)
+			return "", coded.New(CodeTemplateKey, tmpl, key)
 		}
 		b.WriteString(val)
 		i += end

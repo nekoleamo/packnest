@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/packnest/packnest/internal/coded"
 )
 
 // writeManifest 在 root/providers 下写一个外部清单并返回路径。
@@ -98,13 +100,13 @@ func TestExternalProviderRejects(t *testing.T) {
 		want   string // 期望出现在 issue 里的片段
 		httpOK bool
 	}{
-		{"http 默认拒绝", strings.ReplaceAll(externalTOML(https), https, "http://example.invalid"), "PK_ALLOW_HTTP", false},
-		{"绝对路径 single", strings.Replace(externalTOML(https), `bins = ["demo"]`, "bins = [\"demo\"]\nsingle = \"/etc/passwd\"", 1), "相对路径", false},
-		{"含 .. 的 single", strings.Replace(externalTOML(https), `bins = ["demo"]`, "bins = [\"demo\"]\nsingle = \"../demo\"", 1), "相对路径", false},
-		{"pbs 索引", strings.Replace(externalTOML(https), `kind = "dirlist"`, `kind = "pbs"`, 1), "pbs", false},
-		{"未知占位符", strings.ReplaceAll(externalTOML(https), "{version}", "{versoin}"), "未知占位符", false},
-		{"id 与文件名不符", strings.Replace(externalTOML(https), `id = "demo"`, `id = "other"`, 1), "文件名", false},
-		{"伴生 registry 不存在", externalTOML(https) + "\n[companions.npm]\nmode = \"bundled\"\nregistry = \"nope\"\ntarget = \"lib/node_modules/npm\"\n", "不是已存在的工具 id", false},
+		{"http 默认拒绝", strings.ReplaceAll(externalTOML(https), https, "http://example.invalid"), CodeExtHTTP, false},
+		{"绝对路径 single", strings.Replace(externalTOML(https), `bins = ["demo"]`, "bins = [\"demo\"]\nsingle = \"/etc/passwd\"", 1), CodeExtRelative, false},
+		{"含 .. 的 single", strings.Replace(externalTOML(https), `bins = ["demo"]`, "bins = [\"demo\"]\nsingle = \"../demo\"", 1), CodeExtRelative, false},
+		{"pbs 索引", strings.Replace(externalTOML(https), `kind = "dirlist"`, `kind = "pbs"`, 1), CodeExtPBS, false},
+		{"未知占位符", strings.ReplaceAll(externalTOML(https), "{version}", "{versoin}"), CodeTemplateKey, false},
+		{"id 与文件名不符", strings.Replace(externalTOML(https), `id = "demo"`, `id = "other"`, 1), CodeExtIDMismatch, false},
+		{"伴生 registry 不存在", externalTOML(https) + "\n[companions.npm]\nmode = \"bundled\"\nregistry = \"nope\"\ntarget = \"lib/node_modules/npm\"\n", CodeExtCompanionReg, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -122,8 +124,13 @@ func TestExternalProviderRejects(t *testing.T) {
 			if len(issues) != 1 || issues[0].Code != IssueExternalInvalid {
 				t.Fatalf("应有一条 invalid issue: %+v", issues)
 			}
-			if !strings.Contains(issues[0].Message, c.want) {
-				t.Fatalf("issue 应说明原因 %q，实际 %q", c.want, issues[0].Message)
+			// E1：issue 里带的是编码错误（Err），文案由 CLI 渲染；这里断码 + 参数
+			ce, ok := coded.Of(issues[0].Err)
+			if !ok {
+				t.Fatalf("issue 应带编码错误: %+v", issues[0])
+			}
+			if strings.Contains(c.want, ".") && ce.Code != c.want {
+				t.Fatalf("issue 码应是 %q，实际 %q", c.want, ce.Code)
 			}
 		})
 	}
@@ -175,8 +182,11 @@ func TestExternalManifestTooLarge(t *testing.T) {
 	if _, err := Get("demo"); err == nil {
 		t.Fatal("超大文件不该加载")
 	}
-	if got := ExternalIssues(); len(got) != 1 || !strings.Contains(got[0].Message, "超过上限") {
-		t.Fatalf("应报大小超限: %+v", got)
+	if got := ExternalIssues(); len(got) != 1 || func() bool {
+		ce, ok := coded.Of(got[0].Err)
+		return !ok || ce.Code != CodeExtTooLarge
+	}() {
+		t.Fatalf("应报大小超限（provider.ext_too_large）: %+v", got)
 	}
 }
 

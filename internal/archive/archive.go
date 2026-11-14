@@ -12,7 +12,6 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"errors"
-	"fmt"
 	"github.com/packnest/packnest/internal/coded"
 	"io"
 	"os"
@@ -176,7 +175,7 @@ func extractZip(archivePath, dstDir string, layout Layout, goos string) error {
 		}
 		if strings.HasSuffix(f.Name, "/") {
 			if err := os.MkdirAll(target, 0o755); err != nil {
-				return fmt.Errorf("创建目录失败: %w", err)
+				return coded.Wrap(err, CodeMkdir)
 			}
 			continue
 		}

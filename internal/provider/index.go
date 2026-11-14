@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -113,7 +114,7 @@ func (l *IndexLoader) Load(ctx context.Context, p *Provider, profile string) (*I
 		urls, cacheName = p.StableIndexURLs(profile), p.ID+".stable.json"
 	}
 	if len(urls) == 0 {
-		return nil, fmt.Errorf("%s: 没有可用的索引源", p.ID)
+		return nil, coded.New(CodeNoIndexSource, p.ID)
 	}
 	if p.Index.Kind == IndexPBS {
 		versions, err := l.loadPBS(ctx, p, profile)
@@ -145,14 +146,14 @@ func (l *IndexLoader) Load(ctx context.Context, p *Provider, profile string) (*I
 		}
 		return &Index{Provider: p, Versions: versions, Stale: res.Stale, Source: url}, nil
 	}
-	return nil, fmt.Errorf("%s 的版本索引全部不可用：\n  %s\n建议：`pk mirror use cn` 换档，或检查代理设置", p.ID, strings.Join(errs, "\n  "))
+	return nil, coded.New(CodeIndexAllFailed, p.ID, strings.Join(errs, "\n  "))
 }
 
 // Resolve 把说明符解析成具体版本。
 func (i *Index) Resolve(sp spec.Spec) (Version, error) {
 	list := i.VersionList()
 	if len(list) == 0 {
-		return Version{}, fmt.Errorf("%s 的索引是空的（镜像异常？）", i.Provider.ID)
+		return Version{}, coded.New(CodeIndexEmpty, i.Provider.ID)
 	}
 	if sp.IsAlias() {
 		if sp.Alias() == "lts" {
@@ -160,11 +161,11 @@ func (i *Index) Resolve(sp spec.Spec) (Version, error) {
 			if ok {
 				return best, nil
 			}
-			return Version{}, fmt.Errorf("%s 没有标记 LTS 的版本（镜像可能未同步）", i.Provider.ID)
+			return Version{}, coded.New(CodeNoLTS, i.Provider.ID)
 		}
 		latest, ok := spec.Latest(list)
 		if !ok {
-			return Version{}, fmt.Errorf("%s 索引里没有稳定版本", i.Provider.ID)
+			return Version{}, coded.New(CodeNoStable, i.Provider.ID)
 		}
 		return i.mustFind(latest), nil
 	}
@@ -244,7 +245,7 @@ func (i *Index) notFound(sp spec.Spec) error {
 		}
 		hint += fmt.Sprintf("，可用 `pk install %s@%s` 或 `pk mirror use default`", i.Provider.ID, latest.Version)
 	}
-	return fmt.Errorf("%s 没有满足 %q 的版本%s", i.Provider.ID, sp.String(), hint)
+	return coded.New(CodeNoMatch, i.Provider.ID, sp.String(), hint)
 }
 
 // parseIndexFor 在 parseIndex 之上做 provider 声明的版本号前缀剥离（go 的 "go1.27.3"）。
@@ -275,7 +276,7 @@ func parseIndex(kind string, data []byte) ([]Version, error) {
 	case IndexGitHub:
 		return parseGitHubReleases(data)
 	}
-	return nil, fmt.Errorf("未知索引形态 %q", kind)
+	return nil, coded.New(CodeKindUnknown, kind)
 }
 
 // parseJSONIndex 解析数组式索引（node 的 index.json、go 的 ?mode=json）。
@@ -291,7 +292,7 @@ func parseJSONIndex(data []byte) ([]Version, error) {
 		Stable bool            `json:"stable"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("索引不是 JSON 数组（%v）", err)
+		return nil, coded.Wrap(err, CodeNotArray, "index")
 	}
 	out := make([]Version, 0, len(raw))
 	for _, r := range raw {
@@ -307,7 +308,7 @@ func parseJSONIndex(data []byte) ([]Version, error) {
 		out = append(out, v)
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("索引里没有任何版本")
+		return nil, coded.New(CodeIndexEmpty)
 	}
 	return out, nil
 }
@@ -383,7 +384,7 @@ func parseDirList(data []byte) ([]Version, error) {
 		Date string `json:"date"`
 	}
 	if err := json.Unmarshal(data, &entries); err != nil {
-		return nil, fmt.Errorf("目录列举不是 JSON 数组（%v）", err)
+		return nil, coded.Wrap(err, CodeNotArray, "dirlist")
 	}
 	out := make([]Version, 0, len(entries))
 	seen := map[string]bool{}
@@ -402,7 +403,7 @@ func parseDirList(data []byte) ([]Version, error) {
 		out = append(out, Version{Version: version, Date: e.Date})
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("目录列举里没有版本目录")
+		return nil, coded.New(CodeNoVersionDirs)
 	}
 	return out, nil
 }
@@ -415,7 +416,7 @@ func parseGitHubReleases(data []byte) ([]Version, error) {
 		Prerelease  bool   `json:"prerelease"`
 	}
 	if err := json.Unmarshal(data, &releases); err != nil {
-		return nil, fmt.Errorf("GitHub releases 不是 JSON 数组（%v）", err)
+		return nil, coded.Wrap(err, CodeNotArray, "github-releases")
 	}
 	out := make([]Version, 0, len(releases))
 	seen := map[string]bool{}
@@ -428,7 +429,7 @@ func parseGitHubReleases(data []byte) ([]Version, error) {
 		out = append(out, Version{Version: version, Date: r.PublishedAt})
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("GitHub releases 里没有可用版本")
+		return nil, coded.New(CodeNoVersionDirs)
 	}
 	return out, nil
 }
@@ -468,10 +469,10 @@ func parseRegistryIndex(data []byte) ([]Version, error) {
 		} `json:"versions"`
 	}
 	if err := json.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("registry 元数据解析失败（%v）", err)
+		return nil, coded.Wrap(err, CodeRegistryParse)
 	}
 	if len(doc.Versions) == 0 {
-		return nil, fmt.Errorf("registry 元数据里没有 versions")
+		return nil, coded.New(CodeRegistryNoVers)
 	}
 	out := make([]Version, 0, len(doc.Versions))
 	for key, meta := range doc.Versions {

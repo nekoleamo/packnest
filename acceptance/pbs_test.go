@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/spec"
@@ -53,8 +54,8 @@ func TestLoadPBSIndexFallbacks(t *testing.T) {
 	loader := &provider.IndexLoader{Client: fetch.New(), CacheDir: t.TempDir()}
 	if _, err := loader.Load(context.Background(), p, "cn"); err == nil {
 		t.Fatal("根列举全挂应报错")
-	} else if !strings.Contains(err.Error(), "标签") {
-		t.Fatalf("错误应说明标签列表拉不到: %v", err)
+	} else if ce, ok := coded.Of(err); !ok || ce.Code != provider.CodePBSTagList {
+		t.Fatalf("应是 index.pbs_tag_list: %v", err)
 	}
 
 	// 根列举正常但标签目录全 404 → 报错

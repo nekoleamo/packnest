@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -291,8 +292,9 @@ func TestIndexLoaderAllFail(t *testing.T) {
 	p := &Provider{ID: "node", Index: IndexBlock{Kind: IndexJSON, URLs: map[string]string{"cn": srv.URL + "/x"}}}
 	loader := &IndexLoader{Client: fetch.New(), CacheDir: t.TempDir()}
 	_, err := loader.Load(context.Background(), p, "cn")
-	if err == nil || !contains(err.Error(), "版本索引全部不可用") {
-		t.Fatalf("全失败应报错并给建议: %v", err)
+	// E1：码 + 参数；"换档/检查代理"这句建议在 present 的模板里
+	if ce, ok := coded.Of(err); !ok || ce.Code != CodeIndexAllFailed {
+		t.Fatalf("全失败应是 index.all_failed: %v", err)
 	}
 
 	none := &Provider{ID: "node"}

@@ -46,7 +46,11 @@ func (a *app) cmdDoctor(args []string) int {
 		if is.Code == provider.IssueExternalConflict {
 			sev = jsonout.SeverityWarn
 		}
-		add(sev, is.Code, is.Message, map[string]any{"file": is.File})
+		msg := is.Message
+		if is.Err != nil {
+			msg = present.Text(is.Err) // 文案在 present；provider 只给码 + 参数
+		}
+		add(sev, is.Code, msg, map[string]any{"file": is.File})
 	}
 	if all, err := provider.All(); err == nil {
 		for _, p := range all {

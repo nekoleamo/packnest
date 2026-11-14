@@ -60,7 +60,7 @@ func matrixBehaviors() []matrixBehavior {
 		{name: "Slow", opts: []testkit.Option{testkit.Slow(5 * time.Millisecond)}, wantInstall: true},
 		{name: "NoRange", opts: []testkit.Option{testkit.NoRange()}, wantInstall: true},
 		{name: "WrongETag", opts: []testkit.Option{testkit.WrongETag()}, wantInstall: true},
-		{name: "StaleIndex", opts: []testkit.Option{testkit.StaleIndex([]byte(`[{"version":"v0.0.1","lts":false}]`))}, wantErrContains: "没有满足"},
+		{name: "StaleIndex", opts: []testkit.Option{testkit.StaleIndex([]byte(`[{"version":"v0.0.1","lts":false}]`))}, wantCode: provider.CodeNoMatch},
 		{name: "CorruptArchive", opts: []testkit.Option{testkit.Corrupt()}, wantCode: verify.CodeSumMismatch},
 		{name: "MissingChecksum", opts: []testkit.Option{testkit.MissingChecksum()}, wantCode: verify.CodeSumNoSource},
 		{name: "ChecksumMismatch", opts: []testkit.Option{testkit.ChecksumMismatch()}, wantCode: verify.CodeSumMismatch},

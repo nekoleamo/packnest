@@ -1,7 +1,7 @@
 package provider
 
 import (
-	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,9 +28,13 @@ const (
 
 // Issue 是外部清单的一个加载问题（由 doctor / list 呈现，不影响内嵌清单）。
 type Issue struct {
-	Code    string
-	File    string
+	Code string
+	File string
+	// Message 是给人看的说明（CLI 会优先用 Err 渲染成本地语言；保留它是为了
+	// `pk doctor --json` 的 detail 与旧消费者不为空）。
 	Message string
+	// Err 是结构化的原因（编码错误）：文案在 cmd/pk/present，provider 只给码 + 参数。
+	Err error
 }
 
 var (
@@ -83,13 +87,13 @@ func loadExternal(dirs []string, embedded []*Provider) []*Provider {
 				continue
 			}
 			path := filepath.Join(dir, name)
-			p, msg := readExternal(path, name)
+			p, rerr := readExternal(path, name)
 			switch {
-			case msg == "" && taken[p.ID]:
-				issues = append(issues, Issue{IssueExternalConflict, path,
-					fmt.Sprintf("%s 已由先加载的清单定义，外部清单被忽略", p.ID)})
-			case msg != "":
-				issues = append(issues, Issue{IssueExternalInvalid, path, msg})
+			case rerr == nil && taken[p.ID]:
+				issues = append(issues, Issue{Code: IssueExternalConflict, File: path,
+					Message: p.ID + " 已由先加载的清单定义，外部清单被忽略"})
+			case rerr != nil:
+				issues = append(issues, Issue{Code: IssueExternalInvalid, File: path, Message: rerr.Error(), Err: rerr})
 			default:
 				taken[p.ID] = true
 				files = append(files, pending{path: path, dir: dir, p: p})
@@ -100,7 +104,7 @@ func loadExternal(dirs []string, embedded []*Provider) []*Provider {
 	out := make([]*Provider, 0, len(files))
 	for _, f := range files {
 		if err := validateExternal(f.p, taken); err != nil {
-			issues = append(issues, Issue{IssueExternalInvalid, f.path, err.Error()})
+			issues = append(issues, Issue{Code: IssueExternalInvalid, File: f.path, Message: err.Error(), Err: err})
 			continue
 		}
 		f.p.Source, f.p.Dir = SourceExternal, f.dir
@@ -109,33 +113,33 @@ func loadExternal(dirs []string, embedded []*Provider) []*Provider {
 	return out
 }
 
-// readExternal 读并校验一个外部清单；msg 非空表示不可用。
-func readExternal(path, name string) (*Provider, string) {
+// readExternal 读并校验一个外部清单；err 非空表示不可用（编码错误，文案在 present）。
+func readExternal(path, name string) (*Provider, error) {
 	st, err := os.Stat(path)
 	if err != nil {
-		return nil, err.Error()
+		return nil, coded.Wrap(err, CodeReadManifest, name)
 	}
 	if st.Size() > MaxManifestBytes {
-		return nil, fmt.Sprintf("清单 %d 字节，超过上限 %d（不是 TOML 清单？）", st.Size(), MaxManifestBytes)
+		return nil, coded.New(CodeExtTooLarge, st.Size(), MaxManifestBytes)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err.Error()
+		return nil, coded.Wrap(err, CodeReadManifest, name)
 	}
 	p, err := Parse(data)
 	if err == nil && p.ID != strings.TrimSuffix(name, ".toml") {
-		err = fmt.Errorf("id = %q 与文件名不一致", p.ID)
+		err = coded.New(CodeExtIDMismatch, p.ID)
 	}
 	if err != nil {
-		return nil, err.Error()
+		return nil, err
 	}
-	return p, ""
+	return p, nil
 }
 
 // validateExternal 只查"外部清单特有"的安全边界（方案 A.4）。
 func validateExternal(p *Provider, known map[string]bool) error {
 	if p.Index.Kind == IndexPBS {
-		return fmt.Errorf("pbs 索引只支持内嵌清单（解析在 provider 自己的 pbs.go）")
+		return coded.New(CodeExtPBS)
 	}
 	httpOK := os.Getenv(AllowHTTPEnv) == "1"
 	// 占位符校验：render 自带"未知占位符"报错，这里用假值提前跑一遍。
@@ -147,7 +151,7 @@ func validateExternal(p *Provider, known map[string]bool) error {
 			case strings.HasPrefix(u, "http://") && httpOK:
 				p.InsecureTransport = true // 校验强度按方案 §A.4.1 降级
 			default:
-				return fmt.Errorf("URL 必须是 https：%s（内网 http 源需 %s=1 放行，且按弱校验处理）", u, AllowHTTPEnv)
+				return coded.New(CodeExtHTTP, u, AllowHTTPEnv)
 			}
 			if _, err := render(u, dummy); err != nil {
 				return err
@@ -155,7 +159,7 @@ func validateExternal(p *Provider, known map[string]bool) error {
 		}
 	}
 	if p.Layout.Strip < 0 {
-		return fmt.Errorf("layout.strip 不能为负数")
+		return coded.New(CodeExtNegativeStrip)
 	}
 	paths := []string{p.Layout.Single}
 	for _, bin := range p.Layout.BinTargets {
@@ -164,12 +168,12 @@ func validateExternal(p *Provider, known map[string]bool) error {
 	for _, v := range paths {
 		s := filepath.ToSlash(v)
 		if filepath.IsAbs(v) || s == ".." || strings.HasPrefix(s, "../") || strings.Contains(s, "/../") {
-			return fmt.Errorf("layout 路径必须是相对路径且不含 ..：%q", v)
+			return coded.New(CodeExtRelative, v)
 		}
 	}
 	for name, c := range p.Companions {
 		if !known[c.Registry] {
-			return fmt.Errorf("companions.%s.registry = %q 不是已存在的工具 id", name, c.Registry)
+			return coded.New(CodeExtCompanionReg, name, c.Registry)
 		}
 	}
 	return nil
