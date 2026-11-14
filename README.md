@@ -155,8 +155,10 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式：不�
 - 唯一的例外是缓存：`PK_CACHE=<目录>` 可把 `archives/`、`meta/`、corepack/npm 缓存搬到别处（CI 挂卷），台账/shim/锁不动
 - 默认**不动**用户已有配置：不写 `~/.npmrc`（要写用 `pk mirror write`，写前备份、只增不改）
 - 默认 `go test ./...` **零外网**；真网测试一律 `//go:build nettest`，不进门禁
-- 门禁 10 项（`make check`）：gofmt+vet · 行数红线 · 英文覆盖（`make lang`）· 三处签名公钥一致（`make keys`）·
-  `-race` 测试 · 覆盖率 · 6 平台交叉编译 · fuzz · benchmark 阈值 · `--json` golden（fuzz 是 5 个目标 × 30s，见 `Makefile` 的 `FUZZ_TARGETS`）
+- 门禁 **11 项**（`make check`）：gofmt+vet · 行数红线 · 英文覆盖（`make lang`）· 三处签名公钥一致（`make keys`）·
+  问题码契约（`make codes`）· `-race` 测试 · 覆盖率 · 6 平台交叉编译 · fuzz · benchmark 阈值 · `--json` golden。
+  fuzz 是 5 个目标 × 30s（`Makefile` 的 `FUZZ_TARGETS`）；`make codes` 要求代码里扫出的 doctor 码与
+  `docs/json-schema.md` 的问题码表完全一致
 
 ## 下载与校验
 
@@ -252,7 +254,7 @@ CI 里 `pk install --frozen` 严格按锁安装，清单与锁不一致即非 0 
 make build      # CGO_ENABLED=0 本地构建 ./bin/pk
 make test       # 零外网单测
 make accept     # 只跑验收用例 TestAcceptance_*
-make check      # 10 项门禁（提交前必跑，含行数预算与英文覆盖检查）
+make check      # 11 项门禁（提交前必跑，含行数预算、英文覆盖与问题码契约）
 make release    # 6 平台发布包 + checksums.txt → dist/
 make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 ```

@@ -1,10 +1,10 @@
-# 门禁工作流：把本机 `make check` 的 9 项搬到云端（本机仍是唯一发布者，这里只验证不改产物）。
+# 门禁工作流：把本机 `make check` 的 11 项搬到云端（本机仍是唯一发布者，这里只验证不改产物）。
 #
 # 为什么要有它：2026-11-12 盘点发现 4 个 workflow 里没有一个跑门禁，
 # loc/覆盖率/fuzz/交叉编译/golden 全靠"本机记得跑"，换个机器或忘了跑就漏。
 #
 # 两个 job：
-#   check        —— `make check`（gofmt+vet / 行数 / 英文覆盖 / race+覆盖率 / 6 平台交叉 / fuzz 30s / bench / golden）
+#   check        —— `make check`（gofmt+vet / 行数 / 英文覆盖 / 公钥同步 / 问题码契约 / race+覆盖率 / 6 平台交叉 / fuzz 5×30s / bench / golden）
 #   gui-contract —— GUI 侧的 `internal/pkcli` 测试（含用真 pk 校验 `--json` 契约），
 #                   只测那个包，所以不需要 GTK4/WebKitGTK（那是 gui-build 的事）
 name: ci
@@ -35,7 +35,7 @@ jobs:
         with:
           go-version: '1.26'
           cache: true
-      - name: make check（9 项门禁）
+      - name: make check（11 项门禁）
         run: make check
 
   gui-contract:

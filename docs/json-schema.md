@@ -62,12 +62,14 @@ GUI（作为 CLI 的可视化补充，走子进程 + `--json`）只需要：读 
 |---|---|---|
 | `PATH_ORDER` / `PATH_MISSING` | warn | bin 目录不在 PATH 最前 / 不在 PATH |
 | `ROOT_ON_SYNC_DIR` | warn | `PK_ROOT` 在云同步目录里（锁可能失效、台账可能被回滚） |
+| `ROOT_ABSENT` | info | `PK_ROOT` 目录不存在（还没装过任何工具） |
 | `LEDGER_SCHEMA_NEWER` | error | 台账 schema 比本程序支持的新（降级运行），先升级 pk |
 | `SHIM_ALIAS_MISMATCH` | warn | `pk` 与 `packnest` 指向不同文件 |
 | `LEDGER_BROKEN` | error | 台账与 `.bak` 都坏（可手工修或删掉重装） |
 | `LEDGER_RECOVERED` | warn | 主台账坏，已用 `.bak` 恢复 |
 | `LEDGER_INCONSISTENT` | error | 台账记录的目录不存在等 |
 | `CONFIG_BROKEN` | error | `config.toml` 解析失败 |
+| `TRUST_KEYS` / `TRUST_KEYS_UNCONFIGURED` | info | 内置发布签名公钥的条数 / 为空（自己构建的正常，官方发布版应带 1-2 把） |
 | `MIRROR_PROFILE_INVALID` | error | 档位名非法 |
 | `MIRROR_UNREACHABLE` | error | `--probe` 下索引源不可达（`detail.advice` 给换档建议） |
 | `MIRROR_AUTO` | info | 档位为 auto，首次安装会探测并缓存 6h |
@@ -75,9 +77,13 @@ GUI（作为 CLI 的可视化补充，走子进程 + `--json`）只需要：读 
 | `GLOBAL_ENGINES_UNMET` | warn | 全局包 `engines.node` 不满足当前 node |
 | `GLOBAL_NATIVE_ABI` | warn | 全局包含原生模块且无 N-API 预编译（切版本会失效）；`--globals --probe` 下还会用 `process.dlopen` 实测（只加载二进制，`detail.probe` 带失败原因） |
 | `GLOBAL_SHADOWS_PROJECT` | info | 全局命令名遮蔽项目 `node_modules/.bin` |
+| `GLOBALS_SCAN_FAILED` | warn | `--globals` 下读不了某个全局前缀目录（`detail.prefix` / `detail.manager`） |
+| `GLOBALS_NONE` | info | npm 全局前缀里没有包（`detail.prefix`） |
 | `SHIM_MISSING` / `SHIM_BROKEN` / `SHIM_PLAIN` | warn/info | 自身双名 shim 状态 |
 | `FOREIGN_MANAGER` | info | 检测到 proto/nvm/mise 等（只提示，不自动改） |
 | `FOREIGN_SHIM_PRIORITY` | warn | 别人的 shim 排在 `~/.packnest/bin` 前面 |
+| `FOREIGN_NONE` | info | `--foreign` 下没找到任何 proto/nvm/volta/asdf/mise/fnm/nodenv 的 node 版本目录 |
+| `PROVIDERS_BAD` | error | 内嵌 TOML 清单自身不自洽（编译产物坏了，重装 pk） |
 | `PROVIDERS_DIRS` | info | 生效的外部清单目录（`detail.dirs`） |
 | `PROVIDER_EXTERNAL_INVALID` | error | 外部清单非法（http 未放行 / 绝对路径 / `..` / pbs / 未知占位符 / 超 256KB / id 与文件名不符），`detail.file` 指向该文件 |
 | `PROVIDER_EXTERNAL_CONFLICT` | warn | 外部清单与内嵌（或先加载的外部清单）同 id，被忽略 |

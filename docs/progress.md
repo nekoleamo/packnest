@@ -1080,3 +1080,13 @@ warn 消失。
 | 断言 | 任意输入只能返回 `nil` 或 `errors.Is(err, ErrSignature)`，不 panic；`ParseAllowedSigners` 产出的公钥必须都是合法 ed25519、条数 ≤ 行数 |
 | **抓到真 bug** | `dearmor` 的边界判断原来是 `j < i`，而 `-----BEGIN SSH SIGNATURE-----END SSH SIGNATURE-----` 这类"END 紧贴 BEGIN 尾"的输入会让 `s[i+len(B):j]` **slice 越界**（fuzz 报 `slice bounds out of range [29:24]`）→ 改成 `j < i+len(armorB)`，并把该输入同时留成单测用例与 fuzz 语料（`testdata/fuzz/FuzzSSHSIG/`） |
 | 夹具 | 全代码构造：`buildSSHSIG` 去掉 `*testing.T` 依赖，fuzz 种子与单测共用同一个构造器 |
+
+### E8a · 问题码契约校验（`make codes`，批 0 第 2 项）
+
+| 项 | 结果 |
+|---|---|
+| 工具 | `tools/codes.go`（`//go:build ignore`，`go/ast`）：扫三处发码点 —— `add(sev, "CODE")`、`Code: "CODE"`、`const Issue* = "CODE"`；与 `docs/json-schema.md` 的「doctor 问题码」表比**排序集合**（忽略大小写） |
+| 现状 | **34 个码**（代码 36 处：`SHIM_*`、`PROVIDER_EXTERNAL_*` 等有多处发码）；文档补齐 7 条旧漏项（`PROVIDERS_BAD` / `TRUST_KEYS` / `TRUST_KEYS_UNCONFIGURED` / `ROOT_ABSENT` / `GLOBALS_SCAN_FAILED` / `GLOBALS_NONE` / `FOREIGN_NONE`） |
+| 门禁 | 10 项 → **11 项**（`fmt loc lang keys codes vet race cover cross fuzz bench golden`）；`README` / `AGENTS.md` / `ci.yml` 同步 |
+| 只比码不比级别 | 同一码在不同分支可能是 warn/info（`SHIM_*`），伪精确地断言"哪个级别才对"会制造无意义红灯；级别由文档表人工保证 |
+| 反向验证 | 删掉文档一行 → `✘ 代码里有、文档表里没有` 退出 1；补回 → 34 个一致 |
