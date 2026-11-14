@@ -1320,3 +1320,13 @@ brew cask 是否排期（不排期就把 `docs/gui.md` 写明"mac 用 curl 脚�
 | 测试 | `test-installers.sh` 从 16 条断言扩到 **31 条**：GUI 正常/产物被改/缺 `.sig`/`--skip-verify`/缺 CLI 拒绝 + `gui_release_list` 排序，全离线 |
 | 文档 | `docs/gui.md` 加"用脚本装"与渠道现状表（含 **brew cask 不做**的结论与重启条件）；`docs/publishing.md` 的 GUI 节补配额与 `--prune`；README 门禁描述改"五处" |
 | 拍板 | 保留 3 个 `gui-v*` · 装到 `~/Applications` · brew cask 不排期 —— 已回写调研文档 §六 |
+
+### R-GUI-1 · P1 落地：Scoop GUI 渠道（2026-11-14）
+
+| 项 | 结果 |
+|---|---|
+| 清单生成 | `gen-manifests.sh`：有 `dist/gui/checksums.txt` 时额外生成 `packaging/scoop/packnest-desktop.json`（版本**从产物文件名取**，不拿 `dist/latest`，因为 GUI 与 CLI 版本解耦） |
+| manifest 要点 | `depends: packnest`（`scoop install packnest-desktop` 会自动先装 CLI）· `shortcuts: [["pk-desktop.exe","packnest"]]`（开始菜单，**不进 PATH**）· `checkver` 正则 `gui-v([\d.]+)`（否则会被 CLI 的 `v*` 抢到） |
+| 发布 | `release-taps.sh`：bucket 里多推一份；预检用**子集**判据（清单只管 windows 产物，每个 hash 必须能在 GUI checksums 里找到）；远端核对单独一条 `verify_pushed_gui`，不混进 CLI 的 hash 集合 |
+| 不进库 | GUI 清单是发版时生成的（含真实 hash），加进 `.gitignore`；平时不存在，避免提交假 hash |
+| 实测 | 造 fake `dist/`（6 个 CLI hash + 3 个 GUI hash，全 64 位）→ `gen-manifests.sh` 生成 0.12.3 的 GUI 清单 → `release-taps.sh --dry-run` 两份预检都 OK，bucket 待推文件里出现 `packnest-desktop.json` |

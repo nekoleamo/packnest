@@ -38,3 +38,6 @@ secrets.env
 **/.impeccable/live/deferred-svelte-component-accepts.json
 **/.impeccable/live/*.png
 # impeccable-ignore-end
+
+# GUI 的 scoop 清单由 scripts/gen-manifests.sh 在发版时生成（含真实 hash，平时不存在）
+/packaging/scoop/packnest-desktop.json

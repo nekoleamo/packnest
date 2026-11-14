@@ -45,6 +45,31 @@ if [ "$GOT" != "$WANT" ]; then
 fi
 echo "预检 OK：清单 6 个 hash 与 checksums.txt 一致"
 
+# GUI 清单（如果这次也发了桌面端）：单独对自己的 checksums.txt 核对
+GUI_JSON="packaging/scoop/packnest-desktop.json"
+GUI_SUMS="dist/gui/checksums.txt"
+if [ -f "$GUI_JSON" ]; then
+  [ -f "$GUI_SUMS" ] || { echo "有 GUI 清单但缺 ${GUI_SUMS}（先跑 release-gui.sh）" >&2; exit 1; }
+  # scoop 清单只覆盖 windows 产物 → 判据是"子集"：清单里的每个 hash 都必须出现在 checksums.txt 里
+  want_gui=$(awk '{print tolower($1)}' "$GUI_SUMS" | sort)
+  got_gui=$(grep -oE '[0-9a-f]{64}' "$GUI_JSON" | sort || true)
+  _w=$(mktemp); _g=$(mktemp)
+  printf '%s\n' "$want_gui" > "$_w"
+  printf '%s\n' "$got_gui" > "$_g"
+  bogus=$(comm -13 "$_w" "$_g" || true)
+  rm -f "$_w" "$_g"
+  if [ -n "$bogus" ]; then
+    echo "GUI 清单里有 ${GUI_SUMS} 不认识的 hash（用户 scoop install packnest-desktop 会校验失败）：" >&2
+    printf '%s\n' "$bogus" | sed 's/^/  /' >&2
+    exit 1
+  fi
+  if [ -z "$got_gui" ]; then
+    echo "GUI 清单里没有 hash（生成脚本坏了？）" >&2
+    exit 1
+  fi
+  echo "预检 OK：GUI 清单的 hash 都能在 ${GUI_SUMS} 里找到"
+fi
+
 # 线上核对：清单必须和"用户真正下载到的文件"一致。本地 dist 自洽不够 ——
 # 曾经因为 mac 与 ubuntu 各发一次而出现两套 sha256（见 docs/publishing.md「唯一发布者」）。
 # 经 make publish-manifests 调用时 verify-release 已经跑过，用 PK_SKIP_LIVE_CHECK=1 跳过重复下载。
@@ -67,6 +92,30 @@ remote_hashes() { # 读远端两处清单里的 sha256（tap 的 .rb + bucket �
   grep -hoE '[0-9a-f]{64}' "$tmp/homebrew-packnest/Formula/packnest.rb" \
     "$tmp/scoop-bucket/bucket/packnest.json" | sort
   rm -rf "$tmp"
+}
+
+verify_pushed_gui() { # GUI 清单单独回读（不与 CLI 的 hash 集合混在一起比较）
+  [ -f "$GUI_JSON" ] || return 0
+  want=$(grep -oE '[0-9a-f]{64}' "$GUI_JSON" | sort)
+  work=$(mktemp -d)
+  i=0
+  while [ $i -lt 4 ]; do
+    rm -rf "$work/b"
+    got=""
+    if git clone -q --depth 1 "https://github.com/${OWNER}/scoop-bucket.git" "$work/b" 2>/dev/null; then
+      got=$(grep -oE '[0-9a-f]{64}' "$work/b/bucket/packnest-desktop.json" 2>/dev/null | sort || true)
+    fi
+    if [ "$got" = "$want" ]; then
+      rm -rf "$work"
+      echo "远端核对 OK：bucket 里的 packnest-desktop.json 与本地一致"
+      return 0
+    fi
+    i=$((i + 1))
+    sleep 5
+  done
+  rm -rf "$work"
+  echo "⚠ 远端 GUI 清单与本地不一致（推送没生效，或推的是旧清单）" >&2
+  return 1
 }
 
 verify_pushed() { # 推完回读：远端 hash 必须与本地清单逐条一致（防"推了旧文件"）
@@ -131,6 +180,9 @@ MD
 # 2) Scoop bucket：仓库名任意（这里 scoop-bucket），manifest 放 bucket/
 bucket_dir=$(mktemp -d); mkdir -p "$bucket_dir/bucket"
 cp packaging/scoop/packnest.json "$bucket_dir/bucket/packnest.json"
+if [ -f packaging/scoop/packnest-desktop.json ]; then
+  cp packaging/scoop/packnest-desktop.json "$bucket_dir/bucket/packnest-desktop.json"
+fi
 cat > "$bucket_dir/README.md" <<MD
 # scoop-bucket
 
@@ -149,6 +201,7 @@ else
   push_dir homebrew-packnest "$tap_dir"
   push_dir scoop-bucket "$bucket_dir"
   verify_pushed
+  verify_pushed_gui
   echo ""
   echo "完成。用户可以："
   echo "  brew install ${OWNER}/packnest/packnest"

@@ -117,6 +117,8 @@ make verify-release                                     # 远端有 .sig 就一�
 
 ## 四、gitee（国内二进制主源）
 
+- GUI 的 Scoop 清单（`packaging/scoop/packnest-desktop.json`）由 `gen-manifests.sh` 在**有** `dist/gui/checksums.txt` 时一起生成，
+  与 CLI 清单同批推 bucket；预检是"子集"判据（清单只管 windows 产物，hash 必须都能在 GUI checksums 里找到）。
 - `sh scripts/release-gitee.sh` 建/复用 tag 对应的 release，逐个上传 `dist/v<ver>/packnest_*` 与 `checksums.txt`；
 - 同名文件**不会**被替换：重发同一版本必须先删掉旧附件（或换版本号），否则线上还是旧字节；
 - `install.sh` / `install.ps1` 默认从 `https://gitee.com/<owner>/<repo>/releases/download/v<ver>/<文件>` 取，

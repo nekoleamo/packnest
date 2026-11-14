@@ -1,5 +1,6 @@
 #!/bin/sh
 # 从 dist/v<版本>/checksums.txt 生成 brew / scoop 两份渠道清单（不含任何机密）。
+# 有 GUI 产物时（dist/gui/checksums.txt）再生成 GUI 的 scoop 清单（packnest-desktop.json）。
 set -eu
 DIST="${DIST:-dist}"
 VER=$(cat "$DIST/latest")
@@ -81,5 +82,50 @@ cat > packaging/scoop/packnest.json <<JSON
   }
 }
 JSON
+
+# ── GUI（packnest-desktop）的 Scoop 清单 ────────────────────────────────
+# 版本从产物文件名里取（GUI 与 CLI 版本解耦，不能拿 dist/latest）；没构建过 GUI 就跳过。
+GUI_SUMS="$DIST/gui/checksums.txt"
+if [ -f "$GUI_SUMS" ]; then
+  gui_ver=$(awk '{print $2}' "$GUI_SUMS" | sed -n 's/^packnest-desktop_\([0-9][0-9.]*\)_windows_amd64\.zip$/\1/p' | head -1)
+  if [ -n "$gui_ver" ]; then
+    gui_sha() { awk -v f="$1" '$2==f {print $1}' "$GUI_SUMS"; }
+    GUI_BASE="https://gitee.com/$REPO/releases/download/gui-v$gui_ver"
+    win64="packnest-desktop_${gui_ver}_windows_amd64.zip"
+    winarm="packnest-desktop_${gui_ver}_windows_arm64.zip"
+    cat > packaging/scoop/packnest-desktop.json <<JSON
+{
+  "version": "$gui_ver",
+  "description": "packnest 桌面端（GUI；只做 pk 的可视化补充，必须先有 CLI）",
+  "homepage": "https://gitee.com/$REPO",
+  "license": "MIT",
+  "depends": "packnest",
+  "architecture": {
+    "64bit": {
+      "url": "$GUI_BASE/$win64",
+      "hash": "$(gui_sha "$win64")"
+    },
+    "arm64": {
+      "url": "$GUI_BASE/$winarm",
+      "hash": "$(gui_sha "$winarm")"
+    }
+  },
+  "shortcuts": [["pk-desktop.exe", "packnest"]],
+  "checkver": { "url": "https://gitee.com/$REPO/releases", "regex": "gui-v([\\d.]+)" },
+  "autoupdate": {
+    "architecture": {
+      "64bit": { "url": "https://gitee.com/$REPO/releases/download/gui-v\$version/packnest-desktop_\$version_windows_amd64.zip" },
+      "arm64": { "url": "https://gitee.com/$REPO/releases/download/gui-v\$version/packnest-desktop_\$version_windows_arm64.zip" }
+    }
+  }
+}
+JSON
+    echo "已生成：packaging/scoop/packnest-desktop.json（GUI 版本 ${gui_ver}）"
+  else
+    echo "跳过 GUI 清单：${GUI_SUMS} 里没有 windows 产物" >&2
+  fi
+else
+  echo "提示：没有 ${GUI_SUMS}，只生成 CLI 清单（GUI 清单要 sh scripts/release-gui.sh 先生成并签名）" >&2
+fi
 
 echo "已生成：packaging/brew/packnest.rb · packaging/scoop/packnest.json（版本 ${VER}）"
