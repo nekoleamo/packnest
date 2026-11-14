@@ -1468,3 +1468,24 @@ pk: node@^^^ failed to install: cannot parse version spec "^^^": improper constr
 `.github/workflows/self-test.yml`、`examples/ci.yml`）→ 设仓库变量 `PK_VERSION` / `PK_INSTALLER_SHA256`
 → 打 `v1` 标签。**sha256 现算**（下载该 tag 上的 `scripts/install.sh` 再 hash），不写死。
 `--dry-run` 已验证：`v1.6.0 · install.sh sha256 f4cbfab3…`。
+
+### E7 收尾：`setup-pk` 建仓完成，self-test **两 job 全绿**（2026-11-14）
+
+`nekoleamo/setup-pk`（public，tag `v1`，变量 `PK_VERSION=1.6.0` / `PK_INSTALLER_SHA256=f4cbfab3…`），
+self-test `cold` ✓（41s）+ `warm` ✓（47s）：冷路径真的 `download`，热路径出 `cache` 事件且**没有 download**。
+
+一路上修掉的三处（都是 self-test 抓出来的**测试自身**问题，不是 action 的）：
+1. **冷路径抓不到 `download`**：action 已经替我们装完了，再跑 `pk install` 只会 resolve 后跳过 →
+   冷 job 改成 `install: 'false'`，自己跑 `pk install --json` 抓事件；
+2. **缓存存了但没东西**：自己跑的 `pk install` 没设 `PK_CACHE`，归档落到了 `~/.packnest/cache`，
+   `actions/cache` 的 post 步骤面对一个不存在的目录直接跳过（`Path Validation Error` 在日志里也看不到）→
+   冷/热两步都显式设 `PK_CACHE: ${{ runner.temp }}/pk-cache`，与 action 缓存的是同一个目录；
+3. **"冷"不冷了**：第二次跑 self-test 时 cold 会命中上一次的缓存（key 一样），冷/热两条路径同时失效 →
+   两个 job 都传 `cache-key-extra: ${{ github.run_id }}`，每次运行独立 key，可重复。
+
+**顺带发现一个真实的产品缺口（记为 R-CACHE-1）**：`PK_CACHE` 里的归档是**内容寻址**名（`<sha256>.tar.gz`），
+要按摘要找回就必须先有 TOFU 记录（`state/known.json`）；而 CI 上新 runner 的 state 是空的，
+于是只能"先下 50MB 产物、再算摘要"——**缓存等于白存**。
+`warm` 用例因此只能断言"工具树删掉、state 保留"这一种情形（`rm -rf $HOME/.packnest/tools`）。
+真正的修法是把"取校验和（几 KB）→ 按摘要查缓存 → 命中就不下载"这段顺序前移（当前是下载后才能算出摘要），
+属于 install 热路径的重排，单独排期。

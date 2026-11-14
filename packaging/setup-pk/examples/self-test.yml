@@ -23,20 +23,29 @@ jobs:
           [tools]
           node = "22"
           TOML
+      # install: false —— 冷路径要**自己**跑 pk install 抓事件；
+      # 让 action 先装完的话，再跑一次只会 resolve 后跳过（装过了），抓不到 download。
       - uses: ./
         id: pk
         with:
           version: ${{ vars.PK_VERSION }}
           installer-sha256: ${{ vars.PK_INSTALLER_SHA256 }}
-      - name: 冷缓存断言
+          install: 'false'
+          # 每次运行用独立 key：否则第二次跑 self-test 时 cold 就会命中上一次的缓存，
+          # "冷/热"两条路径立刻失效（这个坑真的踩到了）。
+          cache-key-extra: ${{ github.run_id }}
+      - name: 冷缓存断言（真下载）
         env:
           HIT: ${{ steps.pk.outputs.cache-hit }}
+          # 必须与 action 缓存的是同一个目录（默认 $RUNNER_TEMP/pk-cache），
+          # 否则归档落到 ~/.packnest/cache，post 步骤就没东西可存，下一次必然不命中。
+          PK_CACHE: ${{ runner.temp }}/pk-cache
         run: |
           set -eu
           test "$HIT" = "false" || { echo "::error::第一次跑不该命中缓存（cache-hit=$HIT）"; exit 1; }
-          pk install --json > events.ndjson || true
+          pk install --json > events.ndjson
           grep -q '"ev":"download"' events.ndjson \
-            || { echo "::error::冷跑应出现 download 事件"; cat events.ndjson; exit 1; }
+            || { echo "::error::冷跑应出现 download 事件（真下载）"; cat events.ndjson; exit 1; }
           node -v
 
   warm:
@@ -55,15 +64,24 @@ jobs:
         with:
           version: ${{ vars.PK_VERSION }}
           installer-sha256: ${{ vars.PK_INSTALLER_SHA256 }}
-      - name: 热缓存断言
+          cache-key-extra: ${{ github.run_id }}
+      - name: 热缓存断言（0 网络）
         env:
           HIT: ${{ steps.pk.outputs.cache-hit }}
+          PK_CACHE: ${{ runner.temp }}/pk-cache
         run: |
           set -eu
           test "$HIT" = "true" || { echo "::error::第二次跑应命中缓存（cache-hit=$HIT）"; exit 1; }
-          # 只清工具树与台账，PK_CACHE 留着 —— 这才叫"缓存命中"
-          rm -rf "$HOME/.packnest/tools" "$HOME/.packnest/state"
-          pk install --json > warm.ndjson || true
+          # 只清**解压出来的工具树**，PK_CACHE 与 state/（台账 + TOFU 摘要）留着。
+          # 为什么不清 state：归档在缓存里是**内容寻址**名（<sha256>.tar.gz），要按摘要找回来，
+          # 就必须先有 TOFU 记录；state 一清，pk 只能先下产物再算摘要 —— 那是"缓存白存"，
+          # 也是最容易让人误解的地方（见 docs：R-CACHE-1 待办）。
+          rm -rf "$HOME/.packnest/tools"
+          rm -f pk.lock
+          pk install --json > warm.ndjson
           grep -q '"ev":"cache"' warm.ndjson \
             || { echo "::error::命中缓存时应出现 cache 事件（0 网络）"; cat warm.ndjson; exit 1; }
+          if grep -q '"ev":"download"' warm.ndjson; then
+            echo "::error::命中缓存时不该再下载"; grep '"ev":"download"' warm.ndjson; exit 1
+          fi
           node -v

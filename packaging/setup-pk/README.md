@@ -110,8 +110,16 @@ gh variable set PK_INSTALLER_SHA256 --repo nekoleamo/setup-pk \
 git tag -a v1 -m "setup-packnest v1" && git push -q origin v1
 ```
 
-**验收（DoD）**：仓库里 `self-test` 工作流跑绿 —— `cold` job 断言 `cache-hit=false` 且出现 `download` 事件，
-`warm` job 断言 `cache-hit=true`、清掉工具树后重装出现 `cache` 事件（命中缓存 = 零网络）。
+**验收（DoD，已达成 2026-11-14）**：`nekoleamo/setup-pk` 的 `self-test` 两个 job 全绿 ——
+`cold` 断言 `cache-hit=false` 且真的出现 `download` 事件；`warm` 断言 `cache-hit=true`，
+删掉工具树后重装出 `cache` 事件且**没有** `download`。
+
+两处测试自身的坑（踩过，别重犯）：
+1. 冷路径要 `install: 'false'` 自己跑 `pk install --json`，否则 action 已经装完，事件里只有 resolve；
+2. 两个 job 都必须传 `cache-key-extra: ${{ github.run_id }}`，否则第二次运行 cold 就命中缓存，"冷"不冷。
+
+⚠️ 已知边界（R-CACHE-1）：`PK_CACHE` 里是内容寻址归档，要按摘要找回来得先有 `state/known.json`（TOFU）；
+CI 上新 runner 的 state 是空的，所以**只挂 PK_CACHE 不挂 state** 时仍会重新下载产物（缓存白存）。
 
 > 为什么 `installer-sha256` 用仓库变量而不是写死在 action 里：变量可以按版本改，而 action 代码不变；
 > 且换版本时 pin 值必须跟着换（tag 下的脚本内容变了），写死会静默失效。
