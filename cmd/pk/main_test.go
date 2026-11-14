@@ -11,7 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/packnest/packnest/cmd/pk/present"
 	"github.com/packnest/packnest/internal/install"
+	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/paths"
 	"github.com/packnest/packnest/internal/shim"
 	"github.com/packnest/packnest/internal/store"
@@ -1465,5 +1467,121 @@ func TestInstallDryRunLeavesConfigAlone(t *testing.T) {
 	}
 	if cfg.Corepack {
 		t.Fatal("dry-run 不该把 corepack 开关写进 config.toml")
+	}
+}
+
+// TestJSONErrorEnvelope：`--json` 下的失败要有一条机器可读记录（1.8 新契约）。
+//
+// 断言的是**契约形状**：顶层 `error` 对象 + 稳定 `code` + 与进程一致的 `exit`；
+// `msg` 只是人话（中文可能变），不拿它做匹配。
+func TestJSONErrorEnvelope(t *testing.T) {
+	root := t.TempDir()
+	// 台账里没有这条记录：失败发生在任何网络请求之前，码稳定。
+	code, out, errOut := execCLI(t, "uninstall", "node@1.0.0", "--json", "--root", root)
+	if code != 1 {
+		t.Fatalf("缺前置工具应退出 1，实际 %d（stderr=%q）", code, errOut)
+	}
+	var doc struct {
+		Schema int `json:"schema"`
+		Error  struct {
+			Code string   `json:"code"`
+			Args []string `json:"args"`
+			Tool string   `json:"tool"`
+			Spec string   `json:"spec"`
+			Msg  string   `json:"msg"`
+			Exit int      `json:"exit"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(lastJSONObject(t, out)), &doc); err != nil {
+		t.Fatalf("失败时 stdout 末尾应是一条合法 JSON: %v\n%s", err, out)
+	}
+	if doc.Schema != 1 {
+		t.Fatalf("schema 必须仍是 1: %d", doc.Schema)
+	}
+	if doc.Error.Code != "install.not_in_ledger" {
+		t.Fatalf("应带稳定问题码，实际 %q（%s）", doc.Error.Code, out)
+	}
+	if doc.Error.Exit != 1 {
+		t.Fatalf("exit 应与进程退出码一致: %d", doc.Error.Exit)
+	}
+	if len(doc.Error.Args) == 0 || !strings.Contains(strings.Join(doc.Error.Args, ","), "node") {
+		t.Fatalf("args 应把参数原样带出（工具名是数据）: %v", doc.Error.Args)
+	}
+	if doc.Error.Msg == "" {
+		t.Fatal("msg 应有尽力而为的人话")
+	}
+	// 人读 stderr 不变
+	if !strings.Contains(errOut, "pk:") {
+		t.Fatalf("stderr 仍应有人读错误: %q", errOut)
+	}
+}
+
+// TestJSONErrorUsage：用法错误也给一条记录（exit=2），但不带码。
+func TestJSONErrorUsage(t *testing.T) {
+	code, out, _ := execCLI(t, "install", "--nope", "--json")
+	if code != 2 {
+		t.Fatalf("用法错误应退出 2，实际 %d", code)
+	}
+	var doc struct {
+		Error struct {
+			Code string `json:"code"`
+			Exit int    `json:"exit"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(lastJSONObject(t, out)), &doc); err != nil {
+		t.Fatalf("用法错误也要有 JSON: %v\n%s", err, out)
+	}
+	if doc.Error.Exit != 2 {
+		t.Fatalf("exit 应为 2: %d", doc.Error.Exit)
+	}
+	if doc.Error.Code != "" {
+		t.Fatalf("没码时省略 code（脚本必须容忍缺字段），实际 %q", doc.Error.Code)
+	}
+	// 非 --json 时 stdout 不能出现 JSON（人读输出保持原样）
+	code, out, _ = execCLI(t, "install", "--nope")
+	if code != 2 || strings.Contains(out, `"error"`) {
+		t.Fatalf("非 --json 不该输出 JSON: %d %q", code, out)
+	}
+}
+
+// lastJSONObject 取 stdout 末尾的那个 JSON 对象（NDJSON 事件流 + 缩进块混在一起）。
+func lastJSONObject(t *testing.T, out string) string {
+	t.Helper()
+	trimmed := strings.TrimSpace(out)
+	if i := strings.LastIndex(trimmed, "\n{"); i >= 0 {
+		return trimmed[i+1:]
+	}
+	return trimmed
+}
+
+// TestRenderEventFromCode：事件里只给码的 msg 片段由 CLI 渲染成当前语言（E1）。
+func TestRenderEventFromCode(t *testing.T) {
+	a := &app{json: true}
+	ev := a.renderEvent(jsonout.Event{Ev: "mirror", Source: "cn", MsgCode: install.CodeMirrorProbeCached,
+		MsgArgs: []any{"cn", int64(122)}})
+	if ev.Msg != "cn (122ms, 6h 内探过)" {
+		t.Fatalf("中文渲染不对: %q", ev.Msg)
+	}
+	if ev.MsgCode != install.CodeMirrorProbeCached {
+		t.Fatalf("msg_code 必须原样保留给机器: %q", ev.MsgCode)
+	}
+	// 英文：msg 跟着语言走（这是把碎片收进码表的收益）
+	t.Cleanup(func() { _ = present.SetLang("zh") })
+	if err := present.SetLang("en"); err != nil {
+		t.Fatal(err)
+	}
+	ev = a.renderEvent(jsonout.Event{Ev: "mirror", MsgCode: install.CodeMirrorProbeCached, MsgArgs: []any{"cn", int64(7)}})
+	if ev.Msg != "cn (7ms, probed within 6h)" {
+		t.Fatalf("英文渲染不对: %q", ev.Msg)
+	}
+	// 没登记/参数对不上：保留内部给的兜底，不把机器串打出去
+	ev = a.renderEvent(jsonout.Event{Ev: "x", MsgCode: "no.such.code", Msg: "兜底"})
+	if ev.Msg != "兜底" {
+		t.Fatalf("渲染不出来时应保留兜底: %q", ev.Msg)
+	}
+	// 没有码的事件原样返回
+	plain := jsonout.Event{Ev: "done", Tool: "node"}
+	if got := a.renderEvent(plain); got.Msg != "" || got.Ev != "done" {
+		t.Fatalf("无码事件不该被改: %+v", got)
 	}
 }

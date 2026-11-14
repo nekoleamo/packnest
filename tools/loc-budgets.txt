@@ -8,12 +8,12 @@
 # 包路径              上限
 cmd/pk                3300
 cmd/pk/present         800
-internal/install      2800
+internal/install      3050
 internal/provider     1700
 internal/env          1050
 internal/fetch         900
 internal/verify        850
-internal/store         700
+internal/store         720
 internal/mirror        500
 internal/archive       450
 internal/spec          300

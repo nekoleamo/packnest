@@ -24,15 +24,21 @@ type prepared struct {
 	plan bool
 	p    *provider.Provider
 	// events 是 prepare 阶段产生的事件（并行时不直接 emit，由 commit 按序补发）。
-	events []jsonout.Event
+	// 必须是指针：切片头是值语义，缓存的 `[]Event{}` 在 append 重新分配后不会同步回 prep，
+	// 于是 download/cache/verify 这些事件被静默丢掉（2026-11-15 实测：多工具安装的 NDJSON 只剩
+	// resolve/done，GUI 就没进度条了）。
+	events *eventSink
 	// known 是本次校验用的 TOFU 副本（verify.Verify 会写 map，共享主表会并发写崩）。
 	known    *verify.Known
 	knownKey string
 }
 
+// eventSink 收集某个 worker 在 prepare 阶段产生的事件（只被那一个 goroutine 写，commit 时才读）。
+type eventSink struct{ evs []jsonout.Event }
+
 // worker 复制一份"只带自己 TOFU 副本"的视图：台账只读共享（层内没人写），
 // prefetch 表互斥共享（同一个索引别拉 N 次），client 共享（fetch.Client 无可变状态）。
-func (i *Installer) worker(events *[]jsonout.Event) *Installer {
+func (i *Installer) worker(events *eventSink) *Installer {
 	sub := *i
 	sub.known = cloneKnown(i.known)
 	// client 的字段除了 Progress 都是只读的，值拷贝一份就能安全地挂自己的进度回调
@@ -42,7 +48,7 @@ func (i *Installer) worker(events *[]jsonout.Event) *Installer {
 		sub.opt.Client = &cl
 	}
 	if events != nil {
-		sub.opt.Events = func(ev jsonout.Event) { *events = append(*events, ev) }
+		sub.opt.Events = func(ev jsonout.Event) { events.evs = append(events.evs, ev) }
 	}
 	return &sub
 }
@@ -68,10 +74,11 @@ func (i *Installer) prepare(ctx context.Context, tool, specStr string, emitNow b
 		return nil, err
 	}
 
-	var evs []jsonout.Event
+	var evs *eventSink
 	sub := i
 	if !emitNow {
-		sub = i.worker(&evs)
+		evs = &eventSink{}
+		sub = i.worker(evs)
 		// 并行路径：每个 worker 的 Client 是副本，这里挂上"只属于这个工具"的进度回调
 		// （闭包 tool）。单工具路径（emitNow）沿用 CLI 直接设在共享 Client 上的回调，
 		// 行为与 1.6 完全一致。
@@ -142,7 +149,8 @@ func (i *Installer) prepare(ctx context.Context, tool, specStr string, emitNow b
 		return nil, err
 	}
 	prep.res.SHA256, prep.res.Verified = sha, vr.Verified
-	sub.emit(jsonout.Event{Ev: "verify", Tool: tool, Version: version, Mode: vr.Mode, OK: boolPtr(true), Msg: vr.Note})
+	sub.emit(jsonout.Event{Ev: "verify", Tool: tool, Version: version, Mode: vr.Mode, OK: boolPtr(true),
+		Msg: vr.Note, MsgCode: vr.NoteCode, MsgArgs: vr.NoteArgs})
 
 	if i.opt.Frozen && lockedSHA != "" {
 		if err := verifyLockedSHA(archivePath, lockedSHA); err != nil {
@@ -189,9 +197,11 @@ func (i *Installer) prepare(ctx context.Context, tool, specStr string, emitNow b
 // commit 是单写者阶段：改名落盘、写台账/TOFU、切默认、装 shim、corepack。
 func (i *Installer) commit(ctx context.Context, prep *prepared) (Result, error) {
 	res := prep.res
-	// 并行路径的事件在 prepare 阶段被收集，这里按发生顺序补发（单工具路径 events 为空，已直接发出）。
-	for _, ev := range prep.events {
-		i.emit(ev)
+	// 并行路径的事件在 prepare 阶段被收集，这里按发生顺序补发（单工具路径 events 为 nil，已直接发出）。
+	if prep.events != nil {
+		for _, ev := range prep.events.evs {
+			i.emit(ev)
+		}
 	}
 	if prep.plan {
 		return res, nil
@@ -480,9 +490,9 @@ func (i *Installer) abortAll(targets []Target, out []Outcome, preps []*prepared,
 		if preps[k] != nil && preps[k].tmpDir != "" {
 			_ = os.RemoveAll(preps[k].tmpDir)
 		}
-		msg := fmt.Sprintf("本批已放弃（%s）", cause.Error())
 		out[k].Err = &AbortError{Tool: targets[k].Tool, Cause: cause}
-		i.emit(jsonout.Event{Ev: "abort", Tool: targets[k].Tool, Msg: msg})
+		i.emit(jsonout.Event{Ev: "abort", Tool: targets[k].Tool,
+			MsgCode: CodeAbortBatch, MsgArgs: []any{cause.Error()}})
 	}
 }
 

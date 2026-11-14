@@ -167,6 +167,7 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 	if err != nil {
 		fmt.Fprintf(a.errOut, tr("pk: %s 的版本索引取不到: %v\n", "pk: cannot fetch the version index for %s: %v\n"), name, err)
 		fmt.Fprintln(a.errOut, tr("试一试：pk list ", "try: pk list ")+name+tr(" --refresh（强制回源）· pk mirror probe（看哪个源通）· pk mirror use cn（换档）", " --refresh (force refetch) · pk mirror probe (which source works) · pk mirror use cn (switch profile)"))
+		a.emitError(err, name, "", jsonout.ExitNetwork)
 		return jsonout.ExitNetwork
 	}
 
@@ -185,8 +186,7 @@ func (a *app) listToolVersions(name string, refresh bool, limit int, major strin
 			}
 		}
 		if len(kept) == 0 {
-			fmt.Fprintf(a.errOut, tr("pk: %s 没有 %s.x 的版本（pk list %s 看有哪些大版本）\n", "pk: %s has no %s.x versions (see `pk list %s` for majors)\n"), name, major, name)
-			return jsonout.ExitFail
+			return a.failMsg(fmt.Sprintf(tr("pk: %s 没有 %s.x 的版本（pk list %s 看有哪些大版本）", "pk: %s has no %s.x versions (see `pk list %s` for majors)"), name, major, name), jsonout.ExitFail)
 		}
 		versions = kept
 	}

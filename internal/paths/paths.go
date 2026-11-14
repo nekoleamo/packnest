@@ -105,6 +105,11 @@ func (p Paths) CacheArchives() string { return p.CacheDir("archives") }
 // CacheMeta 是索引元数据缓存（ETag/Last-Modified）。
 func (p Paths) CacheMeta() string { return p.CacheDir("meta") }
 
+// CacheAliases 是"上游公布的摘要 → 内容寻址归档"的别名目录（R-CACHE-1）。
+// 放在缓存根下，跟着 PK_CACHE 一起被搬走/被 CI 缓存，这样没有 TOFU 记录的新机器
+// 也能按上游摘要直接命中已有归档。
+func (p Paths) CacheAliases() string { return p.CacheDir("alias") }
+
 // State 是台账与锁。
 func (p Paths) State() string { return p.join("state") }
 

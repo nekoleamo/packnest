@@ -13,9 +13,9 @@ BUILD := build
 
 # 覆盖率门禁（已实现包；新增包要在 COVER_PKGS 语境下自然纳入，
 # 尚未实现的包（archive/verify/companion/toolchain）等里程碑补实现时再纳入统计）。
-# 1.8（E8c）：内部包 85 → 88；编排层 internal/install 单独要更高（目标 92，当前 90.3 —— 见 docs/progress.md 的未完项）
+# 1.8（E8c）：内部包 85 → 88；编排层 internal/install 单独 92（2026-11-15 达标，实测 92.2）
 COVER_INTERNAL_MIN := 88
-COVER_INSTALL_MIN := 90
+COVER_INSTALL_MIN := 92
 COVER_CMD_MIN := 70
 
 # fuzz 目标（每个都是 parser/路径类红线）。门禁时长 = 目标数 × $(FUZZ_TIME)，

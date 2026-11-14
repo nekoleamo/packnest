@@ -148,6 +148,48 @@ func DigestFile(path, algo string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// AliasKey 把（算法, 摘要）折成缓存别名键（全部十六进制，可直接当文件名）。
+//
+// sha256/sha1 本来就是十六进制；sha512 是 SRI（"sha512-<base64>"），解码后转十六进制。
+// 无法归一化（长度/字符不对）返回空串，调用方跳过即可 —— 别名只是「省一次下载」的加速，
+// 不是正确性依赖，所以宁可跳过也不猜。
+func AliasKey(algo, digest string) string {
+	d := strings.ToLower(strings.TrimSpace(digest))
+	switch algo {
+	case AlgoSHA256:
+		if len(d) == 64 && isHex(d) {
+			return AlgoSHA256 + "-" + d
+		}
+	case AlgoSHA1:
+		if len(d) == 40 && isHex(d) {
+			return AlgoSHA1 + "-" + d
+		}
+	case AlgoSHA512:
+		raw := strings.TrimPrefix(d, AlgoSHA512+"-")
+		sum, err := base64.StdEncoding.DecodeString(raw)
+		if err != nil {
+			sum, err = base64.RawStdEncoding.DecodeString(raw)
+		}
+		if err != nil || len(sum) != sha512.Size {
+			return ""
+		}
+		return AlgoSHA512 + "-" + hex.EncodeToString(sum)
+	}
+	return ""
+}
+
+// PublishedSum 从校验和文件里取出本产物的摘要（gnu-sums / per-artifact）。
+//
+// 导出是给 install 用的：下载前先按上游公布的摘要查内容寻址缓存（R-CACHE-1），
+// 解析逻辑只留一份，别在 install 里重写一遍。
+func PublishedSum(format string, data []byte, artifact string) (string, bool) {
+	switch format {
+	case "gnu-sums", "per-artifact":
+		return pickSum(format, data, artifact)
+	}
+	return "", false
+}
+
 // ParseGNUSums 解析 "SHASUMS256.txt" 风格：每行 "<sha256>  <文件名>"。
 //
 // 容忍 "*文件名"（sha256sum -b 的输出）与前后的空行。
@@ -233,8 +275,11 @@ type Result struct {
 	Digest   string
 	Algo     string
 	Sources  int
-	// Note 是欣得提醒用户的人类可读说明（如"上游重新发布，按同源配对接受"）。
-	Note string
+	// Note 是替得提醒用户的人类可读说明（如"上游重新发布，按同源配对接受"）。
+	// 1.8 起内部不再直接产出这句人话：用 NoteCode + NoteArgs，由 CLI 按当前语言渲染。
+	Note     string
+	NoteCode string
+	NoteArgs []any
 }
 
 // Verifier 执行校验。Fetch 与 Now 可注入，测试零外网。
@@ -360,7 +405,7 @@ func (v *Verifier) sameOriginRepublish(ctx context.Context, req Request, algo, k
 	}
 	v.record(key, Entry{Digest: req.Digest, Algo: algo, Verified: VerifiedWeak, Sources: 1})
 	return Result{Mode: "network", Verified: VerifiedWeak, Digest: req.Digest, Algo: algo, Sources: 1,
-		Note: "上游重新发布了同一版本的产物（同源 " + host + " 已更新，其它源还是旧摘要），按 weak 接受"}, true
+		NoteCode: CodeSumRepublishNote, NoteArgs: []any{host}}, true
 }
 
 // pickSum 从校验和文件里取出本产物的摘要（per-artifact 单文件 / gnu-sums 多行）。

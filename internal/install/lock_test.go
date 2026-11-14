@@ -452,3 +452,53 @@ func TestGCKeepRecent(t *testing.T) {
 		t.Fatalf("台账不该丢被保留的版本: %+v", inst.ledger.Installs)
 	}
 }
+
+// TestLockNilAndReadErrors：nil 锁、坏项目文件的边角（不 panic、不漏错）。
+func TestLockNilAndReadErrors(t *testing.T) {
+	var nilLock *Lock
+	if _, ok := nilLock.Find("node"); ok {
+		t.Fatal("nil 锁里不该找到工具")
+	}
+	if got := nilLock.LockTools(); got != "" {
+		t.Fatalf("nil 锁的工具列表应为空: %q", got)
+	}
+	lock := &Lock{Tool: []LockTool{
+		{Name: "node", Version: "22.98.0"}, {Name: "go", Version: "1.27.3"},
+	}}
+	if got := lock.LockTools(); got != "go@1.27.3, node@22.98.0" {
+		t.Fatalf("工具列表应按名字排序: %q", got)
+	}
+
+	dir := t.TempDir()
+	// pk.toml 是个目录：读会失败，且不是"文件不存在"
+	if err := os.Mkdir(filepath.Join(dir, ProjectFileName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadProject(dir); err == nil {
+		t.Fatal("pk.toml 读不了时应报错")
+	}
+	if _, _, err := ProjectSpecs(dir); err == nil {
+		t.Fatal("ProjectSpecs 应把读错误透出来")
+	}
+	// package.json 是目录：只给一行提示，不拦截
+	if err := os.Remove(filepath.Join(dir, ProjectFileName)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, PackageJSONFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got, notes := packageJSONEngines(dir); got != "" || len(notes) == 0 {
+		t.Fatalf("读不到 package.json 应给提示而不是报错: %q %v", got, notes)
+	}
+}
+
+// TestSaveProjectToolReadError：pk.toml 读不了时不写（宁可失败，也不盖掉用户文件）。
+func TestSaveProjectToolReadError(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, ProjectFileName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveProjectTool(dir, "node", "22.98.0"); err == nil {
+		t.Fatal("pk.toml 读不了时应报错")
+	}
+}

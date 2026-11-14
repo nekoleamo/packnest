@@ -152,7 +152,7 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式：不�
 - 第三方依赖 **2 个**：`Masterminds/semver/v3`、`BurntSushi/toml`
 - 归档只支持 **tar.gz / zip**，解压零第三方（`archive/tar` + `compress/gzip` + `archive/zip`）
 - 单根 `PK_ROOT`（默认 `~/.packnest`），**永不 sudo、永不写 shell rc**（`pk env --write` 的托管块除外）
-- 唯一的例外是缓存：`PK_CACHE=<目录>` 可把 `archives/`、`meta/`、corepack/npm 缓存搬到别处（CI 挂卷），台账/shim/锁不动
+- 唯一的例外是缓存：`PK_CACHE=<目录>` 可把 `archives/`、`alias/`、`meta/`、corepack/npm 缓存搬到别处（CI 挂卷），台账/shim/锁不动
 - 默认**不动**用户已有配置：不写 `~/.npmrc`（要写用 `pk mirror write`，写前备份、只增不改）
 - 默认 `go test ./...` **零外网**；真网测试一律 `//go:build nettest`，不进门禁
 - 门禁 **11 项**（`make check`）：gofmt+vet · 按包行数预算（`make loc`，总量只统计）· 英文覆盖（`make lang`）· 五处签名公钥一致（`make keys`）·
@@ -320,7 +320,9 @@ Windows 上系统不允许删除正在运行的 exe，会打印出要你执行�
 
 - python 的索引只声明 npmmirror（官方 GitHub 无目录列举接口）；go 的索引只声明官方 `?mode=json&include=all`，拉不到时用 24h stale 缓存
 - pnpm 走 registry 平台包 `@pnpm/exe.<os>-<arch>`（真二进制），不再有"启动器首次运行自己下平台二进制"的下载面；代价是它只从 **11.0.0** 起发布，`pk install pnpm@10` 会立即报错并建议 corepack
-- 缓存按内容寻址：`cache/archives/<sha256>.<ext>`（TOFU 表里已知摘要时直接按内容找，同内容跨版本只存一份）
+- 缓存按内容寻址：`cache/archives/<sha256>.<ext>`（TOFU 表里已知摘要时直接按内容找，同内容跨版本只存一份）；
+  `cache/alias/<algo>-<hex>` 记「上游公布的摘要 → 归档」的映射，所以**换一台机器（state 全空）也能只凭
+  热缓存 + 一次几 KB 的校验和请求命中归档**，不必先下 50MB（R-CACHE-1，1.8 解决）
 - 项目内自动覆盖全局版本需要 direnv（`pk env --project`）；未装 direnv 时 `node` 仍解析到全局默认
 - `[companions]` 通用：node→npm 走 engines 反查，其它键按 `bundled|latest-compatible|pinned` 装进宿主的 `<target>`（1.1）；GUI（`pk-desktop`）是 CLI 的补充界面，必先装 `pk`，只发 macOS arm64（GUI 0.10.3 已跟齐 1.3：可升级提示 / `doctor --fix` / `gc --keep`）
 

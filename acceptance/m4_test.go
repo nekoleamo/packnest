@@ -25,6 +25,7 @@ import (
 	"github.com/packnest/packnest/internal/env"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/install"
+	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/paths"
 	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/store"
@@ -401,6 +402,69 @@ func TestAcceptance_M4_StartupSweep(t *testing.T) {
 	}
 	if _, err := os.Stat(fresh); err != nil {
 		t.Fatal("新鲜残留不该删（可能是另一个进程正在用）")
+	}
+}
+
+// TestAcceptance_M4_CacheFreshStateReuse（R-CACHE-1）：两个全新的 PK_ROOT 共享一份 PK_CACHE 时，
+// 第二个不该再下产物。
+//
+// 这就是 CI 的形状：`actions/cache` 只搬 PK_CACHE，state（TOFU/台账）留在 runner 上，
+// 每个 job 都是全新 runner。以前这里必下 50MB（内容寻址要先知道 sha256，而新机器不知道），
+// 现在靠缓存目录里的「上游摘要别名」直接命中。
+func TestAcceptance_M4_CacheFreshStateReuse(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.22.2", NPMVersion: "11.20.0"}},
+		NPM:      npmMatrixAcceptance(),
+	})
+	lookup := func(id string) (*provider.Provider, error) {
+		switch id {
+		case "node":
+			return fm.NodeProvider, nil
+		case "npm":
+			return fm.NPMProvider, nil
+		}
+		return nil, errors.New("未知工具 " + id)
+	}
+	shared := filepath.Join(t.TempDir(), "pk-cache")
+	mk := func() (*install.Installer, *[]jsonout.Event) {
+		p, err := paths.New(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.CacheRoot = shared // 两份 PK_ROOT 共用一份 PK_CACHE
+		evs := make([]jsonout.Event, 0, 8)
+		inst, err := install.New(install.Options{
+			Paths: p, Client: fetch.New(), Cfg: store.DefaultConfig(), Profile: "cn",
+			GOOS: "darwin", GOARCH: "arm64", LookupProvider: lookup,
+			Events: func(ev jsonout.Event) { evs = append(evs, ev) },
+		})
+		if err != nil {
+			t.Fatalf("install.New: %v", err)
+		}
+		return inst, &evs
+	}
+	ctx := context.Background()
+	first, _ := mk()
+	if _, err := first.Install(ctx, "node", "22.22.2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Finalize(); err != nil {
+		t.Fatal(err)
+	}
+
+	// 第二台机器：全新 PK_ROOT（state 全空），同一份 PK_CACHE。
+	second, evs := mk()
+	if _, err := second.Install(ctx, "node", "22.22.2"); err != nil {
+		t.Fatalf("新机器 + 热缓存应能直接装: %v", err)
+	}
+	downloads := 0
+	for _, ev := range *evs {
+		if ev.Ev == "download" {
+			downloads++
+		}
+	}
+	if downloads != 0 {
+		t.Fatalf("共享缓存命中时不应再下产物，download 事件 %d 次", downloads)
 	}
 }
 

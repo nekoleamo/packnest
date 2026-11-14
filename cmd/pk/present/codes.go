@@ -45,6 +45,8 @@ var codeTable = map[string]codeText{
 	"sum.no_source":        {zh: "校验失败: 拿不到 %s 的校验和（所有源都不可用）；确认风险后可加 --insecure", en: "verification failed: no checksum source for %s is reachable; add --insecure only after accepting the risk"},
 	"sum.sources_conflict": {zh: "校验失败: %s 的校验和源之间不一致（%s；%s）——可能是镜像被污染，也可能是上游重新发布了产物；确认来源可信后可加 --insecure", en: "verification failed: checksum sources disagree for %s (%s; %s) -- either a poisoned mirror or an upstream re-release; add --insecure only if you trust the source"},
 	"sum.mismatch":         {zh: "校验失败: %s 的产物 %s 不符（期望 %s，实际 %s）；产物可能被篡改或损坏", en: "verification failed: %s artifact %s mismatch (want %s, got %s); the artifact may be tampered with or corrupted"},
+	// verify 事件的 msg（1.8：内部只给码，CLI 渲染）
+	"sum.republish_note":   {zh: "上游重新发布了同一版本的产物（同源 %s 已更新，其它源还是旧摘要），按 weak 接受", en: "upstream republished the same version (same-origin %s has the new digest, others still hold the old one); accepted as weak"},
 	"sum.inline_invalid":   {zh: "校验失败: 索引里的 sha256 格式非法: %q", en: "verification failed: malformed sha256 in the index: %q"},
 	"sum.registry_invalid": {zh: "校验失败: registry 提供的 shasum 格式非法: %q", en: "verification failed: malformed shasum from the registry: %q"},
 
@@ -166,23 +168,27 @@ var codeTable = map[string]codeText{
 	"install.companion_index":      {zh: "伴生包 %s 的版本索引不可用: %v", en: "version index for companion %s is unavailable: %v"},
 	"install.companion_no_version": {zh: "伴生包 %s 的索引里没有可用版本", en: "no usable version in the index for companion %s"},
 	"install.companion_place":      {zh: "伴生包 %s 落地失败: %v", en: "cannot place companion %s: %v"},
-	"install.not_in_ledger":        {zh: "%s@%s 不在台账里；不在台账里的目录只提示不删除（确认后可手动清理）", en: "%s@%s is not in the ledger; directories that are not in the ledger are only reported, never deleted (clean them up manually)"},
-	"install.still_referenced":     {zh: "%s@%s 仍被引用（%s），确需删除加 --force", en: "%s@%s is still referenced (%s); add --force to delete anyway"},
-	"install.remove_failed":        {zh: "删除 %q 失败（可能仍有进程占用，关掉后重试或用 --force 留残）: %v", en: "cannot delete %q (still in use?); retry after closing it, or use --force and leave the leftovers: %v"},
-	"install.no_versions":          {zh: "%s 没有已装版本（`pk list` 看已装工具）", en: "%s has no installed version (see `pk list`)"},
-	"install.versions_refused":     {zh: "%s 里这些版本仍被引用，未删除（确需删除加 --force）: %s", en: "some versions of %s are still referenced and were kept (add --force to delete anyway): %s"},
-	"install.shim_remove":          {zh: "删除 shim %q 失败: %v", en: "cannot delete shim %q: %v"},
-	"lock.load":                    {zh: "读取 pk.lock 失败: %v", en: "cannot read pk.lock: %v"},
-	"lock.parse":                   {zh: "解析 pk.lock 失败: %v", en: "cannot parse pk.lock: %v"},
-	"lock.encode":                  {zh: "序列化 pk.lock 失败: %v", en: "cannot encode pk.lock: %v"},
-	"lock.missing":                 {zh: "--frozen 需要 pk.lock，但项目里没有（先跑一次 `pk install` 生成并入库）", en: "--frozen needs pk.lock, but the project has none (run `pk install` once, then commit the lock)"},
-	"lock.mismatch":                {zh: "锁与清单不一致：清单与 pk.lock 不一致（--frozen 不做解析）：\n  %s\n建议：本地 `pk install` 更新锁并提交", en: "lock mismatch: pk.toml and pk.lock disagree (--frozen never resolves):\n  %s\nsuggestion: run `pk install` locally, then commit the lock"},
-	"lock.tool_missing":            {zh: "%s 不在 pk.lock 里（--frozen 不做解析）", en: "%s is not in pk.lock (--frozen never resolves)"},
-	"lock.no_install":              {zh: "%s 还没装，无法生成锁（先 `pk install %s`）", en: "%s is not installed, cannot write the lock (run `pk install %s` first)"},
-	"lock.sha_mismatch":            {zh: "校验失败: 产物 sha256 与 pk.lock 不一致（锁 %s，实际 %s）", en: "verification failed: artifact sha256 differs from pk.lock (lock %s, actual %s)"},
-	"project.read":                 {zh: "读取 %q 失败: %v", en: "cannot read %q: %v"},
-	"project.parse":                {zh: "解析 %q 失败: %v", en: "cannot parse %q: %v"},
-	"project.engines_unparsable":   {zh: "package.json 的 engines.node %q 无法解析: %v（改用 pk install node@<版本>，或写进 pk.toml）", en: "cannot parse engines.node %q in package.json: %v (use `pk install node@<version>` or put it in pk.toml)"},
+	// ── install：事件 msg 的结构化来源（1.8）──
+	"install.mirror_probe":        {zh: "%s (%dms)", en: "%s (%dms)"},
+	"install.mirror_probe_cached": {zh: "%s (%dms, 6h 内探过)", en: "%s (%dms, probed within 6h)"},
+	"install.abort_batch":         {zh: "本批已放弃（%s）", en: "batch abandoned (%s)"},
+	"install.not_in_ledger":       {zh: "%s@%s 不在台账里；不在台账里的目录只提示不删除（确认后可手动清理）", en: "%s@%s is not in the ledger; directories that are not in the ledger are only reported, never deleted (clean them up manually)"},
+	"install.still_referenced":    {zh: "%s@%s 仍被引用（%s），确需删除加 --force", en: "%s@%s is still referenced (%s); add --force to delete anyway"},
+	"install.remove_failed":       {zh: "删除 %q 失败（可能仍有进程占用，关掉后重试或用 --force 留残）: %v", en: "cannot delete %q (still in use?); retry after closing it, or use --force and leave the leftovers: %v"},
+	"install.no_versions":         {zh: "%s 没有已装版本（`pk list` 看已装工具）", en: "%s has no installed version (see `pk list`)"},
+	"install.versions_refused":    {zh: "%s 里这些版本仍被引用，未删除（确需删除加 --force）: %s", en: "some versions of %s are still referenced and were kept (add --force to delete anyway): %s"},
+	"install.shim_remove":         {zh: "删除 shim %q 失败: %v", en: "cannot delete shim %q: %v"},
+	"lock.load":                   {zh: "读取 pk.lock 失败: %v", en: "cannot read pk.lock: %v"},
+	"lock.parse":                  {zh: "解析 pk.lock 失败: %v", en: "cannot parse pk.lock: %v"},
+	"lock.encode":                 {zh: "序列化 pk.lock 失败: %v", en: "cannot encode pk.lock: %v"},
+	"lock.missing":                {zh: "--frozen 需要 pk.lock，但项目里没有（先跑一次 `pk install` 生成并入库）", en: "--frozen needs pk.lock, but the project has none (run `pk install` once, then commit the lock)"},
+	"lock.mismatch":               {zh: "锁与清单不一致：清单与 pk.lock 不一致（--frozen 不做解析）：\n  %s\n建议：本地 `pk install` 更新锁并提交", en: "lock mismatch: pk.toml and pk.lock disagree (--frozen never resolves):\n  %s\nsuggestion: run `pk install` locally, then commit the lock"},
+	"lock.tool_missing":           {zh: "%s 不在 pk.lock 里（--frozen 不做解析）", en: "%s is not in pk.lock (--frozen never resolves)"},
+	"lock.no_install":             {zh: "%s 还没装，无法生成锁（先 `pk install %s`）", en: "%s is not installed, cannot write the lock (run `pk install %s` first)"},
+	"lock.sha_mismatch":           {zh: "校验失败: 产物 sha256 与 pk.lock 不一致（锁 %s，实际 %s）", en: "verification failed: artifact sha256 differs from pk.lock (lock %s, actual %s)"},
+	"project.read":                {zh: "读取 %q 失败: %v", en: "cannot read %q: %v"},
+	"project.parse":               {zh: "解析 %q 失败: %v", en: "cannot parse %q: %v"},
+	"project.engines_unparsable":  {zh: "package.json 的 engines.node %q 无法解析: %v（改用 pk install node@<版本>，或写进 pk.toml）", en: "cannot parse engines.node %q in package.json: %v (use `pk install node@<version>` or put it in pk.toml)"},
 
 	// ── internal/provider：清单加载校验与 URL 模板 ──
 	"provider.unknown_tool":             {zh: "未知工具 %q，可用: %s", en: "unknown tool %q, available: %s"},
@@ -320,6 +326,27 @@ func safeSprintf(tpl string, args []any) (out string, ok bool) {
 		return "", false
 	}
 	return out, true
+}
+
+// Code 按码表渲染一句话（当前语言）。
+//
+// 给 jsonout.Event 的 MsgCode/MsgArgs 用：`internal/*` 只给码与参数，人话在这里生成，
+// 这样 `--lang en` 下 msg 也跟着变英文，且文案只有一份（不散在内部包里）。
+// 码没登记或参数对不上时返回空串：调用方应保留自己的兑底，不要把机器串打给用户。
+func Code(code string, args ...any) string {
+	entry, ok := codeTable[code]
+	if !ok {
+		return ""
+	}
+	tpl := entry.zh
+	if LangIsEN() {
+		tpl = entry.en
+	}
+	out, ok := safeSprintf(tpl, args)
+	if !ok {
+		return ""
+	}
+	return out
 }
 
 // Codes 返回已登记的问题码（测试用：断言"定义过的码都有文案"）。

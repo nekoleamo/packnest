@@ -35,6 +35,8 @@ const (
 	CodeSumMismatch        = "sum.mismatch"
 	CodeSumInlineInvalid   = "sum.inline_invalid"
 	CodeSumRegistryInvalid = "sum.registry_invalid"
+	// CodeSumRepublishNote 是 verify 事件 msg 的结构化来源（1.8）：按同源配对接受"上游重发"时的说明。
+	CodeSumRepublishNote = "sum.republish_note"
 )
 
 // sigErr 造一个"签名类"编码错误：Cause 固定为 ErrSignature，所以 errors.Is(err, ErrSignature) 照旧成立。

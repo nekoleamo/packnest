@@ -157,7 +157,13 @@ $ pk install
 只有 `pk.toml` 存在时 pk 才写 `pk.lock` —— 它不往你的仓库里多放文件。
 
 **缓存可以搬出 `PK_ROOT`**：`PK_CACHE=/mnt/ci-cache`（CI 挂卷、多机预热）后，产物缓存
-（`archives/`）、索引缓存（`meta/`）、corepack/npm 缓存都落到那个目录；台账、锁、shim 仍在 `PK_ROOT`。
+（`archives/`）、缓存别名（`alias/`）、索引缓存（`meta/`）、corepack/npm 缓存都落到那个目录；
+台账、锁、shim 仍在 `PK_ROOT`。
+
+热缓存对**全新机器**也有效：`archives/` 里是内容寻址名（`<sha256>.<ext>`），`alias/` 里记着
+「上游公布的摘要（registry integrity / shasum、go 索引 sha256、SHASUMS256.txt）→ 归档」的映射。
+所以新 runner 上 `pk install` 只发一次几 KB 的校验和请求就能命中 50MB 的归档 —— 前提是
+`PK_CACHE` 一起被缓存/挂载（这也是 `setup-pk` action 缓存的东西）。
 `pk uninstall --all --purge` **不会**删 `PK_CACHE` 指定的目录（那通常是挂载卷），要清自己删。
 
 ### 1.6 其他开关

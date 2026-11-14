@@ -115,6 +115,9 @@ type Installer struct {
 	// planned 是本次 --atomic 一起装的目标集合：require 检查要认"同一批里马上就有"的工具
 	// （否则 pnpm 会因为在等的 node 还没 commit 而报"先装 node"）。
 	planned map[string]bool
+	// sums 是本轮已拉到的校验和/平台元数据（键=URL）：下载前的缓存查找与随后的 verify 共用一份，
+	// 同一份几 KB 的文件不请求两次。worker() 拷贝 Installer 时是浅拷贝，所以放指针、内部自带锁。
+	sumsCache *sumsMemo
 }
 
 // New 加载台账与校验表。
@@ -153,7 +156,7 @@ func New(opt Options) (*Installer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Installer{opt: opt, ledger: ledger, known: known, pf: newIndexCache()}, nil
+	return &Installer{opt: opt, ledger: ledger, known: known, pf: newIndexCache(), sumsCache: &sumsMemo{m: map[string][]byte{}}}, nil
 }
 
 // Ledger 暴露台账（CLI 的 list 复用）。
@@ -343,13 +346,13 @@ func (i *Installer) resolveAutoProfile(ctx context.Context, p *provider.Provider
 		return
 	}
 	i.opt.Profile = profile
-	cached := ""
+	code := CodeMirrorProbe
 	if res.Cached {
-		cached = ", 6h 内探过"
+		code = CodeMirrorProbeCached
 	}
 	i.emit(jsonout.Event{Ev: "mirror", Tool: p.ID, Source: profile,
 		LatencyMS: res.LatencyMS, Cached: res.Cached,
-		Msg: fmt.Sprintf("%s (%dms%s)", profile, res.LatencyMS, cached)})
+		MsgCode: code, MsgArgs: []any{profile, res.LatencyMS}})
 }
 
 func (i *Installer) resolveVersion(ctx context.Context, p *provider.Provider, specStr string) (provider.Version, *provider.Index, error) {

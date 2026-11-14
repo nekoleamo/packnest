@@ -3,6 +3,7 @@ package store
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -289,5 +290,69 @@ func TestPruneCacheRemovalFailureNotCounted(t *testing.T) {
 	back, _ := LoadCacheIndex(p.CacheIndex())
 	if _, ok := back.Entries[name]; !ok {
 		t.Fatal("删不掉时索引条目要保留，下次再试")
+	}
+}
+
+// TestPruneCacheDropsDanglingAliases：gc 淘汰归档后，指向它的缓存别名要一起清掉（R-CACHE-1）。
+func TestPruneCacheDropsDanglingAliases(t *testing.T) {
+	root := t.TempDir()
+	p, _ := paths.New(root)
+	if err := os.MkdirAll(p.CacheArchives(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(p.CacheAliases(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	old := filepath.Join(p.CacheArchives(), "old.tar.gz")
+	if err := os.WriteFile(old, make([]byte, 100), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	keep := filepath.Join(p.CacheArchives(), "keep.tar.gz")
+	if err := os.WriteFile(keep, make([]byte, 100), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	idx, err := LoadCacheIndex(p.CacheIndex())
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx.Touch("old.tar.gz", 100, now.Add(-2*time.Hour))
+	idx.Touch("keep.tar.gz", 100, now)
+	if err := idx.Save(p.CacheIndex()); err != nil {
+		t.Fatal(err)
+	}
+	// 两个有效别名 + 一个脏别名（内容带路径）
+	for _, tc := range []struct{ name, target string }{
+		{"sha256-" + strings.Repeat("a", 64), "old.tar.gz"},
+		{"sha256-" + strings.Repeat("b", 64), "keep.tar.gz"},
+		{"sha256-" + strings.Repeat("c", 64), "../../etc/passwd"},
+	} {
+		if err := os.WriteFile(filepath.Join(p.CacheAliases(), tc.name), []byte(tc.target), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := PruneCache(p, 150, now, false); err != nil {
+		t.Fatalf("PruneCache: %v", err)
+	}
+	entries, err := os.ReadDir(p.CacheAliases())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var left []string
+	for _, e := range entries {
+		left = append(left, e.Name())
+	}
+	if len(left) != 1 || left[0] != "sha256-"+strings.Repeat("b", 64) {
+		t.Fatalf("只该留下指向存活归档的那一条: %v", left)
+	}
+	// dry-run 不动别名
+	if err := os.WriteFile(filepath.Join(p.CacheAliases(), "sha256-"+strings.Repeat("a", 64)), []byte("old.tar.gz"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := PruneCache(p, 1, now, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(p.CacheAliases(), "sha256-"+strings.Repeat("a", 64))); err != nil {
+		t.Fatal("dry-run 不该动别名")
 	}
 }

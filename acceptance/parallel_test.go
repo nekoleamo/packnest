@@ -205,16 +205,33 @@ func TestAcceptance_Par_JSONEventOrder(t *testing.T) {
 	for _, ev := range events {
 		seen[ev.Tool] = append(seen[ev.Tool], ev.Ev)
 	}
-	if len(seen["node"]) == 0 {
-		t.Fatalf("没有 node 事件: %+v", seen)
-	}
-	for tool, evs := range seen {
+	// 只对**请求的目标**断言"首条是 resolve、末条是 done"。
+	// 伴生包（node 带的 npm）没有自己的 resolve：它的事件是嵌在宿主 prepare 里的
+	// （progress/download/companion），按 tool 分组后是独立一组，首条不是 resolve 是正确的。
+	for _, tool := range []string{"node", "go", "pnpm"} {
+		evs := seen[tool]
+		if len(evs) == 0 {
+			t.Fatalf("%s 没有任何事件: %+v", tool, seen)
+		}
 		if evs[0] != "resolve" {
 			t.Fatalf("%s 的第一条事件应是 resolve，实际 %v", tool, evs)
 		}
 		if evs[len(evs)-1] != "done" {
 			t.Fatalf("%s 的最后一条事件应是 done，实际 %v", tool, evs)
 		}
+		// 并行路径必须把下载/校验事件也补发出来（曾因为切片头是值语义而整段丢过）
+		hasTransfer := false
+		for _, e := range evs {
+			if e == "download" || e == "cache" {
+				hasTransfer = true
+			}
+		}
+		if !hasTransfer {
+			t.Fatalf("%s 应有 download/cache 事件（并行路径的事件不能被吞）: %v", tool, evs)
+		}
+	}
+	if evs := seen["npm"]; len(evs) > 0 && evs[len(evs)-1] != "companion" {
+		t.Fatalf("伴生 npm 的事件应以 companion 收尾: %v", evs)
 	}
 	dones := 0
 	for _, ev := range events {
@@ -342,7 +359,11 @@ func TestAcceptance_Par_AtomicAbortEvent(t *testing.T) {
 	if len(aborts) != 1 || aborts[0].Tool != "node" {
 		t.Fatalf("应为 node 发一条 abort，实际 %+v", aborts)
 	}
-	if aborts[0].Msg == "" {
-		t.Fatal("abort 事件必须带 msg（说清为什么整批放弃）")
+	// 1.8 起 abort 的说明走「码 + 参数」，人话由 CLI 渲染（内部不产出文案）。
+	if aborts[0].MsgCode != install.CodeAbortBatch {
+		t.Fatalf("abort 事件必须带可渲染的 msg_code，实际 %q", aborts[0].MsgCode)
+	}
+	if len(aborts[0].MsgArgs) == 0 {
+		t.Fatal("abort 的 msg_args 应说明原因")
 	}
 }

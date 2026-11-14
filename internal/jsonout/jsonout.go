@@ -107,6 +107,11 @@ type Event struct {
 	// 脚本与 GUI 不许对它做字符串匹配 —— 机器判断请用 Ev / OK / Mode / Replaced / LatencyMS /
 	// BytesDone / BytesTotal / Source / Path（契约见 docs/json-schema.md「字段语义」）。
 	Msg string `json:"msg,omitempty"`
+	// MsgCode / MsgArgs 是 Msg 的**结构化来源**（1.8 起）：`internal/*` 不产出人话，
+	// 只给 stable code + 参数，由 CLI 按当前语言渲染进 Msg（`--lang en` 下 Msg 变英文）。
+	// 两者都只在"这句话是产品文案"时出现；机器判断**照样不该**读 Msg，但可以用 MsgCode。
+	MsgCode string `json:"msg_code,omitempty"`
+	MsgArgs []any  `json:"msg_args,omitempty"`
 }
 
 // WriteJSON 输出一个缩进 JSON 文档（人可读，也便于 golden 比对）。

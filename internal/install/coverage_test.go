@@ -488,7 +488,12 @@ func TestInstalledVersionBadSpec(t *testing.T) {
 	}
 }
 
-// TestCachedArchiveReVerifyFail：缓存里的归档坏了（摘要不符）要删掉重下，而不是直接失败。
+// TestCachedArchiveReVerifyFail：缓存里的归档坏了（摘要不符）不能装出一个坏工具。
+//
+// 行为在 R-CACHE-1 之后变好了：以前 TOFU 里存的是 sha512，`<sha256>.<ext>` 那条命中路径拿不到它，
+// 坏缓存只能拖到“解压”才爆（而且 `addressed` 还会把刚下的好文件删掉、把坏文件留下）；
+// 现在会按上游摘要（integrity/shasum）命中缓存 → 校验当场发现不符 → 删掉坏缓存重下一次。
+// 断言的是结果而不是路径：不能装上坏工具，且坏缓存最终必须被替成正版。
 func TestCachedArchiveReVerifyFail(t *testing.T) {
 	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
 		Versions: []testkit.NodeSpec{{Version: "22.98.0", NPMVersion: "11.20.0"}},
@@ -499,39 +504,56 @@ func TestCachedArchiveReVerifyFail(t *testing.T) {
 	if _, err := inst.Install(ctx, "npm", "12.2.2"); err != nil {
 		t.Fatal(err)
 	}
-	// 把缓存里的 npm 归档改坏：下次装必须发现"缓存与摘要不符"并重新下载
+	// 把缓存里的 npm 归档改坏：下次装必须发现“缓存与摘要不符”并重新下载
 	archives := inst.opt.Paths.CacheArchives()
 	entries, err := os.ReadDir(archives)
 	if err != nil {
 		t.Skipf("缓存目录结构变了: %v", err)
 	}
 	tampered := 0
+	var goodSHA string
 	for _, e := range entries {
 		name := e.Name()
 		// 归档名形如 `npm-12.2.2-darwin-arm64.tgz` 或内容寻址的 `<sha256>.tgz`（两份都改）
 		if !strings.HasPrefix(name, "npm-") && !strings.HasSuffix(name, ".tgz") {
 			continue
 		}
+		if goodSHA == "" {
+			if sum, serr := verify.SHA256File(filepath.Join(archives, name)); serr == nil {
+				goodSHA = sum
+			}
+		}
 		if err := os.WriteFile(filepath.Join(archives, name), []byte("corrupted"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		tampered++
 	}
-	if tampered == 0 {
+	if tampered == 0 || goodSHA == "" {
 		t.Skip("缓存里没有 npm 归档（布局变了）")
 	}
-	// 清掉工具树（保留缓存）→ 重装。
-	// 注意：TOFU 命中时走"离线可验证"捷径，不会逐字节重算摘要，所以坏缓存**会先炸在解压**上；
-	// 关键是这一下必须**响亮失败 + 把坏缓存删掉**，紧接着的重试要能自动重下成功。
-	if err := os.RemoveAll(filepath.Join(inst.opt.Paths.Root, "tools")); err != nil {
+	// 清掉工具树与台账（保留缓存与 TOFU）→ 重装：坏缓存必须被识别，且不能装出坏工具。
+	if err := os.RemoveAll(inst.opt.Paths.Tools()); err != nil {
 		t.Fatal(err)
 	}
 	inst.ledger.Installs = nil
-	if _, err := inst.Install(ctx, "npm", "12.2.2"); err == nil {
-		t.Fatal("缓存被改坏时必须失败（不能装出一个坏工具）")
+	got, err := inst.Install(ctx, "npm", "12.2.2")
+	if err != nil {
+		// “响亮失败”也是可接受的：只要紧接着的重试能自动重下成功。
+		got, err = inst.Install(ctx, "npm", "12.2.2")
+		if err != nil {
+			t.Fatalf("坏缓存清理后，重试应自动重下并成功: %v", err)
+		}
 	}
-	if _, err := inst.Install(ctx, "npm", "12.2.2"); err != nil {
-		t.Fatalf("坏缓存清理后，重试应自动重下并成功: %v", err)
+	if got.SHA256 != goodSHA {
+		t.Fatalf("装的必须是正版产物: got %s want %s", got.SHA256, goodSHA)
+	}
+	// 坏缓存必须已经被替掉（内容寻址的那份重新等回 goodSHA）。
+	sum, err := verify.SHA256File(filepath.Join(archives, goodSHA+".tgz"))
+	if err != nil {
+		t.Fatalf("坏缓存应被替成正版: %v", err)
+	}
+	if sum != goodSHA {
+		t.Fatalf("缓存内容仍不对: %s", sum)
 	}
 }
 

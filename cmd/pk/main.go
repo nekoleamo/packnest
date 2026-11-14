@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/packnest/packnest/cmd/pk/present"
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/jsonout"
@@ -204,9 +205,11 @@ func (a *app) cmdVersion() int {
 func (a *app) fail(err error) int {
 	if errors.Is(err, store.ErrLocked) { // 全局锁被另一个 pk 占着（方案 §错误码 5）
 		fmt.Fprintln(a.errOut, tr("pk: 另一个 pk 正在运行（退出码 5）", "pk: another pk is running (exit code 5)"))
+		a.emitError(err, "", "", jsonout.ExitLocked)
 		return jsonout.ExitLocked
 	}
 	fmt.Fprintf(a.errOut, "pk: %s\n", present.Text(err))
+	a.emitError(err, "", "", exitCodeFor(err))
 	return jsonout.ExitFail
 }
 
@@ -242,12 +245,21 @@ func (a *app) newFlagSet(name string) *flag.FlagSet {
 	return fs
 }
 
+// failMsg 打印一句人话并按给定退出码失败；`--json` 下同时补一条无码的 error 记录。
+// 人读输出（包括 `pk: ` 前缀）保持原样，只是多给机器一份。
+func (a *app) failMsg(msg string, exit int) int {
+	fmt.Fprintln(a.errOut, msg)
+	a.emitError(errors.New(strings.TrimPrefix(msg, "pk: ")), "", "", exit)
+	return exit
+}
+
 func (a *app) failUsage(err error) int {
 	if errors.Is(err, flag.ErrHelp) {
 		return jsonout.ExitOK // 子命令的 --help 是正常请求
 	}
 	fmt.Fprintf(a.errOut, "pk: %s\n", present.Text(err))
 	fmt.Fprintln(a.errOut, tr("运行 `pk help` 查看用法", "run `pk help` for usage"))
+	a.emitError(err, "", "", jsonout.ExitUsage)
 	return jsonout.ExitUsage
 }
 
@@ -256,6 +268,51 @@ func (a *app) emit(v any) int {
 		return a.fail(err)
 	}
 	return jsonout.ExitOK
+}
+
+// jsonError 是 `--json` 模式下的失败记录（1.8 新契约：只增不改，schema 仍为 1）。
+//
+// 为什么要有：错误码过去只出现在**人读 stderr**，脚本/GUI 只能靠退出码猜（3 网络 / 4 校验 /
+// 5 锁占）或对中文做字符串匹配。现在多一条机器可读记录，与既有的 NDJSON 事件流同流不同形：
+// 它没有 `ev` 字段，消费方按“未知形状就忽略”处理（与 `ev` 只增不改的纪律一致）。
+type jsonError struct {
+	Schema int `json:"schema"`
+	Error  struct {
+		// Code 是稳定问题码（`install.requires_missing` 之类）；没有码时省略，脚本必须容忍缺失。
+		Code string `json:"code,omitempty"`
+		// Args 是码表模板的参数（全部字符串化），方便脚本原样拼自己的提示。
+		Args []string `json:"args,omitempty"`
+		// Tool / Spec 只在多工具批量安装时有值（哪个目标失败了）。
+		Tool string `json:"tool,omitempty"`
+		Spec string `json:"spec,omitempty"`
+		// Msg 只是人话：可能中文、可能改措辞、可能不出现；**不许**对它做字符串匹配。
+		Msg string `json:"msg,omitempty"`
+		// Exit 与进程退出码一致（0/1/2/3/4/5）。
+		Exit int `json:"exit"`
+	} `json:"error"`
+}
+
+// emitError 在 `--json` 模式下把一次失败写成一行（stdout）；非 --json 时什么也不做。
+// 人读 stderr 保持原样（退出码也不变），这里只是给机器多一份。
+func (a *app) emitError(err error, tool, spec string, exit int) {
+	if !a.json {
+		return
+	}
+	rec := jsonError{Schema: jsonout.SchemaVersion}
+	rec.Error.Exit = exit
+	rec.Error.Tool, rec.Error.Spec = tool, spec
+	if err != nil {
+		rec.Error.Msg = present.Text(err)
+		if ce, ok := coded.Of(err); ok {
+			rec.Error.Code = ce.Code
+			for _, arg := range ce.Args {
+				rec.Error.Args = append(rec.Error.Args, fmt.Sprint(arg))
+			}
+		}
+	}
+	if werr := jsonout.WriteJSON(a.out, rec); werr != nil {
+		fmt.Fprintf(a.errOut, "pk: %s\n", present.Text(werr))
+	}
 }
 
 func printUsage(w io.Writer) {

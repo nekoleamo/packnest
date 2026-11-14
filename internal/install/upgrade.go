@@ -43,7 +43,11 @@ func (i *Installer) Upgrade(ctx context.Context, tools []string, dryRun bool) ([
 	items = append(items, skipped...)
 
 	for _, tool := range targets {
-		from := spec.SortDesc(i.installedVersions(tool))[0]
+		// 只用预发布版本装过时，SortDesc 会把它们全丢掉 → 空列表（以前这里直接下标越界 panic）。
+		from := ""
+		if vs := spec.SortDesc(i.installedVersions(tool)); len(vs) > 0 {
+			from = vs[0]
+		}
 		item := UpgradeItem{Tool: tool, From: from}
 		p, err := i.opt.LookupProvider(tool)
 		if err != nil {

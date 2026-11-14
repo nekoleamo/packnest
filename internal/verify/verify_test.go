@@ -2,6 +2,7 @@ package verify
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"github.com/packnest/packnest/internal/coded"
@@ -481,7 +482,7 @@ func TestVerifySameOriginRepublish(t *testing.T) {
 	if err != nil {
 		t.Fatalf("同源配对应放行: %v", err)
 	}
-	if res.Verified != VerifiedWeak || res.Mode != "network" || res.Note == "" {
+	if res.Verified != VerifiedWeak || res.Mode != "network" || res.NoteCode != CodeSumRepublishNote {
 		t.Fatalf("应 weak/network 并带说明: %+v", res)
 	}
 	if entry, _ := v.Known.Get("x@1.0.0/linux-amd64"); entry.Digest != cur || entry.Verified != VerifiedWeak {
@@ -516,4 +517,54 @@ func code(err error) string {
 		return ce.Code
 	}
 	return ""
+}
+
+// TestAliasKey：缓存别名键必须是文件名安全的十六进制，坏输入返回空（R-CACHE-1 的钥匙）。
+func TestAliasKey(t *testing.T) {
+	if got := AliasKey(AlgoSHA256, strings.Repeat("A", 64)); got != "sha256-"+strings.Repeat("a", 64) {
+		t.Fatalf("sha256 应小写十六进制: %q", got)
+	}
+	if got := AliasKey(AlgoSHA1, strings.Repeat("b", 40)); got != "sha1-"+strings.Repeat("b", 40) {
+		t.Fatalf("sha1 应原样: %q", got)
+	}
+	// sha512 SRI → 128 位十六进制（base64 的 +/= 不能进文件名）
+	payload := []byte(strings.Repeat("x", 64))
+	sri := "sha512-" + base64.StdEncoding.EncodeToString(payload)
+	got := AliasKey(AlgoSHA512, sri)
+	if len(got) != len("sha512-")+128 || !strings.HasPrefix(got, "sha512-") {
+		t.Fatalf("sha512 应折成十六进制: %q", got)
+	}
+	// 有的 registry 不带 padding：也要能归一化，且与带 padding 的结果一致
+	raw := strings.TrimRight(base64.StdEncoding.EncodeToString(payload), "=")
+	if AliasKey(AlgoSHA512, "sha512-"+raw) != got {
+		t.Fatal("无 padding 的 SRI 归一化应一致")
+	}
+	for _, tc := range []struct{ algo, digest string }{
+		{AlgoSHA256, "not-hex"},
+		{AlgoSHA256, strings.Repeat("a", 63)},
+		{AlgoSHA512, "sha512-!!!"},
+		{AlgoSHA512, "sha512-" + base64.StdEncoding.EncodeToString([]byte("short"))},
+		{"md5", strings.Repeat("a", 64)},
+	} {
+		if got := AliasKey(tc.algo, tc.digest); got != "" {
+			t.Fatalf("%s/%q 应返回空: %q", tc.algo, tc.digest, got)
+		}
+	}
+}
+
+// TestPublishedSum：gnu-sums / per-artifact 的解析入口（install 下载前查缓存用）。
+func TestPublishedSum(t *testing.T) {
+	sum := strings.Repeat("c", 64)
+	if got, ok := PublishedSum("gnu-sums", []byte(sum+"  node.tar.gz\n"), "node.tar.gz"); !ok || got != sum {
+		t.Fatalf("gnu-sums: %q %v", got, ok)
+	}
+	if _, ok := PublishedSum("gnu-sums", []byte(sum+"  other.tar.gz\n"), "node.tar.gz"); ok {
+		t.Fatal("文件名对不上不该给摘要")
+	}
+	if got, ok := PublishedSum("per-artifact", []byte(sum+"\n"), "x.zip"); !ok || got != sum {
+		t.Fatalf("per-artifact: %q %v", got, ok)
+	}
+	if _, ok := PublishedSum("registry-integrity", []byte(sum), "x.zip"); ok {
+		t.Fatal("registry 格式不归这个入口管")
+	}
 }

@@ -168,7 +168,9 @@ func (a *app) cmdInstall(args []string) int {
 	for _, oc := range outcomes {
 		if oc.Err != nil {
 			if errors.Is(oc.Err, context.Canceled) || errors.Is(oc.Err, context.DeadlineExceeded) {
-				fmt.Fprintln(a.errOut, tr("pk: 已取消（缓存已保留，下次会续传/复用）", "pk: cancelled (cache kept; the next run resumes or reuses it)"))
+				cancelErr := errors.New(tr("已取消（缓存已保留，下次会续传/复用）", "cancelled (cache kept; the next run resumes or reuses it)"))
+				fmt.Fprintf(a.errOut, "pk: %s\n", cancelErr.Error())
+				a.emitError(cancelErr, oc.Tool, oc.Spec, jsonout.ExitFail)
 				_ = inst.Finalize()
 				return jsonout.ExitFail
 			}
@@ -176,6 +178,7 @@ func (a *app) cmdInstall(args []string) int {
 			if !a.json {
 				fmt.Fprintln(a.errOut, tr("下一步：pk mirror probe（看哪个源通）· pk doctor（看环境）· pk install <工具> --insecure（确认产物可信后）", "next: pk mirror probe (which source works) · pk doctor (environment) · pk install <tool> --insecure (only after verifying the artifact)"))
 			}
+			a.emitError(oc.Err, oc.Tool, oc.Spec, exitCodeFor(oc.Err))
 			failed = true
 			if c := exitCodeFor(oc.Err); c != jsonout.ExitFail && code == 0 {
 				code = c
@@ -379,15 +382,28 @@ func (a *app) cwd() string {
 // eventWriter 返回事件输出函数（默认人类可读）。
 func (a *app) eventWriter() func(jsonout.Event) { return a.eventWriterFor(false) }
 
+// renderEvent 把事件里"只给了码"的 msg 片段渲染成当前语言的人话（E1：内部不产出文案）。
+// 渲染不出来时保留内部给的 Msg（兼容旧行为），不会把机器串塞给用户。
+func (a *app) renderEvent(ev jsonout.Event) jsonout.Event {
+	if ev.MsgCode == "" {
+		return ev
+	}
+	if msg := present.Code(ev.MsgCode, ev.MsgArgs...); msg != "" {
+		ev.Msg = msg
+	}
+	return ev
+}
+
 // eventWriterFor 返回事件输出函数：--json 时写 NDJSON，--quiet 时静默，否则写人类可读进度。
 func (a *app) eventWriterFor(quiet bool) func(jsonout.Event) {
 	if quiet && !a.json {
 		return func(jsonout.Event) {}
 	}
 	if a.json {
-		return func(ev jsonout.Event) { _ = jsonout.WriteEvent(a.out, ev) }
+		return func(ev jsonout.Event) { _ = jsonout.WriteEvent(a.out, a.renderEvent(ev)) }
 	}
 	return func(ev jsonout.Event) {
+		ev = a.renderEvent(ev)
 		switch ev.Ev {
 		case "resolve":
 			fmt.Fprintf(a.out, tr("解析 %s@%s\n", "resolved %s@%s\n"), ev.Tool, ev.Version)
@@ -450,7 +466,9 @@ func (a *app) ensureSelfShims() error {
 // failWith 打印错误并按类型返回退出码。
 func (a *app) failWith(err error) int {
 	fmt.Fprintf(a.errOut, "pk: %s\n", present.Text(err))
-	return exitCodeFor(err)
+	code := exitCodeFor(err)
+	a.emitError(err, "", "", code)
+	return code
 }
 
 var _ io.Writer

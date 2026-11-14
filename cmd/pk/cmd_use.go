@@ -101,8 +101,7 @@ func (a *app) refreshProjectLock(inst *install.Installer) int {
 		return a.fail(err)
 	}
 	if len(project) == 0 {
-		fmt.Fprintln(a.errOut, tr("pk: 当前目录没有 pk.toml", "pk: no pk.toml in the current directory"))
-		return jsonout.ExitFail
+		return a.failMsg(tr("pk: 当前目录没有 pk.toml", "pk: no pk.toml in the current directory"), jsonout.ExitFail)
 	}
 	lock, err := a.writeProjectLock(project, inst)
 	if err != nil {

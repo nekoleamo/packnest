@@ -20,6 +20,12 @@ import (
 )
 
 // fetchArtifact 返回（本地缓存路径, 实际下载 URL, 是否来自缓存）。
+//
+// 命中顺序（越便宜越先）：
+//  1. TOFU/台账 里的 sha256 → <sha256>.<ext>（同内容跨版本只存一份）；
+//  2. 索引里自带的上游摘要（go 的 sha256、registry 的 integrity/shasum）→ 缓存别名（R-CACHE-1）；
+//  3. 缓存里已经有别名时，花一次几 KB 的请求拿校验和文件 → 缓存别名（R-CACHE-1）；
+//  4. 非内容寻址的老文件名（1.0 时代的缓存）→ 下载。
 func (i *Installer) fetchArtifact(ctx context.Context, p *provider.Provider, resolved provider.Version, idx *provider.Index) (string, string, bool, error) {
 	if _, err := p.Platform(i.opt.GOOS, i.opt.GOARCH); err != nil {
 		return "", "", false, err
@@ -35,8 +41,24 @@ func (i *Installer) fetchArtifact(ctx context.Context, p *provider.Provider, res
 	// 内容寻址：TOFU 里已知摘要就按内容找（同内容跨版本只存一份）；--insecure 的"源矛盾"安装
 	// 不写 TOFU，退回台账里的 SHA256，避免重复下载。
 	if sha := i.knownDigest(p.ID, version, platform); sha != "" {
-		if cp := filepath.Join(dir, sha+"."+ext); i.cacheHit(cp) {
+		if cp := filepath.Join(dir, sha+"."+ext); i.cacheHit(cp, p.ID, version) {
 			return cp, urls[0], true, nil
+		}
+	}
+	// R-CACHE-1：新机器没有 TOFU 也没有台账，但缓存目录里可能早就有这份归档。
+	// 先看索引自带的摘要（零请求），再看校验和文件（一次几 KB），命中就不下 50MB。
+	if !i.opt.Force && !i.offline() {
+		for _, ref := range publishedRefs(resolved, idx, i.opt.GOOS, i.opt.GOARCH, version) {
+			if cp, hit := i.lookupAlias(ref, ext, p.ID, version); hit {
+				return cp, urls[0], true, nil
+			}
+		}
+		if i.cacheHasAliases() {
+			for _, ref := range i.sumsRefs(ctx, p, resolved, filepath.Base(urls[0])) {
+				if cp, hit := i.lookupAlias(ref, ext, p.ID, version); hit {
+					return cp, urls[0], true, nil
+				}
+			}
 		}
 	}
 	cachePath := filepath.Join(dir, fmt.Sprintf("%s-%s-%s.%s", p.ID, version, platform, ext))
@@ -55,13 +77,16 @@ func (i *Installer) fetchArtifact(ctx context.Context, p *provider.Provider, res
 }
 
 // cacheHit 判断缓存文件是否可用（存在、非空、本次没给 --force），命中时记一次 LRU。
-func (i *Installer) cacheHit(path string) bool {
+//
+// tool 只用于事件：`cache` 事件的 `tool` 必须是工具名（GUI 按 tool 分组画进度），
+// 不能是 `<sha256>.tar.gz` 这种文件名（1.8 之前的实现就是这么错发的）。
+func (i *Installer) cacheHit(path, tool, version string) bool {
 	st, err := os.Stat(path)
 	if err != nil || st.Size() == 0 || i.opt.Force {
 		return false
 	}
 	i.recordCacheTouch(filepath.Base(path), i.now())
-	i.emit(jsonout.Event{Ev: "cache", Tool: filepath.Base(path), Bytes: st.Size()})
+	i.emit(jsonout.Event{Ev: "cache", Tool: tool, Version: version, Bytes: st.Size()})
 	return true
 }
 
@@ -78,14 +103,35 @@ func (i *Installer) knownDigest(tool, version, platform string) string {
 
 // addressed 把缓存文件改成内容寻址名 <sha256>.<ext>：同名已存在说明同内容已在缓存里，
 // 直接删掉这份重复的（跨版本/跨项目去重）。
+//
+// ⚠️ 同名已存在时**必须比一下大小**：文件名就是摘要，但文件可能被改坏/截断（磁盘错误、
+// 中途断电、手工 tamper）。不比就直接把刚下载的好文件删了，坏文件留着，下一次会在解压阶段炸
+// —— 2026-11-15 实测就是这条路径把“缓存被改坏”拖成了“先下 50MB 再失败”。
 func (i *Installer) addressed(path, sha, ext string) string {
 	if sha == "" || strings.HasPrefix(filepath.Base(path), sha+".") {
 		return path
 	}
 	dst := filepath.Join(filepath.Dir(path), sha+"."+ext)
-	if _, err := os.Stat(dst); err == nil {
-		_ = os.Remove(path)
-	} else if err := os.Rename(path, dst); err != nil {
+	if dstInfo, err := os.Stat(dst); err == nil {
+		srcInfo, serr := os.Stat(path)
+		if serr == nil && srcInfo.Size() == dstInfo.Size() {
+			_ = os.Remove(path) // 同内容（同名=同摘要，大小也一致）→ 去重
+			i.recordCacheTouch(filepath.Base(dst), i.now())
+			return dst
+		}
+		// 大小不符：缓存里那份是坏的，用刚校验过的这份替掉它。
+		if err := os.Rename(path, dst); err == nil {
+			i.recordCacheTouch(filepath.Base(dst), i.now())
+			return dst
+		}
+		_ = os.Remove(dst)
+		if err := os.Rename(path, dst); err == nil {
+			i.recordCacheTouch(filepath.Base(dst), i.now())
+			return dst
+		}
+		return path
+	}
+	if err := os.Rename(path, dst); err != nil {
 		return path
 	}
 	i.recordCacheTouch(filepath.Base(dst), i.now())
@@ -169,9 +215,49 @@ func registryDigest(idx *provider.Index, version, archivePath, sha256 string) (s
 // newVerifier 造接到注入式客户端与时钟上的校验器（TOFU 表在各安装路径间共享）。
 func (i *Installer) newVerifier() *verify.Verifier {
 	v := verify.New(i.known)
-	v.Fetch = func(ctx context.Context, url string) ([]byte, error) { return i.opt.Client.Get(ctx, url) }
+	v.Fetch = i.sums
 	v.Now = i.opt.Now
 	return v
+}
+
+// sumsMemo 是本轮已拉到的校验和/平台元数据（URL → 响应体）。
+type sumsMemo struct {
+	mu sync.Mutex
+	m  map[string][]byte
+}
+
+// offline 汇总两处离线开关（Options.Offline 与 Client.Offline）。
+func (i *Installer) offline() bool {
+	return i.opt.Offline || (i.opt.Client != nil && i.opt.Client.Offline)
+}
+
+// sums 拉一份校验和/平台元数据，本轮内只请求一次。
+// 下载前查缓存与随后的 verify 都要这份文件，不共用的话同一份几 KB 的东西会请求两遍。
+func (i *Installer) sums(ctx context.Context, url string) ([]byte, error) {
+	if data, ok := i.memoGet(url); ok {
+		return data, nil
+	}
+	data, err := i.opt.Client.Get(ctx, url)
+	if err != nil {
+		return nil, err
+	}
+	if i.sumsCache != nil {
+		i.sumsCache.mu.Lock()
+		i.sumsCache.m[url] = data
+		i.sumsCache.mu.Unlock()
+	}
+	return data, nil
+}
+
+// memoGet 只看本轮已拉到的内容，不联网。
+func (i *Installer) memoGet(url string) ([]byte, bool) {
+	if i.sumsCache == nil {
+		return nil, false
+	}
+	i.sumsCache.mu.Lock()
+	defer i.sumsCache.mu.Unlock()
+	data, ok := i.sumsCache.m[url]
+	return data, ok
 }
 
 // fetchArtifactVerified = fetchArtifact + sha256 + verifyArtifact，含"缓存坏了就重下一次"；
@@ -207,7 +293,24 @@ func (i *Installer) fetchArtifactVerified(ctx context.Context, p *provider.Provi
 		}
 		return "", "", "", verify.Result{}, err
 	}
-	return i.addressed(archivePath, sha, extOrDefault(p, i.opt.GOOS)), artifactURL, sha, vr, nil
+	final := i.addressed(archivePath, sha, extOrDefault(p, i.opt.GOOS))
+	// R-CACHE-1：把这次拿到的上游摘要记成别名，下一台机器（或者 CI 的另一个 runner）
+	// 只要拿到同一份几 KB 的校验和就能直接命中这个归档。
+	i.recordRefs(p, resolved, sha, vr, artifactURL, final)
+	return final, artifactURL, sha, vr, nil
+}
+
+// recordRefs 记下「上游摘要 → 内容寻址归档」的映射（只记这次运行里已经拿到的摘要，不额外联网）。
+func (i *Installer) recordRefs(p *provider.Provider, resolved provider.Version, sha string, vr verify.Result, artifactURL, file string) {
+	refs := []digestRef{{Algo: verify.AlgoSHA256, Digest: sha}}
+	if vr.Digest != "" && vr.Algo != "" && !strings.EqualFold(vr.Digest, sha) {
+		refs = append(refs, digestRef{Algo: vr.Algo, Digest: vr.Digest})
+	}
+	refs = append(refs, publishedRefs(resolved, nil, i.opt.GOOS, i.opt.GOARCH, resolved.Version)...)
+	refs = append(refs, i.memoRefs(p, resolved, filepath.Base(artifactURL))...)
+	for _, ref := range refs {
+		i.recordAlias(ref, file)
+	}
 }
 
 // verifyArtifact 按清单声明的校验格式选算法与期望摘要，交给 verify 包求值。
@@ -219,7 +322,7 @@ func (i *Installer) verifyArtifact(ctx context.Context, p *provider.Provider, re
 	}
 	// 摘要改读平台包自己的元数据（pnpm 的 @pnpm/exe.*）；TOFU 已记过就不问网络，--force-rehash 才回源。
 	if _, known := i.known.Get(verify.Key(p.ID, version, platform)); p.Checksum.Format == provider.ChecksumRegistry && len(sumsURLs) > 0 && (!known || i.opt.Rehash) {
-		data, derr := i.opt.Client.Get(ctx, sumsURLs[0])
+		data, derr := i.sums(ctx, sumsURLs[0])
 		if derr != nil {
 			return verify.Result{}, derr
 		}

@@ -21,6 +21,10 @@ const (
 	CodeCompanionIndex  = "install.companion_index"
 	CodeCompanionNoVer  = "install.companion_no_version"
 	CodeCompanionPlace  = "install.companion_place"
+	// mirror/abort 事件的 msg 片段（1.8：内部只给码，CLI 渲染成当前语言）。
+	CodeMirrorProbe       = "install.mirror_probe"
+	CodeMirrorProbeCached = "install.mirror_probe_cached"
+	CodeAbortBatch        = "install.abort_batch"
 	// 卸载
 	CodeNotInLedger      = "install.not_in_ledger"
 	CodeStillReferenced  = "install.still_referenced"

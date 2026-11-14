@@ -531,9 +531,38 @@ func PruneCache(p paths.Paths, limit int64, now time.Time, dryRun bool) (SweepRe
 		if err := idx.Save(p.CacheIndex()); err != nil {
 			return res, err
 		}
+		pruneAliases(p)
 	}
 	sort.Strings(res.Removed)
 	return res, nil
+}
+
+// pruneAliases 清掉指向已不存在归档的别名（别名只是“省一次下载”的加速，删了不影响正确性）。
+// 不做这一步也行（读的时候发现悬空会自己删），但 gc 之后留一堆指向空气的文件很脏。
+func pruneAliases(p paths.Paths) {
+	entries, err := os.ReadDir(p.CacheAliases())
+	if err != nil {
+		return // 从来没启用过别名：没什么可清
+	}
+	archives := p.CacheArchives()
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		path := filepath.Join(p.CacheAliases(), e.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		target := strings.TrimSpace(string(data))
+		if target == "" || strings.ContainsAny(target, `/\`) || target != filepath.Base(target) {
+			_ = os.Remove(path) // 脏数据：不清就永远赖着
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(archives, target)); err != nil {
+			_ = os.Remove(path)
+		}
+	}
 }
 
 // DirSize 递归算目录大小。

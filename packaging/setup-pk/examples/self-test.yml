@@ -72,16 +72,17 @@ jobs:
         run: |
           set -eu
           test "$HIT" = "true" || { echo "::error::第二次跑应命中缓存（cache-hit=$HIT）"; exit 1; }
-          # 只清**解压出来的工具树**，PK_CACHE 与 state/（台账 + TOFU 摘要）留着。
-          # 为什么不清 state：归档在缓存里是**内容寻址**名（<sha256>.tar.gz），要按摘要找回来，
-          # 就必须先有 TOFU 记录；state 一清，pk 只能先下产物再算摘要 —— 那是"缓存白存"，
-          # 也是最容易让人误解的地方（见 docs：R-CACHE-1 待办）。
-          rm -rf "$HOME/.packnest/tools"
+          # 连 state/（台账 + TOFU 摘要）一起清掉：这才是**新 runner** 的真实形状。
+          # R-CACHE-1 修之前这一步必然失败：内容寻址的归档要按 sha256 找回来，
+          # 而新机器既没 TOFU 也没台账，只能先下 50MB 再算摘要（缓存白存）。
+          # 现在缓存目录里还有「上游摘要别名」（PK_CACHE/alias/），
+          # 拿一次几 KB 的 SHASUMS256.txt 就能直接命中归档。
+          rm -rf "$HOME/.packnest/tools" "$HOME/.packnest/state"
           rm -f pk.lock
           pk install --json > warm.ndjson
           grep -q '"ev":"cache"' warm.ndjson \
             || { echo "::error::命中缓存时应出现 cache 事件（0 网络）"; cat warm.ndjson; exit 1; }
           if grep -q '"ev":"download"' warm.ndjson; then
-            echo "::error::命中缓存时不该再下载"; grep '"ev":"download"' warm.ndjson; exit 1
+            echo "::error::新 runner + 热缓存不该再下载产物"; grep '"ev":"download"' warm.ndjson; exit 1
           fi
           node -v

@@ -16,7 +16,7 @@
 | 4 | **`CGO_ENABLED=0` 6 平台**：darwin/linux/windows × amd64/arm64 | 单二进制承诺作废 |
 | 5 | **归档只 2 种**：tar.gz + zip。解压零第三方（`archive/tar`+`compress/gzip`+`archive/zip`） | 不许引 xz/7z/compress |
 | 6 | **默认 `go test ./...` 零外网** | 真网测试一律 `//go:build nettest`，不进门禁 |
-| 7 | **单根 `PK_ROOT`**（默认 `~/.packnest`），永不 sudo、永不写 shell rc（`pk env --write` 例外，带 `# managed by pk` 块）。**唯一例外：`PK_CACHE` 可把缓存（`archives/`/`meta/`/corepack/npm）搬出根目录**，台账与锁必须留在根里 | 破坏"无损" |
+| 7 | **单根 `PK_ROOT`**（默认 `~/.packnest`），永不 sudo、永不写 shell rc（`pk env --write` 例外，带 `# managed by pk` 块）。**唯一例外：`PK_CACHE` 可把缓存（`archives/`/`meta/`/`alias/`/corepack/npm）搬出根目录**，台账与锁必须留在根里 | 破坏"无损" |
 | 8 | **默认不动用户已有配置**（不写 `~/.npmrc`、不迁移 `~/.npm` 缓存）。项目输入优先级：命令行 > `pk.toml` > `package.json` 的 `engines.node`（只补 node、只读；没 `pk.toml` 不写 `pk.lock`） | `pk mirror write` 才写，且写前备份 |
 
 ## 不许引的库（每条都有替代）

@@ -134,6 +134,11 @@ func (c *Client) Install(ctx context.Context, spec string, onEvent func(Event)) 
 		if json.Unmarshal(line, &ev) != nil {
 			return nil // 非 JSON 行忽略（stdout 只会是 NDJSON，但别为一行崩掉 UI）
 		}
+		if ev.Ev == "" {
+			// 1.8 起 `--json` 失败时会多一条没有 `ev` 的记录（{"schema":1,"error":{…}}）。
+			// 它不是事件：未知形状就忽略，与“ev 只增不改”的纪律一致。
+			return nil
+		}
 		if onEvent != nil {
 			onEvent(ev)
 		}

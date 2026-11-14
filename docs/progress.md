@@ -1237,15 +1237,24 @@ env-unset / gc-nothing / use-switch / uninstall-missing / install-dry-run / inst
 
 | 项 | 结果 |
 |---|---|
-| 内部包 | 85 → **88**；`internal/install` 单独 **90**（`IMIN_INSTALL`，编排层是新代码最集中的地方） |
+| 内部包 | 85 → **88**；`internal/install` 单独 **90** → **92**（`IMIN_INSTALL`，编排层是新代码最集中的地方；2026-11-15 达标，实测 92.2） |
 | cmd | 仍 70（`cmd/pk` 78.0%，`cmd/pk/present` 93.2%） |
 | 实测 | archive 88.8 · companion 95.7 · env 88.4 · fetch 88.2 · install **90.3** · jsonout 100 · mirror 88.9 · paths 88.7 · provider 88.8 · shim 90.0 · spec 91.7 · store 90.9 · verify 88.3 |
 
-### ⚠️ 未完项（老实记账）
+### ⚠️ 未完项（老实记账）→ ✅ 2026-11-15 已补齐
 
-路线文档要求 `internal/install` **≥92%**，当前 **90.8%**（约 118 条语句未覆盖，还差 ~16 条才到 92）。
-实测结论：剩下的是**长尾单条错误分支**（"失败时又失败"的双故障路径），一条用例只能换来 1–3 条语句 ——
-继续硬刷性价比很低。建议：**先把 E1 全量推进**（价值高得多），下次要碰覆盖率时按下面清单点名打。
+路线文档要求 `internal/install` **≥92%**。当时是 90.8%（约 118 条语句未覆盖），按下面这张清单点名打了一轮：
+
+- `cachealias_test.go` / `cachealias_cover_test.go`：别名的四条未命中分支（`--force`、摘要不可归一化、
+  扩展名对不上、归档被删），`sumsRefs` 的三条失败分支（平台不支持 / 校验源全挂 / 校验和里没有本产物），
+  以及 `addressed()` 的"同名文件大小不符 → 用刚校验过的替掉它"；
+- `upgrade_cover_test.go`：`pk upgrade` 的四条单工具失败分支（清单找不到 / 索引没有稳定版 / 索引取不到 /
+  目标装不上），`ActiveVersions` / `InstalledEntries` / `OutdatedHints` 的投影与排序；
+- `lock_test.go`：nil 锁、`pk.toml` 读不了（目录）、`package.json` 读不了只给提示不拦；
+- 顺手抓到一个**真 bug**：`pk upgrade` 在"只装过预发布版本"时 `spec.SortDesc(...)[0]` 下标越界 panic
+  （`SortDesc` 会丢掉预发布）—— 现在 `from` 允许为空，不再 panic。
+
+实测：`internal/install` **92.2%**，`IMIN_INSTALL` 从 90 抬到 **92**。下面这张清单只作历史记录保留。
 
 | 文件 | 未覆盖行 | 是什么 |
 |---|---|---|
@@ -1580,3 +1589,71 @@ L2 收到 provider 时实测踩到 `%!s(MISSING)`（`install.requires_missing` �
 
 **E1（L2）到此收口**：11 个包、233 个站点、196 条 zh/en 文案、3 道门禁
 （`make codes` 两条交叉校验 + 参数个数测试 + `TestCodeTableParity` 的占位符一致性）。
+
+## 1.8 收尾（2026-11-15）：R-CACHE-1 · `--json` 失败契约 · msg 去碎片 · 覆盖率 92
+
+上一轮留下的四项待办，一次做完。**门禁 11 项全绿**，`internal/install` 92.2%（门槛 90 → 92）。
+
+### ① R-CACHE-1：新机器也能吃上热缓存
+
+**问题**：`PK_CACHE` 里的归档是内容寻址名（`<sha256>.<ext>`），要按摘要找回来就必须**先知道 sha256**；
+而新机器（CI 每个 job 都是新 runner）state 是空的，于是只能"先下 50MB 再算摘要"——缓存等于白存。
+上一轮为了让 self-test 变绿，只能把 warm 用例写成"删工具树、留 state"，等于绕开了病。
+
+**做法**（不动 `--json` 契约，不改命令面）：
+
+| 位置 | 内容 |
+|---|---|
+| `internal/paths` | 新增 `CacheAliases()` = `<PK_CACHE>/alias` —— **别名必须住在缓存里**（`state/cache.json` 在 PK_ROOT/state，CI 不缓存它，放那儿等于没做） |
+| `internal/verify` | `AliasKey(algo, digest)`：把摘要归一化成文件名安全的键（sha256/sha1 保持十六进制；sha512 的 SRI 解码后转 128 位十六进制）；`PublishedSum` 把校验和文件的解析逻辑导出，install 不再重写一份 |
+| `internal/install/cachealias.go` | 别名文件一行 = 归档文件名；悬空/脏别名只当没命中并顺手删；`publishedRefs`（零请求：go 索引 sha256、registry `dist.integrity`/`dist.shasum`）+ `sumsRefs`（一次几 KB：SHASUMS256.txt / 平台包元数据） |
+| 下载前命中顺序 | TOFU/台账 sha256 → 索引自带摘要（零请求）→ 校验和文件（**只在缓存里已有别名时**才发这一枪）→ 老的非内容寻址名 → 下载 |
+| 请求不翻倍 | Installer 新增 `sumsCache`（URL → 响应体）：查缓存与随后的 verify 共用同一份校验和，worker 之间共享指针 + 互斥锁 |
+| 记别名 | 校验通过后把这次拿到的上游摘要都记成别名（sha256 + 校验源给的 sha512/sha1）；**只记已经拿到手的**，稳态（TOFU 命中）不会为记别名偷偷上网 |
+| `addressed()` | 同名文件已存在时**先比大小**：不符就用刚校验过的这份替掉（以前直接删新文件、留坏文件，坏缓存被拖到解压才炸） |
+
+**实测/验收**：`TestCacheAliasReuseRegistry`（npm：零 download）、`TestCacheAliasReuseGNUSums`（node+npm：
+零 download）、`TestAcceptance_M4_CacheFreshStateReuse`（两个全新 PK_ROOT 共享一份 PK_CACHE）；
+self-test 的 warm job 改成 **连 `state/` 一起清**（真·新 runner）后仍然断言"0 download"。
+`pk gc` 淘汰归档时会顺手清掉悬空别名（`pruneAliases`）。
+
+### ② `--json` 失败输出（新契约，只增不改）
+
+失败时 stdout 多一条**没有 `ev` 字段**的对象：`{"schema":1,"error":{"code","args","tool","spec","msg","exit"}}`。
+`code` 是稳定问题码（无码时**省略**），`args` 是码表参数，`msg` 照样只是人话，`exit` 与进程退出码一致。
+人读 stderr 与退出码**不变**；GUI 的 `pkcli` 明确跳过"没有 ev 的行"。文档：`docs/json-schema.md`「失败输出」。
+
+### ③ msg 里的硬编码人话收进码表
+
+`internal/*` 不再给这些碎片写中文字面量，改为 `Event.MsgCode` + `MsgArgs`（新字段，只增），
+由 CLI 用 `present.Code` 按当前语言渲染进 `msg`：
+`install.mirror_probe(_cached)`（原来硬编码 `", 6h 内探过"`）、`install.abort_batch`、
+`sum.republish_note`（verify 的 `Result.Note` → `NoteCode/NoteArgs`）。
+好处：`--lang en` 下 `msg` 也变英文，文案只有一份。**有意保留**：`mirror` 档位说明、`upgrade` 的
+`skipped` 文本（doc 型 JSON 的字段，不是 `msg`）、`env`/`m4` 的建议串 —— 下一轮若要 L2 扩到 doc 型输出再动。
+
+### ③.5 真机联调抓到两个事件层 bug（都已修）
+
+1. **多工具并行安装的 NDJSON 丢事件**：`prepared.events` 存的是 `[]jsonout.Event` 的**切片头**，
+   prepare 里后续 append 重新分配后不会同步回 `prep`，于是 `download`/`cache`/`verify` 全被静默吞掉 ——
+   真机上 `pk install node pnpm --json` 只剩 `mirror/resolve/done`（GUI 并行装就永远没有进度条）。
+   改成 `*eventSink`（指针）后恢复：`resolve → cache|download → verify → [companion] → done`。
+   验收 `TestAcceptance_Par_JSONEventOrder` 加了一条"每个请求目标必须有 download/cache 事件"。
+   ⚠️ 这条断言以前是绿的，因为它只检查"首条是 resolve、末条是 done"——**丢事件时它照样通过**。
+2. **`cache` 事件的 `tool` 字段错发成文件名**：内容寻址命中时发的是 `<sha256>.tar.gz`（GUI 按 tool 分组就分不上）。
+   现在 `tool` 是工具名、`version` 是解析出来的版本（补全了 `version`）。
+
+### ④ 覆盖率长尾 → 92%（门槛跟着抬）
+
+按上一轮那张清单点名打，顺手抓到两个真问题：
+
+1. **`pk upgrade` panic**：只装过预发布版本时 `spec.SortDesc(...)[0]` 下标越界（`SortDesc` 会丢掉预发布）→
+   `from` 允许为空，不再 panic（`TestUpgradeBranches/索引里没有稳定版` 锁住）；
+2. **`addressed()` 盲信同名文件**（见 ①），把"坏缓存"从校验阶段拖到了解压阶段。
+
+行数：`internal/install` 2800 → **3050**（R-CACHE-1 换来：`cachealias.go` 193 行 + `artifact.go` 的命中顺序/别名记录；
+`internal/store` 700 → **720**：`pruneAliases` 与 gc 清理）；总量只统计，不设硬顶。
+
+新增用例：`cachealias_test.go`（复用/`--force`/悬空/脏别名/摘要归一化）、`cachealias_cover_test.go`
+（别名与寻址的四条未命中分支、`sumsRefs` 三条失败分支）、`upgrade_cover_test.go`（upgrade 四条单工具失败 +
+列表投影/排序 + `OutdatedHints`）、`lock_test.go`（nil 锁、坏项目文件的边角）。

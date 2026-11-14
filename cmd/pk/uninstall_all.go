@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -63,6 +64,7 @@ func (a *app) uninstallAll(inst *install.Installer, purge, keepCache, self bool)
 		fmt.Fprintf(a.out, tr("\npk 二进制本身（%s 渠道）：%s\n", "\nthe pk binary itself (installed via %s): %s\n"), ch.Name, ch.Hint)
 	}
 	if !a.confirm(fmt.Sprintf(tr("确认删除以上 %d 个运行时及其 shim/PATH 项？", "delete these %d runtime(s) plus their shims/PATH entries?"), len(plan.Tools))) {
+		a.emitError(errors.New(tr("未确认，什么都没做", "not confirmed, nothing was done")), "", "", jsonout.ExitFail)
 		return jsonout.ExitFail
 	}
 
@@ -158,8 +160,7 @@ func (a *app) uninstallTool(inst *install.Installer, tool string, force bool) in
 		// npm 不是独立工具，它跟着 node 走
 		if _, err := provider.Get("npm"); err == nil {
 			fmt.Fprintln(a.errOut, tr("pk: npm 是 node 的伴生包，没有独立版本可卸；删 node 时它一起走。", "pk: npm ships with node and has no independent version to uninstall; it goes with node."))
-			fmt.Fprintln(a.errOut, tr("    想换 npm 版本：pk install node@<版本>（会按 node 重新配对）或 pk use node@<已装版本>", "    to change npm: pk install node@<version> (repairs the pairing) or pk use node@<installed-version>"))
-			return jsonout.ExitUsage
+			return a.failMsg(tr("    想换 npm 版本：pk install node@<版本>（会按 node 重新配对）或 pk use node@<已装版本>", "    to change npm: pk install node@<version> (repairs the pairing) or pk use node@<installed-version>"), jsonout.ExitUsage)
 		}
 	}
 	// 先列出会删掉什么，再二次确认（--yes 跳过；非交互环境没有 --yes 一律不动）

@@ -110,6 +110,7 @@ func TestRemainingLayoutHelpers(t *testing.T) {
 		p.GlobalPnpmBin():             "/r/global/pnpm",
 		p.GlobalBunBin():              "/r/global/bun/bin",
 		p.CacheArchives():             "/r/cache/archives",
+		p.CacheAliases():              "/r/cache/alias",
 		p.ToolVersion("go", "1.23.4"): "/r/tools/go/1.23.4",
 	}
 	for got, want := range cases {
@@ -136,6 +137,10 @@ func TestCacheEnvOverride(t *testing.T) {
 	}
 	if got := p.CacheMeta(); got != filepath.Join(want, "meta") {
 		t.Errorf("CacheMeta = %q", got)
+	}
+	// 缓存别名（R-CACHE-1）必须跟着 PK_CACHE 走：CI 只缓存这个目录
+	if got := p.CacheAliases(); got != filepath.Join(want, "alias") {
+		t.Errorf("CacheAliases = %q", got)
 	}
 	if got := p.CacheDir("corepack"); got != filepath.Join(want, "corepack") {
 		t.Errorf("CacheDir = %q", got)

@@ -200,7 +200,7 @@ func TestCommitPlanAndSkip(t *testing.T) {
 		p:      mkProvider("node", nil, "node"),
 		plan:   true,
 		res:    Result{Tool: "node", Version: "22.98.0"},
-		events: []jsonout.Event{{Ev: "plan", Tool: "node"}},
+		events: &eventSink{evs: []jsonout.Event{{Ev: "plan", Tool: "node"}}},
 	}
 	if _, err := inst.commit(context.Background(), plan); err != nil {
 		t.Fatalf("plan 不该失败: %v", err)
