@@ -2,6 +2,7 @@ package present
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/packnest/packnest/internal/coded"
 )
@@ -306,14 +307,19 @@ func verbCount(tpl string) int {
 	return n
 }
 
-// safeSprintf 用 recover 兜住"模板与参数个数不符"的格式化 panic。
+// safeSprintf 兜住"模板与参数个数不符"：panic 与 `%!s(MISSING)` 都算失败，
+// 调用方会退回紧凑形式（宁可露出 `code(args)`，也不要把 `%!s(MISSING)` 打给用户）。
 func safeSprintf(tpl string, args []any) (out string, ok bool) {
 	defer func() {
 		if r := recover(); r != nil {
 			out, ok = "", false
 		}
 	}()
-	return fmt.Sprintf(tpl, args...), true
+	out = fmt.Sprintf(tpl, args...)
+	if strings.Contains(out, "%!") {
+		return "", false
+	}
+	return out, true
 }
 
 // Codes 返回已登记的问题码（测试用：断言"定义过的码都有文案"）。

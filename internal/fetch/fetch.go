@@ -439,7 +439,7 @@ func (c *Client) downloadOnce(ctx context.Context, url, partPath, metaPath strin
 		return offset + n, coded.Wrap(copyErr, CodeInterrupted, offset+n)
 	}
 	if closeErr != nil {
-		return offset + n, coded.Wrap(closeErr, CodeWrite)
+		return offset + n, coded.Wrap(closeErr, CodeWrite, partPath)
 	}
 	total := offset + n
 	if pm.Size > 0 && total != pm.Size {

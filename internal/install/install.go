@@ -322,7 +322,7 @@ func (i *Installer) checkRequires(p *provider.Provider) error {
 		if i.planned[need] || i.ledger.Active(need) != "" || len(i.installedVersions(need)) > 0 {
 			continue
 		}
-		return coded.Wrap(ErrRequiresMissing, CodeRequiresMissing, p.ID, need)
+		return coded.Wrap(ErrRequiresMissing, CodeRequiresMissing, p.ID, need, need, p.ID)
 	}
 	return nil
 }

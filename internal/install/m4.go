@@ -22,7 +22,7 @@ func (i *Installer) Activate(tool, version string) error {
 	version = i.ResolveInstalled(tool, version)
 	in := i.ledger.Find(tool, version)
 	if in == nil {
-		return coded.Wrap(ErrNotInstalled, CodeNotInstalled, tool, version)
+		return coded.Wrap(ErrNotInstalled, CodeNotInstalled, tool, version, tool, version)
 	}
 	p, err := i.opt.LookupProvider(tool)
 	if err != nil {

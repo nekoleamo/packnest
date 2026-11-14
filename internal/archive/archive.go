@@ -243,7 +243,7 @@ func writeEntry(target string, r io.Reader, mode os.FileMode) (int64, error) {
 	}
 	// 显式 chmod：某些归档（尤其是 zip）不带权限位。
 	if err := os.Chmod(target, perm); err != nil {
-		return 0, coded.Wrap(err, CodeChmod)
+		return 0, coded.Wrap(err, CodeChmod, filepath.Base(target))
 	}
 	return n, nil
 }

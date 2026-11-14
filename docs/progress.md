@@ -1564,3 +1564,19 @@ self-test `cold` ✓（41s）+ `warm` ✓（47s）：冷路径真的 `download`�
 - `internal/paths` / `internal/jsonout`：各 1 处，是给"底层原因"拼的调试串（不含人话）；
 - 4 个哨兵（`ErrChecksum` / `ErrSignature` / `ErrNoSingle` / `ErrLocked`）保留中文文案，但**只作身份**，
   用户看到的文案一律来自码表 —— 这样 `errors.Is` 与"文案可翻译"两件事互不干扰。
+
+### E1 最后一道门禁：参数个数 ↔ 模板占位符（`TestCodedArityMatchesTemplates`）
+
+L2 收到 provider 时实测踩到 `%!s(MISSING)`（`install.requires_missing` 的模板要 4 个参数，调用点只给了 2 个）。
+于是补了一条**源码级门禁**（`cmd/pk/present/arity_test.go`）：扫 `internal/**` 里所有
+`coded.New/Wrap(…, CodeX, …)` 调用点，与码表模板的占位符个数交叉核对（Wrap 的 cause 不算；
+允许"少一个"由 `Text` 自动补）。它当场又抓出 2 处：
+
+- `archive.chmod`（`os.Chmod` 失败时没带文件名）；
+- `fetch.write`（`f.Close()` 失败时没带落盘路径）；
+- `install.not_installed`（少传了 tool/version 的第二份，渲染会拼不全）。
+
+另外 `Text` 加了兜底：格式化结果里出现 `%!` 就退回紧凑形式 —— **宁可露出 `code(args)`，也不把格式化错误打给用户**。
+
+**E1（L2）到此收口**：11 个包、233 个站点、196 条 zh/en 文案、3 道门禁
+（`make codes` 两条交叉校验 + 参数个数测试 + `TestCodeTableParity` 的占位符一致性）。

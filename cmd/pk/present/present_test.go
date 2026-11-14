@@ -355,3 +355,21 @@ func TestTextNestedCause(t *testing.T) {
 		t.Fatalf("内外层信息都该在: %q", got)
 	}
 }
+
+// TestTextNeverLeaksFormatErrors：参数不够时不许把 `%!s(MISSING)` 打给用户
+// （1.8 实测踩到：install.requires_missing 的模板要 4 个参数，调用点只给了 2 个）。
+func TestTextNeverLeaksFormatErrors(t *testing.T) {
+	t.Cleanup(func() { _ = SetLang("zh") })
+	if err := SetLang("zh"); err != nil {
+		t.Fatal(err)
+	}
+	e := coded.Wrap(errors.New("缺少前置工具"), "install.requires_missing", "pnpm", "node")
+	got := Text(e)
+	if strings.Contains(got, "%!") {
+		t.Fatalf("不该出现格式化错误: %q", got)
+	}
+	// 参数不够 → 退回紧凑形式（含码与参数），信息不丢
+	if !strings.Contains(got, "install.requires_missing") {
+		t.Fatalf("参数不够时应退回紧凑形式: %q", got)
+	}
+}
