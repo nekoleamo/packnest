@@ -1411,3 +1411,14 @@ brew cask 是否排期（不排期就把 `docs/gui.md` 写明"mac 用 curl 脚�
 
 **L2 进度**：`verify`（28 处）/ `spec`（6）/ `companion`（3）已清零；还剩 `provider` 153、`install` 171、
 `env` 76、`store` 60、`fetch` 45、`archive` 39、`paths` 37、`mirror` 36 条文案（按包分批，机制与样板已就位）。
+
+### E1 第五步：`internal/paths` 完成（9 个码）
+
+`path.home_unresolved` / `path.cache_unresolved` / `path.root_empty` / `path.root_unresolved` /
+`path.archive_absolute` / `path.archive_escape` / `path.mkdir` / `path.write` / `path.rename` ——
+`paths.go` 的 9 处 `fmt.Errorf` 全清零（含 `SafeJoin` 的两条防逃逸错误与原子落盘的三条 I/O），
+测试原样通过（它们只断 `err != nil` 或 `os.IsNotExist`）。
+
+**L2 累计**：4 个包清零 —— `verify` 28 · `paths` 9 · `spec` 6 · `companion` 3 = **46 处**，
+`present` 码表 **44 条**（每条 zh + en）。剩 `provider` 153 / `install` 171 / `env` 76 / `store` 60 /
+`fetch` 45 / `archive` 39 / `mirror` 36。

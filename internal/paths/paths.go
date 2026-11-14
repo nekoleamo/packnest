@@ -6,6 +6,7 @@ package paths
 
 import (
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,7 +33,7 @@ func Resolve() (Paths, error) {
 	if root == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return Paths{}, fmt.Errorf("解析用户主目录失败: %w", err)
+			return Paths{}, coded.Wrap(err, CodeHomeUnresolved)
 		}
 		root = filepath.Join(home, ".packnest")
 	}
@@ -43,7 +44,7 @@ func Resolve() (Paths, error) {
 	if cache := strings.TrimSpace(os.Getenv(CacheEnv)); cache != "" {
 		c, err := New(cache)
 		if err != nil {
-			return Paths{}, fmt.Errorf("解析 %s 失败: %w", CacheEnv, err)
+			return Paths{}, coded.Wrap(err, CodeCacheUnresolved, CacheEnv)
 		}
 		p.CacheRoot = c.Root
 	}
@@ -53,7 +54,7 @@ func Resolve() (Paths, error) {
 // New 以给定根目录构造 Paths：展开 ~、转绝对路径，不做任何磁盘操作。
 func New(root string) (Paths, error) {
 	if root == "" {
-		return Paths{}, fmt.Errorf("根目录不能为空")
+		return Paths{}, coded.New(CodeRootEmpty)
 	}
 	if root == "~" || strings.HasPrefix(root, "~/") {
 		home, err := os.UserHomeDir()
@@ -64,7 +65,7 @@ func New(root string) (Paths, error) {
 	}
 	abs, err := filepath.Abs(root)
 	if err != nil {
-		return Paths{}, fmt.Errorf("解析根目录 %q 失败: %w", root, err)
+		return Paths{}, coded.Wrap(err, CodeRootUnresolved, root)
 	}
 	return Paths{Root: abs}, nil
 }
@@ -164,11 +165,11 @@ func (p Paths) PathSegments() []string {
 func SafeJoin(base, name string) (string, error) {
 	name = strings.ReplaceAll(name, `\`, "/")
 	if strings.HasPrefix(name, "/") || filepath.IsAbs(name) || (len(name) > 1 && name[1] == ':') {
-		return "", fmt.Errorf("归档内路径非法（绝对路径）: %q", name)
+		return "", coded.New(CodeArchiveAbs, name)
 	}
 	cleaned := filepath.Clean(filepath.FromSlash(name))
 	if cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("归档内路径非法（越界）: %q", name)
+		return "", coded.New(CodeArchiveEscape, name)
 	}
 	return filepath.Join(base, cleaned), nil
 }
@@ -181,18 +182,18 @@ var tmpSeq atomic.Uint64 // 临时文件编号（进程内唯一即可）
 func WriteAtomic(path string, data []byte) error {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("创建目录 %q 失败: %w", dir, err)
+			return coded.Wrap(err, CodeMkdir, dir)
 		}
 	}
 	// 临时名带随机后缀：同一文件可能被并发写（索引预取、并发下载的探测缓存），
 	// 固定 ".tmp" 会让两个 goroutine 抢同一个临时文件，rename 必有一个失败。
 	tmp := fmt.Sprintf("%s.tmp.%d", path, tmpSeq.Add(1))
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
-		return fmt.Errorf("写 %q 失败: %w", path, err)
+		return coded.Wrap(err, CodeWrite, path)
 	}
 	if err := os.Rename(tmp, path); err != nil {
 		_ = os.Remove(tmp)
-		return fmt.Errorf("替换 %q 失败: %w", path, err)
+		return coded.Wrap(err, CodeRename, path)
 	}
 	return nil
 }

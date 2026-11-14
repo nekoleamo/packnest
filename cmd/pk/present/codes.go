@@ -58,6 +58,17 @@ var codeTable = map[string]codeText{
 	"companion.not_in_registry":      {zh: "registry 里没有 npm@%s（`pk list --available` 可看可用版本）", en: "npm@%s is not in the registry (see `pk list --available`)"},
 	"companion.engines_incompatible": {zh: "npm@%s 要求 node %s，与当前 node %s 不兼容%s", en: "npm@%s requires node %s, incompatible with the current node %s%s"},
 	"companion.engines_unparsable":   {zh: "npm@%s 的 engines.node 无法解析: %v", en: "cannot parse engines.node for npm@%s: %v"},
+
+	// ── internal/paths：根目录与原子落盘 ──
+	"path.home_unresolved":  {zh: "解析用户主目录失败: %v", en: "cannot resolve the home directory: %v"},
+	"path.cache_unresolved": {zh: "解析 %s 失败: %v", en: "cannot resolve %s: %v"},
+	"path.root_empty":       {zh: "根目录不能为空", en: "root directory must not be empty"},
+	"path.root_unresolved":  {zh: "解析根目录 %q 失败: %v", en: "cannot resolve root %q: %v"},
+	"path.archive_absolute": {zh: "归档内路径非法（绝对路径）: %q", en: "illegal path inside the archive (absolute): %q"},
+	"path.archive_escape":   {zh: "归档内路径非法（越界）: %q", en: "illegal path inside the archive (escapes the root): %q"},
+	"path.mkdir":            {zh: "创建目录 %q 失败: %v", en: "cannot create directory %q: %v"},
+	"path.write":            {zh: "写 %q 失败: %v", en: "cannot write %q: %v"},
+	"path.rename":           {zh: "替换 %q 失败: %v", en: "cannot replace %q: %v"},
 }
 
 // Text 把任意错误渲染成"给人看的一句话"（当前语言）。
