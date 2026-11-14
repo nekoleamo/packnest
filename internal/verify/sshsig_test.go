@@ -20,8 +20,8 @@ func sshWirePub(pub ed25519.PublicKey) []byte {
 }
 
 // buildSSHSIG 代码构造一个合法的 armored sshsig（夹具不存二进制）。
-func buildSSHSIG(t *testing.T, priv ed25519.PrivateKey, ns, hashAlg string, pubName, sigName string, msg []byte) []byte {
-	t.Helper()
+// 不依赖 *testing.T：fuzz 种子在 *testing.F 上也要用同一个构造器。
+func buildSSHSIG(priv ed25519.PrivateKey, ns, hashAlg string, pubName, sigName string, msg []byte) []byte {
 	pub := priv.Public().(ed25519.PublicKey)
 
 	var pubBlob bytes.Buffer
@@ -68,7 +68,7 @@ func newKey(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKey) {
 func TestVerifySSHSIG(t *testing.T) {
 	pub, priv := newKey(t)
 	msg := []byte("abc123  packnest_1.7.0_darwin_arm64.tar.gz\n")
-	sig := buildSSHSIG(t, priv, SSHSigNamespace, "sha512", ed25519Name, ed25519Name, msg)
+	sig := buildSSHSIG(priv, SSHSigNamespace, "sha512", ed25519Name, ed25519Name, msg)
 	if err := VerifySSHSIG(msg, sig, []SSHPublicKey{{Principal: "release@packnest.dev", Key: pub}}); err != nil {
 		t.Fatalf("合法签名应通过: %v", err)
 	}
@@ -85,11 +85,11 @@ func TestVerifySSHSIGRejects(t *testing.T) {
 		msg  []byte
 		sig  []byte
 	}{
-		{"消息改一字节", []byte("checksums-v2"), buildSSHSIG(t, priv, SSHSigNamespace, "sha512", ed25519Name, ed25519Name, msg)},
-		{"哈希算法降级", msg, buildSSHSIG(t, priv, SSHSigNamespace, "sha256", ed25519Name, ed25519Name, msg)},
-		{"公钥算法不是 ed25519", msg, buildSSHSIG(t, priv, SSHSigNamespace, "sha512", "ssh-rsa", ed25519Name, msg)},
-		{"签名算法不是 ed25519", msg, buildSSHSIG(t, priv, SSHSigNamespace, "sha512", ed25519Name, "ssh-rsa", msg)},
-		{"namespace 不符", msg, buildSSHSIG(t, priv, "other-ns", "sha512", ed25519Name, ed25519Name, msg)},
+		{"消息改一字节", []byte("checksums-v2"), buildSSHSIG(priv, SSHSigNamespace, "sha512", ed25519Name, ed25519Name, msg)},
+		{"哈希算法降级", msg, buildSSHSIG(priv, SSHSigNamespace, "sha256", ed25519Name, ed25519Name, msg)},
+		{"公钥算法不是 ed25519", msg, buildSSHSIG(priv, SSHSigNamespace, "sha512", "ssh-rsa", ed25519Name, msg)},
+		{"签名算法不是 ed25519", msg, buildSSHSIG(priv, SSHSigNamespace, "sha512", ed25519Name, "ssh-rsa", msg)},
+		{"namespace 不符", msg, buildSSHSIG(priv, "other-ns", "sha512", ed25519Name, ed25519Name, msg)},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -101,7 +101,7 @@ func TestVerifySSHSIGRejects(t *testing.T) {
 
 	t.Run("公钥不在白名单", func(t *testing.T) {
 		otherPub, _ := newKey(t)
-		sig := buildSSHSIG(t, priv, SSHSigNamespace, "sha512", ed25519Name, ed25519Name, msg)
+		sig := buildSSHSIG(priv, SSHSigNamespace, "sha512", ed25519Name, ed25519Name, msg)
 		if err := VerifySSHSIG(msg, sig, []SSHPublicKey{{Principal: "x", Key: otherPub}}); !errors.Is(err, ErrSignature) {
 			t.Fatalf("陌生公钥必须拒绝，得到 %v", err)
 		}
@@ -112,7 +112,7 @@ func TestVerifySSHSIGRejects(t *testing.T) {
 func TestVerifySSHSIGArmor(t *testing.T) {
 	pub, priv := newKey(t)
 	msg := []byte("payload")
-	sig := buildSSHSIG(t, priv, SSHSigNamespace, "sha512", ed25519Name, ed25519Name, msg)
+	sig := buildSSHSIG(priv, SSHSigNamespace, "sha512", ed25519Name, ed25519Name, msg)
 	allowed := []SSHPublicKey{{Key: pub}}
 
 	crlf := bytes.ReplaceAll(sig, []byte("\n"), []byte("\r\n"))
@@ -123,6 +123,9 @@ func TestVerifySSHSIGArmor(t *testing.T) {
 		"缺外壳":      []byte("bm90IGEgc2ln"),
 		"坏 base64": []byte(sshSigArmorB + "\n!!!\n" + sshSigArmorE),
 		"截断":       []byte(sshSigArmorB + "\nAAAA\n" + sshSigArmorE),
+		// 结束标记紧跟在开始标记后面（与 BEGIN 末尾的 "-----" 重叠）：
+		// fuzz 找到过这里的 slice 越界，换成 j < i+len(armorB) 兜住
+		"END 紧贴 BEGIN": []byte(sshSigArmorB + "END SSH SIGNATURE-----"),
 	} {
 		if err := VerifySSHSIG(msg, bad, allowed); !errors.Is(err, ErrSignature) {
 			t.Fatalf("%s 应报 ErrSignature，得到 %v", name, err)

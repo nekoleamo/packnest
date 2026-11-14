@@ -16,8 +16,9 @@ BUILD := build
 COVER_INTERNAL_MIN := 85
 COVER_CMD_MIN := 70
 
-# fuzz 目标（每个都是 parser/路径类红线）。
-FUZZ_TARGETS := FuzzSpec FuzzSHASUMS FuzzArchivePath
+# fuzz 目标（每个都是 parser/路径类红线）。门禁时长 = 目标数 × $(FUZZ_TIME)，
+# 新增目标要同时接受 make check 变长（当前 5 个 → 150s）。
+FUZZ_TARGETS := FuzzSpec FuzzSHASUMS FuzzArchivePath FuzzSSHSIG FuzzAllowedSigners
 FUZZ_TIME := 30s
 
 # 有 tag 时用 tag（去掉前导 v），否则用默认开发版本号。

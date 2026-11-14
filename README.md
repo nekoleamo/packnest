@@ -156,7 +156,7 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式：不�
 - 默认**不动**用户已有配置：不写 `~/.npmrc`（要写用 `pk mirror write`，写前备份、只增不改）
 - 默认 `go test ./...` **零外网**；真网测试一律 `//go:build nettest`，不进门禁
 - 门禁 10 项（`make check`）：gofmt+vet · 行数红线 · 英文覆盖（`make lang`）· 三处签名公钥一致（`make keys`）·
-  `-race` 测试 · 覆盖率 · 6 平台交叉编译 · fuzz · benchmark 阈值 · `--json` golden
+  `-race` 测试 · 覆盖率 · 6 平台交叉编译 · fuzz · benchmark 阈值 · `--json` golden（fuzz 是 5 个目标 × 30s，见 `Makefile` 的 `FUZZ_TARGETS`）
 
 ## 下载与校验
 

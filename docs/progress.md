@@ -1064,3 +1064,19 @@ warn 消失。
 | 官网 | 中英均为 v1.6.0（版本号由 tag 注入），并已写入并行安装 / sshsig / `--lang` |
 | smoke | 用发布版 `dist/install.sh` 从 gitee 真装到临时目录：`sshsig OK（发布签名）` + `sha256 OK`，`pk --version` = 1.6.0 |
 | 发版链路坑 | `make release` 的版本号原先取 `git describe --always --dirty`，工作树有改动时会产出 `1.6.0-dirty` 这种名字；已改为**只取最近 `v*` tag**，且工作树不干净直接拒绝发版 |
+
+---
+
+## 1.8 完善路线（2026-11-14 开工）：批 0
+
+> 路线文档：`~/Documents/Plan/17-包管理器/pn-完善路线-2026-11-14.md`（批 0 = E3 / E8a / E8b，可并行）
+
+### E3 · sshsig / allowed_signers fuzz（批 0 第 1 项）
+
+| 项 | 结果 |
+|---|---|
+| 新目标 | `FuzzSSHSIG`（两路入口：armored 文本 → `VerifySSHSIG`；raw blob → `parseSSHSIG`）+ `FuzzAllowedSigners`；既有 3 个不动 |
+| 门禁 | `FUZZ_TARGETS` 3 → **5**，时长 = 目标数 × 30s（`make check` 的 fuzz 段约 150s） |
+| 断言 | 任意输入只能返回 `nil` 或 `errors.Is(err, ErrSignature)`，不 panic；`ParseAllowedSigners` 产出的公钥必须都是合法 ed25519、条数 ≤ 行数 |
+| **抓到真 bug** | `dearmor` 的边界判断原来是 `j < i`，而 `-----BEGIN SSH SIGNATURE-----END SSH SIGNATURE-----` 这类"END 紧贴 BEGIN 尾"的输入会让 `s[i+len(B):j]` **slice 越界**（fuzz 报 `slice bounds out of range [29:24]`）→ 改成 `j < i+len(armorB)`，并把该输入同时留成单测用例与 fuzz 语料（`testdata/fuzz/FuzzSSHSIG/`） |
+| 夹具 | 全代码构造：`buildSSHSIG` 去掉 `*testing.T` 依赖，fuzz 种子与单测共用同一个构造器 |

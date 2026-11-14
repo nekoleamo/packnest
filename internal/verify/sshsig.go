@@ -159,7 +159,8 @@ func dearmor(armored []byte) ([]byte, error) {
 	s := string(armored)
 	i := strings.Index(s, sshSigArmorB)
 	j := strings.Index(s, sshSigArmorE)
-	if i < 0 || j < 0 || j < i {
+	// 结束标记必须落在开始标记之后（否则 s[i+len(B):j] 会 slice 越界）。
+	if i < 0 || j < i+len(sshSigArmorB) {
 		return nil, fmt.Errorf("%w: 缺少 %s 外壳", ErrSignature, sshSigArmorB)
 	}
 	body := s[i+len(sshSigArmorB) : j]
