@@ -1461,3 +1461,10 @@ pk: node@^^^ failed to install: cannot parse version spec "^^^": improper constr
 
 **L2 累计**：6 个包清零 —— `verify` 28 · `archive` 23 · `paths` 9 · `spec` 6 · `mirror` 5 · `companion` 3 = **74 处**，
 `present` 码表 **72 条**。剩 `provider` 61 · `install` 41 · `fetch` 23 · `store` 20 · `env` 7。
+
+### E7 增补：`packaging/setup-pk/publish.sh`（建仓一条命令）
+
+`publish.sh` 把"建仓四步"收成一条幂等命令：取/建 public 仓库 → 只推四件（`action.yml`、`README.md`、
+`.github/workflows/self-test.yml`、`examples/ci.yml`）→ 设仓库变量 `PK_VERSION` / `PK_INSTALLER_SHA256`
+→ 打 `v1` 标签。**sha256 现算**（下载该 tag 上的 `scripts/install.sh` 再 hash），不写死。
+`--dry-run` 已验证：`v1.6.0 · install.sh sha256 f4cbfab3…`。

@@ -71,9 +71,21 @@ restore-keys 前缀回退到"同 os/arch/version 的最近一份"。
 - `pk install --frozen` 需要仓库里提交了 `pk.lock`（没提交就按 `pk.toml` 解析）；
 - 这个 action **不替你做** `npm ci` / `pnpm install`：它只保证"运行时与包管理器版本正确"，依赖安装仍是你自己的事。
 
-## 建仓步骤（一次性，约 5 分钟）
+## 建仓步骤（一次性，约 2 分钟）
 
-这个目录是给**独立仓库** `nekoleamo/setup-pk` 用的；packnest 仓库只留源文件。步骤：
+这个目录是给**独立仓库** `nekoleamo/setup-pk` 用的；packnest 仓库只留源文件。
+
+**最省事：一条命令**（幂等，可重复跑；会自己算好 pin 值）：
+
+```bash
+sh packaging/setup-pk/publish.sh --dry-run   # 先看它要做什么
+sh packaging/setup-pk/publish.sh             # 建仓 + 推四件 + 设变量 + 打 v1
+```
+
+它默认取**最近一个 `v*` tag**（现在是 `1.6.0`）并用那个 tag 上 `scripts/install.sh` 的 sha256 做 pin；
+要换版本：`sh packaging/setup-pk/publish.sh --version 1.7.0`。
+
+**手动做**的话是下面四步：
 
 ```bash
 # 1) 建空仓库（public，Action 必须 public 才能被外部仓库引用）
