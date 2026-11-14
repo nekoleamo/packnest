@@ -82,10 +82,24 @@ gui_artifacts() {
 # 先列清单再算：--from-dir 进来的 CI 产物与本地构建的产物一视同仁
 _gui_list=$(gui_artifacts)
 [ -n "$_gui_list" ] || { echo "没有 GUI 产物可发布（先构建，或用 --from-dir）" >&2; exit 4; }
+# ⚠️ 这里必须在 `cd` **之后**重新列出文件，而且不能走 `xargs`：
+#   ① gui_artifacts 里的路径带 $DIST 前缀，cd 进 dist/gui 之后 glob 一个都匹配不到；
+#   ② 文件列表为空时 `shasum -a 256`（无参数）会去读 stdin，产出一行 `e3b0c…  -`
+#      —— 于是 checksums.txt 看起来"有内容"、签名也有效，但**没有任何产物的哈希**，
+#      用户侧 install-gui.sh 一定报"拿不到 sha256"。2026-11-15 实测就是这么发出去的
+#      （gui-v0.11.0 及更早干脆一个 checksums.txt 都没有）。
+_gui_names=$(printf '%s\n' "$_gui_list" | xargs -n1 basename | sort -u)
+[ -n "$_gui_names" ] || { echo "没有 GUI 产物可算校验和（glob 没匹配到）" >&2; exit 4; }
 # shellcheck disable=SC2086
-( cd "$DIST/gui" && { shasum -a 256 $(gui_artifacts | xargs -n1 basename) 2>/dev/null \
-    || sha256sum $(gui_artifacts | xargs -n1 basename); } | sort -k2 > checksums.txt )
-echo "已生成 $DIST/gui/checksums.txt（$(grep -c . "$DIST/gui/checksums.txt") 个产物）"
+( cd "$DIST/gui" && { shasum -a 256 $_gui_names 2>/dev/null || sha256sum $_gui_names; } | sort -k2 > checksums.txt )
+_lines=$(grep -c . "$DIST/gui/checksums.txt" || true)
+_expected=$(printf '%s\n' "$_gui_names" | grep -c . || true)
+[ "$_lines" = "$_expected" ] || {
+  echo "校验和行数不对：应有 ${_expected} 行，实际 ${_lines} 行（先看 $DIST/gui/checksums.txt）" >&2
+  exit 4
+}
+printf '%s\n' "$VER" > "$DIST/gui/latest"   # verify-release --gui / gen-manifests 靠它取版本
+echo "已生成 $DIST/gui/checksums.txt（${_lines} 个产物）"
 
 . scripts/lib/sign.sh
 if [ -n "${PK_SIGNING_KEY:-}" ]; then

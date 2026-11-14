@@ -1716,3 +1716,37 @@ make publish-manifests             # brew tap + scoop bucket（推完回读核�
 - 仓库变量更新：`PK_VERSION=1.8.0`、`PK_INSTALLER_SHA256=9ff50b11…`（`scripts/install.sh` 的 sha256）；
 - 实测（run 43640283127）：**cold 39s / warm 44s 双绿**，warm 日志里 `缓存命中 node@22.23.5（54.2 MB，0 网络）`
   `缓存命中 npm@12.2.2（2.9 MB，0 网络)` —— R-CACHE-1 在消费方 CI 上也证完了。
+
+## GUI 0.11.1 发版 + 全量文档同步（2026-11-15）
+
+```
+make gui-test                                   # pkcli 契约测试（用真 bin/pk）
+gh workflow run gui-build.yml --ref main        # 三平台产物（artifact，不发布）
+PK_SIGNING_KEY=… sh scripts/release-gui.sh --version 0.11.1
+sh scripts/verify-release.sh --gui              # 线上回读：签名 OK，3 个产物逐条一致
+sh scripts/install-gui.sh --version 0.11.1 --dir /tmp/x   # 用户视角实测：sshsig OK → sha256 OK → 0.11.1
+```
+
+- 内容只有一处功能改动：`pkcli` 跳过**没有 `ev` 的事件行**（适配 1.8 的 `--json` 失败对象），
+  其余是版本号与文档。
+- 产物：`gui-v0.11.1`（gitee + GitHub，各 5 件 = 3 平台产物 + `checksums.txt` + `.sig`）。
+
+### 发版时抓到第 10/11 个 bug（都在 `release-gui.sh` 里，已修）
+
+1. **清单里一个产物哈希都没有**：`cd $DIST/gui` 之后仍按 `$DIST/gui/...` glob → 空列表；
+   `shasum -a 256`（无参数）读 stdin，产出一行 `e3b0c442…  -`。签名有效、清单"非空"，
+   但用户侧必然报"拿不到 sha256"。现在改成 cd 之后重列 + **校验行数 == 产物数**，并写 `dist/gui/latest`。
+   连带追查：**gui-v0.11.0 及更早的 release 根本没有 `checksums.txt`** —— 0.11.0 已按"删 release 重建"
+   修好（产物从 GitHub 原样取回 → 重算清单 → 同一把密钥签名 → 线上复核 3/3 OK）。
+2. **`verify-release --gui` 缺 `dist/gui/latest` 时回落到 CLI 版本号**，于是拿 `gui-v1.8.0` 的 URL 核对、全 404。
+
+### 文档/站点同步（本轮）
+
+| 位置 | 改了什么 |
+|---|---|
+| `site/index.html` · `site/en/index.html` | 缓存段落补 R-CACHE-1（新机器 + 热缓存 = 0 下载）；全局开关段落补 `--json` 失败对象 |
+| `README.md` | `--base` 是权威源（行为变化）、安装脚本先验签再比 sha256、`--json` 失败契约、GUI 当前 0.11.1 |
+| `README.en.md` | 整体追平：缓存例外清单加 `alias/`、去掉三条过时"限制"（内容寻址已做 / pnpm 启动器已改平台包 / GUI 已发）、门禁 10 → 11 项、补 `make test-installers`、补 `--base` 权威源与失败契约 |
+| `docs/cli.md` | 版本示例 1.5.1 → 1.8.0；§1.4 补"热缓存对全新机器有效"（含两台机器的复现命令）；§12 补失败对象示例；§11.9 更正"内部包只有中文"的过时说法（L2 后内部只给码） |
+| `docs/gui.md` | `verify-release --gui` 取版本的说明 |
+| `docs/publishing.md` | GUI 发布的两个实测坑（清单为空 / 版本回落）与处置 |

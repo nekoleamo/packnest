@@ -197,6 +197,17 @@ sh cmd/pk-desktop/packaging/build-macos.sh 0.10.2 arm64
   只构建了 mac 时整条命令每次都失败、重试 5 次后仍打印“已上传”，结果 GitHub release 上一个附件都没有。
   现在先 `ls` 出文件再传，失败以退出码 5 报出。
 
+### 两个实测坑（2026-11-15，gui-v0.11.1）
+
+- **`checksums.txt` 里一个产物都没有**：脚本在 `cd $DIST/gui` 之后又去 glob `$DIST/gui/packnest-desktop_*`
+  （路径失效 → 文件列表为空），而 `shasum -a 256`（无参数）会读 stdin 得到一行 `e3b0c442…  -`。
+  结果是"清单有内容、签名也有效、但没有任何产物的哈希"，用户侧 `install-gui.sh` 必然报"拿不到 sha256"。
+  现在改成**在 `cd` 之后重新列出、并校验行数 == 产物数**，还会写 `dist/gui/latest`（`verify-release --gui` 靠它取版本）。
+  ⚠️ 同一 bug 让 **gui-v0.11.0 及更早的 release 没有 `checksums.txt`**：0.11.0 已按"删 release 重建"补上
+  （三个产物从 GitHub 原样取回 → 重新算清单 → 用同一把密钥签名 → 复核通过）。
+- **`verify-release --gui` 要看本地清单的版本**：不传 `--version` 时它读 `dist/gui/latest`；以前没有这个文件
+  就回落到 `dist/latest`（CLI 的 1.8.0），于是拿 `gui-v1.8.0` 的 URL 去核对、全 404。
+
 ### 重发同一版本
 
 gitee 不允许替换同名附件，所以**先删 release 再重建**：

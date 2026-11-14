@@ -121,6 +121,16 @@ $ pk uninstall node@22.23.4 && pk --offline install node@22.23.4
 装好 node@22.23.4 → /Users/you/.packnest/tools/node/22.23.4
 ```
 
+**热缓存对全新机器也有效（1.8 起）**：`PK_CACHE=<目录>` 里的 `alias/` 记着「上游公布的摘要 → 归档」，
+所以换一台机器（或 CI 的新 runner，`state/` 全空）只要拿到几 KB 的校验和就能直接命中 50 MB 的归档：
+
+```bash
+# 机器 A（冷）：真下载并写别名
+PK_ROOT=/tmp/a PK_CACHE=/tmp/cache pk install node@22
+# 机器 B（全新 state，同一份 PK_CACHE）：只出 cache 事件，不下产物
+PK_ROOT=/tmp/b PK_CACHE=/tmp/cache pk install node@22 --json | grep '"ev":"\(cache\|download\)"'
+```
+
 ### 1.5 按项目安装 / CI 严格安装
 
 ```bash
@@ -524,13 +534,13 @@ $ pk upgrade --json       # {schema, changed, failed, items[{tool,from,to,change
 
 ```bash
 $ pk --version
-packnest v1.5.1 (go1.27.3, darwin/arm64)
+packnest v1.8.0 (go1.27.3, darwin/arm64)
 
 $ pk --json version
 {
   "schema": 1,
   "name": "packnest",
-  "version": "0.7.9",
+  "version": "1.8.0",
   "go": "go1.27.3",
   "os": "darwin",
   "arch": "arm64"
@@ -553,14 +563,15 @@ PK_LANG=en pk list
 ```
 
 - 命令行优先于 `PK_LANG`；**不跟随 `LANG`**（CI 里常是 `C`/`en_US`，自动跟随会让日志静默变英文）。
-- `--json` 的结构不随语言改变；`msg`/`message` 这类文案字段不保证英文（机器读 `code`/`ev`/退出码）。
-- `internal/*` 的错误消息仍是中文（英文只覆盖 CLI 这一层），见 `~/Documents/Plan/17-包管理器/pn-1.7-英文输出-方案.md`。
+- `--json` 的结构不随语言改变；`msg`/`message` 这类文案字段**尽量**跟语言走，但机器判断一律读 `code`/`ev`/退出码。
+- 1.8 起 `internal/*` **不再产出人话**：只给稳定码 + 参数，文案全部集中在 `cmd/pk/present` 的码表（zh/en 各一份），
+  所以 `--lang en` 连内部包的报错也是英文。见 `~/Documents/Plan/17-包管理器/pn-1.7-英文输出-方案.md`。
 
 ## 12. 全局开关与退出码
 
 | 开关 | 作用 |
 |---|---|
-| `--json` | 机器可读输出；`install` 是 NDJSON 事件流（`resolve`/`cache`/`download`/`verify`/`companion`/`done`） |
+| `--json` | 机器可读输出；`install` 是 NDJSON 事件流（`resolve`/`cache`/`download`/`verify`/`companion`/`done`/`abort`） |
 | `--offline` | 禁止一切网络访问（有缓存就能装） |
 | `--yes` | 不交互确认 |
 | `--root DIR` | 覆盖 `PK_ROOT`（调试/隔离用） |
@@ -573,6 +584,15 @@ PK_LANG=en pk list
 | `3` | 网络失败（含探测全挂） |
 | `4` | 校验失败（哈希不符、缺校验和、源之间矛盾） |
 | `5` | 另一个 pk 正在运行（全局锁被占用） |
+
+失败时（1.8 起）stdout 还会多一条**没有 `ev`** 的对象，方便脚本按码分支：
+
+```json
+{"schema":1,"error":{"code":"install.not_in_ledger","args":["node","1.0.0"],"tool":"node","spec":"1.0.0","msg":"…","exit":1}}
+```
+
+`code` 是稳定问题码（没登记时省略）、`args` 是码表参数、`msg` 只是人话、`exit` 与进程退出码一致。
+契约细节见 [docs/json-schema.md](json-schema.md)「失败输出」。
 
 ---
 

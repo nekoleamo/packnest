@@ -343,7 +343,7 @@ the new version. **Old versions are kept** — clean them up with `pk gc --keep 
 ## 11. version / help
 
 ```bash
-$ pk version          # packnest v1.5.1 (go1.27.3, darwin/arm64)
+$ pk version          # packnest v1.8.0 (go1.27.3, darwin/arm64)
 $ pk version --json   # {schema, name, version, go, os, arch}
 $ pk help install     # per-command help
 ```
@@ -353,6 +353,7 @@ $ pk help install     # per-command help
 | Flag | Effect |
 |---|---|
 | `--json` | machine-readable output — the only contract for GUIs and scripts (`schema: 1`, additive only) |
+| `--json` on failure | one extra object **without** an `ev` field: `{"schema":1,"error":{"code","args","tool","spec","msg","exit"}}` (since 1.8) |
 | `--offline` | forbid every network request |
 | `--yes` | no interactive confirmation |
 | `--root DIR` | override `PK_ROOT` (debugging / testing) |

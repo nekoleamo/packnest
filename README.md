@@ -40,10 +40,13 @@ curl -fsSL https://你的域名/install.sh | sh -s -- --base https://你的域�
 `curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh -s -- --base https://github.com/nekoleamo/packnest/releases/download`
 
 安装脚本开关：`--from gitee|base` · `--base URL` · `--version` · `--dir` · `--skip-verify` · `--dry-run`
-（`--mirror cn|default` 保留兼容，两者现在都走 gitee）。下载后**校验 sha256**（对 `checksums.txt`），
+（`--mirror cn|default` 保留兼容，两者现在都走 gitee）。下载后**先验 `checksums.txt.sig`（sshsig）再比 sha256**，
 对不上退出码 4。PowerShell 版参数名换成 `-Base` / `-Version` / `-Dir` / `-SkipVerify` / `-DryRun`。
 
-图形界面（可选，**必须先装 CLI**）在单独 tag `gui-v<版本>` 的 release 里：
+`--base` / `-Base` 是**权威源**：自托管源上要放一个 `latest`（一行版本号）或显式给 `--version`，
+否则脚本会直接报错而不是"回退到 gitee 的最新版本号"（那会拼出该源上不存在的目录，表现为下载 404）。
+
+图形界面（可选，**必须先装 CLI**；当前 0.11.1，独立 tag `gui-v<版本>`，带 `checksums.txt` + `.sig`）在单独 tag 的 release 里：
 macOS 下载 `packnest-desktop_<版本>_darwin_arm64.app.zip` → 解压 → `open packnest.app`；
 Windows/Linux 见 `cmd/pk-desktop/README.md`。
 
@@ -207,6 +210,9 @@ PK_PROVIDERS_DIR=/opt/corp/pk:/srv/more   # 追加目录（可多个，冒号分
 
 **校验强度按校验源算，不按产物**：产物与校验和都走 http 时最多判 `weak`（摘要可以跟着一起被换掉）；
 产物走 http 但校验和走 https 且 ≥2 源一致，仍然是 `strong`。台账里会留 `transport: "http"` 的痕。
+
+`--json` 失败时会多一条**没有 `ev` 字段**的对象：`{"schema":1,"error":{"code","args","tool","spec","msg","exit"}}`
+（1.8 起，只增不改；人读的 stderr 与退出码不变，`code` 没登记时省略）。脚本判定仍以退出码优先。
 
 `pk list` 里外部工具带 `*`，`--json` 每条工具多一个 `"source": "embedded" | "external"`（只增字段）。
 外部清单**任何一个坏文件都不会让 CLI 起不来**：跳过它、记一条 issue，其余照常。

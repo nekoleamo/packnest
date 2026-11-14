@@ -112,7 +112,8 @@
     <dt>下载</dt>
     <dd>Range 续传 + <b>默认多连接</b>（≥8MB、冷启动、源支持 Range 时按大小自适应 2~8 段，异常自动退回单流；<code>--jobs 1</code> 可强制单流）。实测 48MB 的 node 包：单流 1.46s → 8 段 0.84s。索引走 gzip 传输，go 的索引 2.28MB → 557KB。</dd>
     <dt>缓存</dt>
-    <dd>产物与索引缓存默认在 <code>~/.packnest/cache</code>；CI 或多机预热可以用 <code>PK_CACHE=&lt;目录&gt;</code> 把它搬到别处（台账、shim、锁不动），<code>--purge</code> 也不会动那个目录。</dd>
+    <dd>产物与索引缓存默认在 <code>~/.packnest/cache</code>；CI 或多机预热可以用 <code>PK_CACHE=&lt;目录&gt;</code> 把它搬到别处（台账、shim、锁不动），<code>--purge</code> 也不会动那个目录。
+    <b>热缓存对全新机器同样有效</b>：缓存里记着「上游公布的摘要 → 归档」的别名，新 runner 只发一次几 KB 的校验和请求就能命中 50 MB 的归档，不必先下再算摘要（1.8 起）。</dd>
     <dt>体积</dt>
     <dd>单个 Go 二进制，<code>CGO_ENABLED=0</code>，六平台构建，只依赖两个第三方库（semver、toml）。</dd>
   </dl>
@@ -150,6 +151,7 @@
       <tr><td>upgrade</td><td>把已装工具一次升到索引最新（旧版本保留、全局默认跟着切、npm 随 node）；<code>--dry-run</code> 先看要升什么</td></tr>
     </tbody>
   </table>
+  <p class="after">失败时 <code>--json</code> 额外输出一条 <code>{"schema":1,"error":{"code","args","msg","exit"}}</code>（1.8 起，只增不改；人读的 stderr 与退出码不变）</p>
   <p class="after">全局开关 <code>--json</code>（GUI 与脚本的唯一契约）· <code>--offline</code> · <code>--yes</code> · <code>--root</code> · <code>--lang en</code>（英文输出，也可 <code>PK_LANG=en</code>）；退出码固定 0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用。</p>
   <p class="after"><code>--dry-run</code> 是<b>只读预览</b>：不下载、不解压、不写 <code>pk.lock</code>、不清残留、不改 <code>config.toml</code>（1.5.1 起）。</p>
   <p class="after">发布链可验签：<code>checksums.txt</code> 带 <code>sshsig</code> 签名（<code>checksums.txt.sig</code>），安装脚本在比对 sha256 之前先验签——镜像站与自托管源改不了清单（<code>brew</code>/<code>scoop</code> 只认 sha256，这是渠道边界）。</p>

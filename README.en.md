@@ -39,9 +39,14 @@ Outside China you can pull the very same artifacts from GitHub Releases (identic
 `curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh -s -- --base https://github.com/nekoleamo/packnest/releases/download`
 
 Installer switches: `--from gitee|base` · `--base URL` · `--version` · `--dir` · `--skip-verify` ·
-`--dry-run` (`--mirror cn|default` is still accepted but both now mean gitee). The download is
-**verified with sha256** against `checksums.txt`; a mismatch exits with code 4. The PowerShell script
-uses `-Base` / `-Version` / `-Dir` / `-SkipVerify` / `-DryRun`.
+`--dry-run` (`--mirror cn|default` is still accepted but both now mean gitee). The download verifies
+the **`checksums.txt.sig` (sshsig)** first and then the **sha256**; a mismatch exits with code 4. The
+PowerShell script uses `-Base` / `-Version` / `-Dir` / `-SkipVerify` / `-DryRun`.
+
+`--base` / `-Base` is an **authoritative source**: it must serve a `latest` file (one line, the
+version) or you must pass `--version`. Otherwise the installer fails loudly instead of silently
+falling back to gitee's newest version (which points at a directory that does not exist on your host
+→ download 404).
 
 > The npm channel was retired on 2026-11-11: staged publishing needs 2FA, and archives built in the
 > cloud differ byte-for-byte from local builds (two sets of sha256). Installs made earlier with
@@ -69,7 +74,9 @@ plus `version` / `help` (`pk help install` documents each one).
 
 Global flags: `--json` (the only contract for GUIs and scripts) · `--offline` · `--yes` ·
 `--root` (debug). Fixed exit codes: `0` ok / `1` generic / `2` usage / `3` network / `4` checksum /
-`5` locked.
+`5` locked. On failure `--json` also emits one object **without** an `ev` field —
+`{"schema":1,"error":{"code","args","tool","spec","msg","exit"}}` (since 1.8, additive only; the
+human stderr line and the exit code are unchanged, `code` is omitted when no stable code exists).
 
 ## Desktop app (optional)
 
@@ -83,10 +90,12 @@ its own — uninstall and upgrade still go through the CLI.
 - reclaim page: preview or delete, `--keep N` keeps the newest N versions per tool
 - read-only `which` / `env` views, light/dark toggle, Chinese/English UI, and launch at login (off by default)
 
-Artifacts live under a **separate tag** `gui-v<version>` (macOS arm64 / Windows amd64 / Linux amd64) on
+Current GUI is **0.11.1**. Artifacts live under a **separate tag** `gui-v<version>` (macOS arm64 /
+Windows amd64 / Linux amd64, plus a signed `checksums.txt`) on
 [gitee](https://gitee.com/null_593_5354/packnest/releases) and [GitHub Releases](https://github.com/nekoleamo/packnest/releases).
 If the CLI is missing, the app shows the install command for your platform with a copy button.
 macOS builds are ad-hoc signed (allow once in System Settings → Privacy & Security); Linux needs GTK4 + WebKitGTK 6.0.
+`sh scripts/install-gui.sh` (macOS) / `install-gui.ps1` (Windows) download, verify sshsig + sha256, and unpack into `~/Applications`.
 No desktop runtime? Use `pk-desktop --serve` → `http://127.0.0.1:7799/`.
 
 ## Differences from proto / mise / nvm
@@ -131,7 +140,7 @@ There is only ever one copy on disk; project scope means "pinning + PATH order",
 - **Two** third-party dependencies: `Masterminds/semver/v3`, `BurntSushi/toml`
 - Archives: **tar.gz / zip** only, extracted with the standard library (`archive/tar` + `compress/gzip` + `archive/zip`)
 - Single `PK_ROOT` (default `~/.packnest`), **never sudo, never writes your shell rc** (except the managed block from `pk env --write`)
-- Cache is the one exception: `PK_CACHE=<dir>` moves `archives/`, `meta/` and the corepack/npm caches elsewhere (CI volumes); ledger, shims and locks stay put
+- Cache is the one exception: `PK_CACHE=<dir>` moves `archives/`, `alias/`, `meta/` and the corepack/npm caches elsewhere (CI volumes); ledger, shims and locks stay put
 - Never modifies existing user configuration by default: no writes to `~/.npmrc` (use `pk mirror write`, which backs up and is additive)
 - `go test ./...` is **offline** by default; real-network tests are `//go:build nettest` and stay out of the gate
 
@@ -239,8 +248,9 @@ Releases are signed since 1.6: `checksums.txt.sig` (sshsig, namespace `pk-releas
 make build      # CGO_ENABLED=0 local build → ./bin/pk
 make test       # offline unit tests
 make accept     # acceptance tests only (TestAcceptance_*)
-make check      # the ten gates (run before every commit)
-make release    # six platform artifacts + checksums.txt → dist/
+make check      # the eleven gates (run before every commit)
+make release    # six platform artifacts + provenance/SBOM + checksums.txt → dist/
+make test-installers  # offline integration test for install.sh / install.ps1 / the GUI installers
 make site       # render the website into site/dist/ (version injected from the git tag)
 make npm-dry    # build the npm packages and validate manifests (no publish, no credentials)
 ```
@@ -296,10 +306,10 @@ pk only writes `~/.packnest` plus its own managed blocks, so nothing else is lef
 ## Known limitations
 
 - The Python index only declares npmmirror (upstream GitHub has no directory listing); the Go index only declares the official `?mode=json&include=all` and falls back to a 24h stale cache
-- pnpm 12's registry tarball is only a launcher — the first run downloads the platform binary itself (upstream behaviour)
-- The cache is named `<tool>-<version>-<platform>.<ext>` (no content-addressed dedup yet)
+- pnpm ships as per-platform packages (`@pnpm/exe.<os>-<arch>`, only from 11.0.0-rc.3); `pk install pnpm@10` fails fast with a corepack / `npm i -g pnpm@10` suggestion
+- Cache is content-addressed (`<sha256>.<ext>`) and deduped across versions; `alias/<algo>-<hex>` maps published digests to those files so a warm `PK_CACHE` is reusable on a fresh machine (no TOFU/ledger needed)
 - Per-project override of the global version requires direnv (`pk env --project`); without direnv `node` still resolves to the global default
-- The GUI (Wails v3.1.0) has not started — it comes after the CLI freeze
+- The GUI is an optional supplement (Wails v3 + Vue3, current 0.11.1): it requires the CLI and drives it via `pk --json`; it is not a second state manager
 
 ## License
 

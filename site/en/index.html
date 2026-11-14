@@ -113,7 +113,8 @@
     <dt>Downloads</dt>
     <dd>Range resume plus <b>parallel sharding by default</b> (≥8MB, cold start, Range-capable source; 2–8 shards picked by size, any trouble falls back to one stream; <code>--jobs 1</code> forces a single stream). Measured on a 48MB node tarball: 1.46s → 0.84s with 8 shards. Indexes travel gzipped: the Go index drops from 2.28MB to 557KB.</dd>
     <dt>Cache</dt>
-    <dd>Artifact and index caches live in <code>~/.packnest/cache</code> by default; <code>PK_CACHE=&lt;dir&gt;</code> moves them elsewhere for CI or multi-machine warmup (ledger, shims and locks stay put), and <code>--purge</code> never deletes that directory.</dd>
+    <dd>Artifact and index caches live in <code>~/.packnest/cache</code> by default; <code>PK_CACHE=&lt;dir&gt;</code> moves them elsewhere for CI or multi-machine warmup (ledger, shims and locks stay put), and <code>--purge</code> never deletes that directory.
+    <b>A warm cache also works on a brand-new machine</b>: the cache records "published digest → archive" aliases, so a fresh CI runner fetches a few KB of checksums and hits the 50 MB archive instead of downloading it (since 1.8).</dd>
     <dt>Footprint</dt>
     <dd>One Go binary with <code>CGO_ENABLED=0</code>, built for six targets, depending on exactly two third-party libraries (semver, toml).</dd>
   </dl>
@@ -151,6 +152,7 @@
       <tr><td>upgrade</td><td>upgrades every installed tool to the newest indexed release (old versions kept, global default follows, npm follows node); <code>--dry-run</code> previews</td></tr>
     </tbody>
   </table>
+  <p class="after">On failure <code>--json</code> also emits <code>{"schema":1,"error":{"code","args","msg","exit"}}</code> (since 1.8, additive only; the human stderr line and exit code are unchanged)</p>
   <p class="after">Global flags: <code>--json</code> (the only contract for GUIs and scripts) · <code>--offline</code> · <code>--yes</code> · <code>--root</code> · <code>--lang en</code> (English output; <code>PK_LANG=en</code> also works). Fixed exit codes: 0 ok / 1 generic / 2 usage / 3 network / 4 checksum / 5 locked.</p>
   <p class="after"><code>--dry-run</code> is a <b>read-only preview</b>: no download, no extraction, no <code>pk.lock</code>, no stale sweep, no <code>config.toml</code> change (since 1.5.1).</p>
   <p class="after">Releases are signed: <code>checksums.txt</code> ships with an <code>sshsig</code> signature (<code>checksums.txt.sig</code>) and the install script verifies it before comparing sha256 — mirrors and self-hosted sources cannot rewrite the manifest (<code>brew</code>/<code>scoop</code> only check sha256; that is their limit).</p>
