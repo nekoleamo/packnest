@@ -13,6 +13,7 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"io"
 	"os"
 	"path"
@@ -59,7 +60,7 @@ func FormatFor(ext string) (Format, error) {
 	case "zip":
 		return FormatZip, nil
 	}
-	return "", fmt.Errorf("不支持的归档格式 %q（只支持 tar.gz / tgz / zip）", ext)
+	return "", coded.New(CodeFormatUnsupported, ext)
 }
 
 // Extract 把 archivePath 解到 dstDir。
@@ -67,7 +68,7 @@ func FormatFor(ext string) (Format, error) {
 // dstDir 必须是干净的（调用方给 tools/<tool>/<ver>.tmp.<rand>）。
 func Extract(archivePath, dstDir string, format Format, layout Layout, goos string) error {
 	if err := os.MkdirAll(dstDir, 0o755); err != nil {
-		return fmt.Errorf("创建临时安装目录失败: %w", err)
+		return coded.Wrap(err, CodeTmpDir)
 	}
 	var err error
 	switch format {
@@ -76,7 +77,7 @@ func Extract(archivePath, dstDir string, format Format, layout Layout, goos stri
 	case FormatZip:
 		err = extractZip(archivePath, dstDir, layout, goos)
 	default:
-		err = fmt.Errorf("不支持的归档格式 %q", format)
+		err = coded.New(CodeFormatUnsupported, format)
 	}
 	if err != nil {
 		return err
@@ -87,12 +88,12 @@ func Extract(archivePath, dstDir string, format Format, layout Layout, goos stri
 func extractTarGz(archivePath, dstDir string, layout Layout, goos string) error {
 	f, err := os.Open(archivePath)
 	if err != nil {
-		return fmt.Errorf("打开归档失败: %w", err)
+		return coded.Wrap(err, CodeOpen)
 	}
 	defer f.Close()
 	gz, err := gzip.NewReader(f)
 	if err != nil {
-		return fmt.Errorf("解 gzip 失败（归档损坏？）: %w", err)
+		return coded.Wrap(err, CodeGzip)
 	}
 	defer gz.Close()
 	tr := tar.NewReader(gz)
@@ -104,7 +105,7 @@ func extractTarGz(archivePath, dstDir string, layout Layout, goos string) error 
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("读 tar 失败（归档截断？）: %w", err)
+			return coded.Wrap(err, CodeTarRead)
 		}
 		rel, ok, err := stripPath(hdr.Name, layout.Strip)
 		if err != nil {
@@ -121,12 +122,12 @@ func extractTarGz(archivePath, dstDir string, layout Layout, goos string) error 
 		switch hdr.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(target, 0o755); err != nil {
-				return fmt.Errorf("创建目录失败: %w", err)
+				return coded.Wrap(err, CodeMkdir)
 			}
 		case tar.TypeSymlink:
 			if goos == "windows" {
 				// Windows 建符号链接需要开发者模式/管理员，且我们一律取 zip 产物。
-				return fmt.Errorf("不支持带符号链接的 tar 归档（Windows 应改取 zip 产物，见方案 §18.3）: %s", hdr.Name)
+				return coded.New(CodeLinkUnsupported, "tar", hdr.Name)
 			}
 			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 				return err
@@ -136,7 +137,7 @@ func extractTarGz(archivePath, dstDir string, layout Layout, goos string) error 
 			}
 			_ = os.Remove(target)
 			if err := os.Symlink(hdr.Linkname, target); err != nil {
-				return fmt.Errorf("创建符号链接 %q 失败: %w", rel, err)
+				return coded.Wrap(err, CodeLinkCreate, rel)
 			}
 		case tar.TypeReg:
 			n, err := writeEntry(target, tr, hdr.FileInfo().Mode().Perm())
@@ -156,7 +157,7 @@ func extractTarGz(archivePath, dstDir string, layout Layout, goos string) error 
 func extractZip(archivePath, dstDir string, layout Layout, goos string) error {
 	zr, err := zip.OpenReader(archivePath)
 	if err != nil {
-		return fmt.Errorf("打开 zip 失败（归档损坏？）: %w", err)
+		return coded.Wrap(err, CodeOpen, "zip")
 	}
 	defer zr.Close()
 
@@ -181,11 +182,11 @@ func extractZip(archivePath, dstDir string, layout Layout, goos string) error {
 		}
 		if f.Mode()&os.ModeSymlink != 0 {
 			if goos == "windows" {
-				return fmt.Errorf("不支持 zip 里的符号链接（Windows 没有稳定的链接语义）: %s", f.Name)
+				return coded.New(CodeLinkUnsupported, "zip", f.Name)
 			}
 			rc, err := f.Open()
 			if err != nil {
-				return fmt.Errorf("读取符号链接失败: %w", err)
+				return coded.Wrap(err, CodeLinkRead)
 			}
 			link, err := io.ReadAll(rc)
 			rc.Close()
@@ -200,13 +201,13 @@ func extractZip(archivePath, dstDir string, layout Layout, goos string) error {
 			}
 			_ = os.Remove(target)
 			if err := os.Symlink(string(link), target); err != nil {
-				return fmt.Errorf("创建符号链接 %q 失败: %w", rel, err)
+				return coded.Wrap(err, CodeLinkCreate, rel)
 			}
 			continue
 		}
 		rc, err := f.Open()
 		if err != nil {
-			return fmt.Errorf("打开 %q 失败: %w", rel, err)
+			return coded.Wrap(err, CodeEntryOpen, rel)
 		}
 		n, err := writeEntry(target, rc, f.Mode().Perm())
 		rc.Close()
@@ -223,7 +224,7 @@ func extractZip(archivePath, dstDir string, layout Layout, goos string) error {
 // writeEntry 写一个常规文件，返回写出的字节数。
 func writeEntry(target string, r io.Reader, mode os.FileMode) (int64, error) {
 	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return 0, fmt.Errorf("创建目录失败: %w", err)
+		return 0, coded.Wrap(err, CodeMkdir)
 	}
 	perm := mode.Perm()
 	if perm == 0 {
@@ -231,19 +232,19 @@ func writeEntry(target string, r io.Reader, mode os.FileMode) (int64, error) {
 	}
 	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
 	if err != nil {
-		return 0, fmt.Errorf("创建文件 %q 失败: %w", target, err)
+		return 0, coded.Wrap(err, CodeCreate, target)
 	}
 	n, copyErr := io.Copy(f, r)
 	closeErr := f.Close()
 	if copyErr != nil {
-		return 0, fmt.Errorf("写入 %q 失败（归档截断？）: %w", filepath.Base(target), copyErr)
+		return 0, coded.Wrap(copyErr, CodeWriteTruncated, filepath.Base(target))
 	}
 	if closeErr != nil {
-		return 0, fmt.Errorf("写入 %q 失败: %w", filepath.Base(target), closeErr)
+		return 0, coded.Wrap(closeErr, CodeWrite, filepath.Base(target))
 	}
 	// 显式 chmod：某些归档（尤其是 zip）不带权限位。
 	if err := os.Chmod(target, perm); err != nil {
-		return 0, fmt.Errorf("设置权限失败: %w", err)
+		return 0, coded.Wrap(err, CodeChmod)
 	}
 	return n, nil
 }
@@ -255,15 +256,15 @@ func writeEntry(target string, r io.Reader, mode os.FileMode) (int64, error) {
 func checkLinkTarget(dstDir, target, linkname string) error {
 	clean := strings.ReplaceAll(linkname, `\`, "/")
 	if clean == "" {
-		return fmt.Errorf("符号链接目标为空: %q", filepath.Base(target))
+		return coded.New(CodeLinkEmpty, filepath.Base(target))
 	}
 	if filepath.IsAbs(clean) || strings.HasPrefix(clean, "/") || (len(clean) > 1 && clean[1] == ':') {
-		return fmt.Errorf("符号链接 %q 指向绝对路径 %q，拒绝", filepath.Base(target), linkname)
+		return coded.New(CodeLinkAbsolute, filepath.Base(target), linkname)
 	}
 	resolved := filepath.Clean(filepath.Join(filepath.Dir(target), filepath.FromSlash(clean)))
 	rel, err := filepath.Rel(dstDir, resolved)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return fmt.Errorf("符号链接 %q 指向解压目录之外（%q），拒绝", filepath.Base(target), linkname)
+		return coded.New(CodeLinkEscape, filepath.Base(target), linkname)
 	}
 	return nil
 }
@@ -274,7 +275,7 @@ func applySingle(dstDir string, layout Layout, files []string) error {
 		return nil
 	}
 	if len(files) != 1 {
-		return fmt.Errorf("%w（实际 %d 个）", ErrNoSingle, len(files))
+		return coded.Wrap(ErrNoSingle, CodeSingleCount, len(files))
 	}
 	target, err := paths.SafeJoin(dstDir, layout.Single)
 	if err != nil {
@@ -285,7 +286,7 @@ func applySingle(dstDir string, layout Layout, files []string) error {
 	}
 	if files[0] != target {
 		if err := os.Rename(files[0], target); err != nil {
-			return fmt.Errorf("移动到单文件布局位置失败: %w", err)
+			return coded.Wrap(err, CodeSingleMove)
 		}
 	}
 	return os.Chmod(target, 0o755)
@@ -299,7 +300,7 @@ func markExecutables(dstDir string, layout Layout) error {
 	for _, name := range layout.Bins {
 		if found, err := FindBin(dstDir, name, "unix", layout.BinTargets); err == nil && found != "" {
 			if err := os.Chmod(found, 0o755); err != nil {
-				return fmt.Errorf("设置 %s 可执行位失败: %w", name, err)
+				return coded.Wrap(err, CodeChmod, name)
 			}
 			continue
 		}
@@ -331,7 +332,7 @@ func FindBin(toolDir, name, goos string, targets map[string]string) (string, err
 			return p, nil
 		}
 	}
-	return "", fmt.Errorf("解压后的树里找不到命令 %q（查找过: %s）", name, strings.Join(candidates, ", "))
+	return "", coded.New(CodeBinNotFound, name, strings.Join(candidates, ", "))
 }
 
 func binCandidates(name, goos string) []string {
@@ -381,7 +382,7 @@ func Replace(dst, src string) error {
 	if _, err := os.Stat(dst); err != nil {
 		if os.IsNotExist(err) {
 			if err := os.Rename(src, dst); err != nil {
-				return fmt.Errorf("落盘到 %q 失败: %w", dst, err)
+				return coded.Wrap(err, CodePlaceTmp, dst)
 			}
 			return nil
 		}
@@ -392,12 +393,12 @@ func Replace(dst, src string) error {
 	old := dst + ".old"
 	_ = os.RemoveAll(old)
 	if err := os.Rename(dst, old); err != nil {
-		return fmt.Errorf("旧目录改名失败（进程还占用？）: %w", err)
+		return coded.Wrap(err, CodeOldRename)
 	}
 	if err := os.Rename(src, dst); err != nil {
 		// 回滚：把旧的放回去。
 		_ = os.Rename(old, dst)
-		return fmt.Errorf("新目录落盘失败（已回滚旧版本）: %w", err)
+		return coded.Wrap(err, CodePlace)
 	}
 	if err := os.RemoveAll(old); err != nil {
 		// 删不掉不算失败（Windows 上可能仍被占用），下次启动清扫。

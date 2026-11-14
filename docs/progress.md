@@ -1449,3 +1449,15 @@ pk: node@^^^ failed to install: cannot parse version spec "^^^": improper constr
 
 **L2 累计**：5 个包清零 —— `verify` 28 · `paths` 9 · `spec` 6 · `mirror` 5 · `companion` 3 = **51 处**，
 `present` 码表 **49 条**。剩 `provider` 153 / `install` 171 / `env` 76 / `store` 60 / `fetch` 45 / `archive` 39。
+
+### E1 第七步：`internal/archive` 完成（23 个码）
+
+`archive.go` 的 23 处 `fmt.Errorf` 清零：格式/临时目录/打开/gzip/tar/目录/符号链接（三个方向：
+不支持、创建失败、目标越界）/条目写入（截断与失败分开）/单文件布局/可执行位/`FindBin`/原子落盘三步法。
+
+其中 `checkLinkTarget` 的三条（空目标、绝对路径、越出解压目录）是 **tar-slip 的第二道防线**，
+原来只靠中文文案说明，现在有稳定码（`archive.link_absolute` / `archive.link_escape`），
+安全相关判断将来可以直接按码处理而不是断字符串。
+
+**L2 累计**：6 个包清零 —— `verify` 28 · `archive` 23 · `paths` 9 · `spec` 6 · `mirror` 5 · `companion` 3 = **74 处**，
+`present` 码表 **72 条**。剩 `provider` 61 · `install` 41 · `fetch` 23 · `store` 20 · `env` 7。

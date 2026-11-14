@@ -76,6 +76,31 @@ var codeTable = map[string]codeText{
 	"mirror.all_sources_failed": {zh: "所有下载源均不可用：\n  %s\n建议：`pk mirror use cn` 换档，或用 PK_MIRROR 指向内网源", en: "all download sources failed:\n  %s\nsuggestion: switch profile with `pk mirror use cn`, or point PK_MIRROR at an intranet source"},
 	"mirror.both_unreachable":   {zh: "国外与国内镜像都不可达（%s / %s）：用 PK_MIRROR 指向内网源，或检查代理", en: "neither the overseas nor the domestic mirror is reachable (%s / %s): point PK_MIRROR at an intranet source, or check the proxy"},
 	"mirror.no_candidate":       {zh: "没有可探测的候选", en: "no candidate to probe"},
+
+	// ── internal/archive：解压与原子落盘 ──
+	"archive.format_unsupported": {zh: "不支持的归档格式 %q（只支持 tar.gz / tgz / zip）", en: "unsupported archive format %q (only tar.gz / tgz / zip)"},
+	"archive.tmpdir":             {zh: "创建临时安装目录失败: %v", en: "cannot create the temporary install directory: %v"},
+	"archive.open":               {zh: "打开归档失败: %v", en: "cannot open the archive: %v"},
+	"archive.gzip":               {zh: "解 gzip 失败（归档损坏？）: %v", en: "gzip decompression failed (corrupt archive?): %v"},
+	"archive.tar_read":           {zh: "读 tar 失败（归档截断？）: %v", en: "reading the tar failed (truncated archive?): %v"},
+	"archive.mkdir":              {zh: "创建目录失败: %v", en: "cannot create a directory: %v"},
+	"archive.link_unsupported":   {zh: "不支持归档里的符号链接（%s：%s）", en: "symbolic links inside archives are not supported (%s: %s)"},
+	"archive.link_create":        {zh: "创建符号链接 %q 失败: %v", en: "cannot create symlink %q: %v"},
+	"archive.link_read":          {zh: "读取符号链接失败: %v", en: "cannot read the symlink: %v"},
+	"archive.entry_open":         {zh: "打开 %q 失败: %v", en: "cannot open %q: %v"},
+	"archive.create":             {zh: "创建文件 %q 失败: %v", en: "cannot create file %q: %v"},
+	"archive.write_truncated":    {zh: "写入 %q 失败（归档截断？）: %v", en: "writing %q failed (truncated archive?): %v"},
+	"archive.write":              {zh: "写入 %q 失败: %v", en: "writing %q failed: %v"},
+	"archive.link_empty":         {zh: "符号链接目标为空: %q", en: "symlink target is empty: %q"},
+	"archive.link_absolute":      {zh: "符号链接 %q 指向绝对路径 %q，拒绝", en: "symlink %q points at the absolute path %q, refusing"},
+	"archive.link_escape":        {zh: "符号链接 %q 指向解压目录之外（%q），拒绝", en: "symlink %q escapes the extraction directory (%q), refusing"},
+	"archive.single_count":       {zh: "单文件布局的归档里应有且只有一个文件（实际 %d 个）", en: "a single-file archive must contain exactly one file (found %d)"},
+	"archive.single_move":        {zh: "移动到单文件布局位置失败: %v", en: "cannot move into the single-file layout: %v"},
+	"archive.chmod":              {zh: "设置 %s 可执行位失败: %v", en: "cannot set the executable bit on %s: %v"},
+	"archive.bin_not_found":      {zh: "解压后的树里找不到命令 %q（查找过: %s）", en: "command %q not found in the extracted tree (looked for: %s)"},
+	"archive.place_tmp":          {zh: "落盘到 %q 失败: %v", en: "cannot place the tree at %q: %v"},
+	"archive.old_rename":         {zh: "旧目录改名失败（进程还占用？）: %v", en: "cannot rename the old directory (still in use?): %v"},
+	"archive.place":              {zh: "新目录落盘失败（已回滚旧版本）: %v", en: "cannot place the new directory (old version rolled back): %v"},
 }
 
 // Text 把任意错误渲染成"给人看的一句话"（当前语言）。
