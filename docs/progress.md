@@ -1398,3 +1398,16 @@ brew cask 是否排期（不排期就把 `docs/gui.md` 写明"mac 用 curl 脚�
 
 **衍生待办**：错误码目前只出现在**人读 stderr**；要不要给 `--json` 加一个 `{"schema":1,"error":{"code":…,"detail":…}}`
 的失败输出，是一个新的契约决定（GUI/脚本能据此分支），下次拍板再动。
+
+### E1 第三/四步：`internal/spec` + `internal/companion` 完成
+
+| 包 | 码 | 结果 |
+|---|---|---|
+| `internal/spec` | `spec.empty` / `spec.version_invalid` / `spec.unparsable` / `spec.version_empty` / `spec.engines_invalid` | 6 处 `fmt.Errorf` 清零，0 个残留；测试原样通过（它们本来就只断 `err != nil`） |
+| `internal/companion` | `companion.not_in_registry` / `companion.engines_incompatible` / `companion.engines_unparsable` | 3 处清零；两条断言从"断中文"改成"断码 + 参数里带上限"（`ce.Args` 里必须有 `10.9.10`） |
+
+`make codes` 这条门禁在这里发挥了一次作用：`spec` 的码先落地、模板还没补时它直接红
+（`✘ 定义了编码错误但 present 码表里没有文案：spec.empty, spec.unparsable, …`）—— 说明"先定码再补文案"不会漏。
+
+**L2 进度**：`verify`（28 处）/ `spec`（6）/ `companion`（3）已清零；还剩 `provider` 153、`install` 171、
+`env` 76、`store` 60、`fetch` 45、`archive` 39、`paths` 37、`mirror` 36 条文案（按包分批，机制与样板已就位）。

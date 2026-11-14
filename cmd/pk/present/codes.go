@@ -46,6 +46,18 @@ var codeTable = map[string]codeText{
 	"sum.mismatch":         {zh: "校验失败: %s 的产物 %s 不符（期望 %s，实际 %s）；产物可能被篡改或损坏", en: "verification failed: %s artifact %s mismatch (want %s, got %s); the artifact may be tampered with or corrupted"},
 	"sum.inline_invalid":   {zh: "校验失败: 索引里的 sha256 格式非法: %q", en: "verification failed: malformed sha256 in the index: %q"},
 	"sum.registry_invalid": {zh: "校验失败: registry 提供的 shasum 格式非法: %q", en: "verification failed: malformed shasum from the registry: %q"},
+
+	// ── internal/spec：版本说明符 ──
+	"spec.empty":           {zh: "版本说明符不能为空", en: "version spec must not be empty"},
+	"spec.version_invalid": {zh: "版本 %q 非法: %v", en: "invalid version %q: %v"},
+	"spec.unparsable":      {zh: "版本说明符 %q 无法解析: %v", en: "cannot parse version spec %q: %v"},
+	"spec.version_empty":   {zh: "版本号为空", en: "version string is empty"},
+	"spec.engines_invalid": {zh: "engines 范围 %q 无法解析: %v", en: "cannot parse engines range %q: %v"},
+
+	// ── internal/companion：npm 伴生包 ──
+	"companion.not_in_registry":      {zh: "registry 里没有 npm@%s（`pk list --available` 可看可用版本）", en: "npm@%s is not in the registry (see `pk list --available`)"},
+	"companion.engines_incompatible": {zh: "npm@%s 要求 node %s，与当前 node %s 不兼容%s", en: "npm@%s requires node %s, incompatible with the current node %s%s"},
+	"companion.engines_unparsable":   {zh: "npm@%s 的 engines.node 无法解析: %v", en: "cannot parse engines.node for npm@%s: %v"},
 }
 
 // Text 把任意错误渲染成"给人看的一句话"（当前语言）。

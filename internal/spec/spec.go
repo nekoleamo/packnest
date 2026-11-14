@@ -10,6 +10,7 @@ package spec
 
 import (
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"slices"
 	"strings"
 
@@ -42,7 +43,7 @@ type Spec struct {
 func Parse(s string) (Spec, error) {
 	raw := strings.TrimSpace(s)
 	if raw == "" {
-		return Spec{}, fmt.Errorf("版本说明符不能为空")
+		return Spec{}, coded.New(CodeSpecEmpty)
 	}
 	lowered := strings.ToLower(strings.TrimPrefix(raw, "v"))
 	if lowered == "latest" || lowered == "lts" || lowered == "lts/*" {
@@ -67,7 +68,7 @@ func Parse(s string) (Spec, error) {
 		case 3:
 			c, err := semver.NewConstraint("=" + lowered)
 			if err != nil {
-				return Spec{}, fmt.Errorf("版本 %q 非法: %w", raw, err)
+				return Spec{}, coded.Wrap(err, CodeVersionInvalid, raw)
 			}
 			return Spec{raw: raw, kind: Exact, constraint: c, allowPre: strings.Contains(lowered, "-")}, nil
 		}
@@ -75,7 +76,7 @@ func Parse(s string) (Spec, error) {
 
 	c, err := semver.NewConstraint(lowered)
 	if err != nil {
-		return Spec{}, fmt.Errorf("版本说明符 %q 无法解析: %w", raw, err)
+		return Spec{}, coded.Wrap(err, CodeSpecUnparsable, raw)
 	}
 	return Spec{raw: raw, kind: Range, constraint: c, allowPre: strings.Contains(lowered, "-")}, nil
 }
@@ -147,11 +148,11 @@ func (s Spec) MatchVersion(v *semver.Version) bool {
 func ParseVersion(v string) (*semver.Version, error) {
 	trimmed := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(v), "v"))
 	if trimmed == "" {
-		return nil, fmt.Errorf("版本号为空")
+		return nil, coded.New(CodeVersionEmpty)
 	}
 	ver, err := semver.NewVersion(trimmed)
 	if err != nil {
-		return nil, fmt.Errorf("版本号 %q 非法: %w", v, err)
+		return nil, coded.Wrap(err, CodeVersionInvalid, v)
 	}
 	return ver, nil
 }
@@ -236,7 +237,7 @@ func EnginesSatisfied(engines, version string) (bool, error) {
 	}
 	c, err := semver.NewConstraint(engines)
 	if err != nil {
-		return false, fmt.Errorf("engines 范围 %q 无法解析: %w", engines, err)
+		return false, coded.Wrap(err, CodeEnginesInvalid, engines)
 	}
 	return c.Check(ver), nil
 }

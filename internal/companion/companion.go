@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/spec"
 )
 
@@ -108,20 +109,20 @@ func decidePinned(req Request, version, mode string) (Decision, error) {
 			bundled := normalize(req.Bundled)
 			return Decision{Version: version, Replaced: version != bundled, Mode: mode, Fallback: true}, nil
 		}
-		return Decision{}, fmt.Errorf("%w：registry 里没有 npm@%s（`pk list --available` 可看可用版本）", ErrNotInRegistry, version)
+		return Decision{}, coded.Wrap(ErrNotInRegistry, CodeNotInRegistry, version)
 	}
 	if cand.Engines != "" {
 		ok, err := spec.EnginesSatisfied(cand.Engines, req.NodeVersion)
 		if err != nil {
-			return Decision{}, fmt.Errorf("npm@%s 的 engines.node 无法解析: %w", version, err)
+			return Decision{}, coded.Wrap(err, CodeEnginesUnparsable, version)
 		}
 		if !ok {
 			capped := ""
 			if best, ok := MaxCompatible(req.NodeVersion, req.Candidates); ok {
 				capped = fmt.Sprintf("；该 node 可用的 npm 上限 = %s", best)
 			}
-			return Decision{}, fmt.Errorf("%w：npm@%s 要求 node %s，与当前 node %s 不兼容%s",
-				ErrEnginesIncompatible, version, cand.Engines, req.NodeVersion, capped)
+			return Decision{}, coded.Wrap(ErrEnginesIncompatible, CodeEnginesIncompat,
+				version, cand.Engines, req.NodeVersion, capped)
 		}
 	}
 	bundled := normalize(req.Bundled)

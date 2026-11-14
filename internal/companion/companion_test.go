@@ -1,6 +1,8 @@
 package companion
 
 import (
+	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"strings"
 	"testing"
 )
@@ -119,8 +121,9 @@ func TestResolvePinConflict(t *testing.T) {
 	if err == nil {
 		t.Fatal("不兼容的显式 pin 必须硬失败")
 	}
-	if !strings.Contains(err.Error(), "该 node 可用的 npm 上限 = 10.9.10") {
-		t.Fatalf("错误信息应给出兼容上限: %v", err)
+	// E1：内部包只保证码 + 参数；"上限 = 10.9.10" 这段人话由 cmd/pk/present 渲染
+	if ce, ok := coded.Of(err); !ok || ce.Code != CodeEnginesIncompat || !strings.Contains(fmt.Sprint(ce.Args), "10.9.10") {
+		t.Fatalf("应是 engines 不兼容的编码错误且带上限参数: %v", err)
 	}
 }
 
@@ -128,8 +131,8 @@ func TestResolvePinMissing(t *testing.T) {
 	if _, err := Resolve(Request{NodeVersion: "22.22.2", Explicit: "9.9.9",
 		Candidates: npmMatrix, IndexAvailable: true}); err == nil {
 		t.Fatal("registry 里没有的版本应报错")
-	} else if !strings.Contains(err.Error(), "registry 里没有") {
-		t.Fatalf("错误信息应可执行: %v", err)
+	} else if ce, ok := coded.Of(err); !ok || ce.Code != CodeNotInRegistry {
+		t.Fatalf("应是 companion.not_in_registry: %v", err)
 	}
 }
 
