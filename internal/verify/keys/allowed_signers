@@ -9,3 +9,5 @@
 # 生成（离线机器）：
 #   ssh-keygen -t ed25519 -C "pk-release-2026" -f pk-release-2026 -N ""
 # 然后把 pk-release-2026.pub 的第二列拼上 principal 写进本文件。
+
+release@packnest.dev ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJEVfrMrDRIA2v/PHcPC6gzhU4q0cc+ak8KRr5idL/Xm pk-release-2026 pk-release-2026

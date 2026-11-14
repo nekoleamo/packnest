@@ -1027,3 +1027,34 @@ warn 消失。
 | 测试 | 607 → **654** 个；`go test -race ./...` 全绿；`staticcheck`/`vet` 干净 |
 | 命令面 | 仍 10 个（签名挂在 `doctor`、语言挂在全局开关，都没加命令） |
 | `--json` | schema 1 不变，字段零变更，golden 未改 |
+
+---
+
+## 1.6.0（2026-11-14）：发版 + review 建议落地
+
+### review 建议（上一轮留下的 4 条）
+
+| 项 | 结果 |
+|---|---|
+| 公钥三处同步 | `tools/keys-sync.sh` + `make keys`，进 `make check`（10 项）；三处任一缺失/不一致直接红 |
+| sshsig 互操作 | `internal/verify/sshsig_interop_test.go`（`//go:build sigtest`）：Go 验 `ssh-keygen -Y sign` 的签名 + `ssh-keygen` 验 Go 构造的签名，双向通过 |
+| 口令私钥提示 | `sign-release.sh` 先用 `ssh-keygen -y -f` 探一次，设了口令的私钥在非交互环境直接报"读不出私钥"并给解法 |
+| 签名块上限 | `VerifySSHSIG` 对整块设 64KB 上限（单字段原有 1MB 上限） |
+
+### sigtest 抓到的两个真 bug（不联测发现不了）
+
+1. **签的不是"消息的 sha512"**：PROTOCOL.sshsig §3 的签名数据是
+   `"SSHSIG" ‖ string(namespace) ‖ string(reserved) ‖ string(hash_algorithm) ‖ string(SHA512(msg))`。
+   第一版只对 `SHA512(msg)` 验 → 与真 `ssh-keygen` 联测必失败。
+2. **`allowed_signers` 里的公钥是 SSH wire blob**（`ssh-ed25519` + 32 字节），不是裸 32 字节 base64。
+   第一版单测用的是裸公钥，所以"自己造的夹具自己验"全绿；换成真 `ssh-keygen` 输出立刻解析成 0 把。
+
+### 密钥（本次生成）
+
+- 私钥：`~/.packnest-signing/pk-release-2026`（`0600`，本机离线目录；**不进仓库、不打印**）
+- 公钥指纹：`SHA256:uT8D1e8Pgu4W5E7qh0e/3n3IvOxL2CG7l+4OqFiIuVw`
+- 公钥已写进三处：`internal/verify/keys/allowed_signers`、`scripts/install.sh`、`scripts/install.ps1`（`make keys` 校验）
+
+### 发版 v1.6.0
+
+见下方「发版记录」。

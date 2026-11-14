@@ -224,13 +224,22 @@ invalidate the lock). Day-to-day version changes use `pk use node@X --project` (
 one command); lock-only refreshes use `pk use --lock`. In CI, `pk install --frozen` installs exactly
 the lock and exits non-zero on any drift (aliases are rejected — pin them first).
 
+## English output
+
+Chinese is the default. `--lang=en` (or `export PK_LANG=en`) switches CLI output and `--help`
+to English; the `--json` structure never changes (`code`/`ev`/exit codes are the contract,
+`msg` strings may stay Chinese). `LANG` is deliberately ignored so CI logs never flip language silently.
+
+Releases are signed since 1.6: `checksums.txt.sig` (sshsig, namespace `pk-release`) is verified by
+`install.sh` / `install.ps1` before the sha256 comparison. `brew`/`scoop` only check sha256.
+
 ## Development
 
 ```bash
 make build      # CGO_ENABLED=0 local build → ./bin/pk
 make test       # offline unit tests
 make accept     # acceptance tests only (TestAcceptance_*)
-make check      # the seven gates (run before every commit)
+make check      # the ten gates (run before every commit)
 make release    # six platform artifacts + checksums.txt → dist/
 make site       # render the website into site/dist/ (version injected from the git tag)
 make npm-dry    # build the npm packages and validate manifests (no publish, no credentials)

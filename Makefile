@@ -1,6 +1,6 @@
 # packnest · make 门禁（方案 §9.5）
 #
-# 一条命令 `make check` 跑完 9 项：行数 → 风格/静态 → 竞态测试 → 覆盖率 →
+# 一条命令 `make check` 跑完 10 项：行数 → 风格/静态 → 竞态测试 → 覆盖率 →
 # 6 平台交叉编译 → fuzz → 性能 → --json 契约。全绿才可提交。
 #
 # `make accept` 只跑验收用例（TestAcceptance_*）——"验收是跑测试，不是人工敲命令"。
@@ -32,7 +32,7 @@ PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 win
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
 	@echo "make test      零外网单测"
-	@echo "make check     9 项门禁（提交前必跑）"
+	@echo "make check     10 项门禁（提交前必跑）"
 	@echo "make loc       只看行数预算（红线 11600；cmd/pk 3200 与单文件 600 只 warn）"
 	@echo "make accept    只跑验收用例 TestAcceptance_*"
 	@echo "make cross     6 平台交叉编译到 $(DIST)/"
@@ -65,6 +65,9 @@ race:
 
 lang:
 	@go run tools/langcheck.go ./cmd/pk
+
+keys:
+	@sh tools/keys-sync.sh
 
 loc:
 	@sh tools/loccheck.sh
@@ -114,9 +117,9 @@ fuzz:
 accept:
 	CGO_ENABLED=0 go test -count=1 -run 'TestAcceptance_' -v ./acceptance/...
 
-# ⭐ 9 项门禁，顺序即"越便宜越先"（loc/lang 是纯统计，紧跟 fmt）。
-check: fmt loc lang vet race cover cross fuzz bench golden
-	@echo "===== make check 全部通过（9 项）====="
+# ⭐ 10 项门禁，顺序即"越便宜越先"（loc/lang/keys 是纯统计，紧跟 fmt）。
+check: fmt loc lang keys vet race cover cross fuzz bench golden
+	@echo "===== make check 全部通过（10 项）====="
 
 # 官网：site/ → site/dist（版本号注入）。部署由 .github/workflows/pages.yml 负责。
 site:

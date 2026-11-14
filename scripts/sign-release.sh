@@ -19,6 +19,13 @@ KEY="${PK_SIGNING_KEY:-}"
 SUMS="$DIST/v$VER/checksums.txt"
 [ -f "$SUMS" ] || { echo "找不到 $SUMS（先跑 make release）" >&2; exit 1; }
 
+# 先确认私钥能读：设了口令的私钥在非交互环境会卡在提示上，提前给出明确说明。
+if ! ssh-keygen -y -f "$KEY" >/dev/null 2>&1; then
+  echo "读不出私钥 $KEY：多半是设了口令（非交互环境没法输入）。" >&2
+  echo "用无口令的离线密钥，或在交互终端里手动跑 ssh-keygen -Y sign。" >&2
+  exit 2
+fi
+
 umask 077
 rm -f "$SUMS.sig"
 ssh-keygen -Y sign -f "$KEY" -n pk-release "$SUMS" >/dev/null
@@ -26,7 +33,7 @@ ssh-keygen -Y sign -f "$KEY" -n pk-release "$SUMS" >/dev/null
 
 # 自验：从私钥推导公钥，确认签名可验（防止用错密钥发出）
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
-ssh-keygen -y -f "$KEY" > "$tmp/pub" 2>/dev/null || { echo "读不出公钥（私钥有口令？签名时先 ssh-add）" >&2; exit 1; }
+ssh-keygen -y -f "$KEY" > "$tmp/pub" 2>/dev/null || { echo "读不出公钥（私钥损坏？）" >&2; exit 1; }
 printf 'release@packnest.dev %s\n' "$(cat "$tmp/pub")" > "$tmp/allowed_signers"
 ssh-keygen -Y verify -f "$tmp/allowed_signers" -I release@packnest.dev -n pk-release \
   -s "$SUMS.sig" < "$SUMS" >/dev/null || { echo "自验失败：签名与私钥不匹配" >&2; exit 1; }

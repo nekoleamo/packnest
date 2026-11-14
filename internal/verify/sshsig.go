@@ -23,7 +23,8 @@ const (
 	sshSigArmorB = "-----BEGIN SSH SIGNATURE-----"
 	sshSigArmorE = "-----END SSH SIGNATURE-----"
 	ed25519Name  = "ssh-ed25519"
-	maxSSHString = 1 << 20 // 单个长度前缀字段的上限，防止畸形输入撑爆内存
+	maxSSHString = 1 << 20  // 单个长度前缀字段的上限，防止畸形输入撑爆内存
+	maxSSHBlob   = 64 << 10 // 整个签名块的上限（真实签名约 200 字节）
 )
 
 // SSHPublicKey 是一把可以参与验签的公钥。
@@ -40,7 +41,10 @@ func VerifySSHSIG(msg, armored []byte, allowed []SSHPublicKey) error {
 	if err != nil {
 		return err
 	}
-	pub, ns, hashAlg, sig, err := parseSSHSIG(blob)
+	if len(blob) > maxSSHBlob {
+		return fmt.Errorf("%w: 签名块 %d 字节，超出上限", ErrSignature, len(blob))
+	}
+	pub, ns, reserved, hashAlg, sig, err := parseSSHSIG(blob)
 	if err != nil {
 		return err
 	}
@@ -53,51 +57,73 @@ func VerifySSHSIG(msg, armored []byte, allowed []SSHPublicKey) error {
 	if !containsKey(allowed, pub) {
 		return fmt.Errorf("%w: 签名公钥不在内置白名单（可能换了发布密钥，先升级 pk）", ErrSignature)
 	}
-	digest := sha512.Sum512(msg) // sshsig 签的是消息的 sha512
-	if !ed25519.Verify(pub, digest[:], sig) {
+	// 签名数据不是"消息的摘要"本身，而是 PROTOCOL.sshsig §3 的结构：
+	// SSHSIG || string(namespace) || string(reserved) || string(hash_alg) || string(H(message))
+	digest := sha512.Sum512(msg)
+	if !ed25519.Verify(pub, signedData(ns, reserved, hashAlg, digest[:]), sig) {
 		return fmt.Errorf("%w: 摘要不匹配（清单被改过？）", ErrSignature)
 	}
 	return nil
 }
 
+// signedData 拼出被签名的字节串（PROTOCOL.sshsig §3）。fields 全部是 SSHSIG 长度前缀字符串。
+func signedData(ns string, reserved []byte, hashAlg string, digest []byte) []byte {
+	var b bytes.Buffer
+	b.WriteString(sshSigMagic)
+	writeSSHString(&b, []byte(ns))
+	writeSSHString(&b, reserved)
+	writeSSHString(&b, []byte(hashAlg))
+	writeSSHString(&b, digest)
+	return b.Bytes()
+}
+
+// writeSSHString 写一个 RFC4253 长度前缀字符串。
+func writeSSHString(b *bytes.Buffer, s []byte) {
+	var n [4]byte
+	binary.BigEndian.PutUint32(n[:], uint32(len(s)))
+	b.Write(n[:])
+	b.Write(s)
+}
+
 // parseSSHSIG 拆 SSHSIG 结构（PROTOCOL.sshsig）：全部是 uint32 长度前缀字符串。
-func parseSSHSIG(blob []byte) (pub ed25519.PublicKey, ns, hashAlg string, sig []byte, err error) {
+func parseSSHSIG(blob []byte) (pub ed25519.PublicKey, ns string, reserved []byte, hashAlg string, sig []byte, err error) {
 	r := bytes.NewReader(blob)
 	magic := make([]byte, len(sshSigMagic))
 	if _, err = io.ReadFull(r, magic); err != nil || string(magic) != sshSigMagic {
-		return nil, "", "", nil, fmt.Errorf("%w: 缺少 SSHSIG 魔数", ErrSignature)
+		return nil, "", nil, "", nil, fmt.Errorf("%w: 缺少 SSHSIG 魔数", ErrSignature)
 	}
 	if ver, e := readU32(r); e != nil || ver != 1 {
-		return nil, "", "", nil, fmt.Errorf("%w: 版本号不是 1", ErrSignature)
+		return nil, "", nil, "", nil, fmt.Errorf("%w: 版本号不是 1", ErrSignature)
 	}
 	pubBlob, err := readSSHString(r)
 	if err != nil {
-		return nil, "", "", nil, err
+		return nil, "", nil, "", nil, err
 	}
 	key, err := parseEd25519Pub(pubBlob)
 	if err != nil {
-		return nil, "", "", nil, err
+		return nil, "", nil, "", nil, err
 	}
 	nsBytes, err := readSSHString(r)
 	if err != nil {
-		return nil, "", "", nil, err
+		return nil, "", nil, "", nil, err
 	}
-	if _, err = readSSHString(r); err != nil { // reserved：接受并忽略
-		return nil, "", "", nil, err
+	reserved, err = readSSHString(r) // 保留：它参与被签名数据（虽然当前总是空）
+	if err != nil {
+		return nil, "", nil, "", nil, err
 	}
 	alg, err := readSSHString(r)
 	if err != nil {
-		return nil, "", "", nil, err
+		return nil, "", nil, "", nil, err
 	}
 	sigBlob, err := readSSHString(r)
 	if err != nil {
-		return nil, "", "", nil, err
+		return nil, "", nil, "", nil, err
 	}
 	sig, err = parseEd25519Signature(sigBlob)
 	if err != nil {
-		return nil, "", "", nil, err
+		return nil, "", nil, "", nil, err
 	}
-	return key, string(nsBytes), string(alg), sig, nil
+	return key, string(nsBytes), reserved, string(alg), sig, nil
 }
 
 // parseEd25519Pub 从 SSH public key blob 里取 ed25519 公钥。
@@ -194,11 +220,16 @@ func ParseAllowedSigners(text string) []SSHPublicKey {
 			if fields[k] != ed25519Name {
 				continue
 			}
+			// allowed_signers 里的公钥是 SSH wire blob（"ssh-ed25519" + 32B），不是裸公钥
 			raw, err := base64.StdEncoding.DecodeString(fields[k+1])
-			if err != nil || len(raw) != ed25519.PublicKeySize {
+			if err != nil {
 				break
 			}
-			out = append(out, SSHPublicKey{Principal: fields[0], Key: ed25519.PublicKey(raw)})
+			key, err := parseEd25519Pub(raw)
+			if err != nil {
+				break
+			}
+			out = append(out, SSHPublicKey{Principal: fields[0], Key: key})
 			break
 		}
 	}

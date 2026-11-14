@@ -30,7 +30,7 @@ SKIP_VERIFY="${PK_SKIP_VERIFY:-0}"
 
 # 发布签名公钥（allowed_signers 格式，与 pk 二进制内置的那份同源）。
 # 发版前由 scripts/sign-release.sh 派生的一行填在这里；为空则只做 sha256 并打印提示。
-ALLOWED_SIGNERS=""
+ALLOWED_SIGNERS="release@packnest.dev ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJEVfrMrDRIA2v/PHcPC6gzhU4q0cc+ak8KRr5idL/Xm pk-release-2026 pk-release-2026"
 SIGNER="release@packnest.dev"
 SSHSIG_NAMESPACE="pk-release"
 

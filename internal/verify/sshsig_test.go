@@ -11,12 +11,12 @@ import (
 	"testing"
 )
 
-// writeSSHString 写一个 uint32 长度前缀字段（与 SSHSIG 结构一致）。
-func writeSSHString(buf *bytes.Buffer, b []byte) {
-	var n [4]byte
-	binary.BigEndian.PutUint32(n[:], uint32(len(b)))
-	buf.Write(n[:])
-	buf.Write(b)
+// sshWirePub 把 ed25519 公钥包成 SSH wire 格式（ssh-keygen 的 allowed_signers 要它）。
+func sshWirePub(pub ed25519.PublicKey) []byte {
+	var buf bytes.Buffer
+	writeSSHString(&buf, []byte(ed25519Name))
+	writeSSHString(&buf, pub)
+	return buf.Bytes()
 }
 
 // buildSSHSIG 代码构造一个合法的 armored sshsig（夹具不存二进制）。
@@ -31,7 +31,7 @@ func buildSSHSIG(t *testing.T, priv ed25519.PrivateKey, ns, hashAlg string, pubN
 	digest := sha512.Sum512(msg)
 	var sigBlob bytes.Buffer
 	writeSSHString(&sigBlob, []byte(sigName))
-	writeSSHString(&sigBlob, ed25519.Sign(priv, digest[:]))
+	writeSSHString(&sigBlob, ed25519.Sign(priv, signedData(ns, nil, hashAlg, digest[:])))
 
 	var blob bytes.Buffer
 	blob.WriteString(sshSigMagic)
@@ -133,7 +133,7 @@ func TestVerifySSHSIGArmor(t *testing.T) {
 // TestParseAllowedSigners 只认 ssh-ed25519 行，跳过注释与坏 base64。
 func TestParseAllowedSigners(t *testing.T) {
 	pub, _ := newKey(t)
-	b64 := base64.StdEncoding.EncodeToString(pub)
+	b64 := base64.StdEncoding.EncodeToString(sshWirePub(pub))
 	text := "# 注释\n\nrelease@packnest.dev ssh-ed25519 " + b64 + " pk-release-2026\n" +
 		"bad ssh-rsa AAAA\n" +
 		"bad ssh-ed25519 not-base64\n"
@@ -146,7 +146,7 @@ func TestParseAllowedSigners(t *testing.T) {
 // TestParseAllowedSignersOptions 支持 principal 后面带 options 的写法。
 func TestParseAllowedSignersOptions(t *testing.T) {
 	pub, _ := newKey(t)
-	b64 := base64.StdEncoding.EncodeToString(pub)
+	b64 := base64.StdEncoding.EncodeToString(sshWirePub(pub))
 	keys := ParseAllowedSigners("release@packnest.dev,cI@example.com namespaces=\"pk-release\" ssh-ed25519 " + b64 + "\n")
 	if len(keys) != 1 || !bytes.Equal(keys[0].Key, pub) {
 		t.Fatalf("带 options 的行应能解析: %+v", keys)

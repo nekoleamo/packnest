@@ -138,7 +138,7 @@
   <table>
     <thead><tr><th>命令</th><th>做什么</th></tr></thead>
     <tbody>
-      <tr><td>install</td><td>装工具；无参数时按当前目录的 <code>pk.toml</code> 全装并刷新 <code>pk.lock</code>；只有 <code>package.json</code> 时读它的 <code>engines.node</code></td></tr>
+      <tr><td>install</td><td>装工具（<b>多个工具跨工具并行</b>：下载、校验、解压同时跑，落盘与台账仍单线程）；无参数时按当前目录的 <code>pk.toml</code> 全装并刷新 <code>pk.lock</code>；只有 <code>package.json</code> 时读它的 <code>engines.node</code></td></tr>
       <tr><td>uninstall</td><td><code>工具@版本</code> 删一个；<code>工具</code> 删该工具全部版本（先列版本再确认）；<code>--all</code> 清掉一切（<code>--purge</code> 连根删、<code>--self</code> 连自己）</td></tr>
       <tr><td>use</td><td>切换全局默认版本；<code>--project</code> 固定到当前项目</td></tr>
       <tr><td>list</td><td>已装工具与占用空间，版本落后时提示可升级（只读索引缓存、不联网）；<code>pk list node</code> 看单个工具的全部可装版本（<code>--major 22</code> / <code>--all</code>）</td></tr>
@@ -150,8 +150,9 @@
       <tr><td>upgrade</td><td>把已装工具一次升到索引最新（旧版本保留、全局默认跟着切、npm 随 node）；<code>--dry-run</code> 先看要升什么</td></tr>
     </tbody>
   </table>
-  <p class="after">全局开关 <code>--json</code>（GUI 与脚本的唯一契约）· <code>--offline</code> · <code>--yes</code> · <code>--root</code>；退出码固定 0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用。</p>
+  <p class="after">全局开关 <code>--json</code>（GUI 与脚本的唯一契约）· <code>--offline</code> · <code>--yes</code> · <code>--root</code> · <code>--lang en</code>（英文输出，也可 <code>PK_LANG=en</code>）；退出码固定 0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用。</p>
   <p class="after"><code>--dry-run</code> 是<b>只读预览</b>：不下载、不解压、不写 <code>pk.lock</code>、不清残留、不改 <code>config.toml</code>（1.5.1 起）。</p>
+  <p class="after">发布链可验签：<code>checksums.txt</code> 带 <code>sshsig</code> 签名（<code>checksums.txt.sig</code>），安装脚本在比对 sha256 之前先验签——镜像站与自托管源改不了清单（<code>brew</code>/<code>scoop</code> 只认 sha256，这是渠道边界）。</p>
   <p class="after">长尾工具不用等发版：把 <code>~/.packnest/providers/&lt;id&gt;.toml</code> 放进去即可（纯数据、不执行代码；校验和、镜像回退、伴生包都在清单里声明，<code>pk doctor</code> 会指出清单哪一行不对）。</p>
 </section>
 

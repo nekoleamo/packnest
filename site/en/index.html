@@ -139,7 +139,7 @@
   <table>
     <thead><tr><th>command</th><th>what it does</th></tr></thead>
     <tbody>
-      <tr><td>install</td><td>installs a tool; with no argument installs everything in the local <code>pk.toml</code> and refreshes <code>pk.lock</code>; with only a <code>package.json</code> it reads its <code>engines.node</code></td></tr>
+      <tr><td>install</td><td>Install tools (<b>multiple tools run in parallel</b>: download, verify and extract concurrently, ledger writes stay single-threaded); no arguments = install everything in <code>pk.toml</code> and refresh <code>pk.lock</code>; with only a <code>package.json</code> it reads its <code>engines.node</code></td></tr>
       <tr><td>uninstall</td><td><code>tool@version</code> one; <code>tool</code> every version (lists them, then asks); <code>--all</code> everything (<code>--purge</code> the root, <code>--self</code> the binary)</td></tr>
       <tr><td>use</td><td>switches the global default; <code>--project</code> pins it for the current project</td></tr>
       <tr><td>list</td><td>installed tools with disk usage, plus an upgrade hint when a newer release exists (from the index cache, never networked); <code>pk list node</code> browses every installable version (<code>--major 22</code> / <code>--all</code>)</td></tr>
@@ -151,8 +151,9 @@
       <tr><td>upgrade</td><td>upgrades every installed tool to the newest indexed release (old versions kept, global default follows, npm follows node); <code>--dry-run</code> previews</td></tr>
     </tbody>
   </table>
-  <p class="after">Global flags: <code>--json</code> (the only contract for GUIs and scripts) · <code>--offline</code> · <code>--yes</code> · <code>--root</code>. Fixed exit codes: 0 ok / 1 generic / 2 usage / 3 network / 4 checksum / 5 locked.</p>
+  <p class="after">Global flags: <code>--json</code> (the only contract for GUIs and scripts) · <code>--offline</code> · <code>--yes</code> · <code>--root</code> · <code>--lang en</code> (English output; <code>PK_LANG=en</code> also works). Fixed exit codes: 0 ok / 1 generic / 2 usage / 3 network / 4 checksum / 5 locked.</p>
   <p class="after"><code>--dry-run</code> is a <b>read-only preview</b>: no download, no extraction, no <code>pk.lock</code>, no stale sweep, no <code>config.toml</code> change (since 1.5.1).</p>
+  <p class="after">Releases are signed: <code>checksums.txt</code> ships with an <code>sshsig</code> signature (<code>checksums.txt.sig</code>) and the install script verifies it before comparing sha256 — mirrors and self-hosted sources cannot rewrite the manifest (<code>brew</code>/<code>scoop</code> only check sha256; that is their limit).</p>
   <p class="after">Long-tail tools need no release: drop <code>~/.packnest/providers/&lt;id&gt;.toml</code> in (pure data, no code executed; checksums, mirror fallback and companion packages are declared in the manifest, and <code>pk doctor</code> points at the offending line).</p>
 </section>
 

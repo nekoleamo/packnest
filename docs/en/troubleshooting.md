@@ -194,3 +194,16 @@ rm -rf ~/.packnest      # back to "never installed" — the strongest form of lo
 
 Uninstalling a single tool is `pk uninstall node@22.22.2` (add `--force` when referenced); the cache
 is kept, so an offline reinstall still works.
+
+## "Signature verification failed" during install (exit code 4)
+
+Since 1.6 the install scripts verify `checksums.txt.sig` (sshsig) before comparing sha256.
+
+| Symptom | Meaning | Fix |
+|---|---|---|
+| `signature verification failed ... built-in public key` | manifest was rewritten, or the key rotated and your installer is old | fetch the install script again from the official URL; compare the published key fingerprint |
+| `note: not verified (no ssh-keygen ...)` | OpenSSH missing/older than 8.0, sha256 still checked | install OpenSSH, or accept the note |
+| `note: no release signature for this version` | version predates signing (fine during transition) | nothing to do |
+
+`--skip-verify` skips both the signature and the sha256 comparison — only when you trust the source.
+`pk doctor` reports how many keys the binary embeds (`TRUST_KEYS` / `TRUST_KEYS_UNCONFIGURED`).

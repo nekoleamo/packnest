@@ -126,7 +126,7 @@ if ($env:PK_SKIP_VERIFY -eq '1') { $SkipVerify = [switch]$true }   # `iwr | iex`
 
 # 发布签名公钥（allowed_signers 格式，与 pk 内置的那份同源）。
 # 发版前把 scripts/sign-release.sh 打印的那行填进来；为空则只做 sha256 并打印提示。
-$AllowedSigners = ''
+$AllowedSigners = 'release@packnest.dev ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJEVfrMrDRIA2v/PHcPC6gzhU4q0cc+ak8KRr5idL/Xm pk-release-2026 pk-release-2026'
 if (-not $Version -and $env:PK_VERSION) { $Version = $env:PK_VERSION }
 if ($env:PK_INSTALL_DIR) { $Dir = $env:PK_INSTALL_DIR }
 

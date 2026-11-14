@@ -83,6 +83,11 @@ pk upgrade                  # 已装工具一次升到索引最新（旧版本�
 全局开关：`--json`（GUI 与脚本的唯一契约）· `--offline` · `--yes` · `--root`（调试）。
 退出码固定：`0` 成功 / `1` 通用 / `2` 用法 / `3` 网络 / `4` 校验 / `5` 锁被占用。
 
+## 英文输出
+
+默认中文。`--lang=en` 或 `export PK_LANG=en` 把 CLI 输出与 `--help` 切成英文（`--json` 结构不变；
+`msg` 类文案字段不保证英文，机器接口是 `code`/`ev`/退出码）。不跟随 `LANG`，CI 日志不会静默变英文。
+
 ## 桌面端（可选）
 
 `pk-desktop` 是 CLI 的**可视化补充**（Wails v3 + Vue3，独立模块）：**必须先装 `pk`**，
@@ -150,6 +155,8 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式：不�
 - 唯一的例外是缓存：`PK_CACHE=<目录>` 可把 `archives/`、`meta/`、corepack/npm 缓存搬到别处（CI 挂卷），台账/shim/锁不动
 - 默认**不动**用户已有配置：不写 `~/.npmrc`（要写用 `pk mirror write`，写前备份、只增不改）
 - 默认 `go test ./...` **零外网**；真网测试一律 `//go:build nettest`，不进门禁
+- 门禁 10 项（`make check`）：gofmt+vet · 行数红线 · 英文覆盖（`make lang`）· 三处签名公钥一致（`make keys`）·
+  `-race` 测试 · 覆盖率 · 6 平台交叉编译 · fuzz · benchmark 阈值 · `--json` golden
 
 ## 下载与校验
 
@@ -161,6 +168,9 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式：不�
 - 校验：`SHASUMS256.txt` / 每产物 `.sha256sum` / registry integrity（sha1 或 sha512 SRI）/ go 索引内联 sha256
 - **TOFU + 多源交叉验证**：首次装要求 ≥2 个源给出相同摘要（否则标 `weak`），写进 `state/known.json`；此后同版本**完全离线可验证**
 - 源之间矛盾 → 硬失败并说明"产物与哪个源一致"，`--insecure` 可放行（标 unverified，且不写入 TOFU 表）
+- **发布签名**（1.6 起）：`checksums.txt` 带 `checksums.txt.sig`（`ssh-keygen -Y` 的 sshsig，namespace `pk-release`）。
+  `install.sh` / `install.ps1` 在比对 sha256 之前先验签，镜像站与自托管源都改不了清单；缺签名/缺 `ssh-keygen` 时打印提示后只比 sha256（不静默）。
+  `brew` / `scoop` 只认 sha256，这是渠道能力边界
 - **上游重新发布**（同一版本产物被上游换了）：本地 TOFU 记录与实际不符时不再直接要求 `--force-rehash` ——
   只要「与产物同 host 的校验源认可新摘要」且「另一个 host 的源还在给旧摘要」（跨源分裂），就按 `weak` 接受并改写记录，
   事件流里 `verify` 的 `msg` 会说明原因；只有同源一家之言时仍然硬失败（那可能就是镜像被换）
@@ -242,7 +252,7 @@ CI 里 `pk install --frozen` 严格按锁安装，清单与锁不一致即非 0 
 make build      # CGO_ENABLED=0 本地构建 ./bin/pk
 make test       # 零外网单测
 make accept     # 只跑验收用例 TestAcceptance_*
-make check      # 9 项门禁（提交前必跑，含行数预算与英文覆盖检查）
+make check      # 10 项门禁（提交前必跑，含行数预算与英文覆盖检查）
 make release    # 6 平台发布包 + checksums.txt → dist/
 make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 ```
