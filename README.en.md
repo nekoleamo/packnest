@@ -325,7 +325,7 @@ pk only writes `~/.packnest` plus its own managed blocks, so nothing else is lef
 - pnpm ships as per-platform packages (`@pnpm/exe.<os>-<arch>`, only from 11.0.0-rc.3); `pk install pnpm@10` fails fast with a corepack / `npm i -g pnpm@10` suggestion
 - Cache is content-addressed (`<sha256>.<ext>`) and deduped across versions; `alias/<algo>-<hex>` maps published digests to those files so a warm `PK_CACHE` is reusable on a fresh machine (no TOFU/ledger needed)
 - Per-project override of the global version requires direnv (`pk env --project`); without direnv `node` still resolves to the global default
-- The GUI is an optional supplement (Wails v3 + Vue3, current 0.11.1): it requires the CLI and drives it via `pk --json`; it is not a second state manager
+- The GUI is an optional supplement (Wails v3 + Vue3, current 0.11.2): it requires the CLI and drives it via `pk --json`; it is not a second state manager
 
 ## License
 

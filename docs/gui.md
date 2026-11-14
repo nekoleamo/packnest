@@ -52,7 +52,7 @@ iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -U
 下载后先 `shasum -a 256 <文件>` 与清单比对，再
 `ssh-keygen -Y verify -f <allowed_signers> -I release@packnest.dev -n pk-release -s checksums.txt.sig < checksums.txt`
 确认清单本身没被镜像站换过。公钥在 `internal/verify/keys/allowed_signers`（与 `pk doctor` 内置的那份同源）。
-核对现成的发布用 `sh scripts/verify-release.sh --gui`（版本取自 `dist/gui/latest`，也可 `--version 0.11.1` 指定）。
+核对现成的发布用 `sh scripts/verify-release.sh --gui`（版本取自 `dist/gui/latest`，也可 `--version 0.11.2` 指定）。
 
 ## 二、先装 CLI
 
