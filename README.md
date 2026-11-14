@@ -164,7 +164,7 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式：不�
 | `pk install`（只有 `package.json`） | 读它的 `engines.node` 当 node 的版本范围（`pk.toml` 有声明则以其为准），**不写 `pk.lock`** |
 | `pk install`（目录**有** `pk.toml`） | 按声明安装，并生成/更新 `pk.lock`（项目级锁定） |
 | `pk use node@22.22.2` | 固定**全局**默认（config.toml + 台账引用 + 重指 shim 三处同步） |
-| `pk use node@22.22.2 --project` | 固定**项目**：写当前目录 `pk.toml` + 重新生成 `pk.lock`，不动全局默认 |
+| `pk use node@22.22.2 --project` | 固定**项目**：写当前目录 `pk.toml` + 重新生成 `pk.lock`，不动全局默认。该版本没装时会**先问一句**要不要装（`--yes` 直接装；`--json`/非交互退出 1） |
 | `pk use --lock` | 只按现有 `pk.toml` 刷新 `pk.lock`（不切版本、不装东西；用 `latest`/`lts` 后用它对冲别名漂移） |
 | `pk env --project` | 在项目内把锁定版本前置到 PATH（配合 direnv，实现"项目级覆盖全局默认"） |
 

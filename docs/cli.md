@@ -302,16 +302,28 @@ v20.18.1
 
 只会切到**已安装**的版本：
 
+`pk use` **只会切「已经装好」的版本**，不会偷偷下载。目标版本没装时会先提示再问一句：
+
 ```bash
 $ pk use node@18.20.4
-pk: node@18.20.4 还没装（`pk list` 看已装版本，先 `pk install node@18.20.4`）
+node@18.20.4 还没装，现在安装吗？ [y/N] y
+先装 node@18.20.4，装完再继续……
+…（安装过程同 `pk install`）…
+已切到 node@18.20.4（全局默认写进 ~/.packnest/config.toml，shim 已重指）
 ```
+
+- `--yes`：直接确认（脚本/CI 用这个）—— 等价于"没装就先装，装完再切"；
+- `--json` 或非交互环境：**不提问**，退出码 1 并给 `install.use_not_confirmed`
+  （"没有确认安装 …（加 `--yes` 或在交互终端里确认后重试）"），脚本据此决定要不要带 `--yes` 重跑；
+- 回答 `n`（或直接回车）：什么都不做，退出码 1。
 
 ### 4.2 固定到项目（不影响全局）
 
 ```bash
 $ cd ~/work/my-app
 $ pk use node@22.22.2 --project
+node@22.22.2 还没装，现在安装吗？ [y/N] y     # 已装的话没有这一句
+…（安装过程）…
 已固定到项目：node = "22.22.2"（写入 pk.toml，并更新 pk.lock）
 项目内生效：echo 'eval "$(pk env --project)"' > .envrc && direnv allow
 ```

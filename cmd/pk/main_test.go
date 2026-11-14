@@ -338,7 +338,7 @@ func TestStubs(t *testing.T) {
 		args []string
 		want string
 	}{
-		{[]string{"use", "node@22"}, "还没装"},
+		{[]string{"use", "node@22"}, "--yes"}, // 没装不隐式下载：提示怎么继续（加 --yes）
 	}
 	for _, c := range cases {
 		code, _, errOut := execCLI(t, append([]string{"--root", root}, c.args...)...)
@@ -619,10 +619,10 @@ func TestCLIUseSwitchesVersion(t *testing.T) {
 	if code != 0 || !strings.Contains(out, `"active": true`) {
 		t.Fatalf("list 应显示 active: %d %q", code, out)
 	}
-	// 切到没装的版本 → 报错并给建议
+	// 切到没装的版本 → 不隐式下载，退出 1 并给出"加 --yes"的处置
 	code, _, errOut := execCLI(t, "--root", root, "use", "node@1.0.0")
-	if code != 1 || !strings.Contains(errOut, "还没装") {
-		t.Fatalf("未装版本应报错: %d %q", code, errOut)
+	if code != 1 || !strings.Contains(errOut, "--yes") {
+		t.Fatalf("未装版本应先问再装（非交互给 --yes 提示）: %d %q", code, errOut)
 	}
 	if code, _, _ := execCLI(t, "--root", root, "use", "node"); code != 2 {
 		t.Fatalf("use 缺版本应退出 2，得到 %d", code)
@@ -931,9 +931,9 @@ func TestUseProjectPin(t *testing.T) {
 	if code, out, _ := execCLI(t, "--root", root, "use", "--lock"); code != 0 || !strings.Contains(out, "已更新 pk.lock") {
 		t.Fatalf("use --lock 异常: %d %q", code, out)
 	}
-	// 没装过的版本不能固定
-	if code, _, errOut := execCLI(t, "--root", root, "use", "node@1.0.0", "--project"); code != 1 || !strings.Contains(errOut, "还没装") {
-		t.Fatalf("未装版本应拒绝: %d %q", code, errOut)
+	// 没装过的版本不能固定（非交互环境不自动装，给 --yes 提示）
+	if code, _, errOut := execCLI(t, "--root", root, "use", "node@1.0.0", "--project"); code != 1 || !strings.Contains(errOut, "--yes") {
+		t.Fatalf("未装版本应先问再装: %d %q", code, errOut)
 	}
 }
 
@@ -1583,5 +1583,72 @@ func TestRenderEventFromCode(t *testing.T) {
 	plain := jsonout.Event{Ev: "done", Tool: "node"}
 	if got := a.renderEvent(plain); got.Msg != "" || got.Ev != "done" {
 		t.Fatalf("无码事件不该被改: %+v", got)
+	}
+}
+
+// TestConfirmActionModes：交互确认的三种"不问"路径（--yes / --json / 非 TTY）。
+//
+// 2026-11-15 拆出 confirmAction：`pk use` 遇到未安装版本要先问"现在装吗"，
+// 而 install 不是破坏性操作 —— 不能沿用 uninstall 那句"不会执行破坏性操作"。
+func TestConfirmActionModes(t *testing.T) {
+	var out, errOut bytes.Buffer
+	a := &app{out: &out, errOut: &errOut}
+
+	// ① --yes：直接确认，不读 stdin、也不打印提示
+	a.yes = true
+	if !a.confirmAction("装吗？", "hint-json", "hint-nontty") {
+		t.Fatal("--yes 应当确认")
+	}
+	if out.Len() != 0 || errOut.Len() != 0 {
+		t.Fatalf("--yes 不该打印任何提示: %q %q", out.String(), errOut.String())
+	}
+
+	// ② --json：不提问，给"加 --yes"的提示
+	a = &app{out: &out, errOut: &errOut, json: true}
+	if a.confirmAction("装吗？", "hint-json", "hint-nontty") {
+		t.Fatal("--json 下不该确认")
+	}
+	if !strings.Contains(errOut.String(), "hint-json") {
+		t.Fatalf("--json 应打印专门的提示: %q", errOut.String())
+	}
+
+	// ③ 非 TTY（测试里 stdin 不是终端）：给另一条提示
+	out.Reset()
+	errOut.Reset()
+	a = &app{out: &out, errOut: &errOut}
+	if a.confirmAction("装吗？", "hint-json", "hint-nontty") {
+		t.Fatal("非交互环境不该确认")
+	}
+	if !strings.Contains(errOut.String(), "hint-nontty") {
+		t.Fatalf("非 TTY 应打印专门的提示: %q", errOut.String())
+	}
+}
+
+// TestUseNotInstalledNeedsConfirmation：`pk use` 目标未安装时不隐式下载 ——
+// 非交互/`--json` 一律退出 1，并给稳定的问题码（脚本据此提示"加 --yes"）。
+func TestUseNotInstalledNeedsConfirmation(t *testing.T) {
+	root := t.TempDir()
+	code, out, errOut := execCLI(t, "use", "node@99.98.97", "--json", "--root", root)
+	if code != 1 {
+		t.Fatalf("未确认时应退出 1，实际 %d（stderr=%q）", code, errOut)
+	}
+	var doc struct {
+		Error struct {
+			Code string `json:"code"`
+			Exit int    `json:"exit"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(lastJSONObject(t, out)), &doc); err != nil {
+		t.Fatalf("应输出 JSON 错误对象: %v\n%s", err, out)
+	}
+	if doc.Error.Code != "install.use_not_confirmed" {
+		t.Fatalf("应给 install.use_not_confirmed，实际 %q", doc.Error.Code)
+	}
+	if doc.Error.Exit != 1 {
+		t.Fatalf("exit 应为 1: %d", doc.Error.Exit)
+	}
+	// 台账里不该多出任何版本（没有真的装）
+	if strings.Contains(out, `"ev":"download"`) {
+		t.Fatalf("没确认就不该下载: %s", out)
 	}
 }

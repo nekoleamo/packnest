@@ -172,6 +172,7 @@ var codeTable = map[string]codeText{
 	"install.mirror_probe":        {zh: "%s (%dms)", en: "%s (%dms)"},
 	"install.mirror_probe_cached": {zh: "%s (%dms, 6h 内探过)", en: "%s (%dms, probed within 6h)"},
 	"install.abort_batch":         {zh: "本批已放弃（%s）", en: "batch abandoned (%s)"},
+	"install.use_not_confirmed":   {zh: "没有确认安装 %s@%s（加 `--yes` 或在交互终端里确认后重试）", en: "%s@%s was not confirmed for install (add `--yes`, or confirm in an interactive terminal)"},
 	"install.not_in_ledger":       {zh: "%s@%s 不在台账里；不在台账里的目录只提示不删除（确认后可手动清理）", en: "%s@%s is not in the ledger; directories that are not in the ledger are only reported, never deleted (clean them up manually)"},
 	"install.still_referenced":    {zh: "%s@%s 仍被引用（%s），确需删除加 --force", en: "%s@%s is still referenced (%s); add --force to delete anyway"},
 	"install.remove_failed":       {zh: "删除 %q 失败（可能仍有进程占用，关掉后重试或用 --force 留残）: %v", en: "cannot delete %q (still in use?); retry after closing it, or use --force and leave the leftovers: %v"},

@@ -25,6 +25,8 @@ const (
 	CodeMirrorProbe       = "install.mirror_probe"
 	CodeMirrorProbeCached = "install.mirror_probe_cached"
 	CodeAbortBatch        = "install.abort_batch"
+	// CodeUseNotConfirmed 是 `pk use` 发现目标版本没装、用户（或非交互环境）没确认时给的码。
+	CodeUseNotConfirmed = "install.use_not_confirmed"
 	// 卸载
 	CodeNotInLedger      = "install.not_in_ledger"
 	CodeStillReferenced  = "install.still_referenced"

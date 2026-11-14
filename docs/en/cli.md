@@ -212,7 +212,7 @@ pk use --lock
 | Form | Effect |
 |---|---|
 | `pk use node@22.22.2` | switch the **global** default: config.toml + ledger reference + shim re-point |
-| `pk use node@22.22.2 --project` | pin to the **current project**: write `pk.toml` and regenerate `pk.lock`, global default untouched |
+| `pk use node@22.22.2 --project` | pin to the **current project**: write `pk.toml` and regenerate `pk.lock`, global default untouched. If that version is not installed yet, `pk use` asks before installing it (`--yes` confirms; under `--json` / non-TTY it exits 1 with `install.use_not_confirmed`) |
 | `pk use --lock` | only regenerate `pk.lock` from the existing `pk.toml` (no switch, no install) |
 
 `use` only switches between **already installed** versions. `pk.toml` is edited by textual merge, so

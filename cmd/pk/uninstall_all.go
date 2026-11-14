@@ -228,15 +228,23 @@ func (a *app) uninstallTool(inst *install.Installer, tool string, force bool) in
 // confirm 二次确认：--yes 直接通过；交互终端读一行 y/yes；
 // 非交互（管道、CI、测试）一律当tr("不确认", "declined")，避免脚本误删。
 func (a *app) confirm(prompt string) bool {
+	return a.confirmAction(prompt,
+		tr("pk: --json 下不做交互确认，需加 --yes 才会执行", "pk: no interactive prompts under --json; add --yes to proceed"),
+		tr("pk: 非交互环境不会执行破坏性操作，确认无误后加 --yes 重跑", "pk: non-interactive shells never run destructive work; rerun with --yes once you are sure"))
+}
+
+// confirmAction 是 confirm 的可定制版本：hintJSON / hintNonTTY 说清"为什么不问、怎么继续"。
+// （安装某个版本不是破坏性操作，用 confirm 的默认措辞会吓人 —— 2026-11-15 拆出来的。）
+func (a *app) confirmAction(prompt, hintJSON, hintNonTTY string) bool {
 	if a.yes {
 		return true
 	}
 	if a.json {
-		fmt.Fprintln(a.errOut, tr("pk: --json 下不做交互确认，需加 --yes 才会执行", "pk: no interactive prompts under --json; add --yes to proceed"))
+		fmt.Fprintln(a.errOut, hintJSON)
 		return false
 	}
 	if !stdinIsTerminal() {
-		fmt.Fprintln(a.errOut, tr("pk: 非交互环境不会执行破坏性操作，确认无误后加 --yes 重跑", "pk: non-interactive shells never run destructive work; rerun with --yes once you are sure"))
+		fmt.Fprintln(a.errOut, hintNonTTY)
 		return false
 	}
 	fmt.Fprintf(a.out, "%s [y/N] ", prompt)

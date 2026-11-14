@@ -1791,3 +1791,23 @@ sh scripts/install-gui.sh --version 0.11.1 --dir /tmp/x   # 用户视角实测�
 
 安装方式也一并进了官网与 README（中/英）：从"一段文字"改成按平台分行的表格（脚本一行 / Scoop / 手动），
 标注校验强度、平台依赖与"不发 Intel Mac、不做 Homebrew cask"。
+
+### `pk use` 遇到未安装版本：先提示 → 问一句 → 确认后装（2026-11-15）
+
+原来是"直接拒绝"：`pk use node@22 --project` 在目标版本没装时报 `还没装（先 pk install …）` 并以 1 退出。
+按用户要求改成**先提示、再确认、确认后才装**，三种非交互情形沿用既有规矩：
+
+| 情形 | 行为 |
+|---|---|
+| 交互终端 | `node@22 还没装，现在安装吗？ [y/N]` → 回答 `y` 时先 `pk install` 再继续切/固定；回答 `n` 或回车什么都不做，退出 1 |
+| `--yes` | 直接确认（脚本/CI 用）：没装就先装，装完再切/固定 |
+| `--json` / 非 TTY | **不提问**，退出 1 并给稳定码 `install.use_not_confirmed`（msg 说明"加 `--yes` 或在交互终端里确认"） |
+
+实现细节：
+- `confirm()` 拆出 `confirmAction(prompt, hintJSON, hintNonTTY)`——安装不是破坏性操作，
+  不能沿用 uninstall 那句"不会执行破坏性操作"；
+- `ensureInstalled()` 装在 `cmd/pk/cmd_use.go`：装完用 `ResolveInstalled` 把 `node@22` 解析成台账里的
+  `22.23.5`，再写 `pk.toml` / 切默认；`--project` 与全局切换共用这一条路径；
+- 新增码 `install.use_not_confirmed`（zh/en 文案进码表，`make codes` 已校验）；
+- 实测：`--yes` 走真网装 node@22.23.5 + npm@12.2.2 → `pk.toml` 写成 `node = "22.23.5"`、`pk.lock` 正常；
+  非交互与 `--json` 的拒绝路径各有用例（`TestUseNotInstalledNeedsConfirmation` / `TestConfirmActionModes`）。

@@ -144,7 +144,7 @@ pk install node@22 --dry-run   # print version / artifact URL / checksum mode â€
 | `pk install` (`package.json` only) | uses its `engines.node` as the node range (`pk.toml` wins when both exist) and does **not** write `pk.lock` |
 | `pk install` (**with** `pk.toml`) | installs what is declared and writes/refreshes `pk.lock` (project pinning) |
 | `pk use node@22.22.2` | pins the **global** default (config.toml + ledger reference + shim re-point) |
-| `pk use node@22.22.2 --project` | pins the **project**: writes `pk.toml` and regenerates `pk.lock`, global default untouched |
+| `pk use node@22.22.2 --project` | pins the **project**: writes `pk.toml` and regenerates `pk.lock`, global default untouched. If the version is missing it asks first (`--yes` installs it; `--json` / non-TTY exits 1) |
 | `pk use --lock` | only refreshes `pk.lock` from `pk.toml` (no switch, no install; use it after `latest`/`lts`) |
 | `pk env --project` | puts the locked versions first on PATH inside the project (direnv) |
 

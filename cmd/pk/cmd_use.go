@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"runtime"
 
 	"github.com/packnest/packnest/internal/install"
@@ -48,10 +49,12 @@ func (a *app) cmdUse(args []string) int {
 		return a.refreshProjectLock(inst)
 	}
 	if *project {
-		// 项目级固定：核对已装 → 写 pk.toml → 重新生成 pk.lock（不改全局默认）
+		// 项目级固定：核对已装（没装就问一句）→ 写 pk.toml → 重新生成 pk.lock（不改全局默认）
 		version = inst.ResolveInstalled(tool, version)
-		if in := inst.Ledger().Find(tool, version); in == nil {
-			return a.fail(errT(tr("%s@%s 还没装（先 `pk install %s@%s`）", "%s@%s is not installed (run `pk install %s@%s` first)"), tool, version, tool, version))
+		if v, code := a.ensureInstalled(inst, tool, version); code != 0 {
+			return code
+		} else {
+			version = v
 		}
 		if err := install.SaveProjectTool(a.cwd(), tool, version); err != nil {
 			return a.fail(err)
@@ -71,6 +74,13 @@ func (a *app) cmdUse(args []string) int {
 		fmt.Fprintf(a.out, tr("已固定到项目：%s = %q（写入 pk.toml，并更新 %s）\n", "pinned for this project: %s = %q (written to pk.toml, %s updated)\n"), tool, version, install.LockFileName)
 		fmt.Fprintln(a.out, tr("项目内生效：echo 'eval \"$(pk env --project)\"' > .envrc && direnv allow", "activate inside the project: echo 'eval \"$(pk env --project)\"' > .envrc && direnv allow"))
 		return jsonout.ExitOK
+	}
+	// 全局切换同样：没装先问一句（不隐式下载），确认后再装
+	version = inst.ResolveInstalled(tool, version)
+	if v, code := a.ensureInstalled(inst, tool, version); code != 0 {
+		return code
+	} else {
+		version = v
 	}
 	if err := inst.Activate(tool, version); err != nil {
 		return a.fail(err)
@@ -275,4 +285,44 @@ func (a *app) cmdUpgrade(args []string) int {
 		return jsonout.ExitFail
 	}
 	return jsonout.ExitOK
+}
+
+// ensureInstalled 保证 use/pin 的目标版本已经装好。
+//
+// 语义（2026-11-15 按用户要求定）：`pk use` / `pk use --project` **绝不隐式下载** ——
+// 发现没装就先说清楚"要装什么、装多大不确定"，然后问一句要不要现在装；确认后才调 install，
+// 装完再解析成台账里的真实版本（`node@22` → `22.23.5`）。
+//
+// 三种非交互情形沿用 a.confirm 的既有规矩：
+//   - `--yes`：直接确认（脚本/CI 用这个）；
+//   - `--json`：不提问，提示加 `--yes`（机器没法回答 [y/N]）；
+//   - 非 TTY：同样不提问，提示加 `--yes`。
+//
+// 返回（解析后的版本, 退出码）；退出码 0 表示可以继续。
+func (a *app) ensureInstalled(inst *install.Installer, tool, version string) (string, int) {
+	if inst.Ledger().Find(tool, version) != nil {
+		return version, 0
+	}
+	prompt := fmt.Sprintf(tr("%s@%s 还没装，现在安装吗？", "%s@%s is not installed; install it now?"), tool, version)
+	ok := a.confirmAction(prompt,
+		tr("pk: --json 下不提问；确认要装就加 --yes", "pk: no prompts under --json; add --yes to install it"),
+		tr("pk: 非交互环境不自动安装；确认要装就加 --yes 重跑", "pk: non-interactive shells never auto-install; rerun with --yes to install it"))
+	if !ok {
+		a.emitError(coded.New(install.CodeUseNotConfirmed, tool, version), tool, version, jsonout.ExitFail)
+		return version, jsonout.ExitFail
+	}
+	if !a.json {
+		fmt.Fprintf(a.out, tr("先装 %s@%s，装完再继续……\n", "installing %s@%s first, then continuing…\n"), tool, version)
+	}
+	if _, err := inst.Install(a.context(), tool, version); err != nil {
+		return version, a.failWith(err)
+	}
+	if err := inst.Finalize(); err != nil {
+		return version, a.fail(err)
+	}
+	resolved := inst.ResolveInstalled(tool, version)
+	if inst.Ledger().Find(tool, resolved) == nil {
+		return version, a.fail(errT(tr("%s@%s 装完了但台账里没有记录（先看 `pk list %s`）", "%s@%s was installed but is missing from the ledger (check `pk list %s`)"), tool, version, tool))
+	}
+	return resolved, 0
 }
