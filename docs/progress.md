@@ -1643,6 +1643,27 @@ self-test 的 warm job 改成 **连 `state/` 一起清**（真·新 runner）后
 2. **`cache` 事件的 `tool` 字段错发成文件名**：内容寻址命中时发的是 `<sha256>.tar.gz`（GUI 按 tool 分组就分不上）。
    现在 `tool` 是工具名、`version` 是解析出来的版本（补全了 `version`）。
 
+### ③.6 CI 一绿到底：四个"只在 CI 上暴露"的 bug
+
+`make check` 本地全绿之后，把 CI 也跑了一遍，结果发现**主分支的 CI 已经连红两个提交**，
+而且 `script-test.yml` 的 job 从来没真跑过。四个 bug，都已修：
+
+| # | 现象 | 根因 |
+|---|---|---|
+| 1 | 每次 push 都建一个 `script-test` run，**0 个 job、0 秒失败**，workflow 名退化成文件路径 | `shell: bash` 写在 job 级（非法键，必须在 `defaults.run.shell`）→ GitHub 判定整个 workflow 无效。**E8b 的两条 job 此前一次都没跑过** |
+| 2 | `make check` 在 Linux 上红在 `make loc`，macOS 绿灯 | `tools/loccheck.sh` 用 `find … \| xargs wc -l` 判空：BSD xargs 无输入不执行，GNU xargs 会执行 `wc -l` 读 stdin 得 `0 total` → 每个空目录（`testdata/`、嵌入资源目录）都被报成"未登记预算" |
+| 3 | `install.sh` 在三类用例上退出 2 / 装不上 | GNU tar 对"尾部垃圾"是硬错误（bsdtar 只是警告）；`--skip-verify` 用例用"追加垃圾"造被改产物 → 解压直接失败。夹具改成"**合法但内容不同**"的产物（`swap_artifact`/`swap_gui`），并且 `restore()` 连产物一起复位 |
+| 4 | `install.ps1` 在 Windows 上**一切**用例都报签名失败 | ① 版本探测 `.Content.Trim()`：python http.server 给无扩展名的 `latest` 回 `application/octet-stream`，IWR 的 `.Content` 是 `byte[]`，`Trim` 抛异常被吞 → 悄悄回退到 gitee 的版本号，拼出本地不存在的 404 目录；② 验签用 PowerShell 管道喂 ssh-keygen，管道会**多补一个换行**，字节与签名时不一致 → 永远验不过（改 `Start-Process -RedirectStandardInput`） |
+
+顺带两个**产品行为**收紧（fs 上是对的，但以前会悄悄兜底成错误结果）：
+
+- `--base` / `-Base` 现在是**权威源**：读不到 `<base>/latest` 就明确失败，不再回退到 gitee 的
+  最新版本号（那会拼出该源上不存在的目录，表现为"下载 404"，极难定位）；
+- `checksums.txt` 解析容忍 `*文件名`（`sha256sum -b` / Git Bash 的二进制模式输出）。
+
+**现在的 CI 状态**：`ci`（11 项门禁，ubuntu）· `script-test`（install.sh 五条 + install.ps1 五条，
+ubuntu + windows）· `smoke`（5 平台真装 node+pnpm）· `pages` · `gitee-mirror` **全部绿**。
+
 ### ④ 覆盖率长尾 → 92%（门槛跟着抬）
 
 按上一轮那张清单点名打，顺手抓到两个真问题：

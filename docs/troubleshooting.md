@@ -239,6 +239,7 @@ rm -rf ~/.packnest      # 回到"没装过"，这是"无损"的最强定义（�
 | `提示：未验签（本机没有 ssh-keygen…）` | 本机缺 OpenSSH（或版本 <8.0），只做了 sha256 | 装 OpenSSH，或接受该提示（sha256 仍在比对） |
 | `提示：该版本没有发布签名` | 该版本还没带 `.sig`（兼容期正常） | 无需处理 |
 | 自己 `--base` 指向的源 | 自托管源没带 `.sig` 时只会比 sha256 | 想验签就把 `.sig` 一起放上去 |
+| `读不到 <base>/latest`（退出码 3）/ `Cannot read …/latest` | `--base` 是**权威源**：上面没有 `latest` 文件就不会替你回退到 gitee 的版本号 | 在源上放一个 `latest`（一行版本号，如 `1.6.0`），或者显式 `--version v1.6.0` |
 
 `--skip-verify` 会跳过签名与 sha256 **两者**，只在确认来源可信时用。`pk doctor` 的
 `TRUST_KEYS` / `TRUST_KEYS_UNCONFIGURED` 告诉你本版 pk 内置了几把公钥。
