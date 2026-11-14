@@ -9,6 +9,7 @@ import (
 
 	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/jsonout"
+	"github.com/packnest/packnest/internal/spec"
 )
 
 // TestHumanBytes 锁单位换算：列表与进度条都靠它，改了会立刻体现在人读快照里。
@@ -310,6 +311,29 @@ func TestTextRendersHints(t *testing.T) {
 		}
 		if !strings.Contains(got, "校验失败") {
 			t.Errorf("%s 应保留「校验失败」前缀: %q", tc.code, got)
+		}
+	}
+}
+
+// TestTextFillsCause：模板比参数多一个 %v 时，Cause 自动补在最后（否则线上会出现 %!v(MISSING)）。
+func TestTextFillsCause(t *testing.T) {
+	t.Cleanup(func() { _ = SetLang("zh") })
+	if err := SetLang("zh"); err != nil {
+		t.Fatal(err)
+	}
+	base := errors.New("improper constraint: ^^^")
+	e := coded.Wrap(base, "spec.unparsable", "^^^")
+	got := Text(e)
+	if strings.Contains(got, "%!") {
+		t.Fatalf("不该出现 %%!v(MISSING): %q", got)
+	}
+	if !strings.Contains(got, "improper constraint") || !strings.Contains(got, `"^^^"`) {
+		t.Fatalf("应同时渲染参数与底层原因: %q", got)
+	}
+	// 用真实链路再验一次：spec.Parse 的编码错误必须能完整渲染
+	if _, perr := spec.Parse("^^^"); perr != nil {
+		if out := Text(perr); strings.Contains(out, "%!") || !strings.Contains(out, "无法解析") {
+			t.Fatalf("spec.Parse 的错误渲染不完整: %q", out)
 		}
 	}
 }

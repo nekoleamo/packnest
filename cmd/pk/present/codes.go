@@ -85,13 +85,38 @@ func Text(err error) string {
 			if LangIsEN() {
 				tpl = entry.en
 			}
-			// 参数个数不匹配时不要 panic（模板与调用点会漂），退回带 code 的紧凑形式
-			if rendered, ok := safeSprintf(tpl, ce.Args); ok {
+			// 模板比参数多一个 %v 时，把 Cause 补在最后：`sum.known_corrupt` / `path.mkdir` 这类
+			// 模板的最后一个占位符就是"底层错误"，调用点不必再手动塞一遍。
+			args := ce.Args
+			if need := verbCount(tpl); need > len(args) && ce.Cause != nil {
+				args = append(append([]any{}, args...), ce.Cause)
+			}
+			// 参数仍然不够时不要 panic（模板与调用点会漂），退回带 code 的紧凑形式
+			if rendered, ok := safeSprintf(tpl, args); ok {
 				return rendered
 			}
 		}
 	}
 	return err.Error()
+}
+
+// verbCount 数模板里有多少个格式化占位符（%% 不算）。
+func verbCount(tpl string) int {
+	n := 0
+	for i := 0; i < len(tpl); i++ {
+		if tpl[i] != '%' {
+			continue
+		}
+		if i+1 < len(tpl) && tpl[i+1] == '%' {
+			i++
+			continue
+		}
+		n++
+		if i+1 < len(tpl) {
+			i++ // 跳过动词本身（%q/%v/%d/%s…），不处理宽度等修饰符的极端情况
+		}
+	}
+	return n
 }
 
 // safeSprintf 用 recover 兜住"模板与参数个数不符"的格式化 panic。

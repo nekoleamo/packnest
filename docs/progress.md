@@ -1422,3 +1422,18 @@ brew cask 是否排期（不排期就把 `docs/gui.md` 写明"mac 用 curl 脚�
 **L2 累计**：4 个包清零 —— `verify` 28 · `paths` 9 · `spec` 6 · `companion` 3 = **46 处**，
 `present` 码表 **44 条**（每条 zh + en）。剩 `provider` 153 / `install` 171 / `env` 76 / `store` 60 /
 `fetch` 45 / `archive` 39 / `mirror` 36。
+
+### E1 路上抓到并修掉的一个真 bug：`%!v(MISSING)`
+
+改造 `internal/spec` 后实测发现：`pk install 'node@^^^'` 打印的是
+`版本说明符 "^^^" 无法解析: %!v(MISSING)` —— 模板有两个占位符（`%q` 参数 + `%v` 底层原因），
+但编码错误只带了参数，**底层原因在 `Cause` 里没进模板**。
+
+修法（渲染层一处）：`present.Text` 数模板的占位符个数，比参数多且 `Cause != nil` 时**把 Cause 补在最后**。
+这样 `ioErr(cause, code, …)` 这种"最后一个 `%v` 就是底层错误"的模板不必在调用点重复塞一遍。
+`TestTextFillsCause` 锁住（含用真 `spec.Parse` 走一遍链路），实测两种语言都完整：
+
+```
+pk: node@^^^ 安装失败: 版本说明符 "^^^" 无法解析: improper constraint: ^^^
+pk: node@^^^ failed to install: cannot parse version spec "^^^": improper constraint: ^^^
+```
