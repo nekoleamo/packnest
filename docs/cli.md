@@ -546,13 +546,13 @@ $ pk upgrade --json       # {schema, changed, failed, items[{tool,from,to,change
 
 ```bash
 $ pk --version
-packnest v1.8.0 (go1.27.3, darwin/arm64)
+packnest v1.8.1 (go1.27.3, darwin/arm64)
 
 $ pk --json version
 {
   "schema": 1,
   "name": "packnest",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "go": "go1.27.3",
   "os": "darwin",
   "arch": "arm64"

@@ -1824,3 +1824,14 @@ sh scripts/install-gui.sh --version 0.11.1 --dir /tmp/x   # 用户视角实测�
 | 契约 | 新增一个码 `install.use_not_confirmed`（码表 zh/en），`make codes` 已校验 |
 
 GUI 侧独立发版：`gui-v0.11.2`（新增 Windows ARM64 产物，4 件 + 签名清单）。
+
+### v1.8.1 发版时踩到的两处发布链坑（都已修）
+
+1. **`make release` 把 `dist/gui` 一起删了**：目标里是 `rm -rf $(DIST)`，而 `dist/gui` 属于**独立发版**的
+   GUI（自己的 `gui-v*` tag）。删掉之后 `gen-manifests.sh` 说"没有 dist/gui/checksums.txt，只生成 CLI 清单"，
+   可 Scoop 的 GUI 清单还在 → `release-taps.sh` 报"有 GUI 清单但缺 checksums"直接卡住。
+   现在只清 CLI 自己的产物：`dist/v*` · `dist/latest` · `dist/install.sh` · `dist/checksums.txt`。
+2. **tag 与 provenance 的 commit 不一致**：tag 是 release API 按**远端 main** 建的，本地刚提交的
+   docs 提交没推就先发版，于是 tag 落在上一个提交上（v1.8.1 的 tag=a55ed6e，provenance=44e8acc；
+   两者只差 `docs/progress.md`，代码完全一致）。`make release` 现在会先比 `HEAD` 与 `@{u}`，
+   不一致直接拒绝。**正确顺序**：先提交并推送 → 再 `make release` → 签名 → 上传 → 最后提交 `scripts/latest`。

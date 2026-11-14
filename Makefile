@@ -163,7 +163,14 @@ list-providers:
 release:
 	@if [ -n "$$(git status --porcelain)" ]; then \
 		echo "✘ 工作树不干净：先提交再发版（版本号来自 git tag，脏树会让人分不清产物对应哪份代码）" >&2; exit 1; fi
-	@rm -rf $(DIST)
+	# tag 是 release API 按**远端 main** 建的：本地 HEAD 没推就发版，tag 会落在上一个提交上，
+	# 而 provenance.json 记的是本地 HEAD —— 两边对不上（2026-11-15 v1.8.1 实测踩到）。
+	@if [ -n "$$(git rev-parse @{u} 2>/dev/null)" ] && [ "$$(git rev-parse HEAD)" != "$$(git rev-parse @{u})" ]; then \
+		echo "✘ 本地 HEAD 还没推：先 git push（tag 由发布脚本按远端 main 建，否则 tag 与 provenance 不一致）" >&2; exit 1; fi
+	# 只清 CLI 自己的产物：dist/gui 属于独立发版的 GUI（自己的 gui-v* tag），
+	# 整目录 rm -rf 会把它连带删掉 —— 随后 gen-manifests 找不到 dist/gui/checksums.txt，
+	# 而 Scoop 的 GUI 清单还在，发布链就断在这里（2026-11-15 v1.8.1 实测踩到）。
+	@rm -rf $(DIST)/v* $(DIST)/latest $(DIST)/install.sh $(DIST)/checksums.txt
 	@mkdir -p $(DIST)/v$(VERSION)
 	@for p in $(PLATFORMS); do \
 		os=$${p%/*}; arch=$${p#*/}; \
