@@ -63,7 +63,7 @@ func main() {
 		Commit:      commit,
 		Tag:         "v" + strings.TrimPrefix(*version, "v"),
 		GoVersion:   runtime.Version(),
-		Platforms:   strings.Split(*platforms, ","),
+		Platforms:   splitPlatforms(*platforms),
 		LDFlags:     *ldflags,
 		SourceDate:  *sourceDate,
 		BuiltBy:     builtBy(),
@@ -91,6 +91,11 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("已生成 %s（commit %s，%d 个模块）\n", *out, shortCommit(commit), modules)
+}
+
+// splitPlatforms 接受逗号或空格分隔（Makefile 的 PLATFORMS 是空格列表）。
+func splitPlatforms(s string) []string {
+	return strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ' ' })
 }
 
 // digestOf 对"除 build_input_sha256 之外的全部事实"取 sha256。
