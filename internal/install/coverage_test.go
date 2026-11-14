@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/packnest/packnest/internal/jsonout"
+	"github.com/packnest/packnest/internal/paths"
 	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/store"
 	"github.com/packnest/packnest/internal/testkit"
@@ -415,5 +417,198 @@ func TestInstallNpmPackageNoProvider(t *testing.T) {
 	err := inst.installNpmPackage(context.Background(), nil, "12.2.2", "", t.TempDir())
 	if err == nil || !strings.Contains(err.Error(), "provider") {
 		t.Fatalf("应报找不到 npm 清单: %v", err)
+	}
+}
+
+// TestNewDefaultsAndErrors：New 的默认值与"读不了校验表就报错"。
+func TestNewDefaultsAndErrors(t *testing.T) {
+	root := t.TempDir()
+	p, err := paths.New(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inst, err := New(Options{Paths: p})
+	if err != nil {
+		t.Fatalf("最小 Options 应能建出 Installer: %v", err)
+	}
+	if inst.opt.Profile != "auto" {
+		t.Fatalf("空 Profile 应落 auto: %q", inst.opt.Profile)
+	}
+	if inst.opt.GOOS != "linux" {
+		t.Fatalf("空 GOOS 应落 linux: %q", inst.opt.GOOS)
+	}
+	// known.json 损坏 → 必须报错（不然会静默丢掉 TOFU 记录）
+	if err := os.MkdirAll(filepath.Dir(p.Known()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p.Known(), []byte("{broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := New(Options{Paths: p}); err == nil {
+		t.Fatal("known.json 损坏时应报错")
+	}
+}
+
+// TestLockLoadErrors：锁文件"读不了"与"内容坏"都要报错（--frozen 不能拿半个锁继续）。
+func TestLockLoadErrors(t *testing.T) {
+	dir := t.TempDir()
+	// ① 路径是目录 → 读取失败（不是 NotExist）
+	if err := os.MkdirAll(filepath.Join(dir, LockFileName), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadLock(dir); err == nil {
+		t.Fatal("锁路径是目录时应报错")
+	}
+	if err := os.RemoveAll(filepath.Join(dir, LockFileName)); err != nil {
+		t.Fatal(err)
+	}
+	// ② 没有锁 → (nil, nil)（调用方按"没有锁"处理）
+	if l, err := LoadLock(dir); err != nil || l != nil {
+		t.Fatalf("没有锁应返回 nil,nil: %v %v", l, err)
+	}
+	// ③ 坏 TOML → 报错
+	if err := os.WriteFile(filepath.Join(dir, LockFileName), []byte("not = [valid"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadLock(dir); err == nil {
+		t.Fatal("锁内容坏时应报错")
+	}
+}
+
+// TestInstalledVersionBadSpec：说明符解析不了时原样返回（不要 panic，也别乱选版本）。
+func TestInstalledVersionBadSpec(t *testing.T) {
+	inst := newInstaller(t, nil, nil)
+	inst.ledger.Upsert(store.Install{Tool: "node", Version: "22.98.0", Path: "/x"})
+	if got := inst.installedVersion("node", "^^^not-a-spec"); got != "^^^not-a-spec" {
+		t.Fatalf("非法说明符应原样返回: %q", got)
+	}
+	if got := inst.installedVersion("node", "22"); got != "22.98.0" {
+		t.Fatalf("合法说明符应解析到已装版本: %q", got)
+	}
+}
+
+// TestCachedArchiveReVerifyFail：缓存里的归档坏了（摘要不符）要删掉重下，而不是直接失败。
+func TestCachedArchiveReVerifyFail(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.98.0", NPMVersion: "11.20.0"}},
+		NPM:      npmMatrix(),
+	})
+	inst := newInstaller(t, fm, nil)
+	ctx := context.Background()
+	if _, err := inst.Install(ctx, "npm", "12.2.2"); err != nil {
+		t.Fatal(err)
+	}
+	// 把缓存里的 npm 归档改坏：下次装必须发现"缓存与摘要不符"并重新下载
+	archives := filepath.Join(inst.opt.Paths.Root, "cache", "archives")
+	entries, err := os.ReadDir(archives)
+	if err != nil {
+		t.Skipf("缓存目录结构变了: %v", err)
+	}
+	tampered := 0
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.Contains(name, "npm") {
+			continue
+		}
+		if err := os.WriteFile(filepath.Join(archives, name), []byte("corrupted"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		tampered++
+	}
+	if tampered == 0 {
+		t.Skip("缓存里没有 npm 归档（布局变了）")
+	}
+	// 清掉工具树（保留缓存）→ 重装：应当重新下载并用真摘要通过
+	if err := os.RemoveAll(filepath.Join(inst.opt.Paths.Root, "tools")); err != nil {
+		t.Fatal(err)
+	}
+	inst.ledger.Installs = nil
+	if _, err := inst.Install(ctx, "npm", "12.2.2"); err != nil {
+		t.Fatalf("缓存被改坏后应自动重下并成功: %v", err)
+	}
+}
+
+// TestApplyUninstallAllPurge：purge 的两条收尾路径（连根删 / 保留 cache）。
+func TestApplyUninstallAllPurge(t *testing.T) {
+	t.Run("purge 连根删", func(t *testing.T) {
+		inst := newInstaller(t, nil, nil)
+		root := inst.opt.Paths.Root
+		if err := os.MkdirAll(filepath.Join(root, "state"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		res := inst.ApplyUninstallAll(UninstallPlan{Root: root, BinDir: inst.opt.Paths.Bin(), Purge: true})
+		if !res.Purged {
+			t.Fatalf("应标记已清除: %+v", res)
+		}
+		if _, err := os.Stat(root); !os.IsNotExist(err) {
+			t.Fatalf("根目录应被删掉: %v", err)
+		}
+	})
+	t.Run("purge 保留 cache", func(t *testing.T) {
+		inst := newInstaller(t, nil, nil)
+		root := inst.opt.Paths.Root
+		for _, d := range []string{"state", "cache"} {
+			if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}
+		res := inst.ApplyUninstallAll(UninstallPlan{Root: root, BinDir: inst.opt.Paths.Bin(), Purge: true, KeepCache: true})
+		if !res.Purged {
+			t.Fatalf("应标记已清除: %+v", res)
+		}
+		if _, err := os.Stat(filepath.Join(root, "cache")); err != nil {
+			t.Fatalf("cache 应保留（离线可重装）: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(root, "state")); !os.IsNotExist(err) {
+			t.Fatal("state 应被删掉")
+		}
+	})
+	t.Run("非 purge 时写回状态", func(t *testing.T) {
+		inst := newInstaller(t, nil, nil)
+		inst.ledger.Upsert(store.Install{Tool: "node", Version: "22.98.0", Path: "/x"})
+		res := inst.ApplyUninstallAll(UninstallPlan{Root: inst.opt.Paths.Root, BinDir: inst.opt.Paths.Bin()})
+		if res.Purged {
+			t.Fatal("非 purge 不该删根目录")
+		}
+		if _, err := os.Stat(inst.opt.Paths.Ledger()); err != nil {
+			t.Fatalf("非 purge 应写回台账: %v", err)
+		}
+	})
+}
+
+// TestGenericCompanionInstall：通用伴生包（非 npm）装进 <工具根>/<target> 并发出 companion 事件。
+func TestGenericCompanionInstall(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.98.0", NPMVersion: "11.20.0"}},
+		NPM:      npmMatrix(),
+	})
+	tree := t.TempDir()
+	host := mkProvider("host", nil, "host")
+	host.Companions = map[string]provider.Companion{
+		// 用 fake 的离线归档：registry 指向测试服务器上已有的产物（node 的 tar.gz）
+		"tool": {Registry: "node", Mode: "pinned", Version: "22.98.0", Target: "vendor/tool"},
+	}
+	var events []jsonout.Event
+	inst := newInstaller(t, fm, func(o *Options) {
+		o.Events = func(ev jsonout.Event) { events = append(events, ev) }
+		o.LookupProvider = func(id string) (*provider.Provider, error) {
+			if id == "host" {
+				return host, nil
+			}
+			return fakeLookup(fm)(id)
+		}
+	})
+	err := inst.applyGenericCompanions(context.Background(), host, "1.0.0", tree)
+	if err != nil {
+		t.Fatalf("通用伴生包应能装上: %v", err)
+	}
+	found := false
+	for _, ev := range events {
+		if ev.Ev == "companion" && ev.Tool == "tool" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("应发出 companion 事件: %+v", events)
 	}
 }

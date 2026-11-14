@@ -1243,10 +1243,20 @@ env-unset / gc-nothing / use-switch / uninstall-missing / install-dry-run / inst
 
 ### ⚠️ 未完项（老实记账）
 
-路线文档要求 `internal/install` **≥92%**，当前 **90.3%**（约 21 条语句）。剩下的都是单条错误分支：
-`verifyArtifact` 的 inline 摘要/索引取值分支、`installNpmPackage` 的 `FormatFor/Extract/Replace` 失败、
-`Uninstall`/`m4` 的删除失败重试、`parallel.commit` 的 `Activate` 失败。
-下一轮补的时候按这几处点名打，别拿"再加几个正常路径用例"刷比例。
+路线文档要求 `internal/install` **≥92%**，当前 **90.5%**（约 19 条语句）。逐行清单（下次照着打，别再"加正常路径用例"刷比例）：
+
+| 文件 | 未覆盖行 | 是什么 |
+|---|---|---|
+| `artifact.go` | 28, 88, 117, 130/132, 188–200, 217–231 | `ArtifactURLsFor` 失败、缓存 rename 退化、进度事件节流、**缓存摘要不符→删缓存重下**、`verifyArtifact` 的 registry/inline 取值分支 |
+| `install.go` | 133, 177, 212–224, 252–263, 298–311, 347, 397, 448, 459 | `New` 的 default 分支、`Uninstall`/`removeShimsFor` 的失败重试、`artifactNeedsFilename`、`randomSuffix` 的 rand 失败 |
+| `companion.go` | 94, 114–122, 149–171, 192–211, 276, 325 | `installNpmPackage` 的 `FormatFor/Extract/Replace` 失败、`enableCorepack` 的失败分支、`PrefetchIndexes` 的并发收尾 |
+| `parallel.go` | 82, 109, 130, 156–179, 204, 232–245, 329, 364, 434, 495 | `commit` 的 `Activate` 失败、`installAtomic` 的取消分支、`abortAll` 的边界 |
+| `m4.go` | 39, 130–150, 216, 249, 381–409 | `AddRef` 失败、`GC` 的 dryRun/force 组合、`ApplyUninstallAll` 的删除失败重试 |
+| `lock.go` | 61, 70, 192–216, 252–291, 312, 343 | 锁的 TOML 序列化失败（实际不可达）、`BuildProjectLock` 的边角 |
+| `upgrade.go` | 50, 62, 78, 84, 100/106, 200, 218, 233 | `Upgrade` 的 provider/索引失败与 npm 伴生分支（部分已被 `upgrade_test` 覆盖） |
+
+本轮已补：`New` 默认值与 known.json 损坏、锁文件的"读不了/内容坏/没有"、`installedVersion` 非法说明符、
+**缓存归档被改坏→自动重下**、`ApplyUninstallAll` 的 purge 三种收尾、通用伴生包安装 + `companion` 事件。
 
 **顺手修掉的三处**（都是新用例当场抓的）：
 1. `--atomic` 的 commit 阶段失败时，**已落盘的目标也被标成 abort**（`abortAll` 只看 `out[].Err`，不看"是否已提交"）→ 加 `committed[]` 跳过；
