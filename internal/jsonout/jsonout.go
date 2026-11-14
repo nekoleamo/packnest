@@ -98,7 +98,15 @@ type Event struct {
 	Mode       string `json:"mode,omitempty"`
 	Path       string `json:"path,omitempty"`
 	OK         *bool  `json:"ok,omitempty"`
-	Msg        string `json:"msg,omitempty"`
+	// Replaced 是伴生包替换前的版本（npm 换掉 node 自带的那份时用）。
+	Replaced string `json:"replaced,omitempty"`
+	// LatencyMS / Cached 是 mirror 探测结果（GUI 想画"哪个源快"时不用去解析 msg）。
+	LatencyMS int64 `json:"latency_ms,omitempty"`
+	Cached    bool  `json:"cached,omitempty"`
+	// Msg 是**人读**补充说明：可能中文、可能改措辞、可能不出现。
+	// 脚本与 GUI 不许对它做字符串匹配 —— 机器判断请用 Ev / OK / Mode / Replaced / LatencyMS /
+	// BytesDone / BytesTotal / Source / Path（契约见 docs/json-schema.md「字段语义」）。
+	Msg string `json:"msg,omitempty"`
 }
 
 // WriteJSON 输出一个缩进 JSON 文档（人可读，也便于 golden 比对）。

@@ -612,3 +612,34 @@ func TestGenericCompanionInstall(t *testing.T) {
 		t.Fatalf("应发出 companion 事件: %+v", events)
 	}
 }
+
+// TestCompanionEventHasReplaced（1.8 契约）：被换掉的 npm 版本要有**独立字段**，
+// 不能只塞在 msg 里（msg 只是人话，L2 英文化后可能就变了）。
+func TestCompanionEventHasReplaced(t *testing.T) {
+	var events []jsonout.Event
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.98.0", NPMVersion: "11.20.0"}},
+		NPM:      npmMatrix(),
+	})
+	inst := newInstaller(t, fm, func(o *Options) {
+		o.Events = func(ev jsonout.Event) { events = append(events, ev) }
+	})
+	if _, err := inst.Install(context.Background(), "node", "22.98.0"); err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, ev := range events {
+		if ev.Ev == "companion" && ev.Tool == "npm" {
+			found = true
+			if ev.Replaced == "" {
+				t.Fatalf("companion 事件必须带 replaced 字段: %+v", ev)
+			}
+			if ev.Version == ev.Replaced {
+				t.Fatalf("replaced 应是替换前的版本: %+v", ev)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("没有 companion 事件: %+v", events)
+	}
+}

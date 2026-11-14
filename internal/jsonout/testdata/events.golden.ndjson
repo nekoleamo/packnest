@@ -28,7 +28,16 @@
     "ev": "companion",
     "tool": "npm",
     "version": "12.2.2",
+    "replaced": "11.20.0",
     "msg": "replaced 11.20.0"
+  },
+  {
+    "ev": "mirror",
+    "tool": "node",
+    "source": "cn",
+    "latency_ms": 120,
+    "cached": true,
+    "msg": "cn (120ms, 6h 内探过)"
   },
   {
     "ev": "done",

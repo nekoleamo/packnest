@@ -121,7 +121,10 @@ type Event struct {
 	Source     string `json:"source"`
 	Mode       string `json:"mode"`
 	Path       string `json:"path"`
-	Msg        string `json:"msg"`
+	Replaced   string `json:"replaced"`
+	// Msg 是"人读补充说明"（可能中文、可能没有）：**只用来显示**，别拿它做判断。
+	// 需要机器可判断的信息一律用独立字段（ev/ok/mode/source/replaced/bytes_*），见 docs/json-schema.md。
+	Msg string `json:"msg"`
 }
 
 // Install 跑 `pk install <spec> --json`，把事件逐行回调给 GUI（进度条直接用 progress 事件）。

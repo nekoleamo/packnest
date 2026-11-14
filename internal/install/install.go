@@ -347,6 +347,7 @@ func (i *Installer) resolveAutoProfile(ctx context.Context, p *provider.Provider
 		cached = ", 6h 内探过"
 	}
 	i.emit(jsonout.Event{Ev: "mirror", Tool: p.ID, Source: profile,
+		LatencyMS: res.LatencyMS, Cached: res.Cached,
 		Msg: fmt.Sprintf("%s (%dms%s)", profile, res.LatencyMS, cached)})
 }
 

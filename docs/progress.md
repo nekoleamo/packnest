@@ -1340,3 +1340,16 @@ brew cask 是否排期（不排期就把 `docs/gui.md` 写明"mac 用 curl 脚�
 | 发布 | `release-taps.sh`：bucket 里多推一份；预检用**子集**判据（清单只管 windows 产物，每个 hash 必须能在 GUI checksums 里找到）；远端核对单独一条 `verify_pushed_gui`，不混进 CLI 的 hash 集合 |
 | 不进库 | GUI 清单是发版时生成的（含真实 hash），加进 `.gitignore`；平时不存在，避免提交假 hash |
 | 实测 | 造 fake `dist/`（6 个 CLI hash + 3 个 GUI hash，全 64 位）→ `gen-manifests.sh` 生成 0.12.3 的 GUI 清单 → `release-taps.sh --dry-run` 两份预检都 OK，bucket 待推文件里出现 `packnest-desktop.json` |
+
+## `--json` 的 `msg` 语义（1.8 拍板：方案 A，「msg 只是人话」）
+
+> 这是 E1 全量的解锁条件（E1 试点报告 §六的三个选项）。选 **A：`msg` 保留"尽力而为"**。
+
+| 项 | 结果 |
+|---|---|
+| 契约 | `msg` = 人读补充说明：**可能中文、可能改措辞、可能不出现**；脚本与 GUI **不许对它做字符串匹配**。机器判断用 `ev`/`ok`/`mode`/`source`/`path`/`bytes_*`/`replaced`/`latency_ms`/`cached` |
+| 补的字段（只增不改） | `companion.replaced`（被换掉的 npm 版本，原来只在 `msg` 里）· `mirror.latency_ms` + `mirror.cached`（探测延迟 / 是否命中 6h 缓存）· 通用伴生包用 `path` 给落地位置 |
+| 为什么不选 B/C | B（`msg` 只留英文）对脚本是破坏性变更且中文用户看 `--json` 会变英文；C（跟 `--lang`）会让同一条命令的 `msg` 随环境变，golden 与日志比对全变脆 |
+| 落地 | `docs/json-schema.md` 新增「字段语义」表；`internal/jsonout/Event` 注释写明纪律；GUI 的 `pkcli.Event` 补 `replaced` 并注明"Msg 只用来显示" |
+| 测试 | `TestCompanionEventHasReplaced`（断言 `replaced` 真的有值且不等于新版本）· `events.golden.ndjson` 追加 `companion.replaced` 与整条 `mirror` 事件（8 → 9 条，既有事件零改动） |
+| 解锁了什么 | E1 全量可以按包推进了：`internal/*` 的文案改成"错误码 + 参数"之后，`msg` 怎么变都不影响任何消费者 |

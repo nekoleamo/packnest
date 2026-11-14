@@ -76,7 +76,8 @@ func (i *Installer) applyCompanion(ctx context.Context, p *provider.Provider, no
 	if err := i.installNpmPackage(ctx, npmP, npmVersion, shasum, npmDir); err != nil {
 		return "", "", err
 	}
-	i.emit(jsonout.Event{Ev: "companion", Tool: "npm", Version: npmVersion, Msg: "replaced " + bundled})
+	i.emit(jsonout.Event{Ev: "companion", Tool: "npm", Version: npmVersion, Replaced: bundled,
+		Msg: "replaced " + bundled})
 	return npmVersion, bundled, nil
 }
 
@@ -170,7 +171,8 @@ func (i *Installer) applyGenericCompanions(ctx context.Context, p *provider.Prov
 		if err != nil {
 			return err
 		}
-		i.emit(jsonout.Event{Ev: "companion", Tool: key, Version: want, Msg: "into " + c.Target})
+		i.emit(jsonout.Event{Ev: "companion", Tool: key, Version: want, Path: c.Target,
+			Msg: "into " + c.Target})
 	}
 	return nil
 }

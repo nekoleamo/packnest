@@ -44,16 +44,31 @@
 | `ev` | 附带字段 | 说明 |
 |---|---|---|
 | `resolve` | `tool,version` | 版本解析完成 |
+| `mirror` | `tool,source,latency_ms,cached` | 探测出镜像档（`cached=true` 表示 6h 内探过，没再发请求） |
 | `progress` | `tool,version,bytes_done,bytes_total` | 下载字节进度（约 200ms 一次，`bytes_total` 未知时为 0；GUI 画进度条用） |
 | `cache` | `tool,version,bytes` | 缓存命中（0 网络） |
 | `download` | `tool,version,bytes,source` | 实际下载（`source` 是最终使用的 URL） |
 | `verify` | `tool,version,mode,ok,msg` | `mode ∈ tofu/network/insecure`；`msg` 只在"上游重新发布按同源配对接受"时出现 |
-| `companion` | `tool,version,msg` | 伴生包替换（`msg` 形如 `replaced 11.20.0`） |
+| `companion` | `tool,version,replaced,path` | 伴生包替换：`replaced` 是被换掉的版本（原来只在 `msg` 里）；通用伴生包用 `path` 给落地位置 |
 | `done` | `tool,version,path` | 落盘完成 |
 | `uninstall` | `tool,version` | 卸载完成 |
 | `abort` | `tool,msg` | **1.8 起**：`--atomic` 下这一批被整体放弃，本目标没有落盘（`msg` 说明原因）。出现在该目标其它事件之后；GUI 按 `tool` 分组时遇到 `abort` 就把整组作废 |
 
 `ev` 的值是**只增不改**的：脚本与 GUI 必须忽略自己不认识的 `ev`（1.8 新增 `abort` 就是按这条加的）。
+
+### 字段语义（1.8 拍板：`msg` 只是人话）
+
+| 字段 | 契约 | 说明 |
+|---|---|---|
+| `ev` / `tool` / `version` | **稳定**，机器用它判断 | `ev` 只增不改（新值必须能被旧消费者忽略） |
+| `ok` / `mode` / `source` / `path` | **稳定** | 判定"验过没、怎么验的、从哪来、落到哪" |
+| `bytes_done` / `bytes_total` | **稳定** | 画进度用；`bytes_total=0` 表示总长未知 |
+| `replaced` / `latency_ms` / `cached` | **稳定**（1.8 新增） | 伴生包替换前的版本 / 镜像探测延迟 / 是否命中 6h 探测缓存 |
+| **`msg`** | **尽力而为**：可能中文、可能改措辞、可能不出现 | **不许对它做字符串匹配**。人类可读的补充说明，不是接口 |
+
+为什么这么定：`internal/*` 的中文文案将来要做 L2（改成"错误码 + 参数"、由 CLI 渲染），
+只要有人拿 `msg` 做判断，那条路就被永久堵死。所以从 1.8 起，凡是机器需要的信息一律有自己的字段
+（`replaced`、`latency_ms`、`cached` 就是这么加出来的），`msg` 留给人看。
 
 GUI（作为 CLI 的可视化补充，走子进程 + `--json`）只需要：读 `schema` 判契约版本；
 进度条用 `progress.bytes_done/bytes_total`（`download` 只给最终大小）；"是否校验过"看 `verify.mode`；
