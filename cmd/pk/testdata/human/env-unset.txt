@@ -1,0 +1,2 @@
+$ pk env --unset
+已删掉 <HOME>/.zshrc 里的 packnest 托管块

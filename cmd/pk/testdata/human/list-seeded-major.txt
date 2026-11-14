@@ -1,0 +1,4 @@
+$ pk list --major 26 --limit 3
+已装:
+  * node   26.13.0         0 B (npm 12.2.2 ← 自带 11.20.0)
+    pnpm   10.4.1          0 B

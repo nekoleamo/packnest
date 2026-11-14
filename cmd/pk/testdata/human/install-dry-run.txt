@@ -1,0 +1,5 @@
+$ pk install --offline --dry-run node@26.13.0
+解析 node@26.13.0
+  产物 https://registry.npmmirror.com/-/binary/node/v26.13.0/node-v26.13.0-<OS>-<ARCH>.tar.gz
+  校验 gnu-sums(tofu-then-verify)
+计划：node@26.13.0（tar.gz）

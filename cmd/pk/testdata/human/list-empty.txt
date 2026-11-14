@@ -1,0 +1,2 @@
+$ pk list
+还没装任何工具。`pk install node@22` 开始。

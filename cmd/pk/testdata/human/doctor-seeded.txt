@@ -1,0 +1,5 @@
+$ pk doctor --globals
+  [info ] PROVIDERS_DIRS         外部清单目录（不存在即未配置）
+  [info ] TRUST_KEYS             内置 1 把发布签名公钥（sshsig，namespace pk-release）
+  [info ] MIRROR_AUTO            镜像档为 auto：首次安装会探测并缓存 6h
+  [info ] GLOBALS_NONE           全局包目录里没有包（<ROOT>/global）

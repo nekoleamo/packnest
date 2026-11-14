@@ -1,0 +1,4 @@
+$ pk which zzz
+[exit 1]
+[stderr]
+pk: 命令 "zzz" 不在 <ROOT>/bin（`pk list` 看已装工具，`pk env` 检查 PATH）

@@ -1,0 +1,4 @@
+$ pk uninstall node
+[exit 1]
+[stderr]
+pk: node 没有已装版本（`pk list` 看已装工具）

@@ -1,0 +1,24 @@
+$ pk help
+packnest · 国内网络开箱可用的运行时安装器
+
+用法: pk <命令> [参数] [--json] [--offline] [--yes]
+
+命令:
+  install [工具@版本]     安装（无参数按 pk.toml；6 个内嵌工具）
+  uninstall 工具@版本     台账驱动卸载（被引用需 --force）
+  use 工具@版本           切换全局默认版本                  [M4]
+  list [--available]      已装/可装工具
+  which <命令>            解析 shim 到真实二进制
+  mirror list|probe|use   镜像档：列出 / 探测 / 切换
+  doctor                  环境体检（PATH/shim/台账/镜像）
+  env [--shell S] [--write] 输出 shell 环境片段
+  gc [--dry-run] [--cache-max]  回收零引用版本与超限缓存
+  upgrade [工具…] [--dry-run]   把已装工具升到索引最新（旧版本保留，npm 随 node）
+
+全局开关:
+  --json      机器可读输出（GUI 与脚本的唯一入口）
+  --offline   禁止一切网络访问
+  --yes       不交互确认
+  --root DIR  覆盖 PK_ROOT（调试用）
+  --lang en   英文输出（默认中文；也可 PK_LANG=en）
+详细用法: pk help <命令>，可用命令: doctor / env / gc / install / list / mirror / uninstall / upgrade / use / version / which

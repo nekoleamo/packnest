@@ -1,0 +1,5 @@
+$ pk mirror
+[exit 2]
+[stderr]
+pk: 用法: pk mirror list|probe|use <档位>
+运行 `pk help` 查看用法

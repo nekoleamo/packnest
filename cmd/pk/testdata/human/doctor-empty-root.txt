@@ -1,0 +1,6 @@
+$ pk doctor
+  [info ] PROVIDERS_DIRS         外部清单目录（不存在即未配置）
+  [info ] TRUST_KEYS             内置 1 把发布签名公钥（sshsig，namespace pk-release）
+  [info ] MIRROR_AUTO            镜像档为 auto：首次安装会探测并缓存 6h
+  [warn ] SHIM_MISSING           缺少 pk 入口（`pk install` 会补齐）
+  [warn ] SHIM_MISSING           缺少 packnest 入口（`pk install` 会补齐）

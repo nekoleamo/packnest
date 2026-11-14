@@ -1,0 +1,14 @@
+$ pk mirror list
+当前档位: auto
+    default  官方源              https://registry.npmjs.org
+      境外直连，无代理时可能不可达
+    cn       npmmirror（阿里）    https://registry.npmmirror.com
+      国内默认；npm 生态唯一完整镜像
+    tuna     清华 TUNA          https://registry.npmmirror.com
+      node 产物与校验和齐全；npm registry 借用 npmmirror
+    aliyun   阿里云              https://registry.npmmirror.com
+      go 与 node 产物均可用；npm registry 借用 npmmirror
+    ustc     中科大 USTC         https://registry.npmmirror.com
+      node 校验和可用；npm registry 借用 npmmirror
+  (auto 表示自动探测：普通命令只探首选 + 上轮最优，结果缓存 6h)
+  auto 当前判定: 未探测（第一次 install 时会探，并把结果缓存）

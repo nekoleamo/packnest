@@ -1,0 +1,2 @@
+$ pk use node@26.13.0
+已切到 node@26.13.0（全局默认写进 <ROOT>/config.toml，shim 已重指）

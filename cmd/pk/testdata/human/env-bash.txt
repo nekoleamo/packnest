@@ -1,0 +1,15 @@
+$ pk env --shell bash
+export PATH=<ROOT>/bin:<ROOT>/global/corepack/bin:<ROOT>/global/bin:<ROOT>/global/pnpm:<ROOT>/global/bun/bin:$PATH
+export npm_config_registry=https://registry.npmmirror.com
+export BUN_CONFIG_REGISTRY=https://registry.npmmirror.com
+export COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
+export PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
+export GOPROXY=https://goproxy.cn
+export GOTOOLCHAIN=local
+export npm_config_prefix=<ROOT>/global
+export npm_config_cache=<ROOT>/cache/npm
+export npm_config_globalconfig=<ROOT>/global/etc/npmrc
+export npm_config_prefer_offline=true
+export PNPM_HOME=<ROOT>/global/pnpm
+export BUN_INSTALL=<ROOT>/global/bun
+export COREPACK_HOME=<ROOT>/cache/corepack
