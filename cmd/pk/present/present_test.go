@@ -337,3 +337,21 @@ func TestTextFillsCause(t *testing.T) {
 		}
 	}
 }
+
+// TestTextNestedCause：外层编码错误的 Cause 也是编码错误时，要**递归渲染**，
+// 不能把 `store.config_parse(...)` 这种机器串漏到用户面前。
+func TestTextNestedCause(t *testing.T) {
+	t.Cleanup(func() { _ = SetLang("zh") })
+	if err := SetLang("zh"); err != nil {
+		t.Fatal(err)
+	}
+	inner := coded.Wrap(errors.New("toml: unexpected EOF"), "store.config_parse", "/x/config.toml")
+	outer := coded.Wrap(inner, "path.mkdir", "/x")
+	got := Text(outer)
+	if strings.Contains(got, "config_parse(") || strings.Contains(got, "path.mkdir(") {
+		t.Fatalf("不该露出机器串: %q", got)
+	}
+	if !strings.Contains(got, "/x") || !strings.Contains(got, "unexpected EOF") {
+		t.Fatalf("内外层信息都该在: %q", got)
+	}
+}

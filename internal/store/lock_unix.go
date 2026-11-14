@@ -4,7 +4,7 @@ package store
 
 import (
 	"errors"
-	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -19,12 +19,12 @@ var ErrLocked = errors.New("另一个 pk 正在运行（state/lock 被占用）"
 func Lock(path string) (func(), error) {
 	if dir := filepath.Dir(path); dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return nil, fmt.Errorf("创建锁目录失败: %w", err)
+			return nil, coded.Wrap(err, CodeLockMkdir)
 		}
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
-		return nil, fmt.Errorf("打开锁文件失败: %w", err)
+		return nil, coded.Wrap(err, CodeLockOpen)
 	}
 	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		f.Close()

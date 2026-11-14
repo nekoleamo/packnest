@@ -4,7 +4,7 @@ package store
 
 import (
 	"errors"
-	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -39,19 +39,19 @@ const (
 func Lock(path string) (func(), error) {
 	if dir := filepath.Dir(path); dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return nil, fmt.Errorf("创建锁目录失败: %w", err)
+			return nil, coded.Wrap(err, CodeLockMkdir)
 		}
 	}
 	path16, err := syscall.UTF16PtrFromString(path)
 	if err != nil {
-		return nil, fmt.Errorf("锁路径非法: %w", err)
+		return nil, coded.Wrap(err, CodeLockPath)
 	}
 	h, err := syscall.CreateFile(path16,
 		syscall.GENERIC_READ|syscall.GENERIC_WRITE,
 		syscall.FILE_SHARE_READ|syscall.FILE_SHARE_WRITE|syscall.FILE_SHARE_DELETE,
 		nil, syscall.OPEN_ALWAYS, syscall.FILE_ATTRIBUTE_NORMAL, 0)
 	if err != nil {
-		return nil, fmt.Errorf("打开锁文件失败: %w", err)
+		return nil, coded.Wrap(err, CodeLockOpen)
 	}
 	ol := new(syscall.Overlapped) // 必须活到解锁：地址会被内核记住
 	r, _, errno := procLockFileEx.Call(uintptr(h),
@@ -61,7 +61,7 @@ func Lock(path string) (func(), error) {
 		if errno == errLockViolation || errno == errIOPending {
 			return nil, ErrLocked
 		}
-		return nil, fmt.Errorf("取全局锁失败: %w", errno)
+		return nil, coded.Wrap(errno, CodeLockAcquire)
 	}
 	return func() {
 		_, _, _ = procUnlockFilex.Call(uintptr(h), 0, 1, 0, uintptr(unsafe.Pointer(ol)))

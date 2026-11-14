@@ -120,6 +120,24 @@ var codeTable = map[string]codeText{
 	"fetch.size_mismatch":      {zh: "产物大小不符：期望 %d 字节，实得 %d", en: "artifact size mismatch: want %d bytes, got %d"},
 	"fetch.network":            {zh: "网络请求失败: %v", en: "network request failed: %v"},
 	"fetch.shard_short":        {zh: "第 %d-%d 字节只拿到 %d 字节", en: "shard %d-%d returned only %d bytes"},
+
+	// ── internal/store：台账/配置/锁 ──
+	"store.ledger_load":      {zh: "读取台账失败: %v", en: "cannot read the ledger: %v"},
+	"store.ledger_corrupt":   {zh: "台账 %q 损坏（%v）；可执行 `pk doctor` 查看恢复建议", en: "ledger %q is corrupt (%v); run `pk doctor` for recovery advice"},
+	"store.not_in_ledger":    {zh: "%s@%s 不在台账里", en: "%s@%s is not in the ledger"},
+	"store.ledger_encode":    {zh: "序列化台账失败: %v", en: "cannot encode the ledger: %v"},
+	"store.config_load":      {zh: "读取配置失败: %v", en: "cannot read the config: %v"},
+	"store.config_parse":     {zh: "配置 %q 解析失败: %v", en: "cannot parse config %q: %v"},
+	"store.config_encode":    {zh: "序列化配置失败: %v", en: "cannot encode the config: %v"},
+	"store.backup":           {zh: "备份 %q 失败: %v", en: "cannot back up %q: %v"},
+	"store.install_record":   {zh: "序列化安装记录失败: %v", en: "cannot encode the install record: %v"},
+	"store.cache_index_load": {zh: "读取缓存索引失败: %v", en: "cannot read the cache index: %v"},
+	"store.capacity_empty":   {zh: "容量为空", en: "capacity is empty"},
+	"store.capacity_parse":   {zh: "容量 %q 无法解析（示例：5GB / 500MB / 1073741824）", en: "cannot parse capacity %q (examples: 5GB / 500MB / 1073741824)"},
+	"store.lock_mkdir":       {zh: "创建锁目录失败: %v", en: "cannot create the lock directory: %v"},
+	"store.lock_open":        {zh: "打开锁文件失败: %v", en: "cannot open the lock file: %v"},
+	"store.lock_path":        {zh: "锁路径非法: %v", en: "illegal lock path: %v"},
+	"store.lock_acquire":     {zh: "取全局锁失败: %v", en: "cannot acquire the global lock: %v"},
 }
 
 // Text 把任意错误渲染成"给人看的一句话"（当前语言）。
@@ -140,7 +158,12 @@ func Text(err error) string {
 			// 模板的最后一个占位符就是"底层错误"，调用点不必再手动塞一遍。
 			args := ce.Args
 			if need := verbCount(tpl); need > len(args) && ce.Cause != nil {
-				args = append(append([]any{}, args...), ce.Cause)
+				// Cause 本身也是编码错误时递归渲染（否则外层模板里会漏出 `store.config_parse(...)` 这种机器串）
+				var tail any = ce.Cause
+				if _, nested := coded.Of(ce.Cause); nested {
+					tail = Text(ce.Cause)
+				}
+				args = append(append([]any{}, args...), tail)
 			}
 			// 参数仍然不够时不要 panic（模板与调用点会漂），退回带 code 的紧凑形式
 			if rendered, ok := safeSprintf(tpl, args); ok {

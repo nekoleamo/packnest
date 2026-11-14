@@ -1502,3 +1502,20 @@ self-test `cold` ✓（41s）+ `warm` ✓（47s）：冷路径真的 `download`�
 
 **L2 累计**：7 个包清零 —— `verify` 28 · `archive` 23 · `fetch` 23 · `paths` 9 · `spec` 6 · `mirror` 5 · `companion` 3 = **97 处**，
 `present` 码表 **89 条**。剩 `provider` 61 · `install` 41 · `store` 20 · `env` 7。
+
+### E1 第九步：`internal/store` 完成（16 个码）
+
+`store.ledger_load` / `ledger_corrupt` / `not_in_ledger` / `ledger_encode` / `config_load` / `config_parse` /
+`config_encode` / `backup` / `install_record` / `cache_index_load` / `capacity_empty` / `capacity_parse` /
+`lock_mkdir` / `lock_open` / `lock_path` / `lock_acquire`（最后四个在 `lock_unix.go` + `lock_windows.go` 两份里）。
+
+**顺手修掉两个渲染层问题**（都是这次切 store 才暴露的）：
+1. **嵌套编码错误会漏机器串**：`store.config_parse` 被 CLI 用 `errT("配置不可用…%w")` 包了一层，
+   渲染时只出内层；`present.Text` 现在会在补 `Cause` 时**递归渲染**（`TestTextNestedCause` 锁住）。
+2. **CLI 包装丢前缀**：`配置不可用，先修好再操作: store.config_parse(...)` → 改成先把内层渲染好再拼，
+   用户看到的还是原来那句人话（`TestBrokenConfig` 恢复）。
+
+另：`lock_windows.go` 的 `fmt` 在跨平台编译时才暴露未使用 —— `make check` 的 cross 步骤抓到了，已清理。
+
+**L2 累计**：8 个包清零 —— `verify` 28 · `archive` 23 · `fetch` 23 · `store` 20 · `paths` 9 · `spec` 6 · `mirror` 5 · `companion` 3 = **117 处**，码表 **105 条**。
+剩 `provider` 61 · `install` 41 · `env` 7。

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/BurntSushi/toml"
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/paths"
 	"os"
 	"path/filepath"
@@ -80,11 +81,11 @@ func LoadLedger(path string) (*Ledger, error) {
 		if os.IsNotExist(err) {
 			return &Ledger{Schema: LedgerSchema}, nil
 		}
-		return nil, fmt.Errorf("读取台账失败: %w", err)
+		return nil, coded.Wrap(err, CodeLedgerLoad)
 	}
 	var l Ledger
 	if err := json.Unmarshal(data, &l); err != nil {
-		return nil, fmt.Errorf("台账 %q 损坏（%v）；可执行 `pk doctor` 查看恢复建议", path, err)
+		return nil, coded.Wrap(err, CodeLedgerCorrupt, path)
 	}
 	if l.Schema == 0 {
 		l.Schema = LedgerSchema
@@ -163,7 +164,7 @@ func (l *Ledger) Remove(tool, version string) bool {
 func (l *Ledger) AddRef(tool, version string, ref Ref) error {
 	in := l.Find(tool, version)
 	if in == nil {
-		return fmt.Errorf("%s@%s 不在台账里", tool, version)
+		return coded.New(CodeNotInLedger, tool, version)
 	}
 	for _, existing := range in.References {
 		if existing.Kind == ref.Kind && existing.Name == ref.Name {
@@ -181,7 +182,7 @@ func (l *Ledger) Save(path string) error {
 	}
 	data, err := json.MarshalIndent(l, "", "  ")
 	if err != nil {
-		return fmt.Errorf("序列化台账失败: %w", err)
+		return coded.Wrap(err, CodeLedgerEncode)
 	}
 	return WriteAtomicWithBackup(path, data)
 }
@@ -242,10 +243,10 @@ func LoadConfig(path string) (*Config, error) {
 		if os.IsNotExist(err) {
 			return cfg, nil
 		}
-		return nil, fmt.Errorf("读取配置失败: %w", err)
+		return nil, coded.Wrap(err, CodeConfigLoad)
 	}
 	if err := toml.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("配置 %q 解析失败: %w", path, err)
+		return nil, coded.Wrap(err, CodeConfigParse, path)
 	}
 	if cfg.Mirror == "" {
 		cfg.Mirror = "auto"
@@ -263,7 +264,7 @@ func LoadConfig(path string) (*Config, error) {
 func (c *Config) Save(path string) error {
 	data, err := toml.Marshal(c)
 	if err != nil {
-		return fmt.Errorf("序列化配置失败: %w", err)
+		return coded.Wrap(err, CodeConfigEncode)
 	}
 	return WriteAtomic(path, data)
 }
@@ -275,7 +276,7 @@ func WriteAtomic(path string, data []byte) error { return paths.WriteAtomic(path
 func WriteAtomicWithBackup(path string, data []byte) error {
 	if old, err := os.ReadFile(path); err == nil {
 		if err := WriteAtomic(path+".bak", old); err != nil {
-			return fmt.Errorf("备份 %q 失败: %w", path, err)
+			return coded.Wrap(err, CodeBackup, path)
 		}
 	}
 	return WriteAtomic(path, data)
@@ -312,7 +313,7 @@ func (i *InstallInfo) Save(path string) error {
 	}
 	data, err := json.MarshalIndent(i, "", "  ")
 	if err != nil {
-		return fmt.Errorf("序列化安装记录失败: %w", err)
+		return coded.Wrap(err, CodeInstallRecord)
 	}
 	return WriteAtomic(path, data)
 }
@@ -342,7 +343,7 @@ func LoadCacheIndex(path string) (*CacheIndex, error) {
 		if os.IsNotExist(err) {
 			return &CacheIndex{Schema: CacheSchema, Entries: map[string]CacheEntry{}}, nil
 		}
-		return nil, fmt.Errorf("读取缓存索引失败: %w", err)
+		return nil, coded.Wrap(err, CodeCacheIndexLoad)
 	}
 	var idx CacheIndex
 	if err := json.Unmarshal(data, &idx); err != nil {
@@ -390,7 +391,7 @@ func (c *CacheIndex) Total() int64 {
 func ParseSize(s string) (int64, error) {
 	s = strings.TrimSpace(strings.ToUpper(s))
 	if s == "" {
-		return 0, fmt.Errorf("容量为空")
+		return 0, coded.New(CodeCapacityEmpty)
 	}
 	multiplier := int64(1)
 	for _, unit := range []struct {
@@ -407,7 +408,7 @@ func ParseSize(s string) (int64, error) {
 	}
 	value, err := strconv.ParseFloat(s, 64)
 	if err != nil || value < 0 {
-		return 0, fmt.Errorf("容量 %q 无法解析（示例：5GB / 500MB / 1073741824）", s)
+		return 0, coded.New(CodeCapacityParse, s)
 	}
 	return int64(value * float64(multiplier)), nil
 }

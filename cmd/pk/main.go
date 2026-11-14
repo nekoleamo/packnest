@@ -103,7 +103,7 @@ func run(args []string, out, errOut io.Writer) int {
 
 	cmd, cmdArgs := rest[0], rest[1:]
 	if a.cfgErr != nil && cmd != "doctor" && cmd != "help" && cmd != "-h" && cmd != "--help" && cmd != "version" && cmd != "--version" {
-		return a.fail(errT(tr("配置不可用，先修好再操作: %w", "config unusable, fix it first: %w"), a.cfgErr))
+		return a.fail(errT(tr("配置不可用，先修好再操作: %s", "config unusable, fix it first: %s"), present.Text(a.cfgErr)))
 	}
 	switch cmd {
 	case "help", "-h", "--help":
