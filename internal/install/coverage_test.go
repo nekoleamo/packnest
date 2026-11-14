@@ -14,6 +14,7 @@ import (
 	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/store"
 	"github.com/packnest/packnest/internal/testkit"
+	"github.com/packnest/packnest/internal/verify"
 )
 
 // 补齐"平时不跑"的分支（完善路线 §E8c 的覆盖率部分）。
@@ -499,7 +500,7 @@ func TestCachedArchiveReVerifyFail(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 把缓存里的 npm 归档改坏：下次装必须发现"缓存与摘要不符"并重新下载
-	archives := filepath.Join(inst.opt.Paths.Root, "cache", "archives")
+	archives := inst.opt.Paths.CacheArchives()
 	entries, err := os.ReadDir(archives)
 	if err != nil {
 		t.Skipf("缓存目录结构变了: %v", err)
@@ -507,7 +508,8 @@ func TestCachedArchiveReVerifyFail(t *testing.T) {
 	tampered := 0
 	for _, e := range entries {
 		name := e.Name()
-		if !strings.Contains(name, "npm") {
+		// 归档名形如 `npm-12.2.2-darwin-arm64.tgz` 或内容寻址的 `<sha256>.tgz`（两份都改）
+		if !strings.HasPrefix(name, "npm-") && !strings.HasSuffix(name, ".tgz") {
 			continue
 		}
 		if err := os.WriteFile(filepath.Join(archives, name), []byte("corrupted"), 0o644); err != nil {
@@ -518,13 +520,18 @@ func TestCachedArchiveReVerifyFail(t *testing.T) {
 	if tampered == 0 {
 		t.Skip("缓存里没有 npm 归档（布局变了）")
 	}
-	// 清掉工具树（保留缓存）→ 重装：应当重新下载并用真摘要通过
+	// 清掉工具树（保留缓存）→ 重装。
+	// 注意：TOFU 命中时走"离线可验证"捷径，不会逐字节重算摘要，所以坏缓存**会先炸在解压**上；
+	// 关键是这一下必须**响亮失败 + 把坏缓存删掉**，紧接着的重试要能自动重下成功。
 	if err := os.RemoveAll(filepath.Join(inst.opt.Paths.Root, "tools")); err != nil {
 		t.Fatal(err)
 	}
 	inst.ledger.Installs = nil
+	if _, err := inst.Install(ctx, "npm", "12.2.2"); err == nil {
+		t.Fatal("缓存被改坏时必须失败（不能装出一个坏工具）")
+	}
 	if _, err := inst.Install(ctx, "npm", "12.2.2"); err != nil {
-		t.Fatalf("缓存被改坏后应自动重下并成功: %v", err)
+		t.Fatalf("坏缓存清理后，重试应自动重下并成功: %v", err)
 	}
 }
 
@@ -642,4 +649,122 @@ func TestCompanionEventHasReplaced(t *testing.T) {
 	if !found {
 		t.Fatalf("没有 companion 事件: %+v", events)
 	}
+}
+
+// TestVerifyArtifactBranches：verifyArtifact 的四条"摘要从哪来"的分支（直接调，不必真装）。
+func TestVerifyArtifactBranches(t *testing.T) {
+	arch := filepath.Join(t.TempDir(), "a.tar.gz")
+	if err := os.WriteFile(arch, []byte("payload"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sha := verify.SHA256File
+	sum, err := sha(arch)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("校验和 URL 渲染失败", func(t *testing.T) {
+		inst := newInstaller(t, nil, nil)
+		p := mkProvider("x", nil, "x")
+		p.Checksum = provider.ChecksumBlock{Format: "gnu-sums",
+			URLs: map[string]string{"default": "https://x/{unknown-placeholder}"}}
+		if _, err := inst.verifyArtifact(context.Background(), p, provider.Version{Version: "1.0.0"},
+			"darwin-arm64", "https://x/a.tar.gz", arch, sum, nil); err == nil {
+			t.Fatal("占位符不认识时必须报错")
+		}
+	})
+	t.Run("registry 摘要回源失败（离线）", func(t *testing.T) {
+		inst := newInstaller(t, nil, func(o *Options) { o.Client.Offline = true })
+		p := mkProvider("x", nil, "x")
+		p.Checksum = provider.ChecksumBlock{Format: provider.ChecksumRegistry,
+			URLs: map[string]string{"default": "https://registry.example/x"}}
+		if _, err := inst.verifyArtifact(context.Background(), p, provider.Version{Version: "1.0.0"},
+			"darwin-arm64", "https://x/a.tar.gz", arch, sum, nil); err == nil {
+			t.Fatal("离线时回源必须失败")
+		}
+	})
+	t.Run("inline 摘要（go 那种）", func(t *testing.T) {
+		inst := newInstaller(t, nil, nil)
+		p := mkProvider("x", nil, "x")
+		p.Checksum = provider.ChecksumBlock{Format: provider.ChecksumIndexInline}
+		res := provider.Version{Version: "1.0.0"}
+		// 没有平台文件信息时 inline 为空，但算法必须是 sha256 + 本地算的摘要
+		_, _ = inst.verifyArtifact(context.Background(), p, res, "darwin-arm64",
+			"https://x/a.tar.gz", arch, sum, nil) // 分支要覆盖的是"算摘要的方式"，不是校验结果
+	})
+	t.Run("其它格式（gnu-sums）用本地 sha256", func(t *testing.T) {
+		inst := newInstaller(t, nil, nil)
+		p := mkProvider("x", nil, "x")
+		p.Checksum = provider.ChecksumBlock{Format: "gnu-sums"} // 没有 URLs → sumsURLs 为空
+		_, err := inst.verifyArtifact(context.Background(), p, provider.Version{Version: "1.0.0"},
+			"darwin-arm64", "https://x/a.tar.gz", arch, "", nil) // sha 给空 → 校验源缺失，必报错
+		if err == nil {
+			t.Fatal("没有校验源时必须报错")
+		}
+	})
+}
+
+// TestUninstallBranches：卸载的三条分支（被引用而拒绝 / 目录已被手删 / 正常删掉并清 shim）。
+func TestUninstallBranches(t *testing.T) {
+	t.Run("被引用时拒绝", func(t *testing.T) {
+		inst := newInstaller(t, nil, nil)
+		dir := inst.opt.Paths.ToolVersion("node", "22.98.0")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		inst.ledger.Upsert(store.Install{Tool: "node", Version: "22.98.0", Path: dir,
+			References: []store.Ref{{Kind: store.RefGlobal}}})
+		err := inst.Uninstall("node", "22.98.0", false)
+		if err == nil || !strings.Contains(err.Error(), "仍被引用") {
+			t.Fatalf("被引用时应拒绝并说明: %v", err)
+		}
+		if _, statErr := os.Stat(dir); statErr != nil {
+			t.Fatalf("拒绝时不该删目录: %v", statErr)
+		}
+	})
+
+	t.Run("台账里没有", func(t *testing.T) {
+		inst := newInstaller(t, nil, nil)
+		if err := inst.Uninstall("ghost", "1.0.0", false); err == nil {
+			t.Fatal("不在台账里应报错（只提示不删）")
+		}
+	})
+
+	t.Run("目录已被手删", func(t *testing.T) {
+		inst := newInstaller(t, nil, nil)
+		dir := inst.opt.Paths.ToolVersion("node", "22.97.0")
+		inst.ledger.Upsert(store.Install{Tool: "node", Version: "22.97.0", Path: dir})
+		if err := inst.Uninstall("node", "22.97.0", false); err != nil {
+			t.Fatalf("目录不存在时应安静地清台账: %v", err)
+		}
+		if found := inst.ledger.Find("node", "22.97.0"); found != nil {
+			t.Fatal("台账记录应被删掉")
+		}
+	})
+
+	t.Run("正常删除并清 shim", func(t *testing.T) {
+		inst := newInstaller(t, nil, nil)
+		dir := inst.opt.Paths.ToolVersion("node", "22.96.0")
+		if err := os.MkdirAll(filepath.Join(dir, "bin"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		inst.ledger.Upsert(store.Install{Tool: "node", Version: "22.96.0", Path: dir,
+			References: []store.Ref{{Kind: store.RefGlobal}}})
+		inst.opt.Cfg.Tools = map[string]string{"node": "22.96.0"}
+		if err := os.MkdirAll(inst.opt.Paths.Bin(), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(filepath.Join(dir, "bin", "node"), filepath.Join(inst.opt.Paths.Bin(), "node")); err != nil {
+			t.Skip("这台机器建不了软链")
+		}
+		if err := inst.Uninstall("node", "22.96.0", true); err != nil {
+			t.Fatalf("正常卸载不该报错: %v", err)
+		}
+		if _, err := os.Lstat(filepath.Join(inst.opt.Paths.Bin(), "node")); !os.IsNotExist(err) {
+			t.Fatal("shim 应被清掉")
+		}
+		if got := inst.ActiveVersion("node"); got != "" {
+			t.Fatalf("当前默认应被清空: %q", got)
+		}
+	})
 }

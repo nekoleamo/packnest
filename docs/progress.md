@@ -1243,7 +1243,9 @@ env-unset / gc-nothing / use-switch / uninstall-missing / install-dry-run / inst
 
 ### ⚠️ 未完项（老实记账）
 
-路线文档要求 `internal/install` **≥92%**，当前 **90.5%**（约 19 条语句）。逐行清单（下次照着打，别再"加正常路径用例"刷比例）：
+路线文档要求 `internal/install` **≥92%**，当前 **90.8%**（约 118 条语句未覆盖，还差 ~16 条才到 92）。
+实测结论：剩下的是**长尾单条错误分支**（"失败时又失败"的双故障路径），一条用例只能换来 1–3 条语句 ——
+继续硬刷性价比很低。建议：**先把 E1 全量推进**（价值高得多），下次要碰覆盖率时按下面清单点名打。
 
 | 文件 | 未覆盖行 | 是什么 |
 |---|---|---|
@@ -1256,7 +1258,13 @@ env-unset / gc-nothing / use-switch / uninstall-missing / install-dry-run / inst
 | `upgrade.go` | 50, 62, 78, 84, 100/106, 200, 218, 233 | `Upgrade` 的 provider/索引失败与 npm 伴生分支（部分已被 `upgrade_test` 覆盖） |
 
 本轮已补：`New` 默认值与 known.json 损坏、锁文件的"读不了/内容坏/没有"、`installedVersion` 非法说明符、
-**缓存归档被改坏→自动重下**、`ApplyUninstallAll` 的 purge 三种收尾、通用伴生包安装 + `companion` 事件。
+**缓存归档被改坏→响亮失败并自动清缓存、重试重下**、`ApplyUninstallAll` 的 purge 三种收尾、通用伴生包安装 +
+`companion` 事件、`verifyArtifact` 的四条"摘要从哪来"分支（URL 渲染失败 / 离线回源失败 / inline / gnu-sums）、
+`Uninstall` 的四条分支（被引用拒绝 / 不在台账 / 目录已被手删 / 正常删并清 shim）。
+
+**顺手发现一个真实行为特征（已写成断言）**：TOFU 命中时走"离线可验证"捷径、不逐字节重算摘要，
+所以**缓存文件被改坏会先炸在解压**上（不是校验）—— 关键是这一下必须响亮失败并且**把坏缓存删掉**，
+紧接着的重试要能自动重下成功。`TestCachedArchiveReVerifyFail` 就按这个行为锁住的。
 
 **顺手修掉的三处**（都是新用例当场抓的）：
 1. `--atomic` 的 commit 阶段失败时，**已落盘的目标也被标成 abort**（`abortAll` 只看 `out[].Err`，不看"是否已提交"）→ 加 `committed[]` 跳过；
