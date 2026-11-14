@@ -46,6 +46,7 @@ func (a *app) cmdInstall(args []string) int {
 	rehash := fs.Bool("force-rehash", false, tr("忽略本地校验表，重新向校验源求值并覆盖记录", "ignore the local TOFU table and re-evaluate against checksum sources"))
 	quiet := fs.Bool("quiet", false, tr("只报错，不打印进度", "only print errors, no progress"))
 	dryRun := fs.Bool("dry-run", false, tr("只解析并打印计划（版本/URL/校验方式），不下载", "resolve and print the plan (version/URL/checksum mode) without downloading"))
+	atomic := fs.Bool("atomic", false, tr("全成功才落盘：任一工具失败则整批放弃（不写台账、不切默认版本）", "all-or-nothing: if any tool fails, nothing is kept (no ledger writes, no default switch)"))
 	corepack := fs.Bool("corepack", false, tr("装 node 后启用 corepack（只有 node ≤24 自带；写进 config.toml）", "enable corepack after installing node (bundled up to node 24; persisted in config.toml)"))
 	noCorepack := fs.Bool("no-corepack", false, tr("关闭 corepack（写进 config.toml）", "disable corepack (persisted in config.toml)"))
 	if err := parseFlexible(fs, args); err != nil {
@@ -128,6 +129,7 @@ func (a *app) cmdInstall(args []string) int {
 		Project:        project,
 		Frozen:         *frozen,
 		DryRun:         *dryRun,
+		Atomic:         *atomic,
 		Corepack:       a.cfg.Corepack,
 		Lock:           lockFile,
 		Events:         a.eventWriterFor(*quiet),

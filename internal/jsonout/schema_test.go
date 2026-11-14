@@ -61,6 +61,8 @@ func TestContractEvents(t *testing.T) {
 		{Ev: "verify", Tool: "node", Version: "22.22.2", Mode: "network", OK: &ok},
 		{Ev: "companion", Tool: "npm", Version: "12.2.2", Msg: "replaced 11.20.0"},
 		{Ev: "done", Tool: "node", Version: "22.22.2", Path: "/u/.packnest/tools/node/22.22.2"},
+		// 1.8 起新增（--atomic 失败时）：未提交的目标各一条，说明整批已放弃
+		{Ev: "abort", Tool: "pnpm", Msg: "本批已放弃（node@22.22.2 失败）"},
 	}
 	var buf bytes.Buffer
 	for _, ev := range events {

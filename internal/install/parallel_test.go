@@ -329,3 +329,67 @@ func TestInstallSingleNoProgressFor(t *testing.T) {
 		t.Fatalf("单目标不该调用 ProgressFor（会与 CLI 的回调重复）: %d 次", n)
 	}
 }
+
+// TestInstallManyAtomicAllSucceed（E5）：全部 prepare 成功时按层提交，台账两行。
+func TestInstallManyAtomicAllSucceed(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{
+			{Version: "22.98.0", NPMVersion: "11.20.0"},
+			{Version: "22.99.0", NPMVersion: "11.20.0"},
+		},
+		NPM: npmMatrix(),
+	})
+	inst := newInstaller(t, fm, func(o *Options) { o.Atomic = true })
+	out := inst.InstallMany(context.Background(), []Target{{Tool: "node", Spec: "22.98.0"}, {Tool: "node", Spec: "22.99.0"}})
+	if err := inst.Finalize(); err != nil {
+		t.Fatal(err)
+	}
+	for _, oc := range out {
+		if oc.Err != nil {
+			t.Fatalf("%s@%s 失败: %v", oc.Tool, oc.Spec, oc.Err)
+		}
+	}
+	if n := len(inst.Ledger().Installs); n < 2 {
+		t.Fatalf("--atomic 全成功时应全部落盘，台账 %d 条", n)
+	}
+}
+
+// TestAbortAllCleansTmp（E5）：被放弃的目标要删临时目录，并带上 AbortError（可 errors.Is 到根因）。
+func TestAbortAllCleansTmp(t *testing.T) {
+	inst := newInstaller(t, nil, nil)
+	tmp := filepath.Join(inst.opt.Paths.Root, "tools", "node", "22.1.0.tmp.deadbeef")
+	if err := os.MkdirAll(tmp, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	targets := []Target{{Tool: "node"}, {Tool: "ghost"}}
+	out := make([]Outcome, len(targets))
+	preps := []*prepared{{tmpDir: tmp}, nil}
+	cause := errors.New("ghost 失败")
+
+	inst.abortAll(targets, out, preps, nil, cause)
+
+	if _, err := os.Stat(tmp); !os.IsNotExist(err) {
+		t.Fatalf("临时目录必须删掉: %v", err)
+	}
+	var ab *AbortError
+	if !errors.As(out[0].Err, &ab) || ab.Tool != "node" {
+		t.Fatalf("应为 node 返回 AbortError: %+v", out[0].Err)
+	}
+	if !errors.Is(out[0].Err, cause) {
+		t.Fatal("AbortError 必须能 unwrap 到根因")
+	}
+	if !strings.Contains(out[0].Err.Error(), "未安装") {
+		t.Fatalf("AbortError 文案应说清没装: %q", out[0].Err.Error())
+	}
+}
+
+// TestFirstErr 按顺序取第一个错误（--atomic 的"哪个先失败"必须可复现）。
+func TestFirstErr(t *testing.T) {
+	if got := firstErr([]error{nil, nil}); got != nil {
+		t.Fatalf("全 nil 应返回 nil: %v", got)
+	}
+	e1, e2 := errors.New("a"), errors.New("b")
+	if got := firstErr([]error{nil, e1, e2}); got != e1 {
+		t.Fatalf("应取第一个错误: %v", got)
+	}
+}

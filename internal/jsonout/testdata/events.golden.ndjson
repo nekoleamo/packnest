@@ -35,5 +35,10 @@
     "tool": "node",
     "version": "22.22.2",
     "path": "/u/.packnest/tools/node/22.22.2"
+  },
+  {
+    "ev": "abort",
+    "tool": "pnpm",
+    "msg": "本批已放弃（node@22.22.2 失败）"
   }
 ]

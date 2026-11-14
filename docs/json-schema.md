@@ -51,6 +51,9 @@
 | `companion` | `tool,version,msg` | 伴生包替换（`msg` 形如 `replaced 11.20.0`） |
 | `done` | `tool,version,path` | 落盘完成 |
 | `uninstall` | `tool,version` | 卸载完成 |
+| `abort` | `tool,msg` | **1.8 起**：`--atomic` 下这一批被整体放弃，本目标没有落盘（`msg` 说明原因）。出现在该目标其它事件之后；GUI 按 `tool` 分组时遇到 `abort` 就把整组作废 |
+
+`ev` 的值是**只增不改**的：脚本与 GUI 必须忽略自己不认识的 `ev`（1.8 新增 `abort` 就是按这条加的）。
 
 GUI（作为 CLI 的可视化补充，走子进程 + `--json`）只需要：读 `schema` 判契约版本；
 进度条用 `progress.bytes_done/bytes_total`（`download` 只给最终大小）；"是否校验过"看 `verify.mode`；

@@ -1197,3 +1197,19 @@ env-unset / gc-nothing / use-switch / uninstall-missing / install-dry-run / inst
 
 **为什么单目标不挂两遍**：`InstallMany` 单目标直接走 `Install()`（不复制 client），CLI 已经把回调设在共享 client 上；
 如果再调 `ProgressFor` 就会把同一次下载画两遍 —— `TestInstallSingleNoProgressFor` 锁住这条。
+
+## 批 3 · E5 `--atomic`（可选原子语义）
+
+| 项 | 结果 |
+|---|---|
+| 语义 | `pk install --atomic`：**先全部 prepare，再全部 commit**。任一 prepare 失败 → 删掉所有已就绪临时目录、不写台账、不切默认版本、不装 shim；`--json` 下为每个**未提交**目标发一条 `{"ev":"abort","tool":…,"msg":…}` |
+| 默认不变 | 不带 `--atomic` 仍是"尽力而为"（一个失败不影响其他工具）——`TestAcceptance_Par_AtomicDefaultUnchanged` 锁住 |
+| 依赖 | `checkRequires` 认 `planned`（同一批里马上要装的工具），否则 `pnpm` 会因为在等的 `node` 还没 commit 而报"先装 node" |
+| 边界写清 | commit 阶段失败的**已落盘部分不回滚**（rename 原子，但跨工具没有真事务）；help 与 `docs/json-schema.md` 都这么写，不夸大 |
+| 契约 | `docs/json-schema.md` 增 `abort`（`ev` 只增不改，脚本/GUI 必须忽略未知 `ev`）；`events.golden.ndjson` **只追加** 1 条，既有 6 条零改动 |
+| 验收 | `TestAcceptance_Par_AtomicAllOrNothing`（台账空 / 无工具目录 / 无 shim / 无 `.tmp`）、`_AtomicDefaultUnchanged`、`_AtomicAbortEvent`（只给未提交目标发、必带 msg、失败批不出现 `done`） |
+| 单测 | 「全成功才提交」路径、`abortAll` 的清理与 `AbortError`（可 unwrap 到根因）、`firstErr` 顺序 |
+| 行数 | `internal/install` 2504 → 2636（预算 2600 → **2700**，理由：`--atomic` 全流程 + abort 收拾） |
+
+**踩到的一处坑**：prepare 阶段的失败原先只落在 `errs[]` 里，`abortAll` 按 `out[].Err` 判断"自己失败的"，
+于是 ghost 明明失败了却又多发了一条 abort（验收用例当场抓到）。修法：abort 前先把 prepare 错误同步进 outcome。

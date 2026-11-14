@@ -1,5 +1,5 @@
 $ pk help install
-pk install [工具[@版本]]... [--frozen] [--insecure] [--force] [--force-rehash] [--quiet] [--corepack|--no-corepack]
+pk install [工具[@版本]]... [--frozen] [--insecure] [--force] [--force-rehash] [--quiet] [--atomic] [--corepack|--no-corepack]
 
   装工具。不带参数时按当前目录的 pk.toml 全装。
   作用域：没有 --global/--project 开关，由当前目录决定：
@@ -11,6 +11,9 @@ pk install [工具[@版本]]... [--frozen] [--insecure] [--force] [--force-rehas
     pk install                 按 pk.toml 全装（没有 pk.toml 则报错）
     pk install node            装 pk.toml 里 pin 的 node；没有则最新稳定版
     pk install node@22         显式 spec，不受 pk.toml 影响
+  --atomic：全成功才落盘。任一工具失败就删掉全部临时目录、不写台账、不切默认版本，
+            并为每个未提交的目标发一条 {"ev":"abort"} 事件（CI / "一次装齐"的场景用）。
+            注意它只保证"prepare 阶段全过才提交"：commit 阶段失败的已落盘部分不回滚。
   退出码：0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用
 
 开关与默认值：pk install --help

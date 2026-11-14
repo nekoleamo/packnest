@@ -274,6 +274,9 @@ func (i *Installer) InstallMany(ctx context.Context, targets []Target) []Outcome
 		}
 	}
 	levels := i.planLevels(targets)
+	if i.opt.Atomic {
+		return i.installAtomic(ctx, targets, out, levels)
+	}
 	sem := make(chan struct{}, 3)
 	for _, lvl := range levels {
 		if err := ctx.Err(); err != nil {
@@ -392,4 +395,108 @@ func (i *Installer) planLevels(targets []Target) [][]int {
 		}
 	}
 	return out
+}
+
+// installAtomic 是 --atomic 的实现：**先全部 prepare，再全部 commit**。
+//
+// 任一 prepare 失败 → 删掉所有已就绪的临时目录（磁盘零残留）、不写台账、不切默认版本，
+// 并给每个未提交的目标发一条 `{"ev":"abort"}`（GUI/脚本据此知道"这一批整体没生效"）。
+// commit 阶段失败时不回滚已落盘的目标（rename 是原子的，但跨工具没有真事务）——
+// 文档里写清了这一点，别让 --atomic 听起来比它做到的更多。
+func (i *Installer) installAtomic(ctx context.Context, targets []Target, out []Outcome, levels [][]int) []Outcome {
+	i.planned = make(map[string]bool, len(targets))
+	for _, t := range targets {
+		i.planned[t.Tool] = true
+	}
+
+	preps := make([]*prepared, len(targets))
+	errs := make([]error, len(targets))
+	sem := make(chan struct{}, 3)
+	for _, lvl := range levels {
+		if err := ctx.Err(); err != nil {
+			for _, k := range lvl {
+				errs[k] = err
+			}
+			break
+		}
+		var wg sync.WaitGroup
+		for _, k := range lvl {
+			wg.Add(1)
+			go func(k int) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				preps[k], errs[k] = i.prepare(ctx, targets[k].Tool, targets[k].Spec, false)
+			}(k)
+		}
+		wg.Wait()
+		if firstErr(errs) != nil {
+			break // 后续层不再 prepare：这一批要整体放弃
+		}
+	}
+
+	// 全部 prepare 成功 → 按层提交（层内顺序即依赖顺序）
+	if firstErr(errs) == nil {
+		for _, lvl := range levels {
+			for _, k := range lvl {
+				out[k].Res, out[k].Err = i.commit(ctx, preps[k])
+				if out[k].Err != nil {
+					// 已 commit 的保持（无法回滚），其余转 abort
+					errs[k] = out[k].Err
+					break
+				}
+			}
+			if firstErr(errs) != nil {
+				break
+			}
+		}
+	}
+
+	if err := firstErr(errs); err != nil {
+		// prepare 阶段的失败先落到各自的 outcome 上（它们自己就是"失败"，不是"被放弃"）
+		for k, perr := range errs {
+			if perr != nil && out[k].Err == nil {
+				out[k].Err = perr
+			}
+		}
+		i.abortAll(targets, out, preps, errs, err)
+	}
+	return out
+}
+
+// abortAll 收拾残局：删临时目录（磁盘零残留）+ 为未提交目标发 abort 事件。
+func (i *Installer) abortAll(targets []Target, out []Outcome, preps []*prepared, errs []error, cause error) {
+	for k := range targets {
+		if out[k].Err != nil { // 自己就失败了：保留它自己的错误，不再发 abort
+			continue
+		}
+		if preps[k] != nil && preps[k].tmpDir != "" {
+			_ = os.RemoveAll(preps[k].tmpDir)
+		}
+		msg := fmt.Sprintf("本批已放弃（%s）", cause.Error())
+		out[k].Err = &AbortError{Tool: targets[k].Tool, Cause: cause}
+		i.emit(jsonout.Event{Ev: "abort", Tool: targets[k].Tool, Msg: msg})
+	}
+}
+
+// AbortError 表示"因为同一批里别的工具失败，这个目标没被落盘"（--atomic）。
+type AbortError struct {
+	Tool  string
+	Cause error
+}
+
+func (e *AbortError) Error() string {
+	return fmt.Sprintf("%s 未安装：%v", e.Tool, e.Cause)
+}
+
+func (e *AbortError) Unwrap() error { return e.Cause }
+
+// firstErr 返回第一个非 nil 错误（按 targets 顺序，保证可复现）。
+func firstErr(errs []error) error {
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

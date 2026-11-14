@@ -60,6 +60,10 @@ type Options struct {
 	DryRun bool
 	// Frozen 为 true 时不解析版本，直接按 Lock 装（CI 用）。
 	Frozen bool
+	// Atomic 为 true 时"全成功才落盘"：先把所有目标 prepare 完，任一失败就删掉全部
+	// 临时目录、不写台账、不切默认版本，并为每个未提交的目标发一条 abort 事件。
+	// 默认 false（保持"尽力而为"：一个失败不影响其他工具）。
+	Atomic bool
 	// Lock 是 pk.lock 的内容（--frozen 必需）。
 	Lock *Lock
 	// TTL 是索引缓存时长。
@@ -104,6 +108,9 @@ type Installer struct {
 	// pf 是"正在后台加载的索引"（键为 provider ID）。多工具并行安装时多个 worker 共享它，
 	// 同一份索引不重复拉；互斥在 indexCache 内部。
 	pf *indexCache
+	// planned 是本次 --atomic 一起装的目标集合：require 检查要认"同一批里马上就有"的工具
+	// （否则 pnpm 会因为在等的 node 还没 commit 而报"先装 node"）。
+	planned map[string]bool
 }
 
 // New 加载台账与校验表。
@@ -308,7 +315,7 @@ func (i *Installer) removeShimsFor(dir string) error {
 // checkRequires 校验工具依赖（pnpm 需要 node，方案 §18.1）：不自动装，只给建议。
 func (i *Installer) checkRequires(p *provider.Provider) error {
 	for _, need := range p.Requires {
-		if i.ledger.Active(need) != "" || len(i.installedVersions(need)) > 0 {
+		if i.planned[need] || i.ledger.Active(need) != "" || len(i.installedVersions(need)) > 0 {
 			continue
 		}
 		return fmt.Errorf("%s 需要 %s：先 `pk install %s` 再装 %s（我们不隐式安装运行时）", p.ID, need, need, p.ID)
