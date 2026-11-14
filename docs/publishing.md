@@ -98,6 +98,10 @@ make verify-release                                     # 远端有 .sig 就一�
 - 公钥要同时写进三处，否则用户侧认不出：`internal/verify/keys/allowed_signers`、
   `scripts/install.sh` 的 `ALLOWED_SIGNERS`、`scripts/install.ps1` 的 `$AllowedSigners`。
 - 轮换时 allowed_signers 最多留两把（当前 + 下一把），先发带新公钥的版本，下一版才用新钥签。
+- **备份**：可以用 Time Machine 等自动备份防丢失，但备份盘常连且未加密时，本机被接管就多了一条读私钥的路径；
+  至少勾选「加密备份」，或把私钥排除出自动备份、只留一份离线冷备。半年做一次恢复演练（恢复 → 签一份清单 → 验签通过）。
+- **撤销要清历史**：TM / 快照 / 云盘版本历史会留旧私钥副本。轮换或泄露处置后要一并删掉含旧钥的快照，
+  否则三处公钥都删了，旧私钥仍能签出看起来合法的清单。
 - **brew / scoop 不验签名**（只认清单里的 sha256），这是渠道能力边界，别在文档里承诺覆盖。
 
 ## 四、gitee（国内二进制主源）
