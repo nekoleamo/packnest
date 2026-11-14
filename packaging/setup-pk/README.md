@@ -70,3 +70,36 @@ restore-keys 前缀回退到"同 os/arch/version 的最近一份"。
 - 只有 `linux/macOS`（跑 bash）与 `windows`（Git Bash）三种 runner；别的系统自己 `sh install.sh`；
 - `pk install --frozen` 需要仓库里提交了 `pk.lock`（没提交就按 `pk.toml` 解析）；
 - 这个 action **不替你做** `npm ci` / `pnpm install`：它只保证"运行时与包管理器版本正确"，依赖安装仍是你自己的事。
+
+## 建仓步骤（一次性，约 5 分钟）
+
+这个目录是给**独立仓库** `nekoleamo/setup-pk` 用的；packnest 仓库只留源文件。步骤：
+
+```bash
+# 1) 建空仓库（public，Action 必须 public 才能被外部仓库引用）
+gh repo create nekoleamo/setup-pk --public \
+  --description "Install packnest (pk) and the toolchain declared in pk.toml"
+
+# 2) 只把这四件推过去（不要带 packnest 的整棵树）
+work=$(mktemp -d) && cd "$work" && git init -q
+cp <packnest>/packaging/setup-pk/action.yml .
+cp <packnest>/packaging/setup-pk/README.md .
+mkdir -p .github/workflows && cp <packnest>/packaging/setup-pk/examples/self-test.yml .github/workflows/
+cp <packnest>/packaging/setup-pk/examples/ci.yml examples-ci.yml   # 示例，不放 workflows
+git add -A && git commit -qm "setup-packnest action" && git branch -M main
+git remote add origin git@github.com:nekoleamo/setup-pk.git && git push -q -u origin main
+
+# 3) 仓库变量（Settings → Variables，或 gh api）：self-test 会用它们
+gh variable set PK_VERSION --repo nekoleamo/setup-pk --body 1.7.0
+gh variable set PK_INSTALLER_SHA256 --repo nekoleamo/setup-pk \
+  --body "$(curl -fsSL https://gitee.com/null_593_5354/packnest/raw/v1.7.0/scripts/install.sh | shasum -a 256 | cut -d' ' -f1)"
+
+# 4) 打 tag 让外部仓库能按主版本引用（`uses: nekoleamo/setup-pk@v1`）
+git tag -a v1 -m "setup-packnest v1" && git push -q origin v1
+```
+
+**验收（DoD）**：仓库里 `self-test` 工作流跑绿 —— `cold` job 断言 `cache-hit=false` 且出现 `download` 事件，
+`warm` job 断言 `cache-hit=true`、清掉工具树后重装出现 `cache` 事件（命中缓存 = 零网络）。
+
+> 为什么 `installer-sha256` 用仓库变量而不是写死在 action 里：变量可以按版本改，而 action 代码不变；
+> 且换版本时 pin 值必须跟着换（tag 下的脚本内容变了），写死会静默失效。

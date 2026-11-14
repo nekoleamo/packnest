@@ -1361,3 +1361,10 @@ brew cask 是否排期（不排期就把 `docs/gui.md` 写明"mac 用 curl 脚�
 | 落地 | `docs/json-schema.md` 新增「字段语义」表；`internal/jsonout/Event` 注释写明纪律；GUI 的 `pkcli.Event` 补 `replaced` 并注明"Msg 只用来显示" |
 | 测试 | `TestCompanionEventHasReplaced`（断言 `replaced` 真的有值且不等于新版本）· `events.golden.ndjson` 追加 `companion.replaced` 与整条 `mirror` 事件（8 → 9 条，既有事件零改动） |
 | 解锁了什么 | E1 全量可以按包推进了：`internal/*` 的文案改成"错误码 + 参数"之后，`msg` 怎么变都不影响任何消费者 |
+
+### E7 收尾：建仓清单（等仓库）
+
+`packaging/setup-pk/README.md` 末尾补了「建仓步骤」四步（`gh repo create` → 只推四件 → 设 `PK_VERSION` /
+`PK_INSTALLER_SHA256` 两个仓库变量 → 打 `v1` tag），DoD 仍是仓库里 `self-test` 的 cold/warm 两 job 跑绿。
+**本仓库侧已全部就绪**（action.yml 的 YAML 能解析、五个步骤的 `run:` 抽出来过了 `sh -n`、
+`v1.6.0` 的 `install.sh` 实测可下载且 sha256 稳定）—— 剩下的动作只能在那个仓库里做。
