@@ -1055,6 +1055,12 @@ warn 消失。
 - 公钥指纹：`SHA256:uT8D1e8Pgu4W5E7qh0e/3n3IvOxL2CG7l+4OqFiIuVw`
 - 公钥已写进三处：`internal/verify/keys/allowed_signers`、`scripts/install.sh`、`scripts/install.ps1`（`make keys` 校验）
 
-### 发版 v1.6.0
+### 发版 v1.6.0（2026-11-14）
 
-见下方「发版记录」。
+| 项 | 结果 |
+|---|---|
+| CLI v1.6.0 | gitee + GitHub Releases 各 **8 产物**（6 归档 + `checksums.txt` + `checksums.txt.sig`），`make verify-release` 逐条 OK 且**签名 OK** |
+| 渠道 | tap / bucket 推到 1.6.0，线上核对 OK（`brew install nekoleamo/packnest/packnest`） |
+| 官网 | 中英均为 v1.6.0（版本号由 tag 注入），并已写入并行安装 / sshsig / `--lang` |
+| smoke | 用发布版 `dist/install.sh` 从 gitee 真装到临时目录：`sshsig OK（发布签名）` + `sha256 OK`，`pk --version` = 1.6.0 |
+| 发版链路坑 | `make release` 的版本号原先取 `git describe --always --dirty`，工作树有改动时会产出 `1.6.0-dirty` 这种名字；已改为**只取最近 `v*` tag**，且工作树不干净直接拒绝发版 |
