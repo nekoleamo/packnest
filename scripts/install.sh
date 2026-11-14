@@ -164,7 +164,8 @@ if [ "$SKIP_VERIFY" -eq 0 ]; then
     echo "  提示：该版本没有发布签名（${sig_url}），本次只比对 sha256" >&2
   fi
 
-  want=$(printf '%s\n' "$sums" | awk -v f="${name}.tar.gz" '$2==f {print $1; exit}')
+  # sha256sum 的二进制模式会在文件名前加 `*`：两种都认（Git Bash / 某些镜像的命令输出）
+  want=$(printf '%s\n' "$sums" | awk -v f="${name}.tar.gz" '{ n=$2; sub(/^\*/, "", n); if (n==f) { print $1; exit } }')
   got=$(sha256_of "$tmp/pk.tar.gz")
   if [ -z "$want" ] || [ -z "$got" ]; then
     echo "拿不到 ${name}.tar.gz 的 sha256（${sums_url}）；确认来源可信后可加 --skip-verify" >&2

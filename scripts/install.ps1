@@ -202,12 +202,20 @@ try {
         $signersTmp = Join-Path $tmp.FullName 'allowed_signers'
         $sumsFile = Join-Path $tmp.FullName 'checksums.txt'
         Set-Content -Path $signersTmp -Value $AllowedSigners -NoNewline
-        # ssh-keygen -Y verify 从 stdin 读待验数据：末尾必须有一个换行，否则最后一个哈希行会被吞
         Set-Content -Path $sumsFile -Value (($sums.TrimEnd()) + "`n") -NoNewline
-        $verifyOut = (Get-Content $sumsFile -Raw | & ssh-keygen -Y verify -f $signersTmp `
-          -I 'release@packnest.dev' -n pk-release -s $sigTmp 2>&1) -join "`n"
-        if ($verifyOut -notmatch 'Good "pk-release" signature') {
-          throw "Signature verification failed for $sigUrl (artifact or checksums may be tampered with)."
+        # 待验数据必须走**文件重定向**，不能用 PowerShell 管道：管道会给最后一行再补一个换行，
+        # ssh-keygen 看到的字节就跟签名时不一致了 → 永远验不过（Windows CI 首跑就是这么全红的）。
+        $sigOut = Join-Path $tmp.FullName 'sig.out'
+        $sigErr = Join-Path $tmp.FullName 'sig.err'
+        $proc = Start-Process -FilePath $ssh.Source -NoNewWindow -Wait -PassThru `
+          -ArgumentList @('-Y', 'verify', '-f', $signersTmp, '-I', 'release@packnest.dev',
+            '-n', 'pk-release', '-s', $sigTmp) `
+          -RedirectStandardInput $sumsFile -RedirectStandardOutput $sigOut -RedirectStandardError $sigErr
+        if ($proc.ExitCode -ne 0) {
+          $detail = ((Get-Content $sigErr -Raw -ErrorAction SilentlyContinue) +
+            (Get-Content $sigOut -Raw -ErrorAction SilentlyContinue))
+          if ($detail) { $detail = $detail.Trim() }
+          throw "Signature verification failed for $sigUrl (artifact or checksums may be tampered with). $detail"
         }
         Write-Host '  verify: sshsig OK (release signature)'
       } else {
@@ -217,8 +225,13 @@ try {
 
     $want = $null
     foreach ($line in ($sums -split "`n")) {
-      $f = $line.Trim() -split '\s+'
-      if ($f.Count -ge 2 -and $f[1] -eq "${name}.zip") { $want = $f[0]; break }
+      $l = $line.Trim()
+      if (-not $l) { continue }
+      $f = $l -split '\s+'
+      if ($f.Count -lt 2) { continue }
+      # 有的 sha256sum 是二进制模式：文件名前多一个 `*`（sha256sum -b / Git Bash）
+      $fn = $f[$f.Count - 1].TrimStart('*')
+      if ($fn -eq "${name}.zip") { $want = $f[0]; break }
     }
     if (-not $want) {
       throw "No sha256 for ${name}.zip in $sumsUrl. Re-run with -SkipVerify only if you trust the source."

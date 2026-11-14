@@ -349,7 +349,7 @@ say "== gui-v* release 回收排序"
 awk '/^gui_release_list\(\)/,/^}/' "$ROOT/scripts/release-gui.sh" > "$WORK/gui_list.sh"
 set +e
 sorted=$(printf '%s' '[{"tag_name":"gui-v0.9.0","id":1},{"tag_name":"gui-v0.10.2","id":2},{"tag_name":"v1.6.0","id":3},{"tag_name":"gui-v0.10.10","id":4}]' \
-  | PYBIN="$PY" sh -c '. "$1" 2>/dev/null; gui_release_list' _ "$WORK/gui_list.sh" 2>/dev/null | tr '\n' ' ')
+  | PYBIN="$PY" sh -c '. "$1" 2>/dev/null; gui_release_list' _ "$WORK/gui_list.sh" 2>/dev/null | tr -d '\r' | tr '\n' ' ')
 set -e
 if [ "$sorted" = "gui-v0.9.0 1 gui-v0.10.2 2 gui-v0.10.10 4 " ]; then
   ok "gui_release_list：只认 gui-v*，按版本升序（0.10.10 在 0.10.2 之后）"
