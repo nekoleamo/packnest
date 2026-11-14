@@ -1683,3 +1683,36 @@ ubuntu + windows）· `smoke`（5 平台真装 node+pnpm）· `pages` · `gitee-
 新增用例：`cachealias_test.go`（复用/`--force`/悬空/脏别名/摘要归一化）、`cachealias_cover_test.go`
 （别名与寻址的四条未命中分支、`sumsRefs` 三条失败分支）、`upgrade_cover_test.go`（upgrade 四条单工具失败 +
 列表投影/排序 + `OutdatedHints`）、`lock_test.go`（nil 锁、坏项目文件的边角）。
+
+## v1.8.0 发版（2026-11-15）
+
+```
+make release VERSION=1.8.0         # 6 平台 + provenance + sbom + checksums（11 件）
+PK_SIGNING_KEY=~/.packnest-signing/pk-release-2026 sh scripts/sign-release.sh
+sh scripts/release-gitee.sh        # gitee release（10 件，含 .sig）
+make github-release                # GitHub Releases 同一批产物
+make verify-release                # 线上回读：签名 OK，8 个产物逐条一致
+make publish-manifests             # brew tap + scoop bucket（推完回读核对）
+```
+
+- tag `v1.8.0` 指向 **97789ba**（=`provenance.json` 里记的 commit；发版后的"scripts/latest → 1.8.0"
+  那次提交不进产物）。tag 是 `release-gitee.sh` 上传时建的，本地**不要**再建同名 tag，更不要删 tag
+  （gitee 附件挂在 tag 上，删了全 404）。
+- `brew uninstall packnest && brew install nekoleamo/packnest/packnest` → `packnest v1.8.0` 实测通过。
+  ⚠️ 本机 tap clone 不刷新时会装到旧版本（看到 `Formula packnest (1.6.0)` 就是缓存），
+  `HOMEBREW_NO_AUTO_UPDATE=1` 下尤其明显：`cd .../Library/Taps/nekoleamo/homebrew-packnest && git fetch && git reset --hard origin/main`。
+
+### 发版时抓到的第 9 个 bug：渠道清单预检把"多出来的哈希"当错误
+
+`release-taps.sh` 的预检原本要求"清单里的 hash 集合 == `checksums.txt` 的全部 hash"。
+1.7 起 `checksums.txt` 里还有 `provenance.json` / `sbom.cdx.json`（它们不进 brew/scoop 清单），
+于是 1.8.0 一发版就卡住：`只在 checksums: 1ee0956d… / c9cd1d05…`。推完回读同一个毛病。
+判据改成双向子集：**清单 ⊆ checksums**（不能有 checksums 不认识的 hash）**且覆盖全部归档**
+（`packnest_*` 一个都不能漏）——两个方向都能出真事故（0.8.0 的"陈旧清单覆盖 tap"就是第二个方向）。
+
+### setup-pk 关账
+
+- `self-test.yml` 的 warm job 现在**连 `state/` 一起清**（真·新 runner），断言"只出 cache 事件、不出 download"；
+- 仓库变量更新：`PK_VERSION=1.8.0`、`PK_INSTALLER_SHA256=9ff50b11…`（`scripts/install.sh` 的 sha256）；
+- 实测（run 43640283127）：**cold 39s / warm 44s 双绿**，warm 日志里 `缓存命中 node@22.23.5（54.2 MB，0 网络）`
+  `缓存命中 npm@12.2.2（2.9 MB，0 网络)` —— R-CACHE-1 在消费方 CI 上也证完了。
