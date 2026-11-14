@@ -1758,3 +1758,21 @@ sh scripts/install-gui.sh --version 0.11.1 --dir /tmp/x   # 用户视角实测�
 - 实际执行：删掉 `gui-v0.10.0` ~ `0.10.3`（这四版没有 `checksums.txt`，`install-gui.sh` 装不了），
   保留 `0.10.4` / `0.11.0` / `0.11.1`。现在 gitee 与 GitHub 的 gui-v* 各 3 个，
   三个版本的清单都是 3 行 + 签名可验（0.10.4 也按"删 release 重建"补齐了）。
+
+### Scoop 桌面端清单真正发布 + 生成器两个 bug（2026-11-15）
+
+答"桌面端怎么装"时查了一遍现状，发现文档写的 Scoop 渠道其实**没上线**（bucket 里只有 CLI 的
+`packnest.json`）——因为发版时 `dist/gui/checksums.txt` 还不存在（就是上面那个清单为空的 bug），
+`gen-manifests.sh` 直接跳过了 GUI 清单。补跑之后又暴露两个生成器问题：
+
+1. **无脑写两个架构**：GUI 只发 windows-amd64，清单却固定生成 `64bit` + `arm64` 两条，
+   arm64 那条的 hash 是空的（清单里没有那个产物）→ ARM Windows 上会去装一个不存在的 zip。
+   现在按 `checksums.txt` 里**真实存在的产物**动态生成架构段。
+2. **GUI 清单的 `checkver.regex` 是非法 JSON**：`"gui-v([\d.]+)"`（单个反斜杠）——
+   CLI 那份写的是 `[\\d.]`（合法），GUI 这份漏了一层。PowerShell 的 `ConvertFrom-Json` 能容忍，
+   所以 scoop 侧没炸；但任何严格 JSON 工具（python/gh/CI 校验）都会拒绝。
+3. 顺带把 GUI 清单纳入发布核对：`release-taps.sh` 的 GUI 子集预检本来就是对的，
+   现在远端回读 `packnest-desktop.json` 与本地一致。
+
+现状：`scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket && scoop install packnest-desktop`
+可用（0.11.1，amd64，depends packnest）。

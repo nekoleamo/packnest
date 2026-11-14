@@ -85,6 +85,10 @@ JSON
 
 # ── GUI（packnest-desktop）的 Scoop 清单 ────────────────────────────────
 # 版本从产物文件名里取（GUI 与 CLI 版本解耦，不能拿 dist/latest）；没构建过 GUI 就跳过。
+#
+# ⚠️ **只写真实存在的架构**：GUI 目前只发 windows-amd64。早先无条件写 64bit + arm64 两条，
+# arm64 那条的 hash 是空的（清单里没有那个产物），`scoop install packnest-desktop` 要么解析失败、
+# 要么在 ARM Windows 上装到一个不存在的 zip（2026-11-15 实测生成出来的清单就是坏的）。
 GUI_SUMS="$DIST/gui/checksums.txt"
 if [ -f "$GUI_SUMS" ]; then
   gui_ver=$(awk '{print $2}' "$GUI_SUMS" | sed -n 's/^packnest-desktop_\([0-9][0-9.]*\)_windows_amd64\.zip$/\1/p' | head -1)
@@ -93,7 +97,32 @@ if [ -f "$GUI_SUMS" ]; then
     GUI_BASE="https://gitee.com/$REPO/releases/download/gui-v$gui_ver"
     win64="packnest-desktop_${gui_ver}_windows_amd64.zip"
     winarm="packnest-desktop_${gui_ver}_windows_arm64.zip"
-    cat > packaging/scoop/packnest-desktop.json <<JSON
+    arch_json=""      # Scoop 的 architecture 段
+    autoupdate_json=""
+    sepsha=$(gui_sha "$win64")
+    if [ -n "$sepsha" ]; then
+      arch_json="    \"64bit\": {
+      \"url\": \"$GUI_BASE/$win64\",
+      \"hash\": \"$sepsha\"
+    }"
+      autoupdate_json="      \"64bit\": { \"url\": \"https://gitee.com/$REPO/releases/download/gui-v\$version/packnest-desktop_\$version_windows_amd64.zip\" }"
+    fi
+    armsha=$(gui_sha "$winarm")
+    if [ -n "$armsha" ]; then
+      [ -n "$arch_json" ] && arch_json="$arch_json,
+"
+      arch_json="$arch_json    \"arm64\": {
+      \"url\": \"$GUI_BASE/$winarm\",
+      \"hash\": \"$armsha\"
+    }"
+      [ -n "$autoupdate_json" ] && autoupdate_json="$autoupdate_json,
+"
+      autoupdate_json="$autoupdate_json      \"arm64\": { \"url\": \"https://gitee.com/$REPO/releases/download/gui-v\$version/packnest-desktop_\$version_windows_arm64.zip\" }"
+    fi
+    if [ -z "$arch_json" ]; then
+      echo "跳过 GUI 清单：${GUI_SUMS} 里没有任何 windows 产物" >&2
+    else
+      cat > packaging/scoop/packnest-desktop.json <<JSON
 {
   "version": "$gui_ver",
   "description": "packnest 桌面端（GUI；只做 pk 的可视化补充，必须先有 CLI）",
@@ -101,26 +130,19 @@ if [ -f "$GUI_SUMS" ]; then
   "license": "MIT",
   "depends": "packnest",
   "architecture": {
-    "64bit": {
-      "url": "$GUI_BASE/$win64",
-      "hash": "$(gui_sha "$win64")"
-    },
-    "arm64": {
-      "url": "$GUI_BASE/$winarm",
-      "hash": "$(gui_sha "$winarm")"
-    }
+$arch_json
   },
   "shortcuts": [["pk-desktop.exe", "packnest"]],
-  "checkver": { "url": "https://gitee.com/$REPO/releases", "regex": "gui-v([\\d.]+)" },
+  "checkver": { "url": "https://gitee.com/$REPO/releases", "regex": "gui-v([\\\\d.]+)" },
   "autoupdate": {
     "architecture": {
-      "64bit": { "url": "https://gitee.com/$REPO/releases/download/gui-v\$version/packnest-desktop_\$version_windows_amd64.zip" },
-      "arm64": { "url": "https://gitee.com/$REPO/releases/download/gui-v\$version/packnest-desktop_\$version_windows_arm64.zip" }
+$autoupdate_json
     }
   }
 }
 JSON
-    echo "已生成：packaging/scoop/packnest-desktop.json（GUI 版本 ${gui_ver}）"
+      echo "已生成：packaging/scoop/packnest-desktop.json（GUI 版本 ${gui_ver}，架构：$( [ -n "$armsha" ] && echo 'amd64+arm64' || echo 'amd64' )）"
+    fi
   else
     echo "跳过 GUI 清单：${GUI_SUMS} 里没有 windows 产物" >&2
   fi

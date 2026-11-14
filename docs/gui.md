@@ -42,7 +42,7 @@ iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -U
 |---|---|---|
 | 安装脚本（curl / iwr） | ✅ 已提供 | 与 CLI 同一把发布密钥、同一套清单校验；`--skip-verify` 只在拿不到清单时用 |
 | 手动下载 zip | ✅ | 见上面表格；先 `shasum -a 256` 对清单 |
-| Scoop | ✅ 清单随发版生成 | `scoop install packnest-desktop`（`depends: packnest`，会先装 CLI）；manifest 带 `shortcuts`（开始菜单），GUI 不进 PATH；未签名 exe 首次启动有 SmartScreen 提示 |
+| Scoop | ✅ 已发布（0.11.1） | `scoop install packnest-desktop`（`depends: packnest`，会先装 CLI）；manifest 带 `shortcuts`（开始菜单），GUI 不进 PATH；未签名 exe 首次启动有 SmartScreen 提示。**只声明 windows-amd64**（GUI 没有 ARM Windows 产物），清单里不写空 hash 的架构 |
 | **Homebrew cask** | ❌ **不做** | 产物是 ad-hoc 签名（未公证），过不了 Gatekeeper；而 Homebrew 已移除 `--no-quarantine` 并会禁用过不了检查的 cask。要做 cask 的前提是先买 **Developer ID + 公证（$99/年）**，2026-11-14 拍板**不排期** |
 | winget | ❌ 不做 | 2026-11-11 已放弃 |
 
