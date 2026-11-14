@@ -204,6 +204,7 @@ Since 1.6 the install scripts verify `checksums.txt.sig` (sshsig) before compari
 | `signature verification failed ... built-in public key` | manifest was rewritten, or the key rotated and your installer is old | fetch the install script again from the official URL; compare the published key fingerprint |
 | `note: not verified (no ssh-keygen ...)` | OpenSSH missing/older than 8.0, sha256 still checked | install OpenSSH, or accept the note |
 | `note: no release signature for this version` | version predates signing (fine during transition) | nothing to do |
+| `Cannot read <base>/latest` (exit 3) | `--base` is an **authoritative source**: it will not fall back to gitee's newest version | serve a `latest` file (one line, e.g. `1.8.0`) on that host, or pass `--version v1.8.0` |
 
 `--skip-verify` skips both the signature and the sha256 comparison — only when you trust the source.
 `pk doctor` reports how many keys the binary embeds (`TRUST_KEYS` / `TRUST_KEYS_UNCONFIGURED`).
