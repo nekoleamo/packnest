@@ -85,6 +85,12 @@ fi
 if [ -z "$VERSION" ] && [ -n "$BASE" ]; then
   VERSION=$(curl -fsSL --max-time 15 "$BASE/latest" 2>/dev/null | tr -d ' \t\r\n' || true)
   VERSION=${VERSION#v}
+  # --base 是权威源：查不到就当场失败，**绝不**回退到 gitee 的最新版本号
+  # （那会拼出该源上不存在的目录 → 下载 404，极难看出原因）。
+  [ -n "$VERSION" ] || {
+    echo "读不到 ${BASE}/latest；请用 --version 指定版本（--base 是权威源，不会回退到 gitee）" >&2
+    exit 3
+  }
 fi
 
 if [ -z "$VERSION" ]; then

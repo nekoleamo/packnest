@@ -100,12 +100,30 @@ function Get-TarCommand {
   throw 'tar not found: this Windows build cannot extract .tgz; use the gitee zip channel instead.'
 }
 
+# Get-Text 把任意响应体转成去空白的字符串。
+#
+# 为什么不能直接 `.Content.Trim()`：python 的 http.server 对没有扩展名的 `latest` 文件
+# 返回 application/octet-stream，这时 Invoke-WebRequest 的 .Content 是 **byte[]**，
+# 调 .Trim() 直接抛 MethodException，被 catch 吞掉之后就去问 gitee 了——
+# 2026-11-15 实测：局部源 `-Base http://127.0.0.1:PORT` 反而拼出 gitee 上的最新版本号，
+# 下载一个本地根本不存在的 vX 目录（404）。
+function Get-Text {
+  param([Parameter(Mandatory)][string]$url, [int]$timeout = 15)
+  $resp = Invoke-WebRequest -Uri $url -TimeoutSec $timeout -UseBasicParsing
+  $raw = $resp.Content
+  if ($raw -is [byte[]]) { $raw = [Text.Encoding]::UTF8.GetString($raw) }
+  return ([string]$raw).Trim()
+}
+
 function Get-LatestVersion {
   if ($Base) {
+    # -Base 是权威源：本地/自托管源上查不到版本就直接失败，**绝不**回退到 gitee 的
+    # 最新版本号（那会拼出一个该源上不存在的目录，表现为下载 404，极难看出原因）。
     try {
-      $v = (Invoke-WebRequest -Uri "$($Base.TrimEnd('/'))/latest" -TimeoutSec 15 -UseBasicParsing).Content.Trim()
+      $v = Get-Text -url "$($Base.TrimEnd('/'))/latest"
       if ($v) { return $v.TrimStart('v') }
     } catch { }
+    throw "Cannot read $($Base.TrimEnd('/'))/latest; pass -Version explicitly (a -Base source is authoritative, gitee is never used as a fallback)."
   }
   try {
     $release = Invoke-RestMethod -Uri "https://gitee.com/api/v5/repos/$GiteeRepo/releases/latest" -TimeoutSec 15
@@ -116,7 +134,7 @@ function Get-LatestVersion {
   # gitee's API occasionally answers 401 anonymously: fall back to the single source of truth
   # in the repo (scripts/latest, bumped by `make release` and checked by verify-release).
   try {
-    $v = (Invoke-WebRequest -Uri "https://gitee.com/$GiteeRepo/raw/main/scripts/latest" -TimeoutSec 15 -UseBasicParsing).Content.Trim()
+    $v = Get-Text -url "https://gitee.com/$GiteeRepo/raw/main/scripts/latest"
     if ($v) { return $v.TrimStart('v') }
   } catch { }
   throw 'Cannot detect the latest version; pass -Version explicitly.'
@@ -184,7 +202,8 @@ try {
         $signersTmp = Join-Path $tmp.FullName 'allowed_signers'
         $sumsFile = Join-Path $tmp.FullName 'checksums.txt'
         Set-Content -Path $signersTmp -Value $AllowedSigners -NoNewline
-        Set-Content -Path $sumsFile -Value $sums -NoNewline
+        # ssh-keygen -Y verify 从 stdin 读待验数据：末尾必须有一个换行，否则最后一个哈希行会被吞
+        Set-Content -Path $sumsFile -Value (($sums.TrimEnd()) + "`n") -NoNewline
         $verifyOut = (Get-Content $sumsFile -Raw | & ssh-keygen -Y verify -f $signersTmp `
           -I 'release@packnest.dev' -n pk-release -s $sigTmp 2>&1) -join "`n"
         if ($verifyOut -notmatch 'Good "pk-release" signature') {

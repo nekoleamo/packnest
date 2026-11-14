@@ -85,10 +85,16 @@ printf '#!/bin/sh\necho "packnest %s"\n' "$VERSION" > "$WORK/packnest"
 chmod +x "$WORK/packnest"
 printf 'fake packnest.exe %s\n' "$VERSION" > "$WORK/packnest.exe"
 
-tar -czf "$VDIR/packnest_${VERSION}_${OS}_${ARCH}.tar.gz" -C "$WORK" packnest
-
-# zip 用 python 造（CI 的 windows 镜像不保证有 zip 命令，python 反正要用）
-"$PY" - "$WORK" "$VDIR" "$VERSION" <<'PY'
+# 产物一律由代码造（不存二进制）。做成函数：篡改类用例之后必须能**复位**，
+# 否则后一个用例拿到的还是被改过的文件（2026-11-15 实测：nosig 用例在 Linux 上
+# 因为上一轮追加的垃圾字节而让 GNU tar 报错退出 2，macOS 的 bsdtar 却是"忽略尾部垃圾"）。
+make_artifacts() {
+  printf '#!/bin/sh\necho "packnest %s"\n' "$VERSION" > "$WORK/packnest"
+  chmod +x "$WORK/packnest"
+  printf 'fake packnest.exe %s\n' "$VERSION" > "$WORK/packnest.exe"
+  tar -czf "$VDIR/packnest_${VERSION}_${OS}_${ARCH}.tar.gz" -C "$WORK" packnest
+  # zip 用 python 造（CI 的 windows 镜像不保证有 zip 命令，python 反正要用）
+  "$PY" - "$WORK" "$VDIR" "$VERSION" <<'PY'
 import os, sys, zipfile
 work, vdir, ver = sys.argv[1], sys.argv[2], sys.argv[3]
 for arch in ("amd64", "arm64"):
@@ -96,18 +102,25 @@ for arch in ("amd64", "arm64"):
     with zipfile.ZipFile(name, "w", zipfile.ZIP_STORED) as z:
         z.write(os.path.join(work, "packnest.exe"), "packnest.exe")
 PY
-
-printf '%s\n' "$VERSION" > "$SRV/latest"
+}
+make_artifacts
 
 # GUI 产物（R-GUI-1）：mac 是 .app.zip，里面必须有 packnest.app
-"$PY" - "$VDIR" "$VERSION" "$ARCH" <<'PY'
-import os, sys, zipfile
-vdir, ver, arch = sys.argv[1], sys.argv[2], sys.argv[3]
+make_gui_artifacts() { # [$1=extra]：带参数时多塞一个文件（产物不同但仍然合法）
+  "$PY" - "$VDIR" "$VERSION" "$ARCH" "${1:-}" <<'PY'
+import sys, os, zipfile
+vdir, ver, arch, extra = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 name = os.path.join(vdir, f"packnest-desktop_{ver}_darwin_{arch}.app.zip")
 with zipfile.ZipFile(name, "w", zipfile.ZIP_STORED) as z:
     z.writestr("packnest.app/Contents/Info.plist", "<plist>fake</plist>")
     z.writestr("packnest.app/Contents/MacOS/packnest", "#!/bin/sh\n")
+    if extra:
+        z.writestr("packnest.app/Contents/extra.txt", extra)
 PY
+}
+make_gui_artifacts
+
+printf '%s\n' "$VERSION" > "$SRV/latest"
 
 # GUI 安装脚本要求本机先有 pk：造一个假的放进 PATH
 mkdir -p "$WORK/fakebin"
@@ -165,12 +178,31 @@ curl -fsS --max-time 2 "$BASE/latest" >/dev/null 2>&1 || {
   say "✘ 本地静态源起不来（${BASE}）"; cat "$WORK/server.log" >&2; exit 1
 }
 
-# 现场复位 + 两种篡改
-restore() { make_checksums; }
+# 现场复位 + 三种篡改
+#
+# restore 必须把**产物本体**也复位：只重算清单的话，上一个用例追加的垃圾字节会留给下一个用例，
+# 而 GNU tar 对"尾部垃圾"是硬错误（bsdtar 只是警告）—— 2026-11-15 实测：Linux CI 上
+# nosig 用例报 exit 2（tar 的退出码），macOS 本地全绿。
+restore() { make_artifacts; make_gui_artifacts; make_checksums; }
 tamper_artifact() { # 产物被改（清单与签名仍是真的）→ 只能被 sha256 抓到
+  # 追加垃圾字节：校验发生在解压之前，所以"校验必须失败"这类用例不受 tar 差异影响。
   printf 'x' >> "$VDIR/packnest_${VERSION}_${OS}_${ARCH}.tar.gz"
   printf 'x' >> "$VDIR/packnest_${VERSION}_windows_${ARCH}.zip"
 }
+swap_artifact() { # 合法但内容不同：sha256 变了、解压仍然成功（--skip-verify 用例要的就是这个）
+  printf 'extra\n' > "$WORK/extra.txt"
+  tar -czf "$VDIR/packnest_${VERSION}_${OS}_${ARCH}.tar.gz" -C "$WORK" packnest extra.txt
+  "$PY" - "$WORK" "$VDIR" "$VERSION" <<'PY'
+import os, sys, zipfile
+work, vdir, ver = sys.argv[1], sys.argv[2], sys.argv[3]
+for arch in ("amd64", "arm64"):
+    name = os.path.join(vdir, f"packnest_{ver}_windows_{arch}.zip")
+    with zipfile.ZipFile(name, "w", zipfile.ZIP_STORED) as z:
+        z.write(os.path.join(work, "packnest.exe"), "packnest.exe")
+        z.writestr("extra.txt", "extra\n")
+PY
+}
+swap_gui() { make_gui_artifacts extra; }
 tamper_gui() { # GUI 产物被改：清单与签名都是真的，只有 sha256 对不上
   printf 'x' >> "$VDIR/packnest-desktop_${VERSION}_darwin_${ARCH}.app.zip"
 }
@@ -251,7 +283,7 @@ if [ "$WANT_SH" = "1" ]; then
   expect_in "缺 .sig：退回 sha256" "$WORK/sh.nosig.log" "sha256 OK"
 
   restore
-  tamper_artifact
+  swap_artifact
   c=$(run_sh skip --skip-verify)
   expect_exit "--skip-verify 放行被改产物" 0 "$c"
   expect_in "--skip-verify：不做校验" "$WORK/sh.skip.log" "装好了" "sha256 校验失败"
@@ -304,7 +336,7 @@ if [ "$(uname -s)" = "Darwin" ] && [ "$ARCH" = "arm64" ]; then
   expect_in "GUI 缺 .sig：提示后继续" "$WORK/gui.nosig.log" "没有发布签名"
 
   restore
-  tamper_gui
+  swap_gui
   c=$(run_gui skip --skip-verify)
   expect_exit "GUI --skip-verify 放行" 0 "$c"
   expect_in "GUI --skip-verify：照装" "$WORK/gui.skip.log" "装好了" "sha256 校验失败"
@@ -389,7 +421,7 @@ if [ "$WANT_PS1" = "1" ]; then
   if [ "$ON_WINDOWS" = "1" ]; then expect_exit "缺 .sig" 0 "$c"; fi
 
   restore
-  tamper_artifact
+  swap_artifact
   c=$(run_ps skip -SkipVerify)
   expect_in "-SkipVerify：照装不校验" "$WORK/ps.skip.log" "Installed:" "SHA256 mismatch"
   if [ "$ON_WINDOWS" = "1" ]; then expect_exit "-SkipVerify 放行被改产物" 0 "$c"; fi
