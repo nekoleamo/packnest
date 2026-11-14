@@ -112,6 +112,8 @@ make verify-release                                     # 远端有 .sig 就一�
 - **撤销要清历史**：TM / 快照 / 云盘版本历史会留旧私钥副本。轮换或泄露处置后要一并删掉含旧钥的快照，
   否则三处公钥都删了，旧私钥仍能签出看起来合法的清单。
 - **brew / scoop 不验签名**（只认清单里的 sha256），这是渠道能力边界，别在文档里承诺覆盖。
+- **发版时顺手记下 `scripts/install.sh` 的 sha256**（`shasum -a 256 scripts/install.sh`）：CI 侧用它做版本 pin
+  （`packaging/setup-pk` 的 `installer-sha256` 输入），这样"执行的安装脚本"和"发布的产物"都能被独立核对。
 
 ## 四、gitee（国内二进制主源）
 

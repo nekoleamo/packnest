@@ -1270,3 +1270,23 @@ env-unset / gc-nothing / use-switch / uninstall-missing / install-dry-run / inst
 **推进全量的前置条件（报告 §六）**：`--json` 的 `msg` 语义要先拍板 ——
 A. `msg` 保留"尽力而为"中文（建议）· B. `msg` 只留英文（破坏性）· C. `msg` 跟 `--lang`（golden 变脆）。
 本批**没有**动 `--json` 契约（golden 未改），也没扩 `make lang` 的扫描范围（等语义定了再扩）。
+
+## 批 5 · E7 `setup-pk` action（文件已就绪，仓库待建）
+
+> 路线要求"独立仓库 + composite action"。**文件已写好并自检**，只差建仓库与公开（用户自建，已拍板）。
+
+| 文件 | 内容 |
+|---|---|
+| `packaging/setup-pk/action.yml` | composite action：解析路径 → `actions/cache` 挂 **PK_CACHE**（key 带 `hashFiles(pk.toml, pk.lock, package.json)`）→ 按 tag 下载 `install.sh` 并**校验 sha256**（必填输入）→ 安装 pk（`--dir` 到 tool cache、写 `GITHUB_PATH`）→ 按 `pk.toml` 装工具（有 `pk.lock` 才 `--frozen`） |
+| `packaging/setup-pk/README.md` | 输入/outputs 表、`installer-sha256` 怎么算（给了 v1.6.0 的实例值 `f4cbfab3…`）、缓存命中语义、已知边界（不替你装项目依赖；只支持 bash 系 runner） |
+| `packaging/setup-pk/examples/ci.yml` | 项目里的日常用法（并提醒别叠加 `actions/setup-node`） |
+| `packaging/setup-pk/examples/self-test.yml` | 验收：`cold` job 断言 `cache-hit=false` 且出现 `download`；`warm` job 断言 `cache-hit=true`，清掉工具树后重装必须出 `cache` 事件 |
+
+自检过的事：
+1. 三个 YAML 都能被 `yaml.safe_load` 解析，`runs.steps` 五个步骤齐；
+2. 每段 `run:` 抽出来过 `sh -n`（表达式替换成占位）——**语法全通过**；
+3. `https://gitee.com/…/raw/v1.6.0/scripts/install.sh` 实测可下载且 sha256 稳定（`f4cbfab3…`），
+   证明 action 里"按 tag 取脚本 + sha256 pin"这条路走得通。
+
+**DoD 未闭环的部分**：示例仓库的两条 CI 路径（缓存命中/未命中）要等仓库建好才能真跑。
+`docs/publishing.md` 已加一条：发版时顺手记下 `scripts/install.sh` 的 sha256（action 的 pin 值靠它）。

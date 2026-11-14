@@ -1,0 +1,24 @@
+# 项目里的日常用法：装 pk + 按 pk.toml 装好 node/pnpm，然后照常在 node 里构建。
+#
+# 注意两点：
+#   1. installer-sha256 必须**跟着 version 换**（算法见 ../README.md）；
+#   2. 不要自己再 actions/setup-node：版本由 pk.toml 决定，装两个运行时会互相抢 PATH。
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: nekoleamo/setup-pk@v1
+        with:
+          version: 1.7.0
+          installer-sha256: 9f2c000000000000000000000000000000000000000000000000000000000000
+      - run: node -v && pnpm -v
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test

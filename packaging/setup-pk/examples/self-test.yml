@@ -1,0 +1,69 @@
+# 这个 action 自己的验收（放到 setup-pk 仓库的 .github/workflows/ 下）：
+# 两个 job 串起来验证**冷缓存 → 热缓存**两条路径。
+#
+#   cold：第一次跑，断言 cache-hit=false，且 pk install 的 NDJSON 里出现 download
+#   warm：复用 cold 存下的缓存，断言 cache-hit=true；清掉工具树（保留 PK_CACHE）后
+#         重装必须出 cache 事件（说明吃的是本地归档，不是又下了一遍）
+name: self-test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  cold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 最小 pk.toml
+        run: |
+          cat > pk.toml <<'TOML'
+          [tools]
+          node = "22"
+          TOML
+      - uses: ./
+        id: pk
+        with:
+          version: ${{ vars.PK_VERSION }}
+          installer-sha256: ${{ vars.PK_INSTALLER_SHA256 }}
+      - name: 冷缓存断言
+        env:
+          HIT: ${{ steps.pk.outputs.cache-hit }}
+        run: |
+          set -eu
+          test "$HIT" = "false" || { echo "::error::第一次跑不该命中缓存（cache-hit=$HIT）"; exit 1; }
+          pk install --json > events.ndjson || true
+          grep -q '"ev":"download"' events.ndjson \
+            || { echo "::error::冷跑应出现 download 事件"; cat events.ndjson; exit 1; }
+          node -v
+
+  warm:
+    needs: cold
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 同一份 pk.toml（key 才会一致）
+        run: |
+          cat > pk.toml <<'TOML'
+          [tools]
+          node = "22"
+          TOML
+      - uses: ./
+        id: pk
+        with:
+          version: ${{ vars.PK_VERSION }}
+          installer-sha256: ${{ vars.PK_INSTALLER_SHA256 }}
+      - name: 热缓存断言
+        env:
+          HIT: ${{ steps.pk.outputs.cache-hit }}
+        run: |
+          set -eu
+          test "$HIT" = "true" || { echo "::error::第二次跑应命中缓存（cache-hit=$HIT）"; exit 1; }
+          # 只清工具树与台账，PK_CACHE 留着 —— 这才叫"缓存命中"
+          rm -rf "$HOME/.packnest/tools" "$HOME/.packnest/state"
+          pk install --json > warm.ndjson || true
+          grep -q '"ev":"cache"' warm.ndjson \
+            || { echo "::error::命中缓存时应出现 cache 事件（0 网络）"; cat warm.ndjson; exit 1; }
+          node -v

@@ -1,0 +1,144 @@
+name: setup-packnest
+description: 安装 packnest（pk）并按 pk.toml 装好项目工具链；缓存 PK_CACHE，命中即离线
+author: packnest
+branding:
+  icon: package
+  color: purple
+
+# 设计要点（为什么长这样）
+#
+# 1. **只用 sh + bash**，Windows runner 也走 Git Bash：pk 本身是单二进制，无需运行时。
+# 2. **安装脚本按 tag 取 + sha256 pin**：`v<version>` 是发布 tag，脚本内容不会漂；
+#    再叠一层 sha256（输入里必填）挡住镜像站换包 —— 这与 pk 自己的"发布签名"是同一威胁模型。
+# 3. **缓存挂在 PK_CACHE 上**（而不是 ~/.packnest 整个根）：
+#    台账/shim/锁必须每次重新算，缓存只该装 `archives/`、`meta/`、corepack/npm 缓存。
+#    key 里带 `hashFiles('pk.toml', 'package.json', ...)`：清单变了就换一份缓存。
+# 4. 不偷偷 `pk install --frozen`：有 `pk.lock` 才按锁装，没有就按清单装。
+inputs:
+  version:
+    description: packnest 自己的版本（CLI 版本，例如 1.7.0，不要带 v）
+    required: false
+    default: 1.7.0
+  installer-sha256:
+    description: 该版本 scripts/install.sh 的 sha256（必填；算法见 README「怎么算这个值」）
+    required: true
+  install-dir:
+    description: pk 二进制装到哪（默认 $RUNNER_TOOL_CACHE/pk/<version>/bin）
+    required: false
+    default: ''
+  cache:
+    description: 是否缓存 PK_CACHE（true/false）
+    required: false
+    default: 'true'
+  cache-dir:
+    description: PK_CACHE 目录（默认 $RUNNER_TEMP/pk-cache）
+    required: false
+    default: ''
+  cache-key-extra:
+    description: 追加到缓存 key 的额外片段（例如 lockfile 的 hash）
+    required: false
+    default: ''
+  skip-verify:
+    description: 传给安装脚本 --skip-verify（只在拿不到 checksums.txt 时用）
+    required: false
+    default: 'false'
+  install:
+    description: 装完 pk 后是否立刻按 pk.toml 装工具（true/false）
+    required: false
+    default: 'true'
+  working-directory:
+    description: 读 pk.toml / pk.lock 的目录
+    required: false
+    default: '.'
+
+outputs:
+  pk-version:
+    description: 实际装上的 pk 版本
+    value: ${{ steps.install.outputs.version }}
+  cache-hit:
+    description: 本次是否命中 PK_CACHE 缓存
+    value: ${{ inputs.cache == 'true' && steps.cache.outputs.cache-hit || 'false' }}
+
+runs:
+  using: composite
+  steps:
+    - name: 解析路径
+      id: paths
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_DIR: ${{ inputs.install-dir }}
+        INPUT_CACHE_DIR: ${{ inputs.cache-dir }}
+      run: |
+        set -eu
+        ver="${INPUT_VERSION#v}"
+        dir="${INPUT_DIR:-$RUNNER_TOOL_CACHE/pk/$ver/bin}"
+        cache="${INPUT_CACHE_DIR:-$RUNNER_TEMP/pk-cache}"
+        echo "version=$ver" >> "$GITHUB_OUTPUT"
+        echo "bin=$dir"     >> "$GITHUB_OUTPUT"
+        echo "cache=$cache" >> "$GITHUB_OUTPUT"
+
+    # 缓存先于安装：命中时 pk install 完全不碰网络（archives/meta 都在）
+    - name: 缓存 PK_CACHE
+      id: cache
+      if: inputs.cache == 'true'
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.paths.outputs.cache }}
+        key: pk-cache-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}-${{ hashFiles('pk.toml', 'pk.lock', 'package.json', '**/pk.toml') }}-${{ inputs.cache-key-extra }}
+        restore-keys: |
+          pk-cache-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}-
+
+    - name: 下载并校验安装脚本
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_SHA: ${{ inputs.installer-sha256 }}
+      run: |
+        set -eu
+        ver="${INPUT_VERSION#v}"
+        url="https://gitee.com/null_593_5354/packnest/raw/v${ver}/scripts/install.sh"
+        out="$RUNNER_TEMP/pk-install.sh"
+        curl -fsSL --retry 3 --retry-connrefused --max-time 60 -o "$out" "$url"
+        if command -v shasum >/dev/null 2>&1; then
+          got=$(shasum -a 256 "$out" | cut -d' ' -f1)
+        else
+          got=$(sha256sum "$out" | cut -d' ' -f1)
+        fi
+        want=$(printf '%s' "$INPUT_SHA" | tr '[:upper:]' '[:lower:]' | tr -d ' \t')
+        if [ "$got" != "$want" ]; then
+          echo "::error::install.sh 的 sha256 不符（期望 ${want}，实际 ${got}）；可能来源被换或 version 写错了"
+          exit 4
+        fi
+        echo "install.sh sha256 OK（${got:0:12}…）"
+
+    - name: 安装 pk
+      id: install
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_SKIP_VERIFY: ${{ inputs.skip-verify }}
+      run: |
+        set -eu
+        args="--version ${INPUT_VERSION#v} --dir ${{ steps.paths.outputs.bin }}"
+        if [ "$INPUT_SKIP_VERIFY" = "true" ]; then args="$args --skip-verify"; fi
+        # shellcheck disable=SC2086
+        sh "$RUNNER_TEMP/pk-install.sh" $args
+        echo "${{ steps.paths.outputs.bin }}" >> "$GITHUB_PATH"
+        echo "version=$("${{ steps.paths.outputs.bin }}/pk" --version)" >> "$GITHUB_OUTPUT"
+
+    - name: 按 pk.toml 装工具链
+      if: inputs.install == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        PK_CACHE: ${{ inputs.cache == 'true' && steps.paths.outputs.cache || '' }}
+      run: |
+        set -eu
+        if [ -f pk.lock ]; then
+          pk install --frozen
+        elif [ -f pk.toml ]; then
+          pk install
+        else
+          echo "没有 pk.toml / pk.lock：跳过（只装了 pk 本体）"
+        fi
