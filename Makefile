@@ -21,7 +21,7 @@ FUZZ_TARGETS := FuzzSpec FuzzSHASUMS FuzzArchivePath
 FUZZ_TIME := 30s
 
 # 有 tag 时用 tag（去掉前导 v），否则用默认开发版本号。
-VERSION ?= $(shell v=$$(git describe --tags --always --dirty 2>/dev/null | sed -n 's/^v\?\([0-9].*\)/\1/p'); echo "$${v:-1.2.0}")
+VERSION ?= $(shell v=$$(git describe --tags --match 'v[0-9]*' --abbrev=0 2>/dev/null | sed 's/^v//'); echo "$${v:-1.2.0}")
 LDFLAGS := -s -w -X main.Version=$(VERSION)
 # 归档里所有文件的 mtime（可重复构建的前提；改它会改变所有产物的 sha256）
 SOURCE_DATE := 202001010000
@@ -146,6 +146,8 @@ list-providers:
 #   2. tar 走 `tar -cf - | gzip -n` 只此一种（gzip -n 不写文件名与时间戳），zip 用 -X；
 #   3. 构建带 -buildvcs=false（否则 VCS 戳记把提交号写进二进制，提交后再构建一次 hash 就变）。
 release:
+	@if [ -n "$$(git status --porcelain)" ]; then \
+		echo "✘ 工作树不干净：先提交再发版（版本号来自 git tag，脏树会让人分不清产物对应哪份代码）" >&2; exit 1; fi
 	@rm -rf $(DIST)
 	@mkdir -p $(DIST)/v$(VERSION)
 	@for p in $(PLATFORMS); do \
