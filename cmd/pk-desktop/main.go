@@ -44,7 +44,7 @@ var trayTemplate []byte
 
 // guiVersion 是 GUI 自己的版本（与 CLI 解耦；CLI 版本靠 pkcli 的启动门禁检查）。
 // 发布用的 tag 与产物文件名都跟它走：`gui-v<guiVersion>`。
-const guiVersion = "0.11.0"
+const guiVersion = "0.11.1"
 
 // api 是前端唯一的数据来源（不用 Wails 绑定，浏览器形态也能用）。
 type api struct {
