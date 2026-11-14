@@ -87,7 +87,7 @@ func (a *app) cmdInstall(args []string) int {
 			return a.fail(err)
 		}
 		if err := install.CheckFrozen(project, lockFile); err != nil {
-			fmt.Fprintf(a.errOut, "pk: %v\n", err)
+			fmt.Fprintf(a.errOut, "pk: %s\n", present.Text(err))
 			return jsonout.ExitFail
 		}
 	}

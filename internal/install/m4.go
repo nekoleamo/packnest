@@ -4,6 +4,7 @@ package install
 import (
 	"context"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"os"
 	"path/filepath"
 	"sort"
@@ -21,7 +22,7 @@ func (i *Installer) Activate(tool, version string) error {
 	version = i.ResolveInstalled(tool, version)
 	in := i.ledger.Find(tool, version)
 	if in == nil {
-		return fmt.Errorf("%w：%s@%s（`pk list` 看已装版本，先 `pk install %s@%s`）", ErrNotInstalled, tool, version, tool, version)
+		return coded.Wrap(ErrNotInstalled, CodeNotInstalled, tool, version)
 	}
 	p, err := i.opt.LookupProvider(tool)
 	if err != nil {
@@ -237,7 +238,7 @@ func dropRefKind(refs []store.Ref, kind string) []store.Ref {
 func (i *Installer) lockedVersion(lock *Lock, tool string) (string, string, error) {
 	entry, ok := lock.Find(tool)
 	if !ok {
-		return "", "", fmt.Errorf("%s 不在 %s 里（--frozen 不做解析）", tool, LockFileName)
+		return "", "", coded.New(CodeLockToolMissing, tool)
 	}
 	return entry.Version, entry.SHA256, nil
 }
@@ -267,7 +268,7 @@ func verifyLockedSHA(archivePath, want string) error {
 		return err
 	}
 	if !strings.EqualFold(got, want) {
-		return fmt.Errorf("%w: 产物 sha256 与 %s 不一致（锁 %s，实际 %s）", verify.ErrChecksum, LockFileName, want, got)
+		return coded.Wrap(verify.ErrChecksum, CodeLockSHAMismatch, want, got)
 	}
 	return nil
 }

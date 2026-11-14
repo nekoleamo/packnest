@@ -14,12 +14,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/env"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/install"
@@ -138,8 +140,8 @@ func TestAcceptance_M4_FrozenMismatchExitCode(t *testing.T) {
 	if err == nil {
 		t.Fatal("版本不满足时必须失败")
 	}
-	if !strings.Contains(err.Error(), "不满足") || !strings.Contains(err.Error(), "pk.lock") {
-		t.Fatalf("错误信息应说明不一致点与处置: %v", err)
+	if ce, ok := coded.Of(err); !ok || ce.Code != install.CodeLockMismatch || !strings.Contains(fmt.Sprint(ce.Args), "不满足") {
+		t.Fatalf("应是 lock.mismatch 且参数里说明不一致点: %v", err)
 	}
 	// 一致时通过
 	if err := install.CheckFrozen(map[string]string{"node": "22"}, lock); err != nil {

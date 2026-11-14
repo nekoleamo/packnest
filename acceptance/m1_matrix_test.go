@@ -54,7 +54,7 @@ const matrixVersion = "22.99.99" // 上游不存在的版本号，避免真实�
 
 func matrixBehaviors() []matrixBehavior {
 	return []matrixBehavior{
-		{name: "Status500", opts: []testkit.Option{testkit.Status(500)}, wantErrContains: "网络"},
+		{name: "Status500", opts: []testkit.Option{testkit.Status(500)}, wantCode: install.CodeNetworkProbe},
 		{name: "TruncateAt", opts: []testkit.Option{testkit.TruncateAt(64)}, wantErrContains: ""},
 		{name: "DropAfter", opts: []testkit.Option{testkit.DropAfter(64)}, wantErrContains: ""},
 		{name: "Slow", opts: []testkit.Option{testkit.Slow(5 * time.Millisecond)}, wantInstall: true},

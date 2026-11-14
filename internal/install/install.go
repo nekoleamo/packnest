@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"os"
 	"path/filepath"
 	"sort"
@@ -199,17 +200,17 @@ func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, 
 func (i *Installer) Uninstall(tool, version string, force bool) error {
 	in := i.ledger.Find(tool, version)
 	if in == nil {
-		return fmt.Errorf("%s@%s 不在台账里；不在台账里的目录只提示不删除（确认后可手动清理）", tool, version)
+		return coded.New(CodeNotInLedger, tool, version)
 	}
 	if len(in.References) > 0 && !force {
 		refs := make([]string, 0, len(in.References))
 		for _, r := range in.References {
 			refs = append(refs, r.Kind+":"+r.Name)
 		}
-		return fmt.Errorf("%s@%s 仍被引用（%s），确需删除加 --force", tool, version, strings.Join(refs, ", "))
+		return coded.New(CodeStillReferenced, tool, version, strings.Join(refs, ", "))
 	}
 	if err := removeDirWithRetry(in.Path, 3); err != nil {
-		return fmt.Errorf("删除 %q 失败（可能仍有进程占用，关掉后重试或用 --force 留残）: %w", in.Path, err)
+		return coded.Wrap(err, CodeRemoveFailed, in.Path)
 	}
 	// 顺手把空的 tools/<tool> 收掉：卸载干净不是“目录还在但不空”。
 	pruneEmptyDirs(filepath.Dir(in.Path), i.opt.Paths.Root)
@@ -240,7 +241,7 @@ func (i *Installer) UninstallTool(tool string, force bool) ([]string, error) {
 		}
 	}
 	if len(versions) == 0 {
-		return nil, fmt.Errorf("%s 没有已装版本（`pk list` 看已装工具）", tool)
+		return nil, coded.New(CodeNoVersions, tool)
 	}
 	sort.Strings(versions)
 
@@ -256,7 +257,7 @@ func (i *Installer) UninstallTool(tool string, force bool) ([]string, error) {
 			continue
 		}
 		if err := removeDirWithRetry(in.Path, 3); err != nil {
-			return removed, fmt.Errorf("删除 %q 失败（可能仍有进程占用，关掉后重试或用 --force 留残）: %w", in.Path, err)
+			return removed, coded.Wrap(err, CodeRemoveFailed, in.Path)
 		}
 		pruneEmptyDirs(filepath.Dir(in.Path), i.opt.Paths.Root)
 		if err := i.removeShimsFor(in.Path); err != nil {
@@ -270,7 +271,7 @@ func (i *Installer) UninstallTool(tool string, force bool) ([]string, error) {
 		i.emit(jsonout.Event{Ev: "uninstall", Tool: tool, Version: v})
 	}
 	if len(blocked) > 0 {
-		return removed, fmt.Errorf("%s 里这些版本仍被引用，未删除（确需删除加 --force）: %s",
+		return removed, coded.New(CodeVersionsRefused,
 			tool, strings.Join(blocked, "; "))
 	}
 	return removed, nil
@@ -308,7 +309,7 @@ func (i *Installer) removeShimsFor(dir string) error {
 				path = shim.CmdPath(i.opt.Paths.Bin(), name)
 			}
 			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-				return fmt.Errorf("删除 shim %q 失败: %w", name, err)
+				return coded.Wrap(err, CodeShimRemoveFailed, name)
 			}
 		}
 	}
@@ -321,7 +322,7 @@ func (i *Installer) checkRequires(p *provider.Provider) error {
 		if i.planned[need] || i.ledger.Active(need) != "" || len(i.installedVersions(need)) > 0 {
 			continue
 		}
-		return fmt.Errorf("%w：%s 需要 %s，先 `pk install %s` 再装 %s（我们不隐式安装运行时）", ErrRequiresMissing, p.ID, need, need, p.ID)
+		return coded.Wrap(ErrRequiresMissing, CodeRequiresMissing, p.ID, need)
 	}
 	return nil
 }
@@ -363,7 +364,7 @@ func (i *Installer) resolveVersion(ctx context.Context, p *provider.Provider, sp
 	}
 	sp, err := spec.Parse(specStr)
 	if err != nil {
-		return provider.Version{}, nil, fmt.Errorf("版本说明符 %q 非法: %w", specStr, err)
+		return provider.Version{}, nil, coded.Wrap(err, CodeSpecInvalid, specStr)
 	}
 	if sp.Kind() == spec.Exact && !sp.IsAlias() {
 		version := strings.TrimPrefix(specStr, "v")
@@ -409,7 +410,7 @@ func (i *Installer) loadIndex(ctx context.Context, p *provider.Provider) (*provi
 	}
 	idx, err := loader.Load(ctx, p, i.opt.Profile)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrNetwork, err)
+		return nil, coded.Wrap(ErrNetwork, CodeNetwork, err)
 	}
 	return idx, nil
 }

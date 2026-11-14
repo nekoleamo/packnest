@@ -82,8 +82,9 @@ func TestProjectSpecsBadRange(t *testing.T) {
 	if err == nil {
 		t.Fatal("非法范围应报错")
 	}
-	if !strings.Contains(err.Error(), "pk install node@") {
-		t.Fatalf("错误里应给可执行建议: %v", err)
+	// E1：码 + 参数；"改用 pk install node@<版本>" 这句建议在 present 的模板里
+	if !hasCode(err, CodeEnginesUnparsable) {
+		t.Fatalf("应是 project.engines_unparsable: %v", err)
 	}
 }
 

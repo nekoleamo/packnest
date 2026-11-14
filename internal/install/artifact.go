@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"os"
 	"path/filepath"
 	"strings"
@@ -136,9 +137,9 @@ func (i *Installer) downloadFromChain(ctx context.Context, tool, version string,
 	}
 	if err != nil {
 		if probeErr != nil {
-			return "", 0, fmt.Errorf("%w: 探测与直连都失败：%v；%v", ErrNetwork, probeErr, err)
+			return "", 0, coded.Wrap(ErrNetwork, CodeNetworkProbe, probeErr, err)
 		}
-		return "", 0, fmt.Errorf("%w: %v", ErrNetwork, err)
+		return "", 0, coded.Wrap(ErrNetwork, CodeNetwork, err)
 	}
 	i.recordCacheTouch(filepath.Base(cachePath), i.now())
 	i.emit(jsonout.Event{Ev: "download", Tool: tool, Version: version, Bytes: n, Source: source})
@@ -228,7 +229,7 @@ func (i *Installer) verifyArtifact(ctx context.Context, p *provider.Provider, re
 		}
 		idx = &provider.Index{Versions: vs}
 		if _, ok := idx.Find(version); !ok {
-			return verify.Result{}, fmt.Errorf("%s@%s 没有对应的平台包（版本号须与本体一致）", p.ID, version)
+			return verify.Result{}, coded.New(CodePlatformMissing, p.ID, version)
 		}
 	}
 	algo, digest := registryDigest(idx, version, archivePath, sha256)
@@ -292,8 +293,7 @@ func checkMinVersion(p *provider.Provider, version string) error {
 		return nil // 版本解析不了就交给后面的流程报错
 	}
 	if min, err := spec.ParseVersion(p.Artifact.MinVersion); err == nil && v.LessThan(min) {
-		return fmt.Errorf("%s 只支持 %s 及以上（产物地址换了形态）；更老的版本请用 corepack 或 `npm i -g %s@%s`",
-			p.ID, p.Artifact.MinVersion, p.ID, version)
+		return coded.New(CodeMinVersion, p.ID, p.Artifact.MinVersion, version)
 	}
 	return nil
 }

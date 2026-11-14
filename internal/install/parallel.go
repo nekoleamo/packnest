@@ -3,6 +3,7 @@ package install
 import (
 	"context"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"os"
 	"sync"
 
@@ -166,7 +167,7 @@ func (i *Installer) prepare(ctx context.Context, tool, specStr string, emitNow b
 	}()
 	if err := archive.Extract(archivePath, tmpDir, format, layout, i.opt.GOOS); err != nil {
 		_ = os.Remove(archivePath) // 归档损坏：缓存也删掉，下次重下
-		return nil, fmt.Errorf("解压失败（产物可能被截断或损坏）: %w", err)
+		return nil, coded.Wrap(err, CodeExtractFailed)
 	}
 
 	npmVersion, npmBundled, err := sub.applyCompanion(ctx, p, version, tmpDir, idx)

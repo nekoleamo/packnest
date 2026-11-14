@@ -57,9 +57,8 @@ func TestEnableCorepackDefaultRunner(t *testing.T) {
 
 	// 没有 corepack 的 node（25+ 布局）→ 明确报错
 	noCP := t.TempDir()
-	if _, err := inst.enableCorepack(context.Background(), noCP); err == nil ||
-		!strings.Contains(err.Error(), "pk install pnpm") {
-		t.Fatalf("缺 corepack 应报错并给建议: %v", err)
+	if _, err := inst.enableCorepack(context.Background(), noCP); !hasCode(err, CodeCorepackAbsent) {
+		t.Fatalf("缺 corepack 应是 install.corepack_absent: %v", err)
 	}
 }
 

@@ -97,8 +97,9 @@ func TestFetchVerifiedTOFUSkipsNetwork(t *testing.T) {
 func TestCheckMinVersion(t *testing.T) {
 	p := &provider.Provider{ID: "pnpm", Artifact: provider.ArtifactBlock{MinVersion: "11.0.0"}}
 	err := checkMinVersion(p, "10.4.1")
-	if err == nil || !strings.Contains(err.Error(), "11.0.0") || !strings.Contains(err.Error(), "npm i -g pnpm@10.4.1") {
-		t.Fatalf("应报最低版本并给建议: %v", err)
+	// E1：码 + 参数（版本号是数据）；"用 corepack 或 npm i -g" 这句建议在 present 的模板里
+	if !hasCode(err, CodeMinVersion) || !strings.Contains(errText(err), "11.0.0") || !strings.Contains(errText(err), "10.4.1") {
+		t.Fatalf("应报最低版本并带两个版本号: %v", err)
 	}
 	if err := checkMinVersion(p, "11.0.0"); err != nil {
 		t.Fatalf("等于下限应放行: %v", err)

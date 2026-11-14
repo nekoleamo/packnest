@@ -55,7 +55,7 @@ func TestCheckFrozen(t *testing.T) {
 	if err := CheckFrozen(project, lock); err != nil {
 		t.Fatalf("一致时应通过: %v", err)
 	}
-	if err := CheckFrozen(project, nil); err == nil || !strings.Contains(err.Error(), "pk.lock") {
+	if err := CheckFrozen(project, nil); !hasCode(err, CodeLockMissing) {
 		t.Fatalf("缺锁应报错: %v", err)
 	}
 	// 版本不满足

@@ -3,8 +3,8 @@ package install
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"github.com/packnest/packnest/internal/archive"
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/companion"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/provider"
@@ -83,7 +83,7 @@ func (i *Installer) applyCompanion(ctx context.Context, p *provider.Provider, no
 
 func (i *Installer) installNpmPackage(ctx context.Context, npmP *provider.Provider, version, shasum, npmDir string) error {
 	if npmP == nil {
-		return fmt.Errorf("找不到 npm 的 provider 清单，无法替换伴生包")
+		return coded.New(CodeNpmProviderGone)
 	}
 	// 缓存/下载走与主产物同一条路径（fetchArtifact 已含缓存命中与回退链）。
 	cachePath, _, _, err := i.fetchArtifact(ctx, npmP, provider.Version{Version: version}, nil)
@@ -138,16 +138,16 @@ func (i *Installer) applyGenericCompanions(ctx context.Context, p *provider.Prov
 		want := c.Version
 		cp, err := i.opt.LookupProvider(c.Registry)
 		if err != nil {
-			return fmt.Errorf("%s 的伴生包 %s 找不到清单 %q: %w", p.ID, key, c.Registry, err)
+			return coded.Wrap(err, CodeCompanionLookup, p.ID, key, c.Registry)
 		}
 		if want == "" {
 			idx, ierr := i.loadIndex(ctx, cp)
 			if ierr != nil {
-				return fmt.Errorf("伴生包 %s 的版本索引不可用: %w", key, ierr)
+				return coded.Wrap(ierr, CodeCompanionIndex, key)
 			}
 			latest, ok := idx.Latest()
 			if !ok {
-				return fmt.Errorf("伴生包 %s 的索引里没有可用版本", key)
+				return coded.New(CodeCompanionNoVer, key)
 			}
 			want = latest.Version
 		}
@@ -165,7 +165,7 @@ func (i *Installer) applyGenericCompanions(ctx context.Context, p *provider.Prov
 			}
 			if err != nil {
 				_ = os.RemoveAll(tmp)
-				return fmt.Errorf("伴生包 %s 落地失败: %w", key, err)
+				return coded.Wrap(err, CodeCompanionPlace, key)
 			}
 		}
 		if err != nil {
@@ -184,7 +184,7 @@ func (i *Installer) applyGenericCompanions(ctx context.Context, p *provider.Prov
 
 func (i *Installer) enableCorepack(ctx context.Context, toolDir string) (bool, error) {
 	if _, err := os.Stat(filepath.Join(toolDir, filepath.FromSlash("lib/node_modules/corepack"))); err != nil {
-		return false, fmt.Errorf("该 node 不自带 corepack（node 25+ 已移除）：pnpm/yarn 请用 `pk install pnpm`")
+		return false, coded.New(CodeCorepackAbsent)
 	}
 	bin := i.opt.CorepackBin
 	if bin == "" {
@@ -199,7 +199,7 @@ func (i *Installer) enableCorepack(ctx context.Context, toolDir string) (bool, e
 		run = func(ctx context.Context, name string, args ...string) error {
 			cmd := exec.CommandContext(ctx, name, args...)
 			if out, err := cmd.CombinedOutput(); err != nil {
-				return fmt.Errorf("%s: %w（%s）", name, err, strings.TrimSpace(string(out)))
+				return coded.Wrap(err, CodeCorepackOutput, name, strings.TrimSpace(string(out)))
 			}
 			return nil
 		}
@@ -210,7 +210,7 @@ func (i *Installer) enableCorepack(ctx context.Context, toolDir string) (bool, e
 	}
 	if err := run(ctx, node, filepath.Join(toolDir, filepath.FromSlash("lib/node_modules/corepack/dist/corepack.js")),
 		"enable", "--install-directory", bin); err != nil {
-		return false, fmt.Errorf("corepack enable 失败: %w", err)
+		return false, coded.Wrap(err, CodeCorepackEnable)
 	}
 	i.emit(jsonout.Event{Ev: "corepack", Tool: "node", Version: filepath.Base(filepath.Dir(toolDir)), Source: bin})
 	return true, nil

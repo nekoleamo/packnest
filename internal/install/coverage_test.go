@@ -389,7 +389,7 @@ func TestApplyGenericCompanionsErrors(t *testing.T) {
 	t.Run("清单查不到", func(t *testing.T) {
 		inst := newInstaller(t, nil, nil)
 		err := inst.applyGenericCompanions(context.Background(), mk("ghost", "latest-compatible", ""), "1.0.0", t.TempDir())
-		if err == nil || !strings.Contains(err.Error(), "找不到清单") {
+		if !hasCode(err, CodeCompanionLookup) {
 			t.Fatalf("应报清单找不到: %v", err)
 		}
 	})
@@ -400,7 +400,7 @@ func TestApplyGenericCompanionsErrors(t *testing.T) {
 		})
 		inst := newInstaller(t, fm, func(o *Options) { o.Client.Offline = true })
 		err := inst.applyGenericCompanions(context.Background(), mk("node", "latest-compatible", ""), "1.0.0", t.TempDir())
-		if err == nil || !strings.Contains(err.Error(), "索引不可用") {
+		if !hasCode(err, CodeCompanionIndex) {
 			t.Fatalf("离线应报索引不可用: %v", err)
 		}
 	})
@@ -715,7 +715,7 @@ func TestUninstallBranches(t *testing.T) {
 		inst.ledger.Upsert(store.Install{Tool: "node", Version: "22.98.0", Path: dir,
 			References: []store.Ref{{Kind: store.RefGlobal}}})
 		err := inst.Uninstall("node", "22.98.0", false)
-		if err == nil || !strings.Contains(err.Error(), "仍被引用") {
+		if !hasCode(err, CodeStillReferenced) {
 			t.Fatalf("被引用时应拒绝并说明: %v", err)
 		}
 		if _, statErr := os.Stat(dir); statErr != nil {

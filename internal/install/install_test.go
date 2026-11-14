@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -460,8 +461,8 @@ func TestUninstallRefusedWhenReferenced(t *testing.T) {
 		t.Fatal(err)
 	}
 	inst.ledger.AddRef("node", "22.22.2", store.Ref{Kind: store.RefGlobal})
-	if err := inst.Uninstall("node", "22.22.2", false); err == nil || !strings.Contains(err.Error(), "--force") {
-		t.Fatalf("被引用时应拒绝并提示 --force: %v", err)
+	if err := inst.Uninstall("node", "22.22.2", false); !hasCode(err, CodeStillReferenced) {
+		t.Fatalf("被引用时应拒绝（install.still_referenced）: %v", err)
 	}
 	if err := inst.Uninstall("node", "22.22.2", true); err != nil {
 		t.Fatalf("--force 应放行: %v", err)
@@ -841,8 +842,8 @@ func TestLoadIndexOfflineError(t *testing.T) {
 		o.Offline = true
 	})
 	_, err := inst.Install(context.Background(), "node", "latest")
-	if !errors.Is(err, ErrNetwork) {
-		t.Fatalf("离线且无索引缓存应归为网络失败，得到 %v", err)
+	if !errors.Is(err, ErrNetwork) || !hasCode(err, CodeNetwork) {
+		t.Fatalf("离线且无索引缓存应归为网络失败（install.network），得到 %v", err)
 	}
 }
 
@@ -1382,4 +1383,13 @@ func TestCacheOutsideRoot(t *testing.T) {
 func hasCode(err error, want string) bool {
 	ce, ok := coded.Of(err)
 	return ok && ce.Code == want
+}
+
+// errText 取错误链的**渲染前**文本（含参数）——用来断言"参数里有版本号/工具名"这类数据，
+// 而不是断中文文案（文案已经搬到 cmd/pk/present）。
+func errText(err error) string {
+	if ce, ok := coded.Of(err); ok {
+		return fmt.Sprint(ce.Args)
+	}
+	return err.Error()
 }

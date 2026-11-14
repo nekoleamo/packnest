@@ -1527,3 +1527,20 @@ self-test `cold` ✓（41s）+ `warm` ✓（47s）：冷路径真的 `download`�
 
 **L2 累计**：9 个包清零 —— `verify` 28 · `archive` 23 · `fetch` 23 · `store` 20 · `paths` 9 · `spec` 6 ·
 `mirror` 5 · `env` 7 · `companion` 3 = **124 处**，码表 **112 条**。剩 `provider` 61 · `install` 41。
+
+### E1 第十一步：`internal/install` 完成（33 个码）
+
+编排层全部清零（`install.go` / `lock.go` / `m4.go` / `artifact.go` / `companion.go` / `parallel.go`）：
+`install.*` 24 个 + `lock.*` 8 个 + `project.*` 3 个（安装/产物流转/卸载/锁/项目文件五组）。
+
+**这次改动面最大，暴露的三个通用问题（都已修）**：
+1. **哨兵语义要留在 Cause 里**：`install.network` 的 Cause 必须是 `ErrNetwork`（"归为网络失败"有语义），
+   底层错误改为参数 —— 否则 `errors.Is(err, ErrNetwork)` 的既有判断会静默失效（`TestLoadIndexOfflineError` 当场抓到）；
+2. **CLI 里还剩一处直接打印 `%v`**（`cmd_install.go` 的 `--frozen` 错误路径），漏了它就会把
+   `lock.mismatch(...)` 机器串打到用户脸上 → 统一改成 `present.Text`；
+3. **"断中文"的测试会成片红**：`install`（5 处）、`acceptance`（4 处：cp/m2/m4/matrix）、`cmd/pk`（1 处）
+   全部改成断码；需要断数据（版本号、工具名）的地方用新加的 `errText(err)` 取参数。
+
+**L2 累计**：10 个包清零 —— `install` 33 · `verify` 28 · `archive` 23 · `fetch` 23 · `store` 20 · `env` 7 ·
+`paths` 9 · `spec` 6 · `mirror` 5 · `companion` 3 = **157 处**，码表 **145 条**。只剩 `provider`（61 处）。
+行数：`internal/install` 2700 → **2800** 预算（码文件 +33 行）。

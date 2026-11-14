@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/paths"
@@ -94,8 +95,9 @@ func TestAcceptance_CP_NoCorepackOnNode25(t *testing.T) {
 	if err == nil {
 		t.Fatal("node 25+ 装 --corepack 必须报错")
 	}
-	if !strings.Contains(err.Error(), "不自带 corepack") || !strings.Contains(err.Error(), "pk install pnpm") {
-		t.Fatalf("错误信息要给可执行建议: %v", err)
+	// E1：码 + 参数；"用 pk install pnpm" 这句建议在 present 的模板里
+	if ce, ok := coded.Of(err); !ok || ce.Code != install.CodeCorepackAbsent {
+		t.Fatalf("应是 install.corepack_absent: %v", err)
 	}
 	if len(*calls) != 0 {
 		t.Fatalf("不该尝试执行 corepack: %v", *calls)

@@ -6,6 +6,7 @@ package install
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"os"
 	"path/filepath"
 	"slices"
@@ -44,11 +45,11 @@ func LoadLock(dir string) (*Lock, error) {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("读取 %s 失败: %w", LockFileName, err)
+		return nil, coded.Wrap(err, CodeLockLoad)
 	}
 	var l Lock
 	if err := toml.Unmarshal(data, &l); err != nil {
-		return nil, fmt.Errorf("解析 %s 失败: %w", LockFileName, err)
+		return nil, coded.Wrap(err, CodeLockParse)
 	}
 	return &l, nil
 }
@@ -58,7 +59,7 @@ func (l *Lock) Save(dir string) error {
 	slices.SortFunc(l.Tool, func(a, b LockTool) int { return strings.Compare(a.Name, b.Name) })
 	data, err := toml.Marshal(l)
 	if err != nil {
-		return fmt.Errorf("序列化 %s 失败: %w", LockFileName, err)
+		return coded.Wrap(err, CodeLockEncode)
 	}
 	header := "# 由 pk 生成，请入库（不写 URL：换镜像不影响锁）\n"
 	return store.WriteAtomic(filepath.Join(dir, LockFileName), append([]byte(header), data...))
@@ -80,7 +81,7 @@ func (l *Lock) Find(name string) (LockTool, bool) {
 // CheckFrozen 校验"清单 ↔ 锁"一致：`--frozen` 下不一致即失败，不做解析。
 func CheckFrozen(project map[string]string, lock *Lock) error {
 	if lock == nil {
-		return fmt.Errorf("--frozen 需要 %s，但项目里没有（先跑一次 `pk install` 生成并入库）", LockFileName)
+		return coded.New(CodeLockMissing)
 	}
 	var problems []string
 	names := make([]string, 0, len(project))
@@ -112,8 +113,7 @@ func CheckFrozen(project map[string]string, lock *Lock) error {
 		}
 	}
 	if len(problems) > 0 {
-		return fmt.Errorf("%w：清单与 %s 不一致（--frozen 不做解析）：\n  %s\n建议：本地 `pk install` 更新锁并提交",
-			ErrFrozenMismatch, LockFileName, strings.Join(problems, "\n  "))
+		return coded.Wrap(ErrFrozenMismatch, CodeLockMismatch, strings.Join(problems, "\n  "))
 	}
 	return nil
 }
@@ -148,7 +148,7 @@ func BuildProjectLock(project map[string]string, ledger *store.Ledger, active ma
 		}
 		in := pickInstallForTool(name, project[name], ledger, active)
 		if in == nil {
-			return nil, fmt.Errorf("%s 还没装，无法生成锁（先 `pk install %s`）", name, name)
+			return nil, coded.New(CodeLockNoInstall, name)
 		}
 		lock.Tool = append(lock.Tool, LockTool{
 			Name: in.Tool, Version: in.Version, SHA256: in.SHA256, Source: in.Source,
@@ -213,7 +213,7 @@ func SaveProjectTool(dir, tool, version string) error {
 	path := filepath.Join(dir, "pk.toml")
 	raw, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("读取 %q 失败: %w", path, err)
+		return coded.Wrap(err, CodeProjectRead, path)
 	}
 	lines := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
 	if len(lines) == 1 && lines[0] == "" {
@@ -288,13 +288,13 @@ func LoadProject(dir string) (map[string]string, error) {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("读取 %q 失败: %w", path, err)
+		return nil, coded.Wrap(err, CodeProjectRead, path)
 	}
 	var doc struct {
 		Tools map[string]string `toml:"tools"`
 	}
 	if err := toml.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("解析 %q 失败: %w", path, err)
+		return nil, coded.Wrap(err, CodeProjectParse, path)
 	}
 	return doc.Tools, nil
 }
@@ -319,7 +319,7 @@ func ProjectSpecs(dir string) (map[string]string, []string, error) {
 		return project, notes, nil // pk.toml 已经说了用哪个 node
 	}
 	if _, err := spec.Parse(engines); err != nil {
-		return nil, notes, fmt.Errorf("package.json 的 engines.node %q 无法解析: %w（改用 pk install node@<版本>，或写进 pk.toml）", engines, err)
+		return nil, notes, coded.Wrap(err, CodeEnginesUnparsable, engines, err)
 	}
 	if project == nil {
 		project = map[string]string{}

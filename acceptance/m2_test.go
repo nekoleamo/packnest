@@ -18,6 +18,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/paths"
@@ -114,8 +115,8 @@ func TestAcceptance_M2_PnpmRequiresNode(t *testing.T) {
 	if err == nil {
 		t.Fatal("没有 node 时装 pnpm 必须失败")
 	}
-	if !strings.Contains(err.Error(), "需要 node") || !strings.Contains(err.Error(), "pk install node") {
-		t.Fatalf("错误信息应给可执行建议: %v", err)
+	if ce, ok := coded.Of(err); !ok || ce.Code != install.CodeRequiresMissing {
+		t.Fatalf("应是 install.requires_missing: %v", err)
 	}
 	// 不该隐式装上 node
 	if _, err := os.Stat(instPath(t, inst, "node")); !os.IsNotExist(err) {
