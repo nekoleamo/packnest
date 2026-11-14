@@ -145,11 +145,14 @@ GUI 是**独立产物**（需要 cgo + 各平台 WebView 工具链），但有�
 | tag | `gui-v<guiVer>`（**不是** CLI 的 `v<cliVer>`）：GUI 有独立版本号（`cmd/pk-desktop/main.go` 的 `guiVersion`），产物文件名里的 `<ver>` 就是这个数，与 tag 一致 |
 | 文件 | `packnest-desktop_<ver>_<os>_<arch>.{app.zip,zip,tar.gz}` |
 | 为什么单独 tag | gitee 的 release API 不返回附件 id，同名附件**删不掉也换不了**；GUI 会频繁重发，单独一个 release 才能整体删掉重建（`DELETE /releases/{id}`） |
+| 配额 | gitee **单仓库附件总量 1GB**（单文件 100MB），GUI 每版 ≈25–40MB → 用 `--prune N` 只保留最近 N 个 `gui-v*`（默认 3，回收前会打印清单，`--dry-run` 只打印不删） |
+| 用户怎么装 | `sh scripts/install-gui.sh`（macOS，验签+校验后解压到 `~/Applications`）· `iwr …/install-gui.ps1 -UseB \| iex`（Windows）· 手动下载 zip。**GUI 必须先装 CLI** |
 
 ### 本机打包（macOS，arm64 单架构）
 
 ```bash
 sh scripts/release-gui.sh --version 0.10.2            # 构建 arm64 .app.zip 并上传
+sh scripts/release-gui.sh --version 0.10.2 --from-dir dist/gui --prune 3   # 收 CI 产物上传并只留最近 3 个 gui-v*
 # 只打包不上传：
 sh cmd/pk-desktop/packaging/build-macos.sh 0.10.2 arm64   # → dist/gui/packnest.app
 ```

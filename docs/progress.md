@@ -1308,3 +1308,15 @@ A. `msg` 保留"尽力而为"中文（建议）· B. `msg` 只留英文（破坏
 
 待拍板三项：`gui-v*` 保留几个版本（建议 3）· GUI 安装脚本是否落到 `~/Applications`（只写用户目录，不碰 `/Applications`）·
 brew cask 是否排期（不排期就把 `docs/gui.md` 写明"mac 用 curl 脚本或手动下载"）。
+
+### R-GUI-1 落地（2026-11-14，拍板后立即做）
+
+| 项 | 结果 |
+|---|---|
+| `scripts/install-gui.sh` | macOS：`pk` 不在 PATH 就**直接拒绝**（exit 3，并给 CLI 安装命令）→ 取 `gui-v<ver>` 的 `checksums.txt.sig` 验签 → 比 `.app.zip` 的 sha256 → 解压到 `~/Applications`（只写用户目录，永不 sudo）→ 打印"首次打开要去隐私与安全性点仍要打开" |
+| `scripts/install-gui.ps1` | Windows 同构：解压到 `%LOCALAPPDATA%\packnest\gui` + 开始菜单快捷方式；**全 ASCII 文案**（`iwr\|iex` 的控制台代码页会把中文变乱码，与 install.ps1 同规矩） |
+| `scripts/release-gui.sh --prune [N]` | 默认 3：只删"最旧的 N 以外"的 `gui-v*` release（当前 tag 永不删，`--dry-run` 只打印）。`gui_release_list` 抽成读 stdin JSON 的纯函数，可按版本号排序（`0.10.10` 在 `0.10.2` 之后） |
+| 公钥 | `make keys` 从三处扩到 **五处**（新增两个 GUI 脚本），漏一处照样红 |
+| 测试 | `test-installers.sh` 从 16 条断言扩到 **31 条**：GUI 正常/产物被改/缺 `.sig`/`--skip-verify`/缺 CLI 拒绝 + `gui_release_list` 排序，全离线 |
+| 文档 | `docs/gui.md` 加"用脚本装"与渠道现状表（含 **brew cask 不做**的结论与重启条件）；`docs/publishing.md` 的 GUI 节补配额与 `--prune`；README 门禁描述改"五处" |
+| 拍板 | 保留 3 个 `gui-v*` · 装到 `~/Applications` · brew cask 不排期 —— 已回写调研文档 §六 |

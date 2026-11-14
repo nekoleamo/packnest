@@ -1,6 +1,6 @@
 #!/bin/sh
-# 安装脚本集成测试（完善路线 §E8b）：scripts/install.sh 与 scripts/install.ps1 的
-# 「正常 / 产物被改 / 缺 .sig / --skip-verify / 清单签名被改」五条路径。
+# 安装脚本集成测试（完善路线 §E8b；R-GUI-1 加 GUI）：install.sh / install.ps1 / install-gui.sh / install-gui.ps1
+# 的「正常 / 产物被改 / 缺 .sig / --skip-verify / 清单签名被改」五条路径，外加 gui-v* release 的回收排序。
 #
 # 做法：**完全离线** —— 临时目录造 v<VERSION> 静态源（假产物 + checksums.txt + sshsig），
 # 用 python 起本地 http.server 当 CDN，脚本副本里把内置公钥换成临时生成的公钥
@@ -99,11 +99,30 @@ PY
 
 printf '%s\n' "$VERSION" > "$SRV/latest"
 
+# GUI 产物（R-GUI-1）：mac 是 .app.zip，里面必须有 packnest.app
+"$PY" - "$VDIR" "$VERSION" "$ARCH" <<'PY'
+import os, sys, zipfile
+vdir, ver, arch = sys.argv[1], sys.argv[2], sys.argv[3]
+name = os.path.join(vdir, f"packnest-desktop_{ver}_darwin_{arch}.app.zip")
+with zipfile.ZipFile(name, "w", zipfile.ZIP_STORED) as z:
+    z.writestr("packnest.app/Contents/Info.plist", "<plist>fake</plist>")
+    z.writestr("packnest.app/Contents/MacOS/packnest", "#!/bin/sh\n")
+PY
+
+# GUI 安装脚本要求本机先有 pk：造一个假的放进 PATH
+mkdir -p "$WORK/fakebin"
+printf '#!/bin/sh\necho "packnest %s"\n' "$VERSION" > "$WORK/fakebin/pk"
+chmod +x "$WORK/fakebin/pk"
+
 # 临时发布密钥 + 对 checksums.txt 的 sshsig（namespace 与发布签名一致）
 ssh-keygen -q -t ed25519 -N '' -C "pk-it-$(date +%s)" -f "$WORK/key"
 make_checksums() {
-  ( cd "$VDIR" && shasum -a 256 packnest_*.tar.gz packnest_*.zip 2>/dev/null ||
-      sha256sum packnest_*.tar.gz packnest_*.zip ) | sort -k2 > "$VDIR/checksums.txt"
+  # 一份清单覆盖 CLI 归档与 GUI 产物（真实发布里两者分属不同 tag，测试里合并更省事）
+  ( cd "$VDIR" &&
+    files=$(ls packnest_*.tar.gz packnest_*.zip packnest-desktop_*.app.zip 2>/dev/null || true)
+    if [ -n "$files" ]; then
+      shasum -a 256 $files 2>/dev/null || sha256sum $files
+    fi ) | sort -k2 > "$VDIR/checksums.txt"
   # -Y sign 把签名写到 checksums.txt.sig（就地覆盖）
   rm -f "$VDIR/checksums.txt.sig"
   ssh-keygen -Y sign -f "$WORK/key" -n "$NS" "$VDIR/checksums.txt" >/dev/null 2>&1
@@ -128,6 +147,8 @@ PY
 }
 inject_key "$ROOT/scripts/install.sh" "$WORK/install-it.sh"
 inject_key "$ROOT/scripts/install.ps1" "$WORK/install-it.ps1"
+inject_key "$ROOT/scripts/install-gui.sh" "$WORK/install-gui-it.sh"
+inject_key "$ROOT/scripts/install-gui.ps1" "$WORK/install-gui-it.ps1"
 
 # 起本地静态源
 PORT=$("$PY" -c 'import socket;s=socket.socket();s.bind(("127.0.0.1",0));print(s.getsockname()[1]);s.close()')
@@ -149,6 +170,9 @@ restore() { make_checksums; }
 tamper_artifact() { # 产物被改（清单与签名仍是真的）→ 只能被 sha256 抓到
   printf 'x' >> "$VDIR/packnest_${VERSION}_${OS}_${ARCH}.tar.gz"
   printf 'x' >> "$VDIR/packnest_${VERSION}_windows_${ARCH}.zip"
+}
+tamper_gui() { # GUI 产物被改：清单与签名都是真的，只有 sha256 对不上
+  printf 'x' >> "$VDIR/packnest-desktop_${VERSION}_darwin_${ARCH}.app.zip"
 }
 tamper_manifest() { # 清单被改（签名不再匹配）→ 只能被 sshsig 抓到
   printf 'deadbeef  packnest_0.0.0_linux_amd64.tar.gz\n' >> "$VDIR/checksums.txt"
@@ -231,6 +255,74 @@ if [ "$WANT_SH" = "1" ]; then
   c=$(run_sh skip --skip-verify)
   expect_exit "--skip-verify 放行被改产物" 0 "$c"
   expect_in "--skip-verify：不做校验" "$WORK/sh.skip.log" "装好了" "sha256 校验失败"
+fi
+
+# ─────────────────────────── install-gui.sh（GUI，mac arm64）
+run_gui() { # $1=名字 [$2...=额外参数]
+  name=$1
+  shift
+  set +e
+  PATH="$WORK/fakebin:$PATH" PK_ROOT="$WORK/root-gui-$name" \
+    sh "$WORK/install-gui-it.sh" --base "$BASE/v$VERSION" --version "$VERSION" --dir "$WORK/gui-$name" "$@" \
+    > "$WORK/gui.$name.log" 2>&1
+  code=$?
+  set -e
+  printf '%s' "$code"
+}
+
+if [ "$(uname -s)" = "Darwin" ] && [ "$ARCH" = "arm64" ]; then
+  say ""
+  say "== install-gui.sh（macOS arm64，本地源 ${BASE}/v${VERSION}）"
+
+  restore
+  c=$(run_gui normal)
+  expect_exit "GUI 正常安装" 0 "$c"
+  expect_in "GUI：验签通过" "$WORK/gui.normal.log" "sshsig OK"
+  expect_in "GUI：哈希通过" "$WORK/gui.normal.log" "sha256 OK"
+  if [ -d "$WORK/gui-normal/packnest.app" ]; then ok "GUI：解压到 --dir"; else bad "GUI：--dir 里没有 packnest.app"; fi
+  expect_in "GUI：首启提示" "$WORK/gui.normal.log" "仍要打开"
+
+  # 没有 CLI 时必须拒绝（GUI 只是 pk 的可视化壳）
+  set +e
+  PATH="/usr/bin:/bin" sh "$WORK/install-gui-it.sh" --base "$BASE/v$VERSION" --version "$VERSION" --dir "$WORK/gui-nopk" \
+    > "$WORK/gui.nopk.log" 2>&1
+  c=$?
+  set -e
+  expect_exit "GUI：缺 CLI 时拒绝" 3 "$c"
+  expect_in "GUI：缺 CLI 给安装命令" "$WORK/gui.nopk.log" "先装 CLI"
+
+  restore
+  tamper_gui
+  c=$(run_gui tampered)
+  expect_exit "GUI 产物被改" 4 "$c"
+  expect_in "GUI 产物被改：报 sha256" "$WORK/gui.tampered.log" "sha256 校验失败"
+
+  restore
+  drop_sig
+  c=$(run_gui nosig)
+  expect_exit "GUI 缺 .sig" 0 "$c"
+  expect_in "GUI 缺 .sig：提示后继续" "$WORK/gui.nosig.log" "没有发布签名"
+
+  restore
+  tamper_gui
+  c=$(run_gui skip --skip-verify)
+  expect_exit "GUI --skip-verify 放行" 0 "$c"
+  expect_in "GUI --skip-verify：照装" "$WORK/gui.skip.log" "装好了" "sha256 校验失败"
+fi
+
+# ── gui-v* release 回收排序（release-gui.sh 的 --prune 依据，纯离线）──
+say ""
+say "== gui-v* release 回收排序"
+# 把 release-gui.sh 里的 gui_release_list 抽出来单独测（不 source 整个发布脚本）
+awk '/^gui_release_list\(\)/,/^}/' "$ROOT/scripts/release-gui.sh" > "$WORK/gui_list.sh"
+set +e
+sorted=$(printf '%s' '[{"tag_name":"gui-v0.9.0","id":1},{"tag_name":"gui-v0.10.2","id":2},{"tag_name":"v1.6.0","id":3},{"tag_name":"gui-v0.10.10","id":4}]' \
+  | PYBIN="$PY" sh -c '. "$1" 2>/dev/null; gui_release_list' _ "$WORK/gui_list.sh" 2>/dev/null | tr '\n' ' ')
+set -e
+if [ "$sorted" = "gui-v0.9.0 1 gui-v0.10.2 2 gui-v0.10.10 4 " ]; then
+  ok "gui_release_list：只认 gui-v*，按版本升序（0.10.10 在 0.10.2 之后）"
+else
+  bad "gui_release_list 排序不对：${sorted}"
 fi
 
 # ─────────────────────────── install.ps1（pwsh）

@@ -24,6 +24,30 @@ https://github.com/nekoleamo/packnest/releases/tag/gui-v<版本>
 
 macOS 只发 arm64（Apple Silicon）；Intel Mac 需要自己 `make gui-app`（2026-11-12 拍板放弃 intel 产物）。
 
+### 用脚本装（推荐，和 CLI 一样的校验强度）
+
+```bash
+# macOS：验 checksums.txt 的 sshsig → 比 sha256 → 解压到 ~/Applications（只写用户目录，永不 sudo）
+curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.sh | sh
+
+# Windows（PowerShell）
+iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -UseB | iex
+```
+
+新版脚本会先检查 `pk` 在不在 PATH 上：**桌面端只是 CLI 的可视化壳，没装 CLI 装了也打不开东西**。
+
+### 渠道现状（需求 R-GUI-1）
+
+| 渠道 | 状态 | 说明 |
+|---|---|---|
+| 安装脚本（curl / iwr） | ✅ 已提供 | 与 CLI 同一把发布密钥、同一套清单校验；`--skip-verify` 只在拿不到清单时用 |
+| 手动下载 zip | ✅ | 见上面表格；先 `shasum -a 256` 对清单 |
+| Scoop | 🚧 计划（P1） | 需要在 manifest 里加 `shortcuts`；未签名 exe 首次启动会有 SmartScreen 提示 |
+| **Homebrew cask** | ❌ **不做** | 产物是 ad-hoc 签名（未公证），过不了 Gatekeeper；而 Homebrew 已移除 `--no-quarantine` 并会禁用过不了检查的 cask。要做 cask 的前提是先买 **Developer ID + 公证（$99/年）**，2026-11-14 拍板**不排期** |
+| winget | ❌ 不做 | 2026-11-11 已放弃 |
+
+分析全文（含 gitee 1GB 配额测算与拆仓判据）：`~/Documents/Plan/17-包管理器/pn-GUI分发渠道与仓库形态-调研.md`。
+
 同一个 release 里还有 **`checksums.txt` + `checksums.txt.sig`**（CLI 与 GUI 共用一把发布密钥）：
 下载后先 `shasum -a 256 <文件>` 与清单比对，再
 `ssh-keygen -Y verify -f <allowed_signers> -I release@packnest.dev -n pk-release -s checksums.txt.sig < checksums.txt`
