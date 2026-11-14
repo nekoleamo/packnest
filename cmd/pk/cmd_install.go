@@ -91,12 +91,21 @@ func (a *app) cmdInstall(args []string) int {
 		}
 	}
 
-	// 进度条：TTY 用 \r 刷新，非 TTY 每 25% 一行；--quiet 或 --json 时不画。
-	// 进度条只在单目标时创建：多工具是并发下载，同一个 bar 会被多路字节数互相踩（且数据竞争）。
-	var bar *present.Progress
-	if !*quiet && !a.json && len(targets) == 1 {
-		bar = present.NewProgress(a.out, tr("下载", "download"))
-		a.client.Progress = bar.Update
+	// 进度：每工具一行（E4）。TTY 且支持 ANSI 时整块重绘，否则逐行；
+	// --quiet 与 --json 下整个 group 为 nil（For 返回 nil，install 侧据此不挂回调）。
+	var group *present.ProgressGroup
+	if !*quiet && !a.json {
+		labels := make([]string, len(targets))
+		for i, t := range targets {
+			labels[i] = t.tool
+		}
+		group = present.NewGroup(a.out, labels)
+		// 单工具走 Install()（不复制 client），回调直接挂在共享 client 上，
+		// 行为与 1.6 一致；多工具由 install 的 ProgressFor 在 worker 副本上挂。
+		if len(targets) == 1 {
+			a.client.Progress = group.For(targets[0].tool)
+		}
+		defer group.Done()
 	}
 
 	unlock, err := store.Lock(a.paths.Lock())
@@ -122,6 +131,7 @@ func (a *app) cmdInstall(args []string) int {
 		Corepack:       a.cfg.Corepack,
 		Lock:           lockFile,
 		Events:         a.eventWriterFor(*quiet),
+		ProgressFor:    group.For,
 		LookupProvider: nil,
 	})
 	if err != nil {
@@ -146,7 +156,7 @@ func (a *app) cmdInstall(args []string) int {
 		pre[i] = install.Target{Tool: t.tool, Spec: t.spec}
 	}
 	if len(targets) > 1 && !*quiet && !a.json {
-		fmt.Fprintf(a.out, tr("并行安装 %d 个工具（下载阶段不画进度条）\n", "installing %d tools in parallel (no progress bar while downloading)\n"), len(targets))
+		fmt.Fprintf(a.out, tr("并行安装 %d 个工具（下载进度按工具分行）\n", "installing %d tools in parallel (one download line per tool)\n"), len(targets))
 	}
 	// 跨工具并行（校验/解压/伴生包），落盘与台账仍单线程。
 	outcomes := inst.InstallMany(a.context(), pre)
@@ -155,9 +165,6 @@ func (a *app) cmdInstall(args []string) int {
 	code := 0
 	for _, oc := range outcomes {
 		if oc.Err != nil {
-			if bar != nil {
-				bar.Done()
-			}
 			if errors.Is(oc.Err, context.Canceled) || errors.Is(oc.Err, context.DeadlineExceeded) {
 				fmt.Fprintln(a.errOut, tr("pk: 已取消（缓存已保留，下次会续传/复用）", "pk: cancelled (cache kept; the next run resumes or reuses it)"))
 				_ = inst.Finalize()
@@ -172,9 +179,6 @@ func (a *app) cmdInstall(args []string) int {
 				code = c
 			}
 			continue
-		}
-		if bar != nil {
-			bar.Done()
 		}
 		if !a.json && !*quiet {
 			a.printInstallResult(oc.Res)

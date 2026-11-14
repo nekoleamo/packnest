@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/packnest/packnest/internal/provider"
@@ -247,5 +248,84 @@ func TestInstallManyCancel(t *testing.T) {
 	}
 	if left := tmpLeftovers(t, inst); len(left) != 0 {
 		t.Fatalf("取消后不该残留 .tmp 目录: %v", left)
+	}
+}
+
+// TestInstallManyProgressPerTool（E4）：并行安装时每个目标各自一个进度回调，
+// 回调由 install 挂在 worker 的 Client 副本上（闭包 tool），否则多行进度会互相踩。
+func TestInstallManyProgressPerTool(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{
+			{Version: "22.98.0", NPMVersion: "11.20.0"},
+			{Version: "22.99.0", NPMVersion: "11.20.0"},
+		},
+		NPM: npmMatrix(),
+	})
+	var mu sync.Mutex
+	var gotTools []string
+	calls := 0
+	inst := newInstaller(t, fm, func(o *Options) {
+		o.ProgressFor = func(tool string) func(done, total int64) {
+			mu.Lock()
+			gotTools = append(gotTools, tool)
+			mu.Unlock()
+			return func(done, total int64) {
+				mu.Lock()
+				calls++
+				mu.Unlock()
+				if total > 0 && done > total {
+					t.Errorf("%s: done(%d) > total(%d)", tool, done, total)
+				}
+			}
+		}
+	})
+	out := inst.InstallMany(context.Background(), []Target{{Tool: "node", Spec: "22.98.0"}, {Tool: "node", Spec: "22.99.0"}})
+	if err := inst.Finalize(); err != nil {
+		t.Fatal(err)
+	}
+	for _, oc := range out {
+		if oc.Err != nil {
+			t.Fatalf("node@%s 失败: %v", oc.Spec, oc.Err)
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(gotTools) != 2 {
+		t.Fatalf("两个目标应各挂一次回调，得到 %d 次: %v", len(gotTools), gotTools)
+	}
+	for _, tool := range gotTools {
+		if tool != "node" {
+			t.Fatalf("回调应闭包各自的 tool，得到 %q", tool)
+		}
+	}
+	if calls == 0 {
+		t.Fatal("进度回调一次都没触发（下载没走 Client.Progress？）")
+	}
+}
+
+// TestInstallSingleNoProgressFor（E4）：单目标走 Install()，不经过并行层的 ProgressFor
+// （回调在 CLI 直接挂在共享 client 上，行为与 1.6 一致）。
+func TestInstallSingleNoProgressFor(t *testing.T) {
+	fm := testkitNode(t)
+	var mu sync.Mutex
+	n := 0
+	inst := newInstaller(t, fm, func(o *Options) {
+		o.ProgressFor = func(tool string) func(done, total int64) {
+			mu.Lock()
+			n++
+			mu.Unlock()
+			return func(done, total int64) {}
+		}
+	})
+	if _, err := inst.Install(context.Background(), "npm", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := inst.Finalize(); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if n != 0 {
+		t.Fatalf("单目标不该调用 ProgressFor（会与 CLI 的回调重复）: %d 次", n)
 	}
 }

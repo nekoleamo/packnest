@@ -1183,3 +1183,17 @@ env-unset / gc-nothing / use-switch / uninstall-missing / install-dry-run / inst
 - 环境钉死：`HOME` / `SHELL` / `PATH` / `COLUMNS=100` / `PK_LANG=zh` / `GOTOOLCHAIN` / `GOBIN`，根目录用 `--root` 指临时目录；
 - 归一化：临时根 → `<ROOT>`、家目录 → `<HOME>`、`go1.x` → `go<VER>`、`darwin/arm64`、`packnest_…_darwin_arm64`、`node-v26.13.0-linux-x64` → `<OS>…<ARCH>`；
 - 重建：`go test ./cmd/pk -run TestHumanSnapshots -update-snap`；含平台差异的用例在 Windows 上 skip。
+
+## 批 3 · E4 多行 TTY 进度
+
+| 项 | 结果 |
+|---|---|
+| 呈现层 | `present.Progress`（单行）→ **`present.ProgressGroup`**：每工具一行、内部加锁、三种渲染（TTY+ANSI 整块上移重绘 / TTY 无 ANSI 逐行 / 非 TTY 逐行，绝不写控制符） |
+| 检测 | `ansiSupported()`：`TERM` 为空或 `dumb` → 关；Windows 只在有 `WT_SESSION`/`ConEmuANSI=ON`/`TERM_PROGRAM` 时开（老 conhost 刷 `←[2K` 比没有进度更糟） |
+| install 侧 | `Options.ProgressFor func(tool) func(done,total)`：并行路径在 `worker()` 复制出来的 Client 副本上挂回调并闭包 `tool`（互不覆盖、无需调用方加锁）；单目标路径不挂（仍由 CLI 直接设在共享 client 上，行为与 1.6 一致） |
+| CLI | `pk install node pnpm bun` 三分行各自百分比；`--json` 的 `progress` 事件与字段**零变更**（golden 未改）；`--quiet` 下 group 为 nil（`For` 返回 nil） |
+| 并行提示 | "下载阶段不画进度条" → "下载进度按工具分行" |
+| 测试 | present：非 TTY 里程碑 / ANSI 上移重绘 / 三工具互不覆盖 / nil group / 未登记工具补行 / 真字符设备一遍；install：`ProgressFor` 每个目标各挂一次且回调真的触发、单目标不乱挂 |
+
+**为什么单目标不挂两遍**：`InstallMany` 单目标直接走 `Install()`（不复制 client），CLI 已经把回调设在共享 client 上；
+如果再调 `ProgressFor` 就会把同一次下载画两遍 —— `TestInstallSingleNoProgressFor` 锁住这条。

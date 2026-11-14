@@ -14,7 +14,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/packnest/packnest/internal/jsonout"
@@ -79,98 +81,156 @@ func HumanBytes(n int64) string {
 
 // ── 进度 ────────────────────────────────────────────────────────────────
 
-// Progress 是单行下载进度：TTY 用 \r 原地刷新，非 TTY 按里程碑逐行打印。
+// ProgressGroup 是"每工具一行"的下载进度（E4）。
 //
-// E4（多行 TTY 进度）会在这里改成"每工具一行"的 ProgressGroup；调用方只依赖
-// NewProgress/Update/Done 三个方法，所以改造不需要再动 cmd/pk 与 internal/install。
-type Progress struct {
+// 三种渲染：
+//   - TTY 且支持 ANSI：整块上移重绘（`pk install node pnpm bun` 时三行同时走）；
+//   - TTY 但检测不到 ANSI（老 conhost）：退化成逐行，每 25% 一行；
+//   - 非 TTY（管道 / CI 日志）：同样逐行，且绝不打 ANSI 控制符。
+//
+// 并发：并行安装时每个工具的 fetch.Client 是独立副本，但渲染到同一个 io.Writer，
+// 所以内部加锁；同一工具的回调本身已是串行的（fetch.parallel 自己串行化）。
+type ProgressGroup struct {
 	out   io.Writer
 	isTTY bool
-	label string
-	start time.Time
-	last  time.Time
-	// lastAt 是上次打印时的 done（非 TTY 的里程碑去重用）
-	lastAt int64
-	wrote  bool
-	width  int
+	ansi  bool
+	mu    sync.Mutex
+	lines []*progressLine
+	index map[string]int
+	drawn int // 已画出的行数（ANSI 重绘要按它上移）
 }
 
-// NewProgress 判断输出是否是终端（字符设备）。
-func NewProgress(out io.Writer, label string) *Progress {
+// progressLine 是一个工具的进度状态。
+type progressLine struct {
+	label     string
+	start     time.Time
+	done      int64
+	total     int64
+	lastAt    int64 // 非 TTY 里程碑去重（上次打印时的 done）
+	wrote     bool
+	lastFlush time.Time
+}
+
+// NewGroup 为一组工具建进度（labels 的顺序就是显示顺序）。
+func NewGroup(out io.Writer, labels []string) *ProgressGroup {
 	isTTY := false
 	if f, ok := out.(*os.File); ok {
 		if st, err := f.Stat(); err == nil {
 			isTTY = st.Mode()&os.ModeCharDevice != 0
 		}
 	}
-	return &Progress{out: out, isTTY: isTTY, label: label, start: time.Now(), width: 78}
+	return newGroupWithMode(out, labels, isTTY, isTTY && ansiSupported())
 }
 
-// Update 由 fetch 的 Progress 回调驱动。
-func (p *Progress) Update(done, total int64) {
-	if p == nil {
+// newGroupWithMode 是测试缝：TTY/ANSI 由调用方指定，免得测试要么依赖真终端、要么测不到。
+func newGroupWithMode(out io.Writer, labels []string, isTTY, ansi bool) *ProgressGroup {
+	g := &ProgressGroup{out: out, isTTY: isTTY, ansi: ansi, index: map[string]int{}}
+	for _, l := range labels {
+		g.index[l] = len(g.lines)
+		g.lines = append(g.lines, &progressLine{label: l, start: time.Now()})
+	}
+	return g
+}
+
+// ansiSupported 决定能不能用光标上移重绘。
+//
+// Windows 的老 conhost 默认不吃 ANSI（除非开了 VT 处理）：宁可退化成逐行，
+// 也不要在用户终端里刷出 `←[2K` 这种乱码。
+func ansiSupported() bool {
+	if term := os.Getenv("TERM"); term == "" || term == "dumb" {
+		return false
+	}
+	if runtime.GOOS != "windows" {
+		return true
+	}
+	return os.Getenv("WT_SESSION") != "" || os.Getenv("ConEmuANSI") == "ON" ||
+		os.Getenv("TERM_PROGRAM") != ""
+}
+
+// For 返回某个工具的进度回调（闭包 tool：worker 的 Client 副本各自挂一个）。
+// g 为 nil（--quiet / --json）时返回 nil，调用方直接判断即可。
+func (g *ProgressGroup) For(tool string) func(done, total int64) {
+	if g == nil {
+		return nil
+	}
+	return func(done, total int64) { g.update(tool, done, total) }
+}
+
+// update 记一次进度；是否需要真的画由节流规则决定。
+func (g *ProgressGroup) update(tool string, done, total int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	i, ok := g.index[tool]
+	if !ok { // 没登记的工具（例如伴生包的 npm 下载）：补一行，别丢进度
+		g.index[tool] = len(g.lines)
+		g.lines = append(g.lines, &progressLine{label: tool, start: time.Now()})
+		i = g.index[tool]
+	}
+	l := g.lines[i]
+	l.done, l.total = done, total
+	now := time.Now()
+	if g.ansi {
+		// ANSI 重绘整块：80ms 内只画一次，最后一行（done==total）必画
+		if now.Sub(l.lastFlush) < 80*time.Millisecond && done != total {
+			return
+		}
+		l.lastFlush = now
+		g.drawANSI()
 		return
 	}
-	now := time.Now()
-	if p.isTTY {
-		if now.Sub(p.last) < 80*time.Millisecond && done != total {
+	// 非 ANSI / 非 TTY：每 25% 一行（未知总长时每 1MB 才打一次）
+	if total > 0 {
+		step := total / 4
+		if step > 0 && done-l.lastAt < step && done != total {
 			return
 		}
-	} else {
-		// 非 TTY：每 25% 一行，避免日志爆炸
-		if total > 0 {
-			step := total / 4
-			if step > 0 && done-p.lastAt < step && done != total {
-				return
-			}
-		} else if p.wrote || done < 1<<20 {
-			return
-		}
+	} else if l.wrote || done < 1<<20 {
+		return
 	}
-	p.last, p.lastAt, p.wrote = now, done, true
-	p.render(done, total)
+	if done == l.lastAt && !l.wrote {
+		return
+	}
+	l.lastAt, l.wrote = done, true
+	fmt.Fprintln(g.out, progressText(l))
 }
 
-// render 打印一行/刷新一行。
-func (p *Progress) render(done, total int64) {
-	elapsed := time.Since(p.start).Seconds()
+// drawANSI 上移重画整块（块内行数 = 已登记的工具数）。
+func (g *ProgressGroup) drawANSI() {
+	if g.drawn > 0 {
+		fmt.Fprintf(g.out, "\x1b[%dA", g.drawn)
+	}
+	for _, l := range g.lines {
+		fmt.Fprintf(g.out, "\r\x1b[2K%s\n", progressText(l))
+	}
+	g.drawn = len(g.lines)
+}
+
+// Done 收尾：ANSI 模式下把光标放回块尾（否则后续日志会覆盖最后一行）。
+func (g *ProgressGroup) Done() {
+	if g == nil {
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.ansi && g.drawn > 0 {
+		fmt.Fprint(g.out, "\n")
+		g.drawn = 0
+	}
+}
+
+// progressText 拼一行进度文案（单/多工具共用，改格式只改这里）。
+func progressText(l *progressLine) string {
+	elapsed := time.Since(l.start).Seconds()
 	speed := 0.0
 	if elapsed > 0 {
-		speed = float64(done) / elapsed / (1 << 20)
+		speed = float64(l.done) / elapsed / (1 << 20)
 	}
-	if total > 0 {
-		pct := float64(done) / float64(total) * 100
-		p.line(fmt.Sprintf("%s %s/%s %3.0f%% (%.1f MB/s)",
-			p.label, HumanBytes(done), HumanBytes(total), pct, speed))
-		return
+	if l.total > 0 {
+		pct := float64(l.done) / float64(l.total) * 100
+		return fmt.Sprintf("%s %s/%s %3.0f%% (%.1f MB/s)",
+			l.label, HumanBytes(l.done), HumanBytes(l.total), pct, speed)
 	}
-	p.line(fmt.Sprintf("%s %s (%.1f MB/s)", p.label, HumanBytes(done), speed))
-}
-
-// line 输出一行：TTY 覆盖同一行，非 TTY 追加一行。
-func (p *Progress) line(s string) {
-	if p.isTTY {
-		p.clear()
-		fmt.Fprintf(p.out, "\r%s", s)
-		return
-	}
-	fmt.Fprintln(p.out, s)
-}
-
-// Done 收尾（换行，避免后面的日志接在进度行后面）。
-func (p *Progress) Done() {
-	if p == nil || !p.wrote {
-		return
-	}
-	if p.isTTY {
-		p.clear()
-	}
-	p.wrote = false
-}
-
-// clear 用空格覆盖上一行（不打 ANSI 控制符，Windows 老终端也安全）。
-func (p *Progress) clear() {
-	fmt.Fprint(p.out, "\r"+strings.Repeat(" ", p.width)+"\r")
+	return fmt.Sprintf("%s %s (%.1f MB/s)", l.label, HumanBytes(l.done), speed)
 }
 
 // ── 列表 ────────────────────────────────────────────────────────────────

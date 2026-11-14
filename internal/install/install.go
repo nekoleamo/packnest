@@ -50,6 +50,10 @@ type Options struct {
 	LookupProvider func(id string) (*provider.Provider, error)
 	// Events 用于 NDJSON 事件输出（nil 则静默）。
 	Events func(jsonout.Event)
+	// ProgressFor 按工具返回下载进度回调（多工具并行时每工具一行）。
+	// 每个 worker 的 fetch.Client 是独立副本，所以在 prepare 里把回调挂在副本上，
+	// 互不覆盖、也不需要调用方自己加锁。nil 表示不画进度。
+	ProgressFor func(tool string) func(done, total int64)
 	// Project 是 pk.toml 里的工具声明（含 npm 显式 pin）。
 	Project map[string]string
 	// DryRun 为 true 时只解析并打印计划，不下载不落盘。

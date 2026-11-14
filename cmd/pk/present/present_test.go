@@ -25,26 +25,73 @@ func TestHumanBytes(t *testing.T) {
 	}
 }
 
-// TestProgressNonTTY 非 TTY（bytes.Buffer 不是 *os.File）时按里程碑逐行，且不写 \r。
-func TestProgressNonTTY(t *testing.T) {
+// TestGroupNonTTY 非 TTY：每工具按 25% 里程碑逐行，绝不写 ANSI 控制符与 \r。
+func TestGroupNonTTY(t *testing.T) {
 	var buf bytes.Buffer
-	p := NewProgress(&buf, "download")
-	if p.isTTY {
-		t.Fatal("bytes.Buffer 不应被当成 TTY")
+	g := newGroupWithMode(&buf, []string{"node", "pnpm"}, false, false)
+	for _, label := range []string{"node", "pnpm"} {
+		cb := g.For(label)
+		cb(0, 100)
+		cb(25, 100)
+		cb(100, 100)
 	}
-	p.Update(0, 100)   // 0%：step 还没到，不打印
-	p.Update(25, 100)  // 25%：打印一行
-	p.Update(100, 100) // 100%：打印一行
-	p.Done()
+	g.Done()
 	out := buf.String()
-	if strings.Contains(out, "\r") {
-		t.Fatalf("非 TTY 不该写 \\r: %q", out)
+	if strings.ContainsAny(out, "\r\x1b") {
+		t.Fatalf("非 TTY 不该写 \\r 或 ANSI: %q", out)
 	}
-	if n := strings.Count(out, "\n"); n != 2 {
-		t.Fatalf("非 TTY 应打印 2 行，得到 %d 行: %q", n, out)
+	if n := strings.Count(out, "\n"); n != 4 { // 每工具 25% + 100% 两行
+		t.Fatalf("应打印 4 行，得到 %d: %q", n, out)
 	}
-	if !strings.Contains(out, "download") || !strings.Contains(out, "100%") {
+	if !strings.Contains(out, "node 25 B/100 B  25%") || !strings.Contains(out, "pnpm 100 B/100 B 100%") {
 		t.Fatalf("进度行内容不对: %q", out)
+	}
+}
+
+// TestGroupANSI TTY + ANSI：整块上移重绘，行数等于工具数，Done 收尾补换行。
+func TestGroupANSI(t *testing.T) {
+	var buf bytes.Buffer
+	g := newGroupWithMode(&buf, []string{"node", "pnpm"}, true, true)
+	g.For("node")(100, 100)
+	g.For("pnpm")(100, 100)
+	g.Done()
+	out := buf.String()
+	if !strings.Contains(out, "\x1b[2A") {
+		t.Fatalf("第二次重绘应上移两行: %q", out)
+	}
+	if strings.Count(out, "\x1b[2K") != 4 { // 两次重绘 × 两行
+		t.Fatalf("清行次数不对: %q", out)
+	}
+	if !strings.HasSuffix(out, "\n") {
+		t.Fatalf("Done 应补一个换行: %q", out)
+	}
+}
+
+// TestGroupNil --quiet / --json 时 group 为 nil：For 返回 nil，调用方据此不挂回调。
+func TestGroupNil(t *testing.T) {
+	var g *ProgressGroup
+	if cb := g.For("node"); cb != nil {
+		t.Fatal("nil group 的 For 应返回 nil")
+	}
+	g.Done() // 不该 panic
+}
+
+// TestGroupUnknownTool 没登记的工具（伴生包下载）也补一行，不丢进度。
+func TestGroupUnknownTool(t *testing.T) {
+	var buf bytes.Buffer
+	g := newGroupWithMode(&buf, []string{"node"}, false, false)
+	g.For("npm")(1<<20, 0)
+	g.Done()
+	if !strings.Contains(buf.String(), "npm 1.0 MB") {
+		t.Fatalf("未登记工具应补一行: %q", buf.String())
+	}
+}
+
+// TestAnsiSupported 只要求"不 panic 且 TERM=dumb 一定关"（其余取决于机器）。
+func TestAnsiSupported(t *testing.T) {
+	t.Setenv("TERM", "dumb")
+	if ansiSupported() {
+		t.Fatal("TERM=dumb 必须关掉 ANSI")
 	}
 }
 
@@ -66,22 +113,23 @@ func TestLangRoundTrip(t *testing.T) {
 	}
 }
 
-// TestProgressTTY 用 /dev/null（字符设备）走一遍 TTY 分支：应写 \r、不清屏幕换行。
-func TestProgressTTY(t *testing.T) {
+// TestNewGroupRealDevice 真字符设备（os.DevNull）上跑一遍：能建组、能画、Done 幂等。
+// 这台机器上 /dev/null 不是字符设备时跳过（TTY/ANSI 逻辑已由上面的模式注入用例覆盖）。
+func TestNewGroupRealDevice(t *testing.T) {
 	f, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
 	if err != nil {
 		t.Skip("没有可写的字符设备")
 	}
 	defer f.Close()
-	p := NewProgress(f, "download")
-	if !p.isTTY {
+	g := NewGroup(f, []string{"node"})
+	if !g.isTTY {
 		t.Skip("os.DevNull 在这台机器上不是字符设备")
 	}
-	p.Update(0, 0)     // total=0 且 done<1MB：非 TTY 分支才判断，TTY 直接画
-	p.Update(1<<20, 0) // 未知总长
-	p.Update(100, 100)
-	p.Done()
-	p.Done() // 幂等：wrote 已复位
+	g.For("node")(0, 0)
+	g.For("node")(1<<20, 0)
+	g.For("node")(100, 100)
+	g.Done()
+	g.Done()
 }
 
 // TestIssues 两种分支：没问题 / 逐行渲染（级别定宽，问题码定宽）。
@@ -147,5 +195,26 @@ func TestUpgrades(t *testing.T) {
 	out := buf.String()
 	if !strings.Contains(out, "可升级") || !strings.Contains(out, "22.22.2 → 24.15.0   pk upgrade node") {
 		t.Fatalf("可升级输出不对: %q", out)
+	}
+}
+
+// TestGroupThreeToolsDistinct（E4 的验收点）：三工具并行时三行各走各的百分比，
+// 谁也不许覆盖谁的字节数。
+func TestGroupThreeToolsDistinct(t *testing.T) {
+	var buf bytes.Buffer
+	g := newGroupWithMode(&buf, []string{"node", "pnpm", "bun"}, false, false)
+	g.For("node")(50, 100)
+	g.For("pnpm")(25, 100)
+	g.For("bun")(100, 100)
+	g.Done()
+	out := buf.String()
+	for _, want := range []string{
+		"node 50 B/100 B  50%",
+		"pnpm 25 B/100 B  25%",
+		"bun 100 B/100 B 100%",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("缺少 %q:\n%s", want, out)
+		}
 	}
 }

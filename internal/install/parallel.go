@@ -71,6 +71,20 @@ func (i *Installer) prepare(ctx context.Context, tool, specStr string, emitNow b
 	sub := i
 	if !emitNow {
 		sub = i.worker(&evs)
+		// 并行路径：每个 worker 的 Client 是副本，这里挂上"只属于这个工具"的进度回调
+		// （闭包 tool）。单工具路径（emitNow）沿用 CLI 直接设在共享 Client 上的回调，
+		// 行为与 1.6 完全一致。
+		if i.opt.ProgressFor != nil && sub.opt.Client != nil {
+			if cb := i.opt.ProgressFor(tool); cb != nil {
+				prev := sub.opt.Client.Progress
+				sub.opt.Client.Progress = func(done, total int64) {
+					if prev != nil {
+						prev(done, total)
+					}
+					cb(done, total)
+				}
+			}
+		}
 	}
 
 	var lockedSHA string
