@@ -31,7 +31,13 @@ budget_for() {
   awk -v p="$1" '$1 == p { print $2; found=1 } END { if (!found) print "" }' "$BUDGETS"
 }
 for dir in $(find cmd internal -type d ! -path 'internal/testkit*' ! -path 'cmd/pk-desktop*' | sort); do
-  loc=$(find "$dir" -maxdepth 1 -name '*.go' ! -name '*_test.go' | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}')
+  # 先看这个目录里到底有没有非测试 .go：空目录（testdata/、嵌入资源目录）直接跳过。
+  # ⚠️ 不能只靠 `xargs wc -l` 的判断：BSD xargs 在没输入时不执行命令，GNU xargs 会执行
+  #    `wc -l`（读 stdin → 输出 "0 total"），于是 Linux 上每个空目录都会被报成
+  #    "0 未登记预算" 而整条门禁变红（macOS 上却是绿的）。2026-11-15 实测踩到。
+  pkg_files=$(find "$dir" -maxdepth 1 -name '*.go' ! -name '*_test.go' | sort)
+  [ -n "$pkg_files" ] || continue
+  loc=$(printf '%s\n' "$pkg_files" | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}')
   [ -n "${loc:-}" ] || continue
   want=$(budget_for "$dir")
   if [ -z "$want" ]; then

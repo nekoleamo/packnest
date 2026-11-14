@@ -48,8 +48,13 @@ jobs:
   installers-ps1:
     runs-on: windows-latest
     timeout-minutes: 10
-    # Windows 的 bash 是 Git Bash：本脚本在它下面能跑通（cygpath 负责路径转换）
-    shell: bash
+    # Windows 的 bash 是 Git Bash：本脚本在它下面能跑通（cygpath 负责路径转换）。
+    # ⚠️ 必须是 defaults.run.shell，不能写 job 级的 `shell:` —— 那不是合法键，
+    #    GitHub 会判定整个 workflow 无效（表现为"建了 run、0 个 job、0 秒失败"，界面上
+    #    workflow 名还会退化成文件路径）。2026-11-15 实测踩到：这条 job 从来没真跑过。
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       # ssh-keygen 是 Windows 的「可选功能」：runner 通常带，缺了脚本会 skip 掉验签断言
