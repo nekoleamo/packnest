@@ -32,19 +32,21 @@ DIR="$DIST/v$VER"
 command -v gh >/dev/null 2>&1 || { echo "需要 gh（brew install gh）" >&2; exit 1; }
 
 echo "将发布 ${REPO} ${TAG}（来自 ${DIR}）"
-ls "$DIR"/packnest_* "$DIR"/checksums.txt $( [ -f "$DIR/checksums.txt.sig" ] && echo "$DIR/checksums.txt.sig" ) | sed 's|^|  |'
+ls "$DIR"/packnest_* "$DIR/provenance.json" "$DIR/sbom.cdx.json" "$DIR/checksums.txt" \
+   $( [ -f "$DIR/checksums.txt.sig" ] && echo "$DIR/checksums.txt.sig" ) 2>/dev/null | sed 's|^|  |'
 [ "$DRY" -eq 1 ] && { echo "dry-run：没有上传"; exit 0; }
 
 # release 不存在就建（存在则复用，重复上传用 --clobber 覆盖同名文件）
 if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
   gh release create "$TAG" --repo "$REPO" --title "$TAG" \
-    --notes "packnest ${VER}（6 平台产物 + checksums.txt；海外主源，国内请用 gitee）" >/dev/null
+    --notes "packnest ${VER}（6 平台产物 + provenance.json + sbom.cdx.json + checksums.txt；海外主源，国内请用 gitee）" >/dev/null
 fi
 # 兜底：release 是 draft 时 /releases/latest 看不到它，smoke 会退而装上一个版本（1.3.1 踩过）
 gh release edit "$TAG" --repo "$REPO" --draft=false >/dev/null
 EXTRA=""
 [ -f "$DIR/checksums.txt.sig" ] && EXTRA="$DIR/checksums.txt.sig"
+# provenance.json / sbom.cdx.json 与归档同批上传：checksums.txt 里已经算进它们的 sha256
 # shellcheck disable=SC2086
 gh release upload "$TAG" --repo "$REPO" --clobber \
-  "$DIR"/packnest_* "$DIR"/checksums.txt $EXTRA
+  "$DIR"/packnest_* "$DIR/provenance.json" "$DIR/sbom.cdx.json" "$DIR/checksums.txt" $EXTRA
 echo "完成：https://github.com/${REPO}/releases/tag/${TAG}"

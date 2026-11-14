@@ -1112,3 +1112,32 @@ warn 消失。
 1. 全部改成 `${var}`（`scripts/install.sh`、`scripts/verify-release.sh`、`scripts/sign-release.sh`）；
 2. `tools/langcheck.go`（`make lang`）新增第二遍扫描：`scripts/*.sh` 里 `$var` 紧跟非 ASCII 字符就红
    —— 同一类 bug 从此在门禁里挡住（`$1..$9` 位置参数不算）。
+
+> 批 1（E2 / SBOM / provenance）同批合并：三项都只动发布链，分开提交只会让 `checksums.txt` 的顺序与签名范围改三遍。
+
+### E2 · GUI 产物 checksums + 签名（批 1）
+
+| 项 | 结果 |
+|---|---|
+| 签名收口 | 新增 `scripts/lib/sign.sh`：`sign_checksums <dir>` 一个实现（含 `umask 077`、读钥探测、自验），`sign-release.sh` 变薄壳，GUI 复用同一函数 —— 一把密钥、一个发布者 |
+| `release-gui.sh` | 构建/`--from-dir` 之后**统一在本机**生成 `dist/gui/checksums.txt`（mac `.app.zip` + windows `.zip` + linux `.tar.gz`）并签名；CI 只产二进制、不碰私钥；`.sig` 缺失时真发版直接红（dry-run 只提示） |
+| 上传 | `checksums.txt` + `checksums.txt.sig` 与产物一起进 `gui-v*` release（gitee + GitHub 两条路径） |
+| 核对 | `verify-release.sh --gui`：默认对 `gui-v<版本>`，签名不符/缺 `.sig` 都算失败（GUI 强制要求签名）；`PK_SIGNERS_FILE` 可指定公钥文件（离线核对用） |
+| 实测 | 假产物 dry-run → 3 条 checksum + sshsig（临时密钥）；`--base file://$PWD/dist/gui` 核对全绿；删 `.sig` → 红；改一字节产物 → 逐条报"不符" |
+
+### SBOM（批 1）
+
+| 项 | 结果 |
+|---|---|
+| 工具 | `tools/sbom.go`（`//go:build ignore`）：`go list -m all` → 最小 CycloneDX 1.5（组件名/版本/purl + `metadata.tools` 与 `metadata.component`），**无时间戳、serialNumber 由内容派生**（重跑字节一致） |
+| 合规 | 用官方 `bom-1.5.schema.json` + `jsonschema` 人工校验一次：**通过** |
+| 产物 | `sbom.cdx.json` 与 `provenance.json` 一起进 `checksums.txt`（签名因此覆盖它们的 sha256），发布物 8 → **10 件** |
+
+### provenance A（批 1，决策 3）
+
+| 项 | 结果 |
+|---|---|
+| 工具 | `tools/provenance.go`：`{schema:1, commit, tag, go_version, platforms[6], ldflags, source_date, built_by, dirty, module_count, build_input_sha256}` |
+| 顺序 | `make release`：6 归档 → `provenance` → `sbom` → `checksums`（`provenance.json` / `sbom.cdx.json` 与归档同序写进清单）→ 人工 `sign-release.sh` |
+| 可复现 | 不记时间戳、`built_by` 不带主机名；同一 commit 重跑两次 `checksums.txt` 字节一致 |
+| 不被 pk 读 | `pk doctor` 不读 provenance（不引入网络自检）；它只是给用户/审计方重建比对用 |

@@ -173,6 +173,8 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式：不�
 - **发布签名**（1.6 起）：`checksums.txt` 带 `checksums.txt.sig`（`ssh-keygen -Y` 的 sshsig，namespace `pk-release`）。
   `install.sh` / `install.ps1` 在比对 sha256 之前先验签，镜像站与自托管源都改不了清单；缺签名/缺 `ssh-keygen` 时打印提示后只比 sha256（不静默）。
   `brew` / `scoop` 只认 sha256，这是渠道能力边界
+- **发布物 10 件**（1.8 起）：6 归档 + `provenance.json`（commit / Go 版本 / ldflags / 可重复构建基准，无时间戳所以可复现）
+  + `sbom.cdx.json`（CycloneDX 1.5，`trivy sbom` 可解析）+ `checksums.txt` + `checksums.txt.sig`；GUI 是独立 tag，自己一份清单 + 签名
 - **上游重新发布**（同一版本产物被上游换了）：本地 TOFU 记录与实际不符时不再直接要求 `--force-rehash` ——
   只要「与产物同 host 的校验源认可新摘要」且「另一个 host 的源还在给旧摘要」（跨源分裂），就按 `weak` 接受并改写记录，
   事件流里 `verify` 的 `msg` 会说明原因；只有同源一家之言时仍然硬失败（那可能就是镜像被换）
@@ -256,7 +258,7 @@ make test       # 零外网单测
 make accept     # 只跑验收用例 TestAcceptance_*
 make test-installers  # 安装脚本集成测试（离线，install.sh / install.ps1 五条路径）
 make check      # 11 项门禁（提交前必跑，含行数预算、英文覆盖与问题码契约）
-make release    # 6 平台发布包 + checksums.txt → dist/
+make release    # 6 平台发布包 + provenance.json + sbom.cdx.json + checksums.txt → dist/
 make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）
 ```
 

@@ -29,9 +29,10 @@ VER_DIR="$DIST/v$VERSION"
 [ -d "$VER_DIR" ] || { echo "找不到 $VER_DIR" >&2; exit 1; }
 
 echo "将发布 ${REPO} ${TAG}（来自 ${VER_DIR}）"
-for f in "$VER_DIR"/packnest_* "$VER_DIR"/checksums.txt "$VER_DIR"/checksums.txt.sig; do
+for f in "$VER_DIR"/packnest_* "$VER_DIR"/provenance.json "$VER_DIR"/sbom.cdx.json \
+         "$VER_DIR"/checksums.txt "$VER_DIR"/checksums.txt.sig; do
   [ -f "$f" ] || continue
-  [ -f "$f" ] && printf '  %s (%s)\n' "$(basename "$f")" "$(du -h "$f" | cut -f1)"
+  printf '  %s (%s)\n' "$(basename "$f")" "$(du -h "$f" | cut -f1)"
 done
 if [ "$DRY" -eq 1 ]; then echo "dry-run：没有上传"; exit 0; fi
 
@@ -42,7 +43,7 @@ api="https://gitee.com/api/v5/repos/$REPO"
 # 1) 建 release（已存在则复用）
 rel_id=$(curl -s -X POST "$api/releases" \
   -d "access_token=$TOKEN" -d "tag_name=$TAG" -d "name=$TAG" \
-  --data-urlencode "body=packnest ${VERSION}（6 平台产物 + checksums.txt）" -d "target_commitish=main" \
+  --data-urlencode "body=packnest ${VERSION}（6 平台产物 + provenance.json + sbom.cdx.json + checksums.txt）" -d "target_commitish=main" \
   | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d.get("id") or "")' 2>/dev/null)
 if [ -z "$rel_id" ]; then
   rel_id=$(curl -s "$api/releases/tags/$TAG" \
@@ -52,7 +53,8 @@ fi
 echo "release id: $rel_id"
 
 # 2) 逐个上传附件
-for f in "$VER_DIR"/packnest_* "$VER_DIR"/checksums.txt "$VER_DIR"/checksums.txt.sig; do
+for f in "$VER_DIR"/packnest_* "$VER_DIR"/provenance.json "$VER_DIR"/sbom.cdx.json \
+         "$VER_DIR"/checksums.txt "$VER_DIR"/checksums.txt.sig; do
   [ -f "$f" ] || continue
   code=$(curl -s -o /tmp/gitee-upload.json -w '%{http_code}' -X POST "$api/releases/$rel_id/attach_files" \
     -F "access_token=$TOKEN" -F "file=@$f")

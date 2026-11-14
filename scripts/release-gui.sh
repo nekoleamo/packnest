@@ -65,6 +65,34 @@ for arch in arm64; do
   printf '  %-52s %s\n' "$(basename "$out")" "$(du -h "$out" | cut -f1)"
 done
 
+# ── 校验清单 + 发布签名 ────────────────────────────────────────────────
+# GUI 产物也要能被独立核对：下载 .app.zip 的人拿 checksums.txt 对 sha256，
+# 再拿 checksums.txt.sig 验"清单没被镜像站换过"。签名与 CLI 共用
+# scripts/lib/sign.sh（一把密钥、一个发布者）。
+gui_artifacts() {
+  # sort -u：mac 的 .app.zip 同时匹配 *.app.zip 与 *.zip，不去重会算两遍
+  ls "$DIST/gui"/packnest-desktop_*.app.zip "$DIST/gui"/packnest-desktop_*.zip \
+     "$DIST/gui"/packnest-desktop_*.tar.gz 2>/dev/null | sort -u || true
+}
+# 先列清单再算：--from-dir 进来的 CI 产物与本地构建的产物一视同仁
+_gui_list=$(gui_artifacts)
+[ -n "$_gui_list" ] || { echo "没有 GUI 产物可发布（先构建，或用 --from-dir）" >&2; exit 4; }
+# shellcheck disable=SC2086
+( cd "$DIST/gui" && { shasum -a 256 $(gui_artifacts | xargs -n1 basename) 2>/dev/null \
+    || sha256sum $(gui_artifacts | xargs -n1 basename); } | sort -k2 > checksums.txt )
+echo "已生成 $DIST/gui/checksums.txt（$(grep -c . "$DIST/gui/checksums.txt") 个产物）"
+
+. scripts/lib/sign.sh
+if [ -n "${PK_SIGNING_KEY:-}" ]; then
+  sign_checksums "$DIST/gui" >/dev/null || { echo "GUI 签名失败" >&2; exit 6; }
+  echo "已签名 $DIST/gui/checksums.txt"
+elif [ "$DRY" -eq 1 ]; then
+  echo "提示：没有 PK_SIGNING_KEY，dry-run 跳过签名（真发版必须有 .sig）" >&2
+else
+  echo "缺少 PK_SIGNING_KEY：GUI 产物必须带 checksums.txt.sig（唯一发布者的密钥）" >&2
+  exit 6
+fi
+
 if [ "$DRY" -eq 1 ]; then echo "dry-run：没有上传"; exit 0; fi
 
 # 上传还是走"本机唯一发布者"：gitee 用 token（凭据文件），GitHub 用 gh
@@ -97,7 +125,8 @@ try:
 except Exception:
     print(""); raise SystemExit
 print("\n".join(a.get("name","") for a in d.get("assets", [])))')
-for f in "$DIST/gui/packnest-desktop_${VER}"_*.zip "$DIST/gui/packnest-desktop_${VER}"_*.tar.gz; do
+for f in "$DIST/gui/packnest-desktop_${VER}"_*.zip "$DIST/gui/packnest-desktop_${VER}"_*.tar.gz \
+         "$DIST/gui/checksums.txt" "$DIST/gui/checksums.txt.sig"; do
   [ -f "$f" ] || continue
   if printf '%s\n' "$existing" | grep -qx "$(basename "$f")"; then
     printf '  gitee  %-46s 已存在，跳过\n' "$(basename "$f")"
@@ -119,7 +148,8 @@ if command -v gh >/dev/null 2>&1; then
   done
   # 只传**真实存在**的产物：直接写通配符时，某个平台还没构建（例如只在本机打了 mac）
   # 会让整条 gh 命令每次都失败，最后却照样打印"已上传"（0.10.3 就这样丢过 GitHub 附件）。
-  files=$(ls "$DIST/gui/packnest-desktop_${VER}"_*.zip "$DIST/gui/packnest-desktop_${VER}"_*.tar.gz 2>/dev/null || true)
+  files=$(ls "$DIST/gui/packnest-desktop_${VER}"_*.zip "$DIST/gui/packnest-desktop_${VER}"_*.tar.gz \
+             "$DIST/gui/checksums.txt" "$DIST/gui/checksums.txt.sig" 2>/dev/null || true)
   [ -n "$files" ] || { echo "没有可上传的 GUI 产物（先构建或 --from-dir）" >&2; exit 4; }
   n=0
   ok=0

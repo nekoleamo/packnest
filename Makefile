@@ -28,7 +28,7 @@ LDFLAGS := -s -w -X main.Version=$(VERSION)
 SOURCE_DATE := 202001010000
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
-.PHONY: gitee-release help build test race check fmt loc vet cover cross fuzz bench golden accept clean dist list-providers release checksums site verify-release publish-manifests github-release gui gui-app gui-serve gui-test codes test-installers
+.PHONY: gitee-release help build test race check fmt loc vet cover cross fuzz bench golden accept clean dist list-providers release checksums provenance sbom site verify-release publish-manifests github-release gui gui-app gui-serve gui-test codes test-installers
 
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
@@ -49,7 +49,7 @@ help:
 	@echo "make gui-serve  GUI 的浏览器形态（127.0.0.1:7799）"
 	@echo "make github-release  同步产物到 GitHub Releases（海外主源）"
 	@echo "make site      渲染官网到 site/dist（只注入版本号，无前端工具链）"
-	@echo "make verify-release  核对已发布产物与 checksums.txt（发布后必跑）"
+	@echo "make verify-release  核对已发布产物与 checksums.txt（发布后必跑；--gui 核对 GUI）"
 	@echo "make publish-manifests  verify → 生成并推送 brew/scoop/winget 清单"
 	@echo "make clean     清理产物"
 
@@ -176,6 +176,7 @@ release:
 			(tar -cf - -C $$stage packnest | gzip -n > "$$out/packnest_$(VERSION)_$${os}_$${arch}.tar.gz"); \
 		fi; \
 	done
+	@$(MAKE) --no-print-directory provenance sbom
 	@$(MAKE) --no-print-directory checksums
 	@printf '%s\n' "$(VERSION)" > $(DIST)/latest
 	@printf '%s\n' "$(VERSION)" > scripts/latest
@@ -184,10 +185,22 @@ release:
 	@echo "可选：用离线私钥签名（PK_SIGNING_KEY=<私钥> sh scripts/sign-release.sh）"
 	@echo "自托管基地址就绪：把 $(DIST)/ 整个目录丢到任意静态 host，即可 --base <url>"
 
+# 顺序固定（归档 → provenance → SBOM）：同一版本重跑，checksums.txt 必须字节一致
 checksums:
-	@cd $(DIST)/v$(VERSION) && { sha256sum packnest_*.tar.gz packnest_*.zip 2>/dev/null || shasum -a 256 packnest_*.tar.gz packnest_*.zip; } > checksums.txt
+	@cd $(DIST)/v$(VERSION) && { sha256sum packnest_*.tar.gz packnest_*.zip provenance.json sbom.cdx.json 2>/dev/null \
+		|| shasum -a 256 packnest_*.tar.gz packnest_*.zip provenance.json sbom.cdx.json; } > checksums.txt
 	@cp $(DIST)/v$(VERSION)/checksums.txt $(DIST)/checksums.txt
 	@echo "已生成 checksums.txt：" && cat $(DIST)/checksums.txt
+
+# 构建溯源 + 依赖清单（都是随发布物一起签的文件；只读本机事实，无网络）
+provenance:
+	@mkdir -p $(DIST)/v$(VERSION)
+	@go run tools/provenance.go -out $(DIST)/v$(VERSION)/provenance.json -version $(VERSION) \
+		-ldflags "$(LDFLAGS)" -source-date $(SOURCE_DATE) -platforms "$(PLATFORMS)"
+
+sbom:
+	@mkdir -p $(DIST)/v$(VERSION)
+	@go run tools/sbom.go -out $(DIST)/v$(VERSION)/sbom.cdx.json -version $(VERSION)
 
 # GUI（cmd/pk-desktop）：CLI 的可视化补充，必须先有 pk；GUI 不计入行数门禁（单列预算）
 # 前端是 Vue3+TS（frontend/），产物 frontend/dist 已随库提交；改了前端要重跑 gui-frontend

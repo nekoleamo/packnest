@@ -86,15 +86,24 @@ make github-release      # 用 gh 把 dist/v<ver>/ 的 6 产物 + checksums.txt 
 产物清单可以签 sshsig，客户端（`install.sh` / `install.ps1`）在比 sha256 之前先验签。
 
 ```bash
-make release                                            # 先出 6 产物 + checksums.txt
+make release                                            # 6 归档 + provenance.json + sbom.cdx.json + checksums.txt
 PK_SIGNING_KEY=/Volumes/usb/pk-release-2026 sh scripts/sign-release.sh
 sh scripts/release-gitee.sh && sh scripts/release-github.sh
 make verify-release                                     # 远端有 .sig 就一起验
 ```
 
+**顺序不能换**：`provenance.json` / `sbom.cdx.json` 必须在 `checksums.txt` **之前**生成
+（`make release` 里已排好），否则它们的 sha256 进不了清单，签名就覆盖不到它们。
+
 规则（细节见 `~/Documents/Plan/17-包管理器/pn-1.7-产物签名-方案.md`）：
 - **私钥离线**，只在发版时临时挂载；签名必须人工触发（自动签等于没签）。
-- 只签 `checksums.txt`（覆盖 6 个产物），产物变 **8 件**：6 归档 + `checksums.txt` + `checksums.txt.sig`。
+- 只签 `checksums.txt`（覆盖清单里的每一件），产物变 **10 件**：6 归档 + `provenance.json` +
+  `sbom.cdx.json` + `checksums.txt` + `checksums.txt.sig`。
+- `provenance.json` 记 commit / tag / Go 版本 / 平台 / ldflags / 可重复构建基准 / 构建者 / 模块数
+  （**没有时间戳**：同一 commit 重跑一次必须字节一致，否则清单一变，已发布版本的 sha256 就永远对不上）。
+- `sbom.cdx.json` 是 CycloneDX 1.5（`go list -m all` 的全部模块 + purl），`trivy sbom` 等工具可直接解析。
+- GUI 产物走同一个签名函数（`scripts/lib/sign.sh`），自己一份 `checksums.txt` + `.sig`；
+  签名统一在**本机**做，CI 只产二进制、不碰私钥。
 - 公钥要同时写进三处，否则用户侧认不出：`internal/verify/keys/allowed_signers`、
   `scripts/install.sh` 的 `ALLOWED_SIGNERS`、`scripts/install.ps1` 的 `$AllowedSigners`。
 - 轮换时 allowed_signers 最多留两把（当前 + 下一把），先发带新公钥的版本，下一版才用新钥签。

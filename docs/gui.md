@@ -24,6 +24,12 @@ https://github.com/nekoleamo/packnest/releases/tag/gui-v<版本>
 
 macOS 只发 arm64（Apple Silicon）；Intel Mac 需要自己 `make gui-app`（2026-11-12 拍板放弃 intel 产物）。
 
+同一个 release 里还有 **`checksums.txt` + `checksums.txt.sig`**（CLI 与 GUI 共用一把发布密钥）：
+下载后先 `shasum -a 256 <文件>` 与清单比对，再
+`ssh-keygen -Y verify -f <allowed_signers> -I release@packnest.dev -n pk-release -s checksums.txt.sig < checksums.txt`
+确认清单本身没被镜像站换过。公钥在 `internal/verify/keys/allowed_signers`（与 `pk doctor` 内置的那份同源）。
+核对现成的发布用 `sh scripts/verify-release.sh --gui`。
+
 ## 二、先装 CLI
 
 GUI 启动时会按 `PATH` → 常见安装目录的顺序找 `pk`，并检查它的契约版本（`schema ≥ 1` 且版本够新）。
