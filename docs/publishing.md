@@ -208,6 +208,20 @@ sh cmd/pk-desktop/packaging/build-macos.sh 0.10.2 arm64
 - **`verify-release --gui` 要看本地清单的版本**：不传 `--version` 时它读 `dist/gui/latest`；以前没有这个文件
   就回落到 `dist/latest`（CLI 的 1.8.0），于是拿 `gui-v1.8.0` 的 URL 去核对、全 404。
 
+### 只回收、不重发（`--prune-only`）
+
+```bash
+sh scripts/release-gui.sh --prune-only --prune 3 --dry-run   # 先看会删哪几个
+sh scripts/release-gui.sh --prune-only --prune 3            # 真删（gitee + GitHub 一起）
+```
+
+不需要产物、不构建、不上传；最新的那个与"当前 TAG"永远保留。gitee 1GB 配额只算附件，
+但"删掉旧 release"同时消除了"脚本装不上旧版本"这个坑，所以两个远端一起收。
+
+2026-11-15 实际执行：删掉 gui-v0.10.0 ~ 0.10.3（这四版没有 `checksums.txt`，脚本装不了），
+保留 0.10.4 / 0.11.0 / 0.11.1；0.10.4 与 0.11.0 的清单按"删 release 重建"补齐后，
+三个保留版本的 `checksums.txt` 都是 3 行且签名可验。
+
 ### 重发同一版本
 
 gitee 不允许替换同名附件，所以**先删 release 再重建**：

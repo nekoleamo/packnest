@@ -1,7 +1,8 @@
 #!/bin/sh
 # 构建并上传 **GUI（pk-desktop）** 的 mac 产物到已发布的 release（gitee + GitHub）。
 #
-#   sh scripts/release-gui.sh [--dry-run] [--version 0.10.1]
+#   sh scripts/release-gui.sh [--dry-run] [--version 0.11.1]
+#   sh scripts/release-gui.sh --prune-only --prune 3 [--dry-run]   # 只回收旧 gui-v*，不构建不上传
 #
 # 只做 macOS：Windows/Linux 需要各自的 WebView 工具链（见 cmd/pk-desktop/README.md），
 # 由 CI 的 gui-build 任务产出后再下载，用同一条路径上传（保持"本机唯一发布者"）。
@@ -20,6 +21,7 @@ VER=""
 FROM=""   # --from-dir：上传 CI 构建好的产物（不再本机重编）
 TAG=""    # 默认 gui-v<ver>；GUI 单独一个 release，便于整体重建
 PRUNE=""  # --prune [N]：只保留最近 N 个 gui-v* release（默认 3）。gitee 单仓库附件总量 1GB
+PRUNE_ONLY=0 # --prune-only：只做回收（不需要产物、不构建、不上传）
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1; shift ;;
@@ -27,6 +29,7 @@ while [ $# -gt 0 ]; do
     --from-dir) FROM="$2"; shift 2 ;;
     --tag) TAG="$2"; shift 2 ;;
     --prune) PRUNE="3"; if [ $# -ge 2 ] && [ "${2#-}" = "$2" ]; then PRUNE="$2"; shift 2; else shift; fi ;;
+    --prune-only) PRUNE_ONLY=1; shift ;;
     *) echo "未知参数: $1" >&2; exit 2 ;;
   esac
 done
@@ -35,6 +38,76 @@ done
 
 PYBIN=$(command -v python3 || command -v python || true)
 [ -n "$PYBIN" ] || { echo "需要 python（列/删 release 用）" >&2; exit 2; }
+
+# gui_release_list 读 stdin 的 gitee releases JSON，输出 `tag id`（按版本升序）。
+# 抽成独立函数是为了能离线测：喂一段 fixture JSON 就能验证"删哪几个"。
+gui_release_list() {
+  "$PYBIN" -c '
+import json, sys
+try:
+    data = json.load(sys.stdin) or []
+except Exception:
+    raise SystemExit(0)
+rows = [(r.get("tag_name", ""), r.get("id")) for r in data if (r.get("tag_name") or "").startswith("gui-v")]
+
+def key(tag):
+    try:
+        return tuple(int(x) for x in tag[5:].split("."))
+    except Exception:
+        return (0,)
+
+for tag, rid in sorted(rows, key=lambda r: key(r[0])):
+    print(tag, rid)
+'
+}
+
+# ── 回收旧 GUI release（配额）──────────────────────────────────────────
+# gitee 单仓库附件总量 1GB，且**附件删不掉**（API 不返回附件 id），只有删整条 release 才回收。
+# GUI 每版 25-40MB 且重发频繁 → 默认只保留最近 3 个 gui-v*（最新的那个永远保留）。
+# 两个远端一起收：只删 gitee 会让"文档里说的 tag"在某些远端 404。
+prune_gui() {
+  keep="$1"
+  echo "回收旧 GUI release（保留最近 ${keep} 个，最新那个永远保留）"
+  list=$(curl -s --max-time 30 "$api/releases?access_token=$(printf '%s' "$TOKEN" | sed 's/ /%20/g')&per_page=100&page=1" | gui_release_list)
+  case "$list" in ERR*) echo "  跳过回收（列 release 失败：${list}）" >&2; return 0 ;; esac
+  total=$(printf '%s\n' "$list" | sed '/^$/d' | wc -l | tr -d ' ')
+  echo "  线上 gui-v* release：${total} 个"
+  [ "$total" -gt "$keep" ] || { echo "  不需要回收"; return 0; }
+  newest=$(printf '%s\n' "$list" | sed '/^$/d' | tail -1 | cut -d' ' -f1)
+  # 只删最旧的 (total-keep) 个；当前 TAG 与最新那个都不碰
+  i=0
+  printf '%s\n' "$list" | sed '/^$/d' | while read -r tag rid; do
+    i=$((i + 1))
+    [ "$i" -le $((total - keep)) ] || break
+    [ "$tag" = "$TAG" ] && continue
+    [ "$tag" = "$newest" ] && continue
+    if [ "$DRY" -eq 1 ]; then
+      printf '  dry-run：会删 %s（gitee id=%s）\n' "$tag" "$rid"
+      continue
+    fi
+    code=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$api/releases/$rid?access_token=$TOKEN")
+    printf '  已删 %s（gitee id=%s）→ %s\n' "$tag" "$rid" "$code"
+    if command -v gh >/dev/null 2>&1 && gh release view "$tag" --repo "$GH_REPO" >/dev/null 2>&1; then
+      if gh release delete "$tag" --repo "$GH_REPO" --yes >/dev/null 2>&1; then
+        printf '  已删 %s（github）\n' "$tag"
+      else
+        printf '  ⚠ 删不掉 %s（github）\n' "$tag" >&2
+      fi
+    fi
+  done
+}
+
+# --prune-only：只要回收旧 release（不构建、不上传、不要求产物存在）
+if [ "$PRUNE_ONLY" = "1" ]; then
+  [ -n "$PRUNE" ] || PRUNE=3
+  . "$(dirname "$0")/lib/secrets.sh"
+  TOKEN_FILE="${PK_SECRETS_FILE:-$HOME/.pi/agent/local/secrets.env}"
+  TOKEN="${GITEE_TOKEN:-$(secret_from_file "$TOKEN_FILE" GITEE_TOKEN GITEE_ACCESS_TOKEN)}"
+  [ -n "$TOKEN" ] || { echo "没有 GITEE_TOKEN（${TOKEN_FILE}）" >&2; exit 3; }
+  api="https://gitee.com/api/v5/repos/$GITEE_REPO"
+  prune_gui "$PRUNE"
+  exit 0
+fi
 
 mkdir -p "$DIST/gui"
 if [ -n "$FROM" ]; then
@@ -181,55 +254,8 @@ if command -v gh >/dev/null 2>&1; then
   printf '%s\n' "$files" | sed 's|^|  github  |'
   echo "已上传 GitHub Releases（${TAG}）"
 fi
-# gui_release_list 读 stdin 的 gitee releases JSON，输出 `tag id`（按版本升序）。
-# 抽成独立函数是为了能离线测：喂一段 fixture JSON 就能验证"删哪几个"。
-gui_release_list() {
-  "$PYBIN" -c '
-import json, sys
-try:
-    data = json.load(sys.stdin) or []
-except Exception:
-    raise SystemExit(0)
-rows = [(r.get("tag_name", ""), r.get("id")) for r in data if (r.get("tag_name") or "").startswith("gui-v")]
 
-def key(tag):
-    try:
-        return tuple(int(x) for x in tag[5:].split("."))
-    except Exception:
-        return (0,)
-
-for tag, rid in sorted(rows, key=lambda r: key(r[0])):
-    print(tag, rid)
-'
-}
-
-# ── 回收旧 GUI release（配额）──────────────────────────────────────────
-# gitee 单仓库附件总量 1GB，且**附件删不掉**（API 不返回附件 id），只有删整条 release 才回收。
-# GUI 每版约 25-40MB 且重发频繁 → 默认只保留最近 3 个 gui-v*（当前这个永远保留）。
-prune_gui() {
-  keep="$1"
-  echo "回收旧 GUI release（保留最近 ${keep} 个）"
-  list=$(curl -s --max-time 30 "$api/releases?access_token=$(printf '%s' "$TOKEN" | sed 's/ /%20/g')&per_page=100&page=1" | gui_release_list)
-  case "$list" in ERR*) echo "  跳过回收（列 release 失败：${list}）" >&2; return 0 ;; esac
-  total=$(printf '%s\n' "$list" | sed '/^$/d' | wc -l | tr -d ' ')
-  echo "  线上 gui-v* release：${total} 个"
-  [ "$total" -gt "$keep" ] || { echo "  不需要回收"; return 0; }
-  # 只删最旧的 (total-keep) 个，且绝不碰当前 TAG
-  i=0
-  printf '%s\n' "$list" | sed '/^$/d' | while read -r tag rid; do
-    i=$((i + 1))
-    [ "$i" -le $((total - keep)) ] || break
-    [ "$tag" = "$TAG" ] && continue
-    if [ "$DRY" -eq 1 ]; then
-      printf '  dry-run：会删 %s（id=%s）\n' "$tag" "$rid"
-      continue
-    fi
-    code=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$api/releases/$rid?access_token=$TOKEN")
-    printf '  已删 %s（id=%s）→ %s\n' "$tag" "$rid" "$code"
-  done
-}
-
-if [ -n "$PRUNE" ]; then
+if [ -n "$PRUNE" ] && [ "$PRUNE_ONLY" != "1" ]; then
   prune_gui "$PRUNE"
 fi
 

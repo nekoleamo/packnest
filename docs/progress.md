@@ -1750,3 +1750,11 @@ sh scripts/install-gui.sh --version 0.11.1 --dir /tmp/x   # 用户视角实测�
 | `docs/cli.md` | 版本示例 1.5.1 → 1.8.0；§1.4 补"热缓存对全新机器有效"（含两台机器的复现命令）；§12 补失败对象示例；§11.9 更正"内部包只有中文"的过时说法（L2 后内部只给码） |
 | `docs/gui.md` | `verify-release --gui` 取版本的说明 |
 | `docs/publishing.md` | GUI 发布的两个实测坑（清单为空 / 版本回落）与处置 |
+
+### GUI 旧 release 回收 + 补清单（2026-11-15）
+
+- 新增 `release-gui.sh --prune-only --prune N`（只回收，不构建/不上传；最新那个与当前 TAG 永不删；
+  gitee 与 GitHub 一起收）。此前 `--prune` 只能在"发版成功之后"顺带跑，想单独清理没有入口。
+- 实际执行：删掉 `gui-v0.10.0` ~ `0.10.3`（这四版没有 `checksums.txt`，`install-gui.sh` 装不了），
+  保留 `0.10.4` / `0.11.0` / `0.11.1`。现在 gitee 与 GitHub 的 gui-v* 各 3 个，
+  三个版本的清单都是 3 行 + 签名可验（0.10.4 也按"删 release 重建"补齐了）。
