@@ -21,6 +21,9 @@ jobs:
         include:
           - { runner: macos-15,       os: darwin,  arch: arm64 }
           - { runner: windows-latest, os: windows, arch: amd64 }
+          # Windows ARM64：x64 runner 直接交叉编译（Wails v3 的 windows 后端是纯 Go，
+          # go-webview2 走 syscall/go-ole，不需要 cgo —— 所以 CGO_ENABLED=0 才跨得过去）
+          - { runner: windows-latest, os: windows, arch: arm64 }
           - { runner: ubuntu-latest,  os: linux,   arch: amd64, optional: true }
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.optional == true }}
@@ -56,7 +59,10 @@ jobs:
           echo "GUI 版本: $V"
           mkdir -p out
           ext=""; [ "${{ matrix.os }}" = windows ] && ext=".exe"
-          ( cd cmd/pk-desktop && CGO_ENABLED=1 GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
+          # Windows 不需要 cgo（webview2 走 syscall）：设为 0 才能在 x64 runner 上交叉出 arm64；
+          # Linux 的 GTK4/WebKitGTK 必须有 cgo，保持 1。
+          cgo=1; [ "${{ matrix.os }}" = windows ] && cgo=0
+          ( cd cmd/pk-desktop && CGO_ENABLED=$cgo GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
               go build -trimpath -ldflags "-s -w" -o "../../out/pk-desktop$ext" . )
           if [ "${{ matrix.os }}" = windows ]; then
             # git-bash 里没有 zip：改用 PowerShell 的 Compress-Archive

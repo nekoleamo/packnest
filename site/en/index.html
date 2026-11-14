@@ -180,15 +180,44 @@
       </ul>
     </dd>
 
-    <dt>Download</dt>
-    <dd>Separate tag <code>gui-v__GUI_VERSION__</code> with three artifacts:
-      <ul class="artifacts">
-        <li>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</li>
-        <li>packnest-desktop___GUI_VERSION___windows_amd64.zip</li>
-        <li>packnest-desktop___GUI_VERSION___linux_amd64.tar.gz</li>
-      </ul>
-      from <a href="https://gitee.com/null_593_5354/packnest/releases/tag/gui-v__GUI_VERSION__">gitee</a> or
-      <a href="https://github.com/nekoleamo/packnest/releases/tag/gui-v__GUI_VERSION__">GitHub</a>.</dd>
+    <dt>Four ways to install</dt>
+    <dd>
+      <table>
+        <thead><tr><th>Platform</th><th>How</th><th>Verification</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>macOS<br><span class="hint">arm64</span></td>
+            <td><b>One-liner (recommended)</b><br>
+              <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.sh | sh</code><br>
+              options: <code>--version</code> · <code>--dir</code> (default <code>~/Applications</code>) · <code>--dry-run</code><br>
+              or download <code>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</code> by hand</td>
+            <td><code>checksums.txt.sig</code> (sshsig) first, then sha256</td>
+          </tr>
+          <tr>
+            <td>Windows<br><span class="hint">amd64 / arm64</span></td>
+            <td><b>PowerShell one-liner (recommended)</b><br>
+              <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -UseB | iex</code><br>
+              <b>or Scoop</b><br>
+              <code>scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket</code><br>
+              <code>scoop install packnest-desktop</code><span class="hint"> (installs the CLI too)</span><br>
+              or download <code>packnest-desktop___GUI_VERSION___windows_amd64.zip</code> (ARM: <code>…_windows_arm64.zip</code>) by hand</td>
+            <td>script: sshsig + sha256 · Scoop: sha256 from the manifest</td>
+          </tr>
+          <tr>
+            <td>Linux<br><span class="hint">amd64</span></td>
+            <td><b>Manual download</b> (no install script)<br>
+              <code>packnest-desktop___GUI_VERSION___linux_amd64.tar.gz</code> → unpack and run <code>./pk-desktop</code><br>
+              needs: <code>sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev</code></td>
+            <td>compare with <code>shasum -a 256</code> yourself</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="after">Artifacts live under the separate tag <code>gui-v__GUI_VERSION__</code>:
+      <a href="https://gitee.com/null_593_5354/packnest/releases/tag/gui-v__GUI_VERSION__">gitee</a> ·
+      <a href="https://github.com/nekoleamo/packnest/releases/tag/gui-v__GUI_VERSION__">GitHub</a>
+      (with <code>checksums.txt</code> + <code>.sig</code>).</p>
+      <p class="after">No Intel Mac build (run <code>make gui-app</code> yourself); no Homebrew cask (ad-hoc signing cannot pass Gatekeeper).</p>
+    </dd>
 
     <dt>Requirements</dt>
     <dd>The CLI must be installed first — if it is missing, the header shows the install command for <b>your platform</b>

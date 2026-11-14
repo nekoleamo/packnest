@@ -84,15 +84,31 @@ human stderr line and the exit code are unchanged, `code` is omitted when no sta
 and every action in the UI is a subprocess call to `pk <command> --json`. It has no downloader, ledger or self-updater of
 its own — uninstall and upgrade still go through the CLI.
 
+**Install the CLI first**, then pick one row for your platform:
+
+| Platform | Way | Command / file | Verification |
+|---|---|---|---|
+| **macOS** (arm64) | one-liner (recommended) | `curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.sh \| sh`<br>options: `--version` / `--dir` (default `~/Applications`) / `--dry-run` | `checksums.txt.sig` (sshsig) first, then sha256 |
+| | manual | `packnest-desktop_<version>_darwin_arm64.app.zip` → unzip → `open packnest.app` | check the manifest yourself |
+| **Windows** (amd64 / **arm64**) | PowerShell one-liner (recommended) | `iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -UseB \| iex` | same as macOS (sshsig + sha256) |
+| | Scoop | `scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket`<br>`scoop install packnest-desktop` (`depends: packnest`, installs the CLI first) | sha256 from the manifest |
+| | manual | `packnest-desktop_<version>_windows_{amd64,arm64}.zip` → unzip → `pk-desktop.exe` | check the manifest yourself |
+| **Linux** (amd64) | manual (no script) | `packnest-desktop_<version>_linux_amd64.tar.gz` → unpack → `./pk-desktop`<br>needs `sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev` | check the manifest yourself |
+
+Artifacts live under a **separate tag** `gui-v<version>` (decoupled from the CLI version):
+[gitee](https://gitee.com/null_593_5354/packnest/releases) · [GitHub Releases](https://github.com/nekoleamo/packnest/releases),
+together with `checksums.txt` + `checksums.txt.sig` (same release key as the CLI).
+
+- macOS builds are **ad-hoc signed** (not notarised): allow once in System Settings → Privacy & Security;
+- there is no Intel Mac build (run `make gui-app` yourself) and **no Homebrew cask** (ad-hoc signing cannot pass Gatekeeper);
+- no desktop runtime needed for `pk-desktop --serve` → `http://127.0.0.1:7799/`.
+
 - installed-tools table with an `upgrade` hint (one click = `pk install <tool>@latest`), `weak` / unverified / npm badges, set default, uninstall, copy path
 - multi-spec install queue with per-row progress (the NDJSON `progress` event)
 - mirror profile switching with latency probing; doctor page (global packages in a table, `--probe` to really load native modules, **Fix now** = `pk doctor --fix`)
 - reclaim page: preview or delete, `--keep N` keeps the newest N versions per tool
 - read-only `which` / `env` views, light/dark toggle, Chinese/English UI, and launch at login (off by default)
 
-Current GUI is **0.11.1**. Artifacts live under a **separate tag** `gui-v<version>` (macOS arm64 /
-Windows amd64 / Linux amd64, plus a signed `checksums.txt`) on
-[gitee](https://gitee.com/null_593_5354/packnest/releases) and [GitHub Releases](https://github.com/nekoleamo/packnest/releases).
 If the CLI is missing, the app shows the install command for your platform with a copy button.
 macOS builds are ad-hoc signed (allow once in System Settings → Privacy & Security); Linux needs GTK4 + WebKitGTK 6.0.
 `sh scripts/install-gui.sh` (macOS) / `install-gui.ps1` (Windows) download, verify sshsig + sha256, and unpack into `~/Applications`.

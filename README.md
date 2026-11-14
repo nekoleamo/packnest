@@ -46,9 +46,30 @@ curl -fsSL https://你的域名/install.sh | sh -s -- --base https://你的域�
 `--base` / `-Base` 是**权威源**：自托管源上要放一个 `latest`（一行版本号）或显式给 `--version`，
 否则脚本会直接报错而不是"回退到 gitee 的最新版本号"（那会拼出该源上不存在的目录，表现为下载 404）。
 
-图形界面（可选，**必须先装 CLI**；当前 0.11.1，独立 tag `gui-v<版本>`，带 `checksums.txt` + `.sig`）在单独 tag 的 release 里：
-macOS 下载 `packnest-desktop_<版本>_darwin_arm64.app.zip` → 解压 → `open packnest.app`；
-Windows/Linux 见 `cmd/pk-desktop/README.md`。
+### 桌面端（可选，必须先装 CLI）
+
+GUI（`pk-desktop`，当前 **0.11.2**）只是 CLI 的可视化补充：它通过子进程调 `pk <命令> --json` 干活，
+没有自己的下载器、台账或更新器。**先装上面的 `pk`**，再按平台选一种装法：
+
+| 平台 | 方式 | 命令 / 文件 | 校验 |
+|---|---|---|---|
+| **macOS**（arm64） | 脚本一行（推荐） | `curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.sh \| sh`<br>可选 `--version` / `--dir`（默认 `~/Applications`）/ `--dry-run` / `--skip-verify` | 先验 `checksums.txt.sig`（sshsig）再比 sha256 |
+| | 手动 | `packnest-desktop_<版本>_darwin_arm64.app.zip` → 解压 → `open packnest.app` | 自己对清单 |
+| **Windows**（amd64 / **arm64**） | PowerShell 一行（推荐） | `iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -UseB \| iex` | 同 macOS（sshsig + sha256） |
+| | Scoop | `scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket`<br>`scoop install packnest-desktop`（`depends: packnest`，会先装 CLI） | 清单里的 sha256 |
+| | 手动 | `packnest-desktop_<版本>_windows_amd64.zip` 或 `…_windows_arm64.zip` → 解压 → `pk-desktop.exe` | 自己对清单 |
+| **Linux**（amd64） | 手动（无安装脚本） | `packnest-desktop_<版本>_linux_amd64.tar.gz` → 解压 → `./pk-desktop`<br>依赖：`sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev` | 自己对清单 |
+
+产物挂在**独立 tag** `gui-v<版本>`（与 CLI 版本解耦）：
+[gitee](https://gitee.com/null_593_5354/packnest/releases) · [GitHub Releases](https://github.com/nekoleamo/packnest/releases)，
+同一个 release 里还有 `checksums.txt` + `checksums.txt.sig`（与 CLI 共用一把发布密钥）。
+
+- macOS 是 **ad-hoc 签名**（未公证）：首次打开要去「系统设置 → 隐私与安全性」点「仍要打开」；
+- 不发 Intel Mac 产物（要就自己 `make gui-app`）；**不做 Homebrew cask**（ad-hoc 签名过不了 Gatekeeper）；
+- 不想装桌面运行时也能用浏览器形态：`pk-desktop --serve` → `http://127.0.0.1:7799/`；
+- 界面里缺 CLI 时会直接给出当前平台的安装命令（带复制按钮）。
+
+用户向说明见 [docs/gui.md](docs/gui.md)，开发/打包细节见 [cmd/pk-desktop/README.md](cmd/pk-desktop/README.md)。
 
 > npm 分发渠道已于 2026-11-11 停用：npm 的 stage/approve 要 2FA，而且云端与本地构建出的归档字节不同，
 > 容易出现两套 sha256。已经用 `npm i -g packnest` 装过的旧版本照常能用，`pk uninstall --all` 仍会识别这个渠道。

@@ -178,7 +178,7 @@ th{font-family:var(--mono);font-weight:500;font-size:.78rem;letter-spacing:.1em;
 tbody tr{transition:background-color .14s var(--ease)}
 tbody tr:hover{background:var(--accent-soft)}
 td:first-child{white-space:nowrap;font-family:var(--mono);font-size:.92rem;color:var(--accent-text)}
-td code{padding:.06rem .3rem;background:var(--accent-soft);border-radius:4px;font-size:.92em;color:var(--accent-text)}
+td code{padding:.06rem .3rem;background:var(--accent-soft);border-radius:4px;font-size:.92em;color:var(--accent-text);overflow-wrap:anywhere}
 .after{margin:1rem 0 0;color:var(--muted);font-size:.88rem}
 .after code{padding:.06rem .3rem;background:var(--accent-soft);border-radius:4px;color:var(--accent-text)}
 
