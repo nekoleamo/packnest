@@ -5,7 +5,7 @@
 package env
 
 import (
-	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/mirror"
 	"github.com/packnest/packnest/internal/paths"
 	"os"
@@ -102,7 +102,7 @@ func ParseShell(name string) (Shell, error) {
 	case "powershell", "pwsh", "ps":
 		return ShellPowerShell, nil
 	}
-	return "", fmt.Errorf("不支持的 shell %q（支持 bash/zsh/sh/powershell）", name)
+	return "", coded.New(CodeShellUnsupported, name)
 }
 
 // ExportScript 生成可 eval 的片段：先 prepend PATH 四段，再 export 变量。
@@ -245,12 +245,12 @@ func WriteManagedBlock(path, content string) error {
 
 	existing, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("读取 %q 失败: %w", path, err)
+		return coded.Wrap(err, CodeRead, path)
 	}
 	if len(existing) > 0 {
 		// 先备份（只留一份，反复写不堆垃圾）
 		if err := os.WriteFile(path+".pk.bak", existing, 0o644); err != nil {
-			return fmt.Errorf("备份 %q 失败: %w", path, err)
+			return coded.Wrap(err, CodeBackup, path)
 		}
 	}
 
@@ -272,11 +272,11 @@ func WriteManagedBlock(path, content string) error {
 
 	if dir := filepath.Dir(path); dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return fmt.Errorf("创建目录 %q 失败: %w", dir, err)
+			return coded.Wrap(err, CodeMkdir, dir)
 		}
 	}
 	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
-		return fmt.Errorf("写入 %q 失败: %w", path, err)
+		return coded.Wrap(err, CodeWrite, path)
 	}
 	return nil
 }

@@ -3,7 +3,7 @@
 package env
 
 import (
-	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"os/exec"
 	"strings"
 	"syscall"
@@ -52,7 +52,7 @@ func regOpenUserEnv(access uint32) (syscall.Handle, error) {
 	var h syscall.Handle
 	ret, _, _ := procRegOpenKeyEx.Call(uintptr(hkeyCurrentUser64), uintptr(unsafe.Pointer(name)), 0, uintptr(access), uintptr(unsafe.Pointer(&h)))
 	if ret != 0 {
-		return 0, fmt.Errorf("打开注册表 HKCU\\%s 失败（错误码 %d）", regKeyUserEnv, ret)
+		return 0, coded.New(CodeRegOpen, regKeyUserEnv, ret)
 	}
 	return h, nil
 }
@@ -88,7 +88,7 @@ func regSetString(h syscall.Handle, key, value string, typ uint32) error {
 	ret, _, _ := procRegSetValueEx.Call(uintptr(h), uintptr(unsafe.Pointer(name)), 0, uintptr(typ),
 		uintptr(unsafe.Pointer(&data[0])), uintptr(len(data)*2))
 	if ret != 0 {
-		return fmt.Errorf("写注册表 HKCU\\%s\\%s 失败（错误码 %d）", regKeyUserEnv, key, ret)
+		return coded.New(CodeRegWrite, regKeyUserEnv, key, ret)
 	}
 	return nil
 }

@@ -138,6 +138,15 @@ var codeTable = map[string]codeText{
 	"store.lock_open":        {zh: "打开锁文件失败: %v", en: "cannot open the lock file: %v"},
 	"store.lock_path":        {zh: "锁路径非法: %v", en: "illegal lock path: %v"},
 	"store.lock_acquire":     {zh: "取全局锁失败: %v", en: "cannot acquire the global lock: %v"},
+
+	// ── internal/env：rc 文件与注册表 ──
+	"env.shell_unsupported": {zh: "不支持的 shell %q（支持 bash/zsh/sh/powershell）", en: "unsupported shell %q (supported: bash/zsh/sh/powershell)"},
+	"env.read":              {zh: "读取 %q 失败: %v", en: "cannot read %q: %v"},
+	"env.backup":            {zh: "备份 %q 失败: %v", en: "cannot back up %q: %v"},
+	"env.mkdir":             {zh: "创建目录 %q 失败: %v", en: "cannot create directory %q: %v"},
+	"env.write":             {zh: "写入 %q 失败: %v", en: "cannot write %q: %v"},
+	"env.registry_open":     {zh: "打开注册表 HKCU\\%s 失败（错误码 %d）", en: "cannot open the registry key HKCU\\%s (error %d)"},
+	"env.registry_write":    {zh: "写注册表 HKCU\\%s\\%s 失败（错误码 %d）", en: "cannot write the registry key HKCU\\%s\\%s (error %d)"},
 }
 
 // Text 把任意错误渲染成"给人看的一句话"（当前语言）。

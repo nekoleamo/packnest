@@ -1519,3 +1519,11 @@ self-test `cold` ✓（41s）+ `warm` ✓（47s）：冷路径真的 `download`�
 
 **L2 累计**：8 个包清零 —— `verify` 28 · `archive` 23 · `fetch` 23 · `store` 20 · `paths` 9 · `spec` 6 · `mirror` 5 · `companion` 3 = **117 处**，码表 **105 条**。
 剩 `provider` 61 · `install` 41 · `env` 7。
+
+### E1 第十步：`internal/env` 完成（7 个码）
+
+`env.shell_unsupported` / `read` / `backup` / `mkdir` / `write` / `registry_open` / `registry_write`
+（最后两个在 `winpath_windows.go`，已用 `GOOS=windows go build` 单独验过）。
+
+**L2 累计**：9 个包清零 —— `verify` 28 · `archive` 23 · `fetch` 23 · `store` 20 · `paths` 9 · `spec` 6 ·
+`mirror` 5 · `env` 7 · `companion` 3 = **124 处**，码表 **112 条**。剩 `provider` 61 · `install` 41。
