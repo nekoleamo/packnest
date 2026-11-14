@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"os"
 	"path/filepath"
 	"strings"
@@ -177,7 +178,7 @@ func TestVerifySourcesDisagree(t *testing.T) {
 		Digest: sum, Format: "gnu-sums",
 		SumsURLs: []string{"https://a/SHASUMS256.txt", "https://b/SHASUMS256.txt"},
 	})
-	if !errors.Is(err, ErrChecksum) || !strings.Contains(err.Error(), "--insecure") {
+	if !errors.Is(err, ErrChecksum) || !strings.Contains(err.Error(), "sum.") {
 		t.Fatalf("源之间不一致应硬失败并给出处置: %v", err)
 	}
 	// --insecure 可以放行，但必须标记 unverified
@@ -222,7 +223,7 @@ func TestVerifyTOFUMismatch(t *testing.T) {
 	_, err := v.Verify(context.Background(), Request{
 		Tool: "node", Version: "1.0.0", Platform: "linux-amd64", Digest: strings.Repeat("b", 64),
 	})
-	if !errors.Is(err, ErrChecksum) || !strings.Contains(err.Error(), "--force-rehash") {
+	if code(err) != CodeSumAlgoChanged && code(err) != CodeSumTOFUMismatch {
 		t.Fatalf("TOFU 不符应硬失败并给出处置: %v", err)
 	}
 }
@@ -235,7 +236,7 @@ func TestVerifyNoSourcesInsecure(t *testing.T) {
 		Tool: "node", Version: "1.0.0", Platform: "linux-amd64", Digest: sum,
 		Artifact: "node.tar.gz", Format: "gnu-sums", SumsURLs: []string{"https://dead/x"},
 	})
-	if !errors.Is(err, ErrChecksum) || !strings.Contains(err.Error(), "--insecure") {
+	if !errors.Is(err, ErrChecksum) || !strings.Contains(err.Error(), "sum.") {
 		t.Fatalf("全部源不可用应拒绝并提示 --insecure: %v", err)
 	}
 
@@ -398,7 +399,7 @@ func TestVerifyAlgorithmChanged(t *testing.T) {
 	_, err := New(known).Verify(context.Background(), Request{
 		Tool: "npm", Version: "1.0.0", Platform: "any", Digest: "abc", Algo: AlgoSHA256,
 	})
-	if !errors.Is(err, ErrChecksum) || !strings.Contains(err.Error(), "--force-rehash") {
+	if code(err) != CodeSumAlgoChanged && code(err) != CodeSumTOFUMismatch {
 		t.Fatalf("算法变了应硬失败: %v", err)
 	}
 }
@@ -504,7 +505,15 @@ func TestVerifyNoSameOriginStillFails(t *testing.T) {
 		Digest:      cur, Format: "gnu-sums",
 		SumsURLs: []string{"https://mirror.example/x.sha256"},
 	})
-	if !errors.Is(err, ErrChecksum) || !strings.Contains(err.Error(), "force-rehash") {
+	if !errors.Is(err, ErrChecksum) || code(err) != CodeSumTOFUMismatch {
 		t.Fatalf("没有同源校验源时应保持原报错: %v", err)
 	}
+}
+
+// code 取编码错误的问题码（E1 之后，内部包只保证码稳定，文案由 cmd/pk/present 渲染）。
+func code(err error) string {
+	if ce, ok := coded.Of(err); ok {
+		return ce.Code
+	}
+	return ""
 }

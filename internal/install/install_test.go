@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/companion"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/jsonout"
@@ -324,8 +325,9 @@ func TestInstallMissingChecksum(t *testing.T) {
 	})
 	inst := newInstaller(t, fm, nil)
 	_, err := inst.Install(context.Background(), "node", "22.22.2")
-	if !errors.Is(err, verify.ErrChecksum) || !strings.Contains(err.Error(), "--insecure") {
-		t.Fatalf("缺校验和应拒绝并提示 --insecure: %v", err)
+	// E1：内部包只保证"码 + 哨兵"，提示文案由 cmd/pk/present 渲染（见那边的 TestTextRendersHints）
+	if !errors.Is(err, verify.ErrChecksum) || !hasCode(err, verify.CodeSumNoSource) {
+		t.Fatalf("缺校验和应拒绝（code=%s）: %v", verify.CodeSumNoSource, err)
 	}
 
 	insecure := newInstaller(t, fm, func(o *Options) { o.Insecure = true })
@@ -1279,8 +1281,8 @@ func TestInstallForceRehash(t *testing.T) {
 	}
 
 	_, err = newWith(nil).Install(context.Background(), "node", "22.22.2")
-	if !errors.Is(err, verify.ErrChecksum) || !strings.Contains(err.Error(), "--force-rehash") {
-		t.Fatalf("脏 TOFU 表应拒绝并提示 --force-rehash，得到 %v", err)
+	if !errors.Is(err, verify.ErrChecksum) || !hasCode(err, verify.CodeSumTOFUMismatch) {
+		t.Fatalf("脏 TOFU 表应拒绝（code=%s），得到 %v", verify.CodeSumTOFUMismatch, err)
 	}
 
 	inst := newWith(func(o *Options) { o.Rehash = true; o.Force = true })
@@ -1374,4 +1376,10 @@ func TestCacheOutsideRoot(t *testing.T) {
 	if entries, err := os.ReadDir(filepath.Join(cacheDir, "archives")); err != nil || len(entries) == 0 {
 		t.Fatalf("卸载不该删独立缓存: %v %v", entries, err)
 	}
+}
+
+// hasCode 判断错误链里是否有指定问题码（E1：内部断言看码，不看文案）。
+func hasCode(err error, want string) bool {
+	ce, ok := coded.Of(err)
+	return ok && ce.Code == want
 }

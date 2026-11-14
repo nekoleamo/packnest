@@ -285,3 +285,31 @@ func TestCodeTableParity(t *testing.T) {
 		t.Fatalf("码表应有至少 15 条（sshsig 那一批），实际 %d", len(Codes()))
 	}
 }
+
+// TestTextRendersHints：命令行提示（--force-rehash / --insecure）现在**只在渲染层**，
+// 内部错误里只有码 —— 这是 E1 的关键约定。
+func TestTextRendersHints(t *testing.T) {
+	t.Cleanup(func() { _ = SetLang("zh") })
+	if err := SetLang("zh"); err != nil {
+		t.Fatal(err)
+	}
+	var errChecksum = errors.New("校验失败")
+	for _, tc := range []struct {
+		code string
+		args []any
+		want string
+	}{
+		{code: "sum.no_source", args: []any{"node@22.22.2/darwin-arm64"}, want: "--insecure"},
+		{code: "sum.algo_changed", args: []any{"node@1/x", "sha512", "sha1"}, want: "--force-rehash"},
+		{code: "sum.tofu_mismatch", args: []any{"node@1/x", "sha256", "aa", "bb"}, want: "--force-rehash"},
+		{code: "sum.mismatch", args: []any{"node@1/x", "sha256", "aa", "bb"}, want: "产物可能被篡改或损坏"},
+	} {
+		got := Text(coded.Wrap(errChecksum, tc.code, tc.args...))
+		if !strings.Contains(got, tc.want) {
+			t.Errorf("%s 的中文渲染缺少 %q: %q", tc.code, tc.want, got)
+		}
+		if !strings.Contains(got, "校验失败") {
+			t.Errorf("%s 应保留「校验失败」前缀: %q", tc.code, got)
+		}
+	}
+}

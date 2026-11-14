@@ -1383,5 +1383,18 @@ brew cask 是否排期（不排期就把 `docs/gui.md` 写明"mac 用 curl 脚�
 | 测试 | `TestText`（中文/英文渲染 + 哨兵链 + 未登记码回退 + nil）、`TestCodeTableParity`（每条模板中英占位符**顺序与个数必须一致** —— 1.6 踩过 `%!d(string=…)`） |
 | 纪律 | `internal/*` 只给 code + 参数；文案全在 `present`。以后加码三步：定常量 → 补 zh/en 模板 → `make codes` 过 |
 
-**没动的**：`internal/verify/verify.go` 的 13 处（`sum.*` 摘要链路）、其余 6 个 internal 包 —— 按路线"按包分批"，
-下一个包沿用同一套（复制 `codes.go` + 补码表）。`--json` 零变更，人读快照逐字节未变。
+### E1 第二步：`internal/verify` **整包完成**（`sum.*` 摘要链路）
+
+| 项 | 结果 |
+|---|---|
+| 覆盖 | `sshsig.go` 16 处 + `verify.go` **12 处**，全包 **0 个 `fmt.Errorf`**；27 个稳定码（`sig.*` 15 + `sum.*` 12） |
+| I/O 错误也编码 | `sum.known_load` / `sum.known_corrupt` / `sum.open_artifact` / `sum.read_artifact` 用 `ioErr(cause, code, …)`：码稳定、`%v` 渲染底层错误、`errors.Is` 仍能穿到 `os` 错误 |
+| 断言跟着改 | 内部测试不再断中文：`code(err)` 助手 + `errors.Is(ErrChecksum)`；命令行提示（`--force-rehash` / `--insecure`）改在 `present` 的 `TestTextRendersHints` 里断 —— **提示文案只在渲染层** |
+| 故障矩阵 | `acceptance/m1_matrix_test.go` 的 `wantErrContains`（断中文）换成 `wantCode`（断码）：`CorruptArchive`/`ChecksumMismatch` → `sum.mismatch`，`MissingChecksum` → `sum.no_source`；还没做 L2 的层（fetch 的网络错误、spec 的"没有满足"）保留文本断言 |
+| 判据 | `make check` 全绿；`--json` 零变更；人读快照逐字节未变 |
+
+**下一个包照抄**（剩余文案量：`provider` 153 / `install` 171 / `env` 76 / `store` 60 / `fetch` 45 /
+`archive` 39 / `paths` 37 / `mirror` 36 / `spec` 24 / `companion` 15）。`internal/verify` 已是完整样板。
+
+**衍生待办**：错误码目前只出现在**人读 stderr**；要不要给 `--json` 加一个 `{"schema":1,"error":{"code":…,"detail":…}}`
+的失败输出，是一个新的契约决定（GUI/脚本能据此分支），下次拍板再动。

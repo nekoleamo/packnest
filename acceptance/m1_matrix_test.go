@@ -12,12 +12,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/paths"
 	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/store"
 	"github.com/packnest/packnest/internal/testkit"
+	"github.com/packnest/packnest/internal/verify"
 )
 
 // matrixSource 是一种"源类型"：决定哪一路 URL 指向可用镜像。
@@ -41,8 +43,11 @@ type matrixBehavior struct {
 	opts []testkit.Option
 	// wantInstall 为 true 表示这一格应该装成功。
 	wantInstall bool
-	// wantErrContains 在失败时要求错误信息包含的关键词。
+	// wantErrContains 在失败时要求错误信息包含的关键词（只给**还没做 L2 的层**用，
+	// 例如 fetch 的网络错误、spec 的版本要求 —— 那些包还没改成"码 + 参数"）。
 	wantErrContains string
+	// wantCode 是 E1/L2 之后的判据：错误链里应该有这个稳定的问题码（比断中文文案稳）。
+	wantCode string
 }
 
 const matrixVersion = "22.99.99" // 上游不存在的版本号，避免真实镜像干扰
@@ -56,9 +61,9 @@ func matrixBehaviors() []matrixBehavior {
 		{name: "NoRange", opts: []testkit.Option{testkit.NoRange()}, wantInstall: true},
 		{name: "WrongETag", opts: []testkit.Option{testkit.WrongETag()}, wantInstall: true},
 		{name: "StaleIndex", opts: []testkit.Option{testkit.StaleIndex([]byte(`[{"version":"v0.0.1","lts":false}]`))}, wantErrContains: "没有满足"},
-		{name: "CorruptArchive", opts: []testkit.Option{testkit.Corrupt()}, wantErrContains: "校验"},
-		{name: "MissingChecksum", opts: []testkit.Option{testkit.MissingChecksum()}, wantErrContains: "校验"},
-		{name: "ChecksumMismatch", opts: []testkit.Option{testkit.ChecksumMismatch()}, wantErrContains: "校验"},
+		{name: "CorruptArchive", opts: []testkit.Option{testkit.Corrupt()}, wantCode: verify.CodeSumMismatch},
+		{name: "MissingChecksum", opts: []testkit.Option{testkit.MissingChecksum()}, wantCode: verify.CodeSumNoSource},
+		{name: "ChecksumMismatch", opts: []testkit.Option{testkit.ChecksumMismatch()}, wantCode: verify.CodeSumMismatch},
 	}
 }
 
@@ -191,7 +196,11 @@ func runMatrixCell(t *testing.T, src matrixSource, beh matrixBehavior, action st
 		if installErr == nil {
 			t.Fatalf("应失败，实际装成功了: %+v", res)
 		}
-		if beh.wantErrContains != "" && !strings.Contains(installErr.Error(), beh.wantErrContains) {
+		if beh.wantCode != "" {
+			if ce, ok := coded.Of(installErr); !ok || ce.Code != beh.wantCode {
+				t.Fatalf("错误码应是 %s，实际 %v", beh.wantCode, installErr)
+			}
+		} else if beh.wantErrContains != "" && !strings.Contains(installErr.Error(), beh.wantErrContains) {
 			t.Fatalf("错误信息应含 %q: %v", beh.wantErrContains, installErr)
 		}
 	}

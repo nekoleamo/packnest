@@ -14,7 +14,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"hash"
 	"io"
 	"net/url"
@@ -76,11 +75,11 @@ func LoadKnown(path string) (*Known, error) {
 		if os.IsNotExist(err) {
 			return &Known{Schema: KnownSchema, Entries: map[string]Entry{}}, nil
 		}
-		return nil, fmt.Errorf("读取校验表失败: %w", err)
+		return nil, ioErr(err, CodeSumKnownLoad)
 	}
 	var k Known
 	if err := json.Unmarshal(data, &k); err != nil {
-		return nil, fmt.Errorf("校验表 %q 损坏: %w", path, err)
+		return nil, ioErr(err, CodeSumKnownCorrupt, path)
 	}
 	if k.Entries == nil {
 		k.Entries = map[string]Entry{}
@@ -117,7 +116,7 @@ func SHA256File(path string) (string, error) {
 func DigestFile(path, algo string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return "", fmt.Errorf("打开产物失败: %w", err)
+		return "", ioErr(err, CodeSumOpenArtifact)
 	}
 	defer f.Close()
 
@@ -140,7 +139,7 @@ func DigestFile(path, algo string) (string, error) {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			return "", fmt.Errorf("读取产物失败: %w", err)
+			return "", ioErr(err, CodeSumReadArtifact)
 		}
 	}
 	if algo == AlgoSHA512 {
@@ -261,15 +260,14 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 		algo = AlgoSHA256
 	}
 	if req.Digest == "" {
-		return Result{}, fmt.Errorf("%w: 缺少产物摘要", ErrChecksum)
+		return Result{}, sumErr(CodeSumDigestMissing)
 	}
 	key := Key(req.Tool, req.Version, req.Platform)
 
 	// 1. 已知版本：只比本地表，零网络（离线可验证）。--force-rehash 跳过这一步。
 	if entry, ok := v.Known.Get(key); ok && !req.Rehash {
 		if entryAlgo := entry.Algo; entryAlgo != "" && entryAlgo != algo {
-			return Result{}, fmt.Errorf("%w: %s 的摘要算法变了（记录 %s，现在 %s）；确需覆盖用 --force-rehash",
-				ErrChecksum, key, entryAlgo, algo)
+			return Result{}, sumErr(CodeSumAlgoChanged, key, entryAlgo, algo)
 		}
 		if !strings.EqualFold(entry.Digest, req.Digest) {
 			// 本地记录与实际不符：可能是上游重新发布了同一版本。只要与产物同源的校验源也同意新摘要，
@@ -277,8 +275,7 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 			if res, ok := v.sameOriginRepublish(ctx, req, algo, key); ok {
 				return res, nil
 			}
-			return Result{}, fmt.Errorf("%w: %s 的 %s 与本地记录不一致（记录 %s，实际 %s）；确需覆盖用 --force-rehash",
-				ErrChecksum, key, algo, entry.Digest, req.Digest)
+			return Result{}, sumErr(CodeSumTOFUMismatch, key, algo, entry.Digest, req.Digest)
 		}
 		return Result{Mode: "tofu", Verified: entry.Verified, Digest: req.Digest, Algo: algo, Sources: entry.Sources}, nil
 	}
@@ -293,7 +290,7 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 			v.record(key, Entry{Digest: req.Digest, Algo: algo, Verified: VerifiedUnverified, Sources: 0})
 			return Result{Mode: "insecure", Verified: VerifiedUnverified, Digest: req.Digest, Algo: algo}, nil
 		}
-		return Result{}, fmt.Errorf("%w: 拿不到 %s 的校验和（所有源都不可用）；确认风险后可加 --insecure", ErrChecksum, key)
+		return Result{}, sumErr(CodeSumNoSource, key)
 	}
 	if len(expected) > 1 {
 		// 源之间不一致有两种可能：镜像被投毒，或上游重新发布过同一版本。
@@ -309,8 +306,7 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 			}
 		}
 		if !req.Insecure {
-			return Result{}, fmt.Errorf("%w: %s 的校验和源之间不一致（%s；%s）——可能是镜像被污染，也可能是上游重新发布了产物；确认来源可信后可加 --insecure",
-				ErrChecksum, key, describeMismatch(expected), matched)
+			return Result{}, sumErr(CodeSumSourcesConflict, key, describeMismatch(expected), matched)
 		}
 		// --insecure：放行但标记未校验，且不写进 TOFU 表（否则会把可疑摘要固化下来）。
 		return Result{Mode: "insecure", Verified: VerifiedUnverified, Digest: req.Digest, Algo: algo, Sources: sources}, nil
@@ -320,7 +316,7 @@ func (v *Verifier) Verify(ctx context.Context, req Request) (Result, error) {
 		want = sum
 	}
 	if want != "" && !strings.EqualFold(want, req.Digest) {
-		return Result{}, fmt.Errorf("%w: %s 的产物 %s 不符（期望 %s，实际 %s）；产物可能被篡改或损坏", ErrChecksum, key, algo, want, req.Digest)
+		return Result{}, sumErr(CodeSumMismatch, key, algo, want, req.Digest)
 	}
 
 	verified := VerifiedWeak
@@ -402,7 +398,7 @@ func (v *Verifier) collect(ctx context.Context, req Request) (map[string]string,
 				sources++
 			}
 		} else if sum != "" {
-			return nil, 0, false, fmt.Errorf("%w: 索引里的 sha256 格式非法: %q", ErrChecksum, req.InlineShasum)
+			return nil, 0, false, sumErr(CodeSumInlineInvalid, req.InlineShasum)
 		}
 	}
 	if req.Format == "registry-integrity" {
@@ -425,7 +421,7 @@ func (v *Verifier) collect(ctx context.Context, req Request) (map[string]string,
 					sources++
 				}
 			default:
-				return nil, 0, false, fmt.Errorf("%w: registry 提供的 shasum 格式非法: %q", ErrChecksum, sum)
+				return nil, 0, false, sumErr(CodeSumRegistryInvalid, sum)
 			}
 		}
 	}

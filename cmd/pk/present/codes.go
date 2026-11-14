@@ -32,6 +32,20 @@ var codeTable = map[string]codeText{
 	"sig.base64":             {zh: "签名校验失败: base64 解码失败: %v", en: "signature check failed: base64 decode error: %v"},
 	"sig.truncated":          {zh: "签名校验失败: 结构被截断", en: "signature check failed: structure is truncated"},
 	"sig.field_too_large":    {zh: "签名校验失败: 字段长度 %d 超限", en: "signature check failed: field length %d is over the limit"},
+
+	// ── internal/verify：摘要/校验和链路 ──
+	"sum.known_load":       {zh: "读取校验表失败: %v", en: "cannot read the verification table: %v"},
+	"sum.known_corrupt":    {zh: "校验表 %q 损坏: %v", en: "verification table %q is corrupt: %v"},
+	"sum.open_artifact":    {zh: "打开产物失败: %v", en: "cannot open the artifact: %v"},
+	"sum.read_artifact":    {zh: "读取产物失败: %v", en: "cannot read the artifact: %v"},
+	"sum.digest_missing":   {zh: "校验失败: 缺少产物摘要", en: "verification failed: artifact digest missing"},
+	"sum.algo_changed":     {zh: "校验失败: %s 的摘要算法变了（记录 %s，现在 %s）；确需覆盖用 --force-rehash", en: "verification failed: digest algorithm for %s changed (recorded %s, now %s); use --force-rehash to override"},
+	"sum.tofu_mismatch":    {zh: "校验失败: %s 的 %s 与本地记录不一致（记录 %s，实际 %s）；确需覆盖用 --force-rehash", en: "verification failed: %s %s differs from the local record (recorded %s, actual %s); use --force-rehash to override"},
+	"sum.no_source":        {zh: "校验失败: 拿不到 %s 的校验和（所有源都不可用）；确认风险后可加 --insecure", en: "verification failed: no checksum source for %s is reachable; add --insecure only after accepting the risk"},
+	"sum.sources_conflict": {zh: "校验失败: %s 的校验和源之间不一致（%s；%s）——可能是镜像被污染，也可能是上游重新发布了产物；确认来源可信后可加 --insecure", en: "verification failed: checksum sources disagree for %s (%s; %s) -- either a poisoned mirror or an upstream re-release; add --insecure only if you trust the source"},
+	"sum.mismatch":         {zh: "校验失败: %s 的产物 %s 不符（期望 %s，实际 %s）；产物可能被篡改或损坏", en: "verification failed: %s artifact %s mismatch (want %s, got %s); the artifact may be tampered with or corrupted"},
+	"sum.inline_invalid":   {zh: "校验失败: 索引里的 sha256 格式非法: %q", en: "verification failed: malformed sha256 in the index: %q"},
+	"sum.registry_invalid": {zh: "校验失败: registry 提供的 shasum 格式非法: %q", en: "verification failed: malformed shasum from the registry: %q"},
 }
 
 // Text 把任意错误渲染成"给人看的一句话"（当前语言）。
