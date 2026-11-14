@@ -1290,3 +1290,21 @@ A. `msg` 保留"尽力而为"中文（建议）· B. `msg` 只留英文（破坏
 
 **DoD 未闭环的部分**：示例仓库的两条 CI 路径（缓存命中/未命中）要等仓库建好才能真跑。
 `docs/publishing.md` 已加一条：发版时顺手记下 `scripts/install.sh` 的 sha256（action 的 pin 值靠它）。
+
+---
+
+## 需求入池 · R-GUI-1（GUI 分发渠道与仓库形态）
+
+> 调研全文：`~/Documents/Plan/17-包管理器/pn-GUI分发渠道与仓库形态-调研.md`（2026-11-14，待拍板）
+
+| 问题 | 结论 |
+|---|---|
+| GUI 要不要独立仓库 | **不要**。契约（`--json`）变更必须与 CLI 同仓同 CI 校验；签名也已收口到 `scripts/lib/sign.sh`，拆仓只会多一套会漂的发布链。代码层面早隔离了（`cmd/pk-desktop` 自带 `go.mod`） |
+| 真正的痛点是配额 | gitee **单仓库附件总量 1GB**、单文件 100MB；CLI 每版 ≈45MB、GUI 每版 ≈30MB，而 `gui-v*` release **只增不减** → 约 13 次全量发版撞线。**便宜的解法是 `release-gui.sh --prune N`（保留最近 3 个），不是拆仓库** |
+| curl / iwr 单独下载 | **可行且最便宜**（P0）：复用 1.8 已落地的 `checksums.txt` + `.sig`，写 `install-gui.sh`/`.ps1` 并进 `test-installers.sh` 的离线夹具 |
+| Homebrew cask | **当前不可行**：产物 ad-hoc 签名过不了 Gatekeeper，而 Homebrew 已移除 `--no-quarantine` 并禁用过不了检查的 cask（brew#20755）。要开 cask 的前置是 **Developer ID + 公证（$99/年）** |
+| Scoop | **可行**（P1）：manifest 加 `shortcuts` 即可；注意 `checkver` 要指向 `gui-v*`，别被 CLI 的 `v*` 抢到 |
+| winget | 维持 2026-11-11 的放弃决定，不回头 |
+
+待拍板三项：`gui-v*` 保留几个版本（建议 3）· GUI 安装脚本是否落到 `~/Applications`（只写用户目录，不碰 `/Applications`）·
+brew cask 是否排期（不排期就把 `docs/gui.md` 写明"mac 用 curl 脚本或手动下载"）。
