@@ -1811,3 +1811,16 @@ sh scripts/install-gui.sh --version 0.11.1 --dir /tmp/x   # 用户视角实测�
 - 新增码 `install.use_not_confirmed`（zh/en 文案进码表，`make codes` 已校验）；
 - 实测：`--yes` 走真网装 node@22.23.5 + npm@12.2.2 → `pk.toml` 写成 `node = "22.23.5"`、`pk.lock` 正常；
   非交互与 `--json` 的拒绝路径各有用例（`TestUseNotInstalledNeedsConfirmation` / `TestConfirmActionModes`）。
+
+## v1.8.1 发版（2026-11-15）
+
+相对 v1.8.0，代码侧只有一处行为变更 + 两处发布链修复：
+
+| 类别 | 内容 |
+|---|---|
+| 行为 | **`pk use` / `pk use --project` 遇到未安装版本：先提示 → 问一句 → 确认后才装**（`--yes` 直接装；`--json`/非 TTY 不提问，退出 1 + 码 `install.use_not_confirmed`）。`confirm()` 同时拆出 `confirmAction()`，安装不再套用"不会执行破坏性操作"的措辞 |
+| 发布链 | `gen-manifests.sh`：GUI 的 Scoop 清单按真实产物写架构（不再固定写 64bit+arm64 空 hash）、`checkver.regex` 转义修正为合法 JSON |
+| 发布链 | `release-gui.sh`：修 `checksums.txt` 一个产物都没有的 bug（cd 之后 glob 失效 + `shasum` 读 stdin），并新增 `--prune-only` |
+| 契约 | 新增一个码 `install.use_not_confirmed`（码表 zh/en），`make codes` 已校验 |
+
+GUI 侧独立发版：`gui-v0.11.2`（新增 Windows ARM64 产物，4 件 + 签名清单）。
