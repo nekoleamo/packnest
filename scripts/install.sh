@@ -61,7 +61,7 @@ case "$FROM" in
     echo "npm 通道已于 2026-11-11 停用（npm 的 stage/approve 需要 2FA，且跨机器构建的归档字节不同）。" >&2
     echo "改用默认通道（gitee）或自托管：--base https://你的静态源/packnest" >&2
     exit 2 ;;
-  *) echo "未知 --from 值: $FROM（支持 gitee|base）" >&2; exit 2 ;;
+  *) echo "未知 --from 值: ${FROM}（支持 gitee|base）" >&2; exit 2 ;;
 esac
 [ "$MIRROR" = "cn" ] && echo "提示：--mirror cn 现在也走 gitee（npm 镜像通道已停用）" >&2
 
@@ -155,7 +155,7 @@ if [ "$SKIP_VERIFY" -eq 0 ]; then
   elif [ -n "$sig" ]; then
     echo "  提示：未验签（本机没有 ssh-keygen，或脚本未内置公钥），本次只比对 sha256" >&2
   else
-    echo "  提示：该版本没有发布签名（$sig_url），本次只比对 sha256" >&2
+    echo "  提示：该版本没有发布签名（${sig_url}），本次只比对 sha256" >&2
   fi
 
   want=$(printf '%s\n' "$sums" | awk -v f="${name}.tar.gz" '$2==f {print $1; exit}')

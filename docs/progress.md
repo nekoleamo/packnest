@@ -1090,3 +1090,25 @@ warn 消失。
 | 门禁 | 10 项 → **11 项**（`fmt loc lang keys codes vet race cover cross fuzz bench golden`）；`README` / `AGENTS.md` / `ci.yml` 同步 |
 | 只比码不比级别 | 同一码在不同分支可能是 warn/info（`SHIM_*`），伪精确地断言"哪个级别才对"会制造无意义红灯；级别由文档表人工保证 |
 | 反向验证 | 删掉文档一行 → `✘ 代码里有、文档表里没有` 退出 1；补回 → 34 个一致 |
+
+### E8b · 安装脚本集成测试进 CI（批 0 第 3 项）
+
+| 项 | 结果 |
+|---|---|
+| 实现 | `scripts/test-installers.sh`（本地可跑，`make test-installers`）+ `.github/workflows/script-test.yml`（ubuntu 跑 sh / windows 跑 ps1）；仓库里的两个安装脚本**一个字节都不改**，公钥注入到临时副本 |
+| 完全离线 | 临时目录当静态源（`v1.2.3/` 假产物 + `checksums.txt` + 真 sshsig），`python -m http.server` 当 CDN，发布密钥现场生成 |
+| 五条路径 × 2 | 正常（`sshsig OK` + `sha256 OK` + 产物落盘）· 产物被改（sha256 失败、清单签名仍有效）· 清单被改 · **签名被改一字节** · 缺 `.sig`（提示后继续）· `--skip-verify` 放行（共 16 条断言 sh，ps1 同构） |
+| 断言口径 | ps1 的正向用例按「日志证据 + 产物落盘」判定、退出码只在 Windows 上断言 —— `install.ps1` 成功后要写**用户 PATH**，这步在非 Windows 的 pwsh 上不支持 |
+| 缺依赖就跳过 | 缺 `ssh-keygen` 时整轮 skip 并说明；`PK_FORCE_PS1=1` 却无 pwsh 直接红（避免 CI「看起来跑了」） |
+
+### E8b 抓到的真 bug（`make lang` 那条老规矩救的）
+
+`install.sh` 的「该版本没有发布签名」提示行写成 `（$sig_url）`：macOS 的 `/bin/sh`（bash 3.2 POSIX）
+把紧跟的中文首字节算进变量名 → `set -u` 下 **`unbound variable` 直接 exit 1**。
+也就是说「发布物缺 `.sig`」这条兜底路径**一直是坏的**，用户只会看到 exit 1、没有任何提示。
+同类 `$var` 紧贴中文的还有 `verify-release.sh` / `sign-release.sh` 各一处（同样会崩）。
+
+修法两层：
+1. 全部改成 `${var}`（`scripts/install.sh`、`scripts/verify-release.sh`、`scripts/sign-release.sh`）；
+2. `tools/langcheck.go`（`make lang`）新增第二遍扫描：`scripts/*.sh` 里 `$var` 紧跟非 ASCII 字符就红
+   —— 同一类 bug 从此在门禁里挡住（`$1..$9` 位置参数不算）。

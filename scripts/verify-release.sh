@@ -70,7 +70,7 @@ done < "$SUMS"
 if [ -f scripts/latest ]; then
   pinned=$(tr -d ' \t\r\n' < scripts/latest)
   if [ "$pinned" != "$VER" ]; then
-    echo "scripts/latest = $pinned，但发布版本是 $VER（安装脚本的兜底版本源过期）" >&2
+    echo "scripts/latest = ${pinned}，但发布版本是 ${VER}（安装脚本的兜底版本源过期）" >&2
     fail=1
   fi
 else

@@ -17,11 +17,11 @@ KEY="${PK_SIGNING_KEY:-}"
 [ -f "$KEY" ] || { echo "私钥不存在: $KEY" >&2; exit 2; }
 
 SUMS="$DIST/v$VER/checksums.txt"
-[ -f "$SUMS" ] || { echo "找不到 $SUMS（先跑 make release）" >&2; exit 1; }
+[ -f "$SUMS" ] || { echo "找不到 ${SUMS}（先跑 make release）" >&2; exit 1; }
 
 # 先确认私钥能读：设了口令的私钥在非交互环境会卡在提示上，提前给出明确说明。
 if ! ssh-keygen -y -f "$KEY" >/dev/null 2>&1; then
-  echo "读不出私钥 $KEY：多半是设了口令（非交互环境没法输入）。" >&2
+  echo "读不出私钥 ${KEY}：多半是设了口令（非交互环境没法输入）。" >&2
   echo "用无口令的离线密钥，或在交互终端里手动跑 ssh-keygen -Y sign。" >&2
   exit 2
 fi

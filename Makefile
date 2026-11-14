@@ -28,7 +28,7 @@ LDFLAGS := -s -w -X main.Version=$(VERSION)
 SOURCE_DATE := 202001010000
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
-.PHONY: gitee-release help build test race check fmt loc vet cover cross fuzz bench golden accept clean dist list-providers release checksums site verify-release publish-manifests github-release gui gui-app gui-serve gui-test codes
+.PHONY: gitee-release help build test race check fmt loc vet cover cross fuzz bench golden accept clean dist list-providers release checksums site verify-release publish-manifests github-release gui gui-app gui-serve gui-test codes test-installers
 
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
@@ -36,6 +36,7 @@ help:
 	@echo "make check     11 项门禁（提交前必跑）"
 	@echo "make loc       只看行数预算（红线 11600；cmd/pk 3200 与单文件 600 只 warn）"
 	@echo "make accept    只跑验收用例 TestAcceptance_*"
+	@echo "make test-installers  安装脚本集成测试（离线，五条路径）"
 	@echo "make cross     6 平台交叉编译到 $(DIST)/"
 	@echo "make cover     只看覆盖率明细"
 	@echo "make bench     只看性能预算"
@@ -121,6 +122,11 @@ fuzz:
 
 accept:
 	CGO_ENABLED=0 go test -count=1 -run 'TestAcceptance_' -v ./acceptance/...
+
+# 安装脚本集成测试（离线：临时目录当静态源 + 临时密钥签 checksums.txt）。
+# 不进 make check（要 ssh-keygen 与 python，且仓库外的人未必装了）；CI 用 script-test.yml 跑。
+test-installers:
+	@sh scripts/test-installers.sh
 
 # ⭐ 11 项门禁，顺序即"越便宜越先"（loc/lang/keys/codes 是纯统计，紧跟 fmt）。
 check: fmt loc lang keys codes vet race cover cross fuzz bench golden

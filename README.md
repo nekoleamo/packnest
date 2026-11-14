@@ -254,6 +254,7 @@ CI 里 `pk install --frozen` 严格按锁安装，清单与锁不一致即非 0 
 make build      # CGO_ENABLED=0 本地构建 ./bin/pk
 make test       # 零外网单测
 make accept     # 只跑验收用例 TestAcceptance_*
+make test-installers  # 安装脚本集成测试（离线，install.sh / install.ps1 五条路径）
 make check      # 11 项门禁（提交前必跑，含行数预算、英文覆盖与问题码契约）
 make release    # 6 平台发布包 + checksums.txt → dist/
 make npm-dry    # 只打 npm 包并校验 manifest（不发、不需要凭据）

@@ -89,9 +89,69 @@ func main() {
 	for _, b := range bad {
 		fmt.Println(b)
 	}
+	// 第二类：shell 脚本里 `$var` 直接贴上非 ASCII 字符。
+	// macOS 的 /bin/sh（bash 3.2 POSIX）会把多字节字体的首字节算进变量名，
+	// `set -u` 下直接 "unbound variable" 退出 —— 2026-11-14 实测：
+	// install.sh 的「缺 .sig 提示后继续」分支就这样坏过（真机里只能看到 exit 1）。
+	bad = append(bad, scanShellVarGlue("scripts")...)
+	sort.Strings(bad)
+	for _, b := range bad {
+		fmt.Println(b)
+	}
 	if len(bad) > 0 {
-		fmt.Fprintf(os.Stderr, "langcheck: %d 处未翻译（用 tr(zh, en) 包起来）\n", len(bad))
+		fmt.Fprintf(os.Stderr, "langcheck: %d 处问题（未翻译的汉字 / shell 变量紧贴中文）\n", len(bad))
 		os.Exit(1)
 	}
 	fmt.Println("langcheck: ok")
+}
+
+func isAllDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return s != ""
+}
+
+// scanShellVarGlue 扫目录下所有 .sh：`$var` 后面紧跟非 ASCII 字节就报（应写 `${var}`）。
+// 只看非注释行；`${var}` 与 `$1` 这类不会命中。
+func scanShellVarGlue(dir string) []string {
+	paths, err := filepath.Glob(filepath.Join(dir, "*.sh"))
+	if err != nil {
+		return nil
+	}
+	var bad []string
+	for _, path := range paths {
+		src, err := os.ReadFile(path)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "langcheck: 读 %s: %v\n", path, err)
+			continue
+		}
+		for i, line := range strings.Split(string(src), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "#") {
+				continue
+			}
+			for j := 0; j < len(line); j++ {
+				if line[j] != '$' {
+					continue
+				}
+				k := j + 1
+				for k < len(line) && (line[k] == '_' || line[k] >= '0' && line[k] <= '9' ||
+					line[k] >= 'a' && line[k] <= 'z' || line[k] >= 'A' && line[k] <= 'Z') {
+					k++
+				}
+				if k == j+1 || k >= len(line) || line[k] < 0x80 {
+					continue
+				}
+				// $1..$9 是位置参数，单个数字后面跟中文没事（变量名不能以数字开头）
+				if name := line[j+1 : k]; isAllDigits(name) {
+					continue
+				}
+				bad = append(bad, fmt.Sprintf("%s:%d: $%s 后面直接跟非 ASCII 字符（shell 会把它算进变量名，改成 ${%s}）",
+					path, i+1, line[j+1:k], line[j+1:k]))
+			}
+		}
+	}
+	return bad
 }

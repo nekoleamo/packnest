@@ -1,0 +1,66 @@
+# 安装脚本集成测试（完善路线 §E8b）：install.sh / install.ps1 的四条关键路径
+#
+# 为什么单独一个 workflow：这两条脚本是**用户第一行命令**，却一直在门禁之外
+# （make check 只测 Go）。改了 install.sh 的校验顺序、或发布物少了个 .sig，
+# 门禁全绿也照样让所有人装不上。这里把「正常 / 产物被改 / 缺 .sig / --skip-verify
+# / 签名被改一字节」全部离线跑一遍：临时目录当静态源 + 临时密钥签 checksums.txt，
+# 仓库里的脚本一个字节不改（公钥注入到副本里）。
+#
+# 两个 job：
+#   installers-sh   —— ubuntu 上跑 scripts/test-installers.sh（install.sh 五条路径）
+#   installers-ps1  —— windows 上跑同一脚本（install.ps1 五条路径，含 ssh-keygen 可用性探测）
+name: script-test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/install.sh'
+      - 'scripts/install.ps1'
+      - 'scripts/test-installers.sh'
+      - '.github/workflows/script-test.yml'
+  pull_request:
+    paths:
+      - 'scripts/install.sh'
+      - 'scripts/install.ps1'
+      - 'scripts/test-installers.sh'
+      - '.github/workflows/script-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: script-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installers-sh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: install.sh 集成测试（五条路径，本地离线源）
+        env:
+          PK_FORCE_SH: '1'
+        run: sh scripts/test-installers.sh
+
+  installers-ps1:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    # Windows 的 bash 是 Git Bash：本脚本在它下面能跑通（cygpath 负责路径转换）
+    shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      # ssh-keygen 是 Windows 的「可选功能」：runner 通常带，缺了脚本会 skip 掉验签断言
+      - name: 探测 ssh-keygen
+        run: |
+          if command -v ssh-keygen >/dev/null 2>&1; then
+            echo "ssh-keygen: $(ssh-keygen -V 2>&1 | head -1)"
+          else
+            echo "ssh-keygen 缺失：本轮会跳过验签断言（不硬断言，见路线文档 §三 E8b）"
+          fi
+      - name: install.ps1 集成测试（五条路径，本地离线源）
+        env:
+          PK_FORCE_PS1: '1'
+        run: sh scripts/test-installers.sh
