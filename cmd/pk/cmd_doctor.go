@@ -5,6 +5,7 @@ import (
 	"io"
 	"slices"
 
+	"github.com/packnest/packnest/cmd/pk/present"
 	"github.com/packnest/packnest/internal/env"
 	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/jsonout"
@@ -271,20 +272,9 @@ func (a *app) cmdDoctor(args []string) int {
 			return a.fail(err)
 		}
 	} else {
-		if len(issues) == 0 {
-			fmt.Fprintln(a.out, tr("体检通过：没有发现问题。", "check passed: no problems found."))
-		}
-		for _, is := range issues {
-			fmt.Fprintf(a.out, "  [%-5s] %-22s %s\n", is.Severity, is.Code, is.Message)
-		}
+		present.Issues(a.out, issues)
 		if *fix {
-			if len(out.Fixed) == 0 {
-				fmt.Fprintln(a.out, tr("没有可自动修的问题（其余项需要人工处理）", "nothing can be auto-fixed (the rest needs manual work)"))
-			}
-			for _, line := range out.Fixed {
-				fmt.Fprintf(a.out, tr("  已修 %s\n", "  fixed %s\n"), line)
-			}
-			fmt.Fprintln(a.out, tr("重跑 `pk doctor` 复核；新开窗口后 PATH 生效", "rerun `pk doctor` to verify; PATH takes effect in a new window"))
+			present.Fixed(a.out, out.Fixed)
 		}
 	}
 	if !out.OK {

@@ -756,21 +756,6 @@ func TestCLIUninstallRepoints(t *testing.T) {
 	}
 }
 
-func TestHumanBytes(t *testing.T) {
-	cases := map[int64]string{
-		0:            "0 B",
-		512:          "512 B",
-		1536:         "1.5 KB",
-		47 * 1 << 20: "47.0 MB",
-		5 << 30:      "5.0 GB",
-	}
-	for in, want := range cases {
-		if got := humanBytes(in); got != want {
-			t.Errorf("humanBytes(%d) = %q，期望 %q", in, got, want)
-		}
-	}
-}
-
 func TestWriteCompletion(t *testing.T) {
 	for _, shell := range []string{"bash", "zsh", "powershell"} {
 		var buf bytes.Buffer

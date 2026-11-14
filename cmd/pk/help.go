@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"fmt"
+	"github.com/packnest/packnest/cmd/pk/present"
 	"io"
 	"os"
 	"path/filepath"
@@ -54,7 +55,7 @@ func printCommandHelp(w io.Writer, cmd string) bool {
 	if !ok {
 		return false
 	}
-	if langEN {
+	if present.LangIsEN() {
 		if en, has := commandHelpEN[cmd]; has {
 			text = en
 		}

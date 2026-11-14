@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/packnest/packnest/cmd/pk/present"
 	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/provider"
@@ -70,28 +71,7 @@ func (a *app) cmdList(args []string) int {
 	case len(entries) == 0 && !*available:
 		fmt.Fprintln(a.out, tr("还没装任何工具。`pk install node@22` 开始。", "No tools installed yet. Start with `pk install node@22`."))
 	case len(entries) > 0:
-		fmt.Fprintln(a.out, tr("已装:", "installed:"))
-		for _, e := range entries {
-			mark := " "
-			if e.Active {
-				mark = "*"
-			}
-			line := fmt.Sprintf("  %s %-6s %-10s %8s", mark, e.Name, e.Version, humanBytes(e.SizeBytes))
-			if e.NPM != nil && e.NPM.Version != "" {
-				line += fmt.Sprintf(" (npm %s", e.NPM.Version)
-				if e.NPM.Replaced != "" && e.NPM.Replaced != e.NPM.Version {
-					line += fmt.Sprintf(tr(" ← 自带 %s", " <- bundled %s"), e.NPM.Replaced)
-				}
-				line += ")"
-			}
-			if e.Verified == "unverified" {
-				line += tr(" [未校验]", " [unverified]")
-			}
-			if e.Source == provider.SourceExternal {
-				line += " *"
-			}
-			fmt.Fprintln(a.out, line)
-		}
+		present.InstalledTable(a.out, entries)
 	}
 
 	if *available {
@@ -99,10 +79,7 @@ func (a *app) cmdList(args []string) int {
 		return a.printAvailable()
 	}
 	if hints := install.OutdatedHints(a.context(), a.paths, a.cfg.Mirror, entries); len(hints) > 0 {
-		fmt.Fprintln(a.out, tr("可升级（索引缓存；详情 `pk list --available`）:", "upgradable (index cache; see `pk list --available`):"))
-		for _, h := range hints {
-			fmt.Fprintf(a.out, "  %-6s %s → %s   %s\n", h.Name, h.Installed, h.Latest, h.Advice)
-		}
+		present.Upgrades(a.out, hints)
 	}
 	for _, e := range entries {
 		if e.Source == provider.SourceExternal {

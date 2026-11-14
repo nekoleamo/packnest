@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"unicode"
+
+	"github.com/packnest/packnest/cmd/pk/present"
 )
 
 // runCLI 跑一次命令并合并 stdout/stderr（语言测试关心"用户看到什么"）。
@@ -16,8 +18,11 @@ func runCLI(t *testing.T, env map[string]string, args ...string) (string, int) {
 	for k, v := range env {
 		t.Setenv(k, v)
 	}
-	langEN = false // 全局开关：每个用例从默认开始
-	t.Cleanup(func() { langEN = false })
+	// 语言是 present 包里的全局开关：每个用例从默认（中文）开始，退出时复位
+	if err := present.SetLang("zh"); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = present.SetLang("zh") })
 	var out, errOut bytes.Buffer
 	code := run(args, &out, &errOut)
 	return out.String() + errOut.String(), code

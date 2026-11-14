@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/packnest/packnest/cmd/pk/present"
 	"github.com/packnest/packnest/internal/env"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/install"
@@ -92,9 +93,9 @@ func (a *app) cmdInstall(args []string) int {
 
 	// 进度条：TTY 用 \r 刷新，非 TTY 每 25% 一行；--quiet 或 --json 时不画。
 	// 进度条只在单目标时创建：多工具是并发下载，同一个 bar 会被多路字节数互相踩（且数据竞争）。
-	var bar *progressBar
+	var bar *present.Progress
 	if !*quiet && !a.json && len(targets) == 1 {
-		bar = newProgress(a.out, tr("下载", "download"))
+		bar = present.NewProgress(a.out, tr("下载", "download"))
 		a.client.Progress = bar.Update
 	}
 

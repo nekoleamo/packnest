@@ -11,7 +11,7 @@
 | # | 约束 | 越界后果 |
 |---|---|---|
 | 1 | **第三方依赖 = 2 个**：`Masterminds/semver/v3`、`BurntSushi/toml` | 编译时间、体积、供应链都崩 |
-| 2 | **代码 ≤ 12,300 行**（`cmd/`+`internal/`，不含 `*_test.go` 与 `internal/testkit`；8,500 → 10,000 → 10,200 → 10,300 → 10,360 → 10,450 → 10,500 → 10,700 → 11,100 → **11,200**（都由实测驱动；10,500 是 GUI 前置换来的 `--json` progress 事件与契约字段，10,700 是 1.1 的通用伴生包 + 同源配对校验，11,100 是 1.2 的多连接下载 + `doctor` 新问题码，11,200 是 1.3 的日常闭环五件，11,300 是 1.4 的索引并行拉取，11,450 是 1.4 的 `pk upgrade` 命令，11,600 是 1.5 的 `PK_CACHE` + `engines.node` + `pk list` 编排下沉（2026-11-13 拍板），12,300 是 1.7 的并行安装 + sshsig 验签 + CLI 英文输出（2026-11-14 拍板）） | 违背"一个下午读得完"；门禁已上线：`make loc`（`make check` 第 2 项，`tools/loccheck.sh`），超线直接红 |
+| 2 | **按包行数预算**（`tools/loc-budgets.txt`，`make loc` 逐包对上限；**总量只统计不设硬顶**，2026-11-14 拍板：失控的是"某个包长成怪物"，不是总量） | 违背"一个下午读得完"；新增包必须在预算表里登记上限，超预算 `make loc` 直接红 |
 | 3 | **命令面 10 个**：install/uninstall/use/list/which/mirror/doctor/env/gc/upgrade | 加命令先改方案文档 |
 | 4 | **`CGO_ENABLED=0` 6 平台**：darwin/linux/windows × amd64/arm64 | 单二进制承诺作废 |
 | 5 | **归档只 2 种**：tar.gz + zip。解压零第三方（`archive/tar`+`compress/gzip`+`archive/zip`） | 不许引 xz/7z/compress |
@@ -60,7 +60,7 @@ M0 骨架 ✅ → M1 node+npm（伴生 npm、archive/verify/companion、真卸�
 ```bash
 make build      # CGO_ENABLED=0 本地构建 ./bin/pk
 make test       # 零外网单测
-make check      # 9 项门禁（提交前必跑，含行数预算与英文覆盖检查）
+make check      # 11 项门禁（提交前必跑，含行数预算、英文覆盖与问题码契约）
 make accept     # 只跑验收用例
 make cross      # 6 平台交叉编译到 dist/
 go run ./cmd/pk doctor --json

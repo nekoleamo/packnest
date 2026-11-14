@@ -1,0 +1,23 @@
+# 行数预算表（`make loc` / tools/loccheck.sh 读它）
+#
+# 口径：每个包一个上限（不含 *_test.go、不含 internal/testkit、不含 cmd/pk-desktop）。
+# 总量只统计**不设硬顶**（完善路线 2026-11-14 拍板：行数余量不再是约束，替代纪律是"按包预算"）。
+# 规则：只增不减 —— 调高上限必须在 docs/progress.md 里给出理由（哪个功能换来的）。
+# 新增包必须在这里登记上限，否则 loccheck 会报"未登记"。
+#
+# 包路径              上限
+cmd/pk                3300
+cmd/pk/present         800
+internal/install      2600
+internal/provider     1700
+internal/env          1050
+internal/fetch         900
+internal/verify        850
+internal/store         700
+internal/mirror        500
+internal/archive       450
+internal/spec          300
+internal/paths         250
+internal/companion     250
+internal/shim          250
+internal/jsonout       250

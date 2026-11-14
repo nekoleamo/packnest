@@ -1150,3 +1150,36 @@ warn 消失。
 | 可复现 | 连跑两轮，`checksums.txt` 逐字节一致（`platforms` 数组、无时间戳起了作用） |
 | 核对 | 临时密钥签名 → `verify-release.sh --base file://…`：签名 OK + 8 个产物逐个 OK |
 | 两个坑 | ① `DIST` 用 `:=` 定义，`DIST=/x make …` 这种**环境变量**写法不生效（Makefile 赋值压过环境变量），必须 `make … DIST=x`；② `DIST` 只能是相对路径（release recipe 里拼了 `$(CURDIR)/$(DIST)`，绝对路径会拼成 `$(CURDIR)//tmp/…`） |
+
+---
+
+## 批 2（E6）· `cmd/pk` 分层 · 第一片：呈现层独立成包
+
+> 路线：`pn-完善路线-2026-11-14.md` §三 E6。前置（人读快照）已先落库，判据 = 快照与 `--json` golden 逐字节一致。
+
+| 项 | 结果 |
+|---|---|
+| 新包 | `cmd/pk/present`（235 行）：`T/SetLang/InitLangFromEnv`（文案与语言）、`HumanBytes`、`Progress`（进度条）、`InstalledTable` / `Upgrades`（列表）、`Issues` / `Fixed`（doctor 行） |
+| `cmd/pk` | 3178 → **3012 行**；`lang.go` 退化成薄别名（`var tr = present.T` 等）—— 300+ 个 `tr(...)` 调用点**一个都不改**，实现只有一处，目的达到而回归面为零 |
+| 依赖方向 | `present` 只 import `internal/*`，不知道 `cmd/pk` 的存在（`cmd/pk → present → internal`，无环） |
+| 判据 | `cmd/pk/testdata/human` 的 **20 个快照逐字节未变**；`--json` golden 未改；覆盖率 `present` 91.2%（cmd 门槛 70%） |
+| 为后三批铺的路 | E4 多行 TTY 进度只改 `present.Progress`；E5 的 abort 文案只改 `present`；E1 英文覆盖只改 `present.T` |
+
+### 顺带落地的"行数放开"（路线 §六）
+
+| 项 | 结果 |
+|---|---|
+| 旧门禁 | 总量硬顶 12,300（当前 12,233，余量 67 —— E6 一动就撞线，逼出"为过线而搬代码"的假优化） |
+| 新门禁 | `tools/loc-budgets.txt`：**每个包一个上限**（`cmd/pk` 3300 / `cmd/pk/present` 800 / `internal/install` 2600 …共 16 行），超包预算直接红；**总量只统计不设硬顶**并打印；未登记的新包也算红 |
+| 反向验证 | 删掉预算表里 `cmd/pk/present` 一行 → `未登记预算` 红；新建包不登记同样红 |
+| 文档 | `AGENTS.md` 硬约束第 2 条与 `README` 门禁列表同步（红线数字保留，只是不再硬拦总量） |
+
+### 批 2 前置 · 人读输出快照（20 个用例）
+
+`cmd/pk/snapshot_test.go`：`version / usage / usage-install / list-empty / list-seeded / list-seeded-major /
+which-self / which-missing / mirror-usage / mirror-list / doctor-empty-root / doctor-seeded / env-bash /
+env-unset / gc-nothing / use-switch / uninstall-missing / install-dry-run / install-help / upgrade-help`。
+
+- 环境钉死：`HOME` / `SHELL` / `PATH` / `COLUMNS=100` / `PK_LANG=zh` / `GOTOOLCHAIN` / `GOBIN`，根目录用 `--root` 指临时目录；
+- 归一化：临时根 → `<ROOT>`、家目录 → `<HOME>`、`go1.x` → `go<VER>`、`darwin/arm64`、`packnest_…_darwin_arm64`、`node-v26.13.0-linux-x64` → `<OS>…<ARCH>`；
+- 重建：`go test ./cmd/pk -run TestHumanSnapshots -update-snap`；含平台差异的用例在 Windows 上 skip。

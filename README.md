@@ -155,7 +155,7 @@ pk install node@22 --dry-run   # 只打印版本/产物 URL/校验方式：不�
 - 唯一的例外是缓存：`PK_CACHE=<目录>` 可把 `archives/`、`meta/`、corepack/npm 缓存搬到别处（CI 挂卷），台账/shim/锁不动
 - 默认**不动**用户已有配置：不写 `~/.npmrc`（要写用 `pk mirror write`，写前备份、只增不改）
 - 默认 `go test ./...` **零外网**；真网测试一律 `//go:build nettest`，不进门禁
-- 门禁 **11 项**（`make check`）：gofmt+vet · 行数红线 · 英文覆盖（`make lang`）· 三处签名公钥一致（`make keys`）·
+- 门禁 **11 项**（`make check`）：gofmt+vet · 按包行数预算（`make loc`，总量只统计）· 英文覆盖（`make lang`）· 三处签名公钥一致（`make keys`）·
   问题码契约（`make codes`）· `-race` 测试 · 覆盖率 · 6 平台交叉编译 · fuzz · benchmark 阈值 · `--json` golden。
   fuzz 是 5 个目标 × 30s（`Makefile` 的 `FUZZ_TARGETS`）；`make codes` 要求代码里扫出的 doctor 码与
   `docs/json-schema.md` 的问题码表完全一致
