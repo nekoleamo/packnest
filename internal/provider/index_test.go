@@ -500,3 +500,37 @@ func TestStableIndexView(t *testing.T) {
 		t.Fatal("没有 stable_urls 时不该另存轻量缓存")
 	}
 }
+
+// TestParseRegistryIndexExported：对外的 ParseRegistryIndex 是 install 取平台包摘要的入口，
+// 至少保证"合法能解析、非法报错"两条边（内部实现另有细测）。
+func TestParseRegistryIndexExported(t *testing.T) {
+	reg := `{"versions":{"1.2.3":{"version":"1.2.3","dist":{"shasum":"abc","integrity":"sha512-xyz"}},` +
+		`"1.2.4":{"version":"1.2.4","engines":{"node":">=20"},"dist":{"shasum":"def"}}}}`
+	vs, err := ParseRegistryIndex([]byte(reg))
+	if err != nil {
+		t.Fatalf("合法 registry 应解析成功: %v", err)
+	}
+	if len(vs) != 2 {
+		t.Fatalf("应解析出 2 个版本: %+v", vs)
+	}
+	if _, err := ParseRegistryIndex([]byte("{not json")); err == nil {
+		t.Fatal("非法 JSON 必须报错")
+	}
+}
+
+// TestSortKeyGreater：索引排序键的三级比较（major → minor → patch）。
+func TestSortKeyGreater(t *testing.T) {
+	a := &specSortKey{1, 2, 3}
+	if !a.greater(&specSortKey{1, 2, 2}) {
+		t.Fatal("patch 大的应更大")
+	}
+	if !a.greater(&specSortKey{1, 1, 9}) {
+		t.Fatal("minor 大的应更大（即使 patch 更小）")
+	}
+	if !a.greater(&specSortKey{0, 9, 9}) {
+		t.Fatal("major 大的应更大")
+	}
+	if a.greater(&specSortKey{1, 2, 3}) {
+		t.Fatal("相等不该判大")
+	}
+}

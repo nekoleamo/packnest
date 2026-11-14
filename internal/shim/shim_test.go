@@ -3,6 +3,7 @@ package shim
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -227,5 +228,65 @@ func BenchmarkShimResolve(b *testing.B) {
 		if _, _, err := Resolve(binDir, "node", "linux"); err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+// TestResolveRelativeSymlink：相对软链要按 binDir 解析成绝对路径（否则 which 打印错路径）。
+func TestResolveRelativeSymlink(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.Symlink("../tools/node/22.98.0/bin/node", filepath.Join(bin, "node")); err != nil {
+		t.Skip("这台机器建不了软链")
+	}
+	got, isShim, err := Resolve(bin, "node", "darwin")
+	if err != nil || !isShim {
+		t.Fatalf("相对软链应解析成 shim: %q %v %v", got, isShim, err)
+	}
+	if !filepath.IsAbs(got) || !strings.HasSuffix(got, filepath.Join("tools", "node", "22.98.0", "bin", "node")) {
+		t.Fatalf("相对软链应拼成绝对路径，得到 %q", got)
+	}
+}
+
+// TestResolveWindowsCmd 与 TestResolveMissingAndPlainFile 互补：Windows 上走 .cmd 分支。
+func TestResolveWindowsCmd(t *testing.T) {
+	bin := t.TempDir()
+	target := filepath.Join(t.TempDir(), "node.exe")
+	if err := os.WriteFile(target, []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "node"+CmdExt), []byte("@echo off\r\n\""+target+"\" %*\r\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got, isShim, err := Resolve(bin, "node", "windows")
+	if err != nil || !isShim || got != target {
+		t.Fatalf("Windows .cmd 应解析出目标 %q，得到 %q (shim=%v err=%v)", target, got, isShim, err)
+	}
+	// 内容坏掉时要报错（不然 which 会给出空答案）
+	if err := os.WriteFile(filepath.Join(bin, "bad"+CmdExt), []byte("@echo off\r\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Resolve(bin, "bad", "windows"); err == nil {
+		t.Fatal("shim 内容无法解析时应报错")
+	}
+}
+
+// TestListFilters：非 Windows 只列软链，Windows 只列 .cmd（且去掉后缀）。
+func TestListFilters(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "plain"), []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bin, "a"+CmdExt), []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	win, err := List(bin, "windows")
+	if err != nil || len(win) != 1 || win[0] != "a" {
+		t.Fatalf("Windows 只列 .cmd 且去后缀: %v %v", win, err)
+	}
+	unix, err := List(bin, "darwin")
+	if err != nil || len(unix) != 0 {
+		t.Fatalf("非 Windows 不列普通文件: %v %v", unix, err)
+	}
+	if names, err := List(filepath.Join(bin, "nope"), "darwin"); err != nil || names != nil {
+		t.Fatalf("目录不存在应返回空: %v %v", names, err)
 	}
 }

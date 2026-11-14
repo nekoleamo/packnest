@@ -50,6 +50,9 @@ type Options struct {
 	LookupProvider func(id string) (*provider.Provider, error)
 	// Events 用于 NDJSON 事件输出（nil 则静默）。
 	Events func(jsonout.Event)
+	// ArchiveReplace 默认是 archive.Replace（tmp 目录 → 正式目录的改名）；测试注入失败分支用。
+	// 沿用 RunCommand 的做法：加字段而不是改签名。
+	ArchiveReplace func(dst, src string) error
 	// ProgressFor 按工具返回下载进度回调（多工具并行时每工具一行）。
 	// 每个 worker 的 fetch.Client 是独立副本，所以在 prepare 里把回调挂在副本上，
 	// 互不覆盖、也不需要调用方自己加锁。nil 表示不画进度。
@@ -429,6 +432,14 @@ func (i *Installer) installShims(p *provider.Provider, toolDir string) error {
 		}
 	}
 	return nil
+}
+
+// replace 把解压好的 tmp 目录换成正式目录（Windows 上是 .old 三步法，见 archive.Replace）。
+func (i *Installer) replace(dst, src string) error {
+	if i.opt.ArchiveReplace != nil {
+		return i.opt.ArchiveReplace(dst, src)
+	}
+	return archive.Replace(dst, src)
 }
 
 func randomSuffix() string {

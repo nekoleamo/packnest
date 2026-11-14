@@ -54,6 +54,8 @@ type Install struct {
 }
 
 // Versions 返回某工具的已装版本（升序）。
+// Versions 返回某工具的全部版本，按字符串升序（**不是**语义顺序：
+// "22.10.0" 在字符串序里小于 "22.9.0"）。要"最新"的调用方用 spec.SortDesc。
 func (l *Ledger) Versions(tool string) []string {
 	var out []string
 	for _, in := range l.Installs {

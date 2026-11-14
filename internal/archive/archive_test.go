@@ -656,3 +656,103 @@ func TestCheckLinkTargetInTree(t *testing.T) {
 		}
 	}
 }
+
+// TestReplaceBranches：三种落盘情形（目标不存在 / 目标已存在 / src 不存在）。
+func TestReplaceBranches(t *testing.T) {
+	dir := t.TempDir()
+	// ① 目标不存在：直接改名
+	src := filepath.Join(dir, "new")
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(dir, "tool")
+	if err := Replace(dst, src); err != nil {
+		t.Fatalf("目标不存在时应直接落盘: %v", err)
+	}
+	if _, err := os.Stat(dst); err != nil {
+		t.Fatalf("落盘后目标应存在: %v", err)
+	}
+	// ② 目标已存在：三步法（旧目录挪到 .old 再删）
+	src2 := filepath.Join(dir, "new2")
+	if err := os.MkdirAll(src2, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src2, "f"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Replace(dst, src2); err != nil {
+		t.Fatalf("覆盖已存在目录应成功: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "f")); err != nil {
+		t.Fatalf("新内容应就位: %v", err)
+	}
+	if _, err := os.Stat(dst + ".old"); !os.IsNotExist(err) {
+		t.Fatal(".old 应被清掉")
+	}
+	// ③ src 不存在：报错（不能把目标删了）
+	if err := Replace(dst, filepath.Join(dir, "no-such-src")); err == nil {
+		t.Fatal("src 不存在必须报错")
+	}
+	if _, err := os.Stat(filepath.Join(dst, "f")); err != nil {
+		t.Fatalf("失败时旧内容必须还在: %v", err)
+	}
+}
+
+// TestMarkExecutables：把 bin_targets 与 bins 标记成可执行（Windows zip 里的权限位不可信）。
+func TestMarkExecutables(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "bin", "tool")
+	if err := os.MkdirAll(filepath.Dir(bin), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := markExecutables(dir, Layout{Bins: []string{"bin/tool"}}); err != nil {
+		t.Fatalf("标记可执行不该报错: %v", err)
+	}
+	fi, err := os.Stat(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&0o111 == 0 {
+		t.Fatalf("应被标记为可执行: %v", fi.Mode())
+	}
+	// 不存在的 bin 不该报错（不同平台的包里文件不一样）
+	if err := markExecutables(dir, Layout{Bins: []string{"bin/nope"}}); err != nil {
+		t.Fatalf("缺失的 bin 应跳过: %v", err)
+	}
+}
+
+// TestWriteEntryBranches：写入失败 / 权限位落盘两种情形（归档坏了要报"截断"，别只报 EOF）。
+func TestWriteEntryBranches(t *testing.T) {
+	dir := t.TempDir()
+	// ① 目标路径上已有同名目录 → OpenFile 失败
+	if err := os.MkdirAll(filepath.Join(dir, "as-dir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := writeEntry(filepath.Join(dir, "as-dir"), strings.NewReader("x"), 0o644); err == nil {
+		t.Fatal("目标是目录时必须报错")
+	}
+	// ② 正常写入并按 mode 落权限位（zip 常不带权限位，靠这里补）
+	target := filepath.Join(dir, "sub", "tool")
+	n, err := writeEntry(target, strings.NewReader("payload"), 0o755)
+	if err != nil || n != 7 {
+		t.Fatalf("写入应成功: n=%d err=%v", n, err)
+	}
+	fi, err := os.Stat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode()&0o111 == 0 {
+		t.Fatalf("权限位应按 mode 落盘: %v", fi.Mode())
+	}
+	// ③ perm=0 时回落 0644（归档里没写权限位的条目）
+	target2 := filepath.Join(dir, "plain")
+	if _, err := writeEntry(target2, strings.NewReader("x"), 0); err != nil {
+		t.Fatal(err)
+	}
+	if fi, _ := os.Stat(target2); fi.Mode().Perm() != 0o644 {
+		t.Fatalf("perm=0 应回落 0644: %v", fi.Mode().Perm())
+	}
+}

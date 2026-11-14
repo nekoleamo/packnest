@@ -266,3 +266,147 @@ func TestInstallInfoRoundTrip(t *testing.T) {
 		t.Fatalf("损坏时应返回 nil，得到 %+v", got)
 	}
 }
+
+// TestSaveFailures：三份状态文件的写失败路径都要把错误抛出来（不能静默丢状态）。
+// 手法：把目标路径做成目录 —— rename 到目录上必失败。
+func TestSaveFailures(t *testing.T) {
+	dir := t.TempDir()
+	cfg := DefaultConfig()
+	if err := os.MkdirAll(filepath.Join(dir, "config.toml"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Save(filepath.Join(dir, "config.toml")); err == nil {
+		t.Fatal("config 写进目录应报错")
+	}
+
+	l := &Ledger{}
+	if err := os.MkdirAll(filepath.Join(dir, "ledger.json"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Save(filepath.Join(dir, "ledger.json")); err == nil {
+		t.Fatal("台账写进目录应报错")
+	}
+
+	idx := &CacheIndex{}
+	if err := os.MkdirAll(filepath.Join(dir, "cache.json"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := idx.Save(filepath.Join(dir, "cache.json")); err == nil {
+		t.Fatal("缓存索引写进目录应报错")
+	}
+}
+
+// TestWriteAtomicWithBackup：已有文件先备份成 .bak；.bak 写不进时整体失败（不写正文）。
+func TestWriteAtomicWithBackup(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "ledger.json")
+	if err := os.WriteFile(path, []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteAtomicWithBackup(path, []byte("new")); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "new" {
+		t.Fatalf("正文应写成 new: %q", got)
+	}
+	if got, _ := os.ReadFile(path + ".bak"); string(got) != "old" {
+		t.Fatalf(".bak 应是旧内容: %q", got)
+	}
+	// .bak 路径被目录占住 → 备份失败，正文不许被改
+	if err := os.Remove(path + ".bak"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(path+".bak", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteAtomicWithBackup(path, []byte("newer")); err == nil {
+		t.Fatal("备份失败必须报错")
+	}
+	if got, _ := os.ReadFile(path); string(got) != "new" {
+		t.Fatalf("备份失败时正文不该被改: %q", got)
+	}
+}
+
+// TestLoadInstallInfo：没有 / 坏掉的 install.json 都返回 nil（不是错误）。
+func TestLoadInstallInfo(t *testing.T) {
+	dir := t.TempDir()
+	if got := LoadInstallInfo(filepath.Join(dir, "nope.json")); got != nil {
+		t.Fatalf("不存在应返回 nil: %+v", got)
+	}
+	bad := filepath.Join(dir, "bad.json")
+	if err := os.WriteFile(bad, []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadInstallInfo(bad); got != nil {
+		t.Fatalf("坏文件应返回 nil: %+v", got)
+	}
+	good := filepath.Join(dir, "install.json")
+	if err := os.WriteFile(good, []byte(`{"schema":1,"channel":"script","version":"1.2.3","dir":"/x/bin"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadInstallInfo(good); got == nil || got.Dir != "/x/bin" || got.Channel != "script" {
+		t.Fatalf("正常文件解析不对: %+v", got)
+	}
+}
+
+// TestVersionsSorted：Versions 返回该工具的全部版本，按**字符串**升序。
+// 语义顺序不是它的职责：要"最新"的调用方自己用 spec.SortDesc（22.10.0 在字符串序里小于 22.9.0）。
+func TestVersionsSorted(t *testing.T) {
+	l := &Ledger{}
+	l.Upsert(Install{Tool: "node", Version: "22.10.0", Path: "/x"})
+	l.Upsert(Install{Tool: "node", Version: "22.9.0", Path: "/x"})
+	l.Upsert(Install{Tool: "go", Version: "1.27.3", Path: "/y"})
+	if got := l.Versions("node"); len(got) != 2 || got[0] != "22.10.0" || got[1] != "22.9.0" {
+		t.Fatalf("应升序返回 2 个版本: %v", got)
+	}
+	if got := l.Versions("nope"); len(got) != 0 {
+		t.Fatalf("没有记录应返回空: %v", got)
+	}
+}
+
+// TestLoadLedgerWithRecovery：主台账坏 → 用 .bak；.bak 也坏 → 报原始错误；没备份 → 报原始错误。
+func TestLoadLedgerWithRecovery(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "installs.json")
+	if err := os.WriteFile(path, []byte("{broken"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Run("没有备份", func(t *testing.T) {
+		if _, _, err := LoadLedgerWithRecovery(path); err == nil {
+			t.Fatal("没有 .bak 时应报原始错误")
+		}
+	})
+	t.Run("备份可用", func(t *testing.T) {
+		good := &Ledger{Schema: LedgerSchema}
+		good.Upsert(Install{Tool: "node", Version: "22.98.0", Path: "/x"})
+		if err := good.Save(path + ".bak"); err != nil {
+			t.Fatal(err)
+		}
+		l, recovered, err := LoadLedgerWithRecovery(path)
+		if err != nil || !recovered || l == nil || len(l.Installs) != 1 {
+			t.Fatalf("应从备份恢复: %+v recovered=%v err=%v", l, recovered, err)
+		}
+	})
+	t.Run("备份也坏", func(t *testing.T) {
+		if err := os.WriteFile(path+".bak", []byte("{also broken"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := LoadLedgerWithRecovery(path); err == nil {
+			t.Fatal("备份也坏时应报错")
+		}
+	})
+}
+
+// TestCacheIndexTouch：Touch 会初始化 nil 表并覆盖同名的旧记录。
+func TestCacheIndexTouch(t *testing.T) {
+	idx := &CacheIndex{}
+	now := time.Now()
+	idx.Touch("node.tar.gz", 100, now)
+	if idx.Entries["node.tar.gz"].Size != 100 {
+		t.Fatalf("Touch 应记下大小: %+v", idx.Entries)
+	}
+	idx.Touch("node.tar.gz", 200, now.Add(time.Hour))
+	if idx.Entries["node.tar.gz"].Size != 200 || !idx.Entries["node.tar.gz"].LastUsed.After(now) {
+		t.Fatalf("Touch 应覆盖旧记录: %+v", idx.Entries["node.tar.gz"])
+	}
+}

@@ -1213,3 +1213,42 @@ env-unset / gc-nothing / use-switch / uninstall-missing / install-dry-run / inst
 
 **踩到的一处坑**：prepare 阶段的失败原先只落在 `errs[]` 里，`abortAll` 按 `out[].Err` 判断"自己失败的"，
 于是 ghost 明明失败了却又多发了一条 abort（验收用例当场抓到）。修法：abort 前先把 prepare 错误同步进 outcome。
+
+## 批 3 · E8c 性质测试 + 覆盖率门槛
+
+### 性质测试（不变量，而不是"再补几个例子"）
+
+| 位置 | 断言 |
+|---|---|
+| `internal/spec/property_test.go` | `parse → String → parse` **幂等**（20 条语料含 `22`/`^22`/`22.x`/`lts/iron`/预发布/带空格） |
+| 同上 | `SortDesc` 是**全序**：稳定版本一个不丢不重、严格降序（用 semver 独立复算）、再排一次不变；预发布按契约丢弃 |
+| 同上 | `Best` 选出的版本必须自己 `Match`、且不旧于任何"同样匹配"的稳定候选；**别名（latest/lts）不参与 Best**（调用方先解析别名） |
+
+### 失败分支（"平时一辈子不跑，跑了决定给不给一句人话"）
+
+- `internal/install/failpaths_test.go`：`Finalize` 三份状态文件写失败、`Activate` 未安装/未知 provider、`LockFromInstalls`、`installShims`（bin 不可写 → 报错；二进制缺失 → 跳过）、`removeDirWithRetry`、`Upgrade` 的"没装/已最新"、`removeShimsFor`（只删指向自己目录的 shim）
+- `internal/install/coverage_test.go`：产物四种故障注入（损坏 / 缺校验和 / 校验和不符 / 断流）、registry 校验和的四条分支（正常 / `--force-rehash` 回源 / 元数据坏 / 元数据缺版本）、伴生 npm 失败要连宿主一起失败、`commit` 的 rename/corepack 失败、`--atomic` 里 commit 阶段失败的行为、`verifyLockedSHA`、`GC --keep`、`ApplyUninstallAll`、`Upgrade` 真实升级 + `--dry-run`
+- `internal/store`：三份状态文件与 `.bak` 的写失败、`LoadLedgerWithRecovery` 三种情形、`Touch`、`Versions` 顺序（字符串序，语义顺序是调用方的事）
+- `internal/archive`：`Replace` 三情形（目标不存在 / 已存在三步法 / src 缺失）、`markExecutables`、`writeEntry` 的失败与权限位
+- `internal/fetch`：`getOnce` 非法 URL 与 5xx、分段请求非 206 必须当场失败、`getConditional` 的 4xx/5xx/304、meta 写失败、离线无缓存
+- `internal/shim`：相对软链解析、Windows `.cmd` 解析与坏内容、`List` 的平台过滤
+
+### 门槛（`Makefile` + `tools/covercheck.awk`）
+
+| 项 | 结果 |
+|---|---|
+| 内部包 | 85 → **88**；`internal/install` 单独 **90**（`IMIN_INSTALL`，编排层是新代码最集中的地方） |
+| cmd | 仍 70（`cmd/pk` 78.0%，`cmd/pk/present` 93.2%） |
+| 实测 | archive 88.8 · companion 95.7 · env 88.4 · fetch 88.2 · install **90.3** · jsonout 100 · mirror 88.9 · paths 88.7 · provider 88.8 · shim 90.0 · spec 91.7 · store 90.9 · verify 88.3 |
+
+### ⚠️ 未完项（老实记账）
+
+路线文档要求 `internal/install` **≥92%**，当前 **90.3%**（约 21 条语句）。剩下的都是单条错误分支：
+`verifyArtifact` 的 inline 摘要/索引取值分支、`installNpmPackage` 的 `FormatFor/Extract/Replace` 失败、
+`Uninstall`/`m4` 的删除失败重试、`parallel.commit` 的 `Activate` 失败。
+下一轮补的时候按这几处点名打，别拿"再加几个正常路径用例"刷比例。
+
+**顺手修掉的三处**（都是新用例当场抓的）：
+1. `--atomic` 的 commit 阶段失败时，**已落盘的目标也被标成 abort**（`abortAll` 只看 `out[].Err`，不看"是否已提交"）→ 加 `committed[]` 跳过；
+2. `abortAll` 会给"自己就失败"的目标多发一条 abort（prepare 错误没先同步进 outcome）；
+3. `store.Versions` 的排序是**字符串序**（`22.10.0 < 22.9.0`），注释里写清"要语义顺序用 `spec.SortDesc`"，并用测试钉住。

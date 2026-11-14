@@ -211,7 +211,7 @@ func (i *Installer) commit(ctx context.Context, prep *prepared) (Result, error) 
 			_ = os.RemoveAll(prep.tmpDir)
 		}
 	}()
-	if err := archive.Replace(res.Path, prep.tmpDir); err != nil {
+	if err := i.replace(res.Path, prep.tmpDir); err != nil {
 		return res, err
 	}
 	placed = true
@@ -436,6 +436,7 @@ func (i *Installer) installAtomic(ctx context.Context, targets []Target, out []O
 	}
 
 	// 全部 prepare 成功 → 按层提交（层内顺序即依赖顺序）
+	committed := make([]bool, len(targets))
 	if firstErr(errs) == nil {
 		for _, lvl := range levels {
 			for _, k := range lvl {
@@ -445,6 +446,7 @@ func (i *Installer) installAtomic(ctx context.Context, targets []Target, out []O
 					errs[k] = out[k].Err
 					break
 				}
+				committed[k] = true
 			}
 			if firstErr(errs) != nil {
 				break
@@ -459,16 +461,20 @@ func (i *Installer) installAtomic(ctx context.Context, targets []Target, out []O
 				out[k].Err = perr
 			}
 		}
-		i.abortAll(targets, out, preps, errs, err)
+		i.abortAll(targets, out, preps, committed, err)
 	}
 	return out
 }
 
 // abortAll 收拾残局：删临时目录（磁盘零残留）+ 为未提交目标发 abort 事件。
-func (i *Installer) abortAll(targets []Target, out []Outcome, preps []*prepared, errs []error, cause error) {
+// committed 里的目标是"已经落盘的"：不回滚、不发 abort（commit 阶段失败只影响后面的人）。
+func (i *Installer) abortAll(targets []Target, out []Outcome, preps []*prepared, committed []bool, cause error) {
 	for k := range targets {
 		if out[k].Err != nil { // 自己就失败了：保留它自己的错误，不再发 abort
 			continue
+		}
+		if committed != nil && k < len(committed) && committed[k] {
+			continue // 已经提交过了，不算"被放弃"
 		}
 		if preps[k] != nil && preps[k].tmpDir != "" {
 			_ = os.RemoveAll(preps[k].tmpDir)

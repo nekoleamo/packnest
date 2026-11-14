@@ -13,7 +13,9 @@ BUILD := build
 
 # 覆盖率门禁（已实现包；新增包要在 COVER_PKGS 语境下自然纳入，
 # 尚未实现的包（archive/verify/companion/toolchain）等里程碑补实现时再纳入统计）。
-COVER_INTERNAL_MIN := 85
+# 1.8（E8c）：内部包 85 → 88；编排层 internal/install 单独要更高（目标 92，当前 90.3 —— 见 docs/progress.md 的未完项）
+COVER_INTERNAL_MIN := 88
+COVER_INSTALL_MIN := 90
 COVER_CMD_MIN := 70
 
 # fuzz 目标（每个都是 parser/路径类红线）。门禁时长 = 目标数 × $(FUZZ_TIME)，
@@ -38,7 +40,7 @@ help:
 	@echo "make accept    只跑验收用例 TestAcceptance_*"
 	@echo "make test-installers  安装脚本集成测试（离线，五条路径）"
 	@echo "make cross     6 平台交叉编译到 $(DIST)/"
-	@echo "make cover     只看覆盖率明细"
+	@echo "make cover     只看覆盖率明细（internal≥88，internal/install≥90，cmd≥70）"
 	@echo "make bench     只看性能预算"
 	@echo "make release   6 平台发布包 + checksums.txt 到 dist/"
 	@echo "make gitee-release  上传产物到 gitee release（二进制主源）"
@@ -90,7 +92,7 @@ vet:
 cover:
 	@mkdir -p $(BUILD)
 	@CGO_ENABLED=0 go test -count=1 -cover ./... 2>&1 | tee $(BUILD)/cover.log >/dev/null || true
-	@awk -v IMIN=$(COVER_INTERNAL_MIN) -v CMIN=$(COVER_CMD_MIN) -f tools/covercheck.awk $(BUILD)/cover.log
+	@awk -v IMIN=$(COVER_INTERNAL_MIN) -v IMIN_INSTALL=$(COVER_INSTALL_MIN) -v CMIN=$(COVER_CMD_MIN) -f tools/covercheck.awk $(BUILD)/cover.log
 
 bench:
 	@mkdir -p $(BUILD)

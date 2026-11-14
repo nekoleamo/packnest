@@ -619,3 +619,101 @@ func TestCheckRedirect(t *testing.T) {
 		t.Fatal("超过 10 次重定向应报错")
 	}
 }
+
+// TestMetaWriteFailures：索引 meta / 分片 meta 写不进时要把错误抛出来（否则"缓存以为写好了"）。
+// 手法：把目标路径做成目录 → rename 到目录上必失败。
+func TestMetaWriteFailures(t *testing.T) {
+	dir := t.TempDir()
+	p1 := filepath.Join(dir, "index.meta.json")
+	if err := os.MkdirAll(p1, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeIndexMeta(p1, IndexMeta{URL: "https://x", FetchedAt: time.Now()}); err == nil {
+		t.Fatal("索引 meta 写进目录应报错")
+	}
+	p2 := filepath.Join(dir, "part.meta.json")
+	if err := os.MkdirAll(p2, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writePartMeta(p2, partMeta{ETag: "x"}); err == nil {
+		t.Fatal("分片 meta 写进目录应报错")
+	}
+}
+
+// TestGetIndexOfflineNoCache：离线且没缓存 → 明确报错（不能假装"索引是空的"）。
+func TestGetIndexOfflineNoCache(t *testing.T) {
+	c := New()
+	c.Offline = true
+	dir := t.TempDir()
+	_, err := c.GetIndex(context.Background(), "https://example.invalid/x", filepath.Join(dir, "b.json"), filepath.Join(dir, "m.json"), time.Hour)
+	if err == nil {
+		t.Fatal("离线无缓存应报错")
+	}
+}
+
+// TestGetOnceErrors：URL 非法 → 构造请求失败；4xx/5xx → StatusError（带状态码与原因）。
+func TestGetOnceErrors(t *testing.T) {
+	c := New()
+	if _, err := c.getOnce(context.Background(), "://bad-url"); err == nil {
+		t.Fatal("非法 URL 应报错")
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer srv.Close()
+	_, err := c.getOnce(context.Background(), srv.URL)
+	var se *StatusError
+	if !errors.As(err, &se) || se.Code != 500 {
+		t.Fatalf("5xx 应报 StatusError(500): %v", err)
+	}
+}
+
+// TestFetchShardRejectsNon206：分段请求必须拿到 206（200 = 源不支持 Range，必须当场退回单流）。
+func TestFetchShardRejectsNon206(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200) // 故意不回 206
+		_, _ = w.Write([]byte("full body"))
+	}))
+	defer srv.Close()
+	c := New()
+	var done int64
+	n, err := c.fetchShard(context.Background(), srv.Client(), srv.URL, filepath.Join(t.TempDir(), "p"), 0, 4, &done, 9, nil)
+	if err == nil || n != 0 {
+		t.Fatalf("非 206 必须失败: n=%d err=%v", n, err)
+	}
+	var se *StatusError
+	if !errors.As(err, &se) || se.Code != 200 {
+		t.Fatalf("应报 StatusError(200): %v", err)
+	}
+}
+
+// TestGetConditionalBranches：非法 URL / 永久 4xx（不重试）/ 304（用缓存）/ 5xx（重试后失败）。
+func TestGetConditionalBranches(t *testing.T) {
+	c := New()
+	c.Retries = 0
+	if _, _, _, err := c.getConditional(context.Background(), "://bad", IndexMeta{}, false, ""); err == nil {
+		t.Fatal("非法 URL 应报错")
+	}
+	for _, code := range []int{404, 503} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(code)
+		}))
+		_, _, _, err := c.getConditional(context.Background(), srv.URL, IndexMeta{}, false, "")
+		var se *StatusError
+		if !errors.As(err, &se) || se.Code != code {
+			t.Fatalf("%d 应报 StatusError: %v", code, err)
+		}
+		srv.Close()
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("If-None-Match") != `"v1"` {
+			t.Errorf("应带上 If-None-Match，实际 %q", r.Header.Get("If-None-Match"))
+		}
+		w.WriteHeader(http.StatusNotModified)
+	}))
+	defer srv.Close()
+	body, status, _, err := c.getConditional(context.Background(), srv.URL, IndexMeta{ETag: `"v1"`}, true, "application/json")
+	if err != nil || status != http.StatusNotModified || body != nil {
+		t.Fatalf("304 应返回空 body + 状态码: body=%q status=%d err=%v", body, status, err)
+	}
+}
