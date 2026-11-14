@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"os"
 	"slices"
 	"sort"
@@ -109,7 +110,7 @@ func Get(name string) (Profile, error) {
 			return p, nil
 		}
 	}
-	return Profile{}, fmt.Errorf("未知镜像档 %q，可选: %s", name, strings.Join(Names(), " / "))
+	return Profile{}, coded.New(CodeUnknownProfile, name, strings.Join(Names(), " / "))
 }
 
 // RegistryFor 返回档位对应的 npm registry 基地址（auto / 未知档回落到 cn）。
@@ -297,7 +298,7 @@ func (p *Prober) Probe(ctx context.Context, urls []string) []Result {
 // 命中缓存（TTL 内）不探测。全部失败时返回明确错误。
 func (p *Prober) Select(ctx context.Context, urls []string) (Result, error) {
 	if len(urls) == 0 {
-		return Result{}, fmt.Errorf("没有可用的下载源（检查 providers/*.toml 与镜像档）")
+		return Result{}, coded.New(CodeNoSource)
 	}
 	cache := p.Load()
 	ttl := p.TTL
@@ -347,7 +348,7 @@ func (p *Prober) Select(ctx context.Context, urls []string) (Result, error) {
 		attempts = append(attempts, fmt.Sprintf("%s: %s", u, r.Err))
 	}
 	_ = p.Save(cache)
-	return Result{}, fmt.Errorf("所有下载源均不可用：\n  %s\n建议：`pk mirror use cn` 换档，或用 PK_MIRROR 指向内网源", strings.Join(attempts, "\n  "))
+	return Result{}, coded.New(CodeAllSourcesFailed, strings.Join(attempts, "\n  "))
 }
 
 func (p *Prober) now() time.Time {
@@ -399,9 +400,9 @@ func Detect(ctx context.Context, prober *Prober, officialURL, cnURL string) (str
 		if res.OK {
 			return "cn", res, nil
 		}
-		return "", res, fmt.Errorf("国外与国内镜像都不可达（%s / %s）：用 PK_MIRROR 指向内网源，或检查代理", officialURL, cnURL)
+		return "", res, coded.New(CodeBothUnreachable, officialURL, cnURL)
 	}
-	return "", Result{}, fmt.Errorf("没有可探测的候选")
+	return "", Result{}, coded.New(CodeNoCandidate)
 }
 
 // ProfileOf 把档位名归一：auto 交给 Detect，其他原样返回。

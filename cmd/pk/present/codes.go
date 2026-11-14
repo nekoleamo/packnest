@@ -69,6 +69,13 @@ var codeTable = map[string]codeText{
 	"path.mkdir":            {zh: "创建目录 %q 失败: %v", en: "cannot create directory %q: %v"},
 	"path.write":            {zh: "写 %q 失败: %v", en: "cannot write %q: %v"},
 	"path.rename":           {zh: "替换 %q 失败: %v", en: "cannot replace %q: %v"},
+
+	// ── internal/mirror：镜像档与探测 ──
+	"mirror.unknown_profile":    {zh: "未知镜像档 %q，可选: %s", en: "unknown mirror profile %q, available: %s"},
+	"mirror.no_source":          {zh: "没有可用的下载源（检查 providers/*.toml 与镜像档）", en: "no usable download source (check providers/*.toml and the mirror profile)"},
+	"mirror.all_sources_failed": {zh: "所有下载源均不可用：\n  %s\n建议：`pk mirror use cn` 换档，或用 PK_MIRROR 指向内网源", en: "all download sources failed:\n  %s\nsuggestion: switch profile with `pk mirror use cn`, or point PK_MIRROR at an intranet source"},
+	"mirror.both_unreachable":   {zh: "国外与国内镜像都不可达（%s / %s）：用 PK_MIRROR 指向内网源，或检查代理", en: "neither the overseas nor the domestic mirror is reachable (%s / %s): point PK_MIRROR at an intranet source, or check the proxy"},
+	"mirror.no_candidate":       {zh: "没有可探测的候选", en: "no candidate to probe"},
 }
 
 // Text 把任意错误渲染成"给人看的一句话"（当前语言）。

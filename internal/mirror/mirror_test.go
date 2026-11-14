@@ -2,6 +2,7 @@ package mirror
 
 import (
 	"context"
+	"github.com/packnest/packnest/internal/coded"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -217,8 +218,8 @@ func TestSelectAllFail(t *testing.T) {
 	if err == nil {
 		t.Fatal("全部失败应报错")
 	}
-	if !strings.Contains(err.Error(), "pk mirror use cn") {
-		t.Fatalf("错误信息应给可执行建议: %v", err)
+	if ce, ok := coded.Of(err); !ok || ce.Code != CodeAllSourcesFailed {
+		t.Fatalf("全部失败应是 mirror.all_sources_failed: %v", err)
 	}
 	if _, err := p.Select(context.Background(), nil); err == nil {
 		t.Fatal("空候选应报错")
@@ -304,8 +305,9 @@ func TestDetectBothDown(t *testing.T) {
 	}))
 	defer dead.Close()
 	_, _, err := Detect(context.Background(), &Prober{Client: fetch.New()}, dead.URL, dead.URL)
-	if err == nil || !strings.Contains(err.Error(), "PK_MIRROR") {
-		t.Fatalf("全挂应报错并给内网源建议: %v", err)
+	// E1：内部包只给码 + 参数；"用 PK_MIRROR 指向内网源"这句建议由 cmd/pk/present 渲染
+	if ce, ok := coded.Of(err); !ok || ce.Code != CodeBothUnreachable {
+		t.Fatalf("全挂应是 mirror.both_unreachable: %v", err)
 	}
 	if _, _, err := Detect(context.Background(), &Prober{Client: fetch.New()}, "", ""); err == nil {
 		t.Fatal("没有候选应报错")

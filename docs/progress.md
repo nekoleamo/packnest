@@ -1437,3 +1437,15 @@ brew cask 是否排期（不排期就把 `docs/gui.md` 写明"mac 用 curl 脚�
 pk: node@^^^ 安装失败: 版本说明符 "^^^" 无法解析: improper constraint: ^^^
 pk: node@^^^ failed to install: cannot parse version spec "^^^": improper constraint: ^^^
 ```
+
+### E1 第六步：`internal/mirror` 完成（5 个码）
+
+`mirror.unknown_profile` / `mirror.no_source` / `mirror.all_sources_failed` / `mirror.both_unreachable` /
+`mirror.no_candidate` —— `mirror.go` 的 5 处 `fmt.Errorf` 清零。
+
+两处测试从"断中文建议"改成"断码"：
+`internal/mirror` 的 `TestSelectAllFail` / `TestDetectBothDown`，以及 `acceptance/m0_test.go` 的
+`TestAcceptance_M0_MirrorProbe`（"pk mirror 建议"现在只在渲染层，见 `present.Text`）。
+
+**L2 累计**：5 个包清零 —— `verify` 28 · `paths` 9 · `spec` 6 · `mirror` 5 · `companion` 3 = **51 处**，
+`present` 码表 **49 条**。剩 `provider` 153 / `install` 171 / `env` 76 / `store` 60 / `fetch` 45 / `archive` 39。

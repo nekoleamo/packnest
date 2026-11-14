@@ -19,6 +19,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/mirror"
 	"github.com/packnest/packnest/internal/provider"
@@ -152,8 +153,9 @@ func TestAcceptance_M0_MirrorProbe(t *testing.T) {
 	// 全部不可用 → 明确报错并给建议（不静默降级）。
 	if _, err := prober.Select(context.Background(), []string{dead, srv.URL + "/nope"}); err == nil {
 		t.Fatal("全部失败应报错")
-	} else if !strings.Contains(err.Error(), "pk mirror") {
-		t.Fatalf("错误应给可执行建议: %v", err)
+	} else if ce, ok := coded.Of(err); !ok || ce.Code != mirror.CodeAllSourcesFailed {
+		// E1：内部包给码，建议文案由 cmd/pk/present 渲染
+		t.Fatalf("全部失败应是 mirror.all_sources_failed: %v", err)
 	}
 }
 
