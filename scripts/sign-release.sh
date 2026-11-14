@@ -39,7 +39,7 @@ ssh-keygen -Y verify -f "$tmp/allowed_signers" -I release@packnest.dev -n pk-rel
   -s "$SUMS.sig" < "$SUMS" >/dev/null || { echo "自验失败：签名与私钥不匹配" >&2; exit 1; }
 
 echo "已签名：$SUMS → $SUMS.sig"
-echo "这把公钥要同时写进两处（否则 install.sh / pk doctor 认不出）："
+echo "这把公钥要同时写进三处（否则 install.sh / install.ps1 / pk doctor 认不出）："
 echo "  internal/verify/keys/allowed_signers"
 echo "  scripts/install.sh 的 ALLOWED_SIGNERS"
 cat "$tmp/pub"
