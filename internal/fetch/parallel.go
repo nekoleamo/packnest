@@ -11,6 +11,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"io"
 	"net/http"
 	"os"
@@ -89,7 +90,7 @@ func (c *Client) parallelDownload(ctx context.Context, url, dst string) (int64, 
 			if got != end-start+1 {
 				mu.Lock()
 				if firstErr == nil {
-					firstErr = fmt.Errorf("第 %d-%d 字节只拿到 %d 字节", start, end, got)
+					firstErr = coded.New(CodeShardShort, start, end, got)
 				}
 				mu.Unlock()
 			}
@@ -105,7 +106,7 @@ func (c *Client) parallelDownload(ctx context.Context, url, dst string) (int64, 
 		return 0, false, err
 	}
 	if err := os.Rename(partPath, dst); err != nil {
-		return 0, false, fmt.Errorf("落盘 %q 失败: %w", dst, err)
+		return 0, false, coded.Wrap(err, CodePersist, dst)
 	}
 	return size, true, nil
 }
@@ -213,7 +214,7 @@ func (s *shardReader) Read(p []byte) (int, error) {
 func concatFiles(dst string, parts []string) error {
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
-		return fmt.Errorf("创建临时文件失败: %w", err)
+		return coded.Wrap(err, CodePartOpen)
 	}
 	for _, p := range parts {
 		in, err := os.Open(p)

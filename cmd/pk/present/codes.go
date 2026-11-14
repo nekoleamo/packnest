@@ -101,6 +101,25 @@ var codeTable = map[string]codeText{
 	"archive.place_tmp":          {zh: "落盘到 %q 失败: %v", en: "cannot place the tree at %q: %v"},
 	"archive.old_rename":         {zh: "旧目录改名失败（进程还占用？）: %v", en: "cannot rename the old directory (still in use?): %v"},
 	"archive.place":              {zh: "新目录落盘失败（已回滚旧版本）: %v", en: "cannot place the new directory (old version rolled back): %v"},
+
+	// ── internal/fetch：网络与落盘 ──
+	"fetch.offline":            {zh: "离线模式下禁止访问网络", en: "network access is disabled in offline mode"},
+	"fetch.too_many_redirects": {zh: "重定向次数过多", en: "too many redirects"},
+	"fetch.downgrade_redirect": {zh: "拒绝 https → %s 的降级重定向（%s）", en: "refusing an https -> %s downgrade redirect (%s)"},
+	"fetch.request":            {zh: "构造请求失败: %v", en: "cannot build the request: %v"},
+	"fetch.body_read":          {zh: "读取响应体失败: %v", en: "cannot read the response body: %v"},
+	"fetch.index_timeout":      {zh: "索引拉取超时或被取消（%s，上限 %s）: %v", en: "index fetch timed out or was cancelled (%s, limit %s): %v"},
+	"fetch.mkdir":              {zh: "创建下载目录失败: %v", en: "cannot create the download directory: %v"},
+	"fetch.persist":            {zh: "落盘 %q 失败: %v", en: "cannot persist %q: %v"},
+	"fetch.resume_range":       {zh: "续传校验失败：Content-Range %q 与本地记录不一致，已作废重下", en: "resume check failed: Content-Range %q does not match the local record, discarding and restarting"},
+	"fetch.resume_invalid":     {zh: "续传位置无效（HTTP 416），已作废", en: "invalid resume offset (HTTP 416), discarded"},
+	"fetch.http_status":        {zh: "下载 %q 失败：HTTP %d", en: "download %q failed: HTTP %d"},
+	"fetch.part_open":          {zh: "打开临时文件失败: %v", en: "cannot open the temporary file: %v"},
+	"fetch.interrupted":        {zh: "下载中断（已保留 %d 字节待续传）: %v", en: "download interrupted (%d bytes kept for resume): %v"},
+	"fetch.write":              {zh: "写入失败: %v", en: "write failed: %v"},
+	"fetch.size_mismatch":      {zh: "产物大小不符：期望 %d 字节，实得 %d", en: "artifact size mismatch: want %d bytes, got %d"},
+	"fetch.network":            {zh: "网络请求失败: %v", en: "network request failed: %v"},
+	"fetch.shard_short":        {zh: "第 %d-%d 字节只拿到 %d 字节", en: "shard %d-%d returned only %d bytes"},
 }
 
 // Text 把任意错误渲染成"给人看的一句话"（当前语言）。

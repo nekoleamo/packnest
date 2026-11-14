@@ -1489,3 +1489,16 @@ self-test `cold` ✓（41s）+ `warm` ✓（47s）：冷路径真的 `download`�
 `warm` 用例因此只能断言"工具树删掉、state 保留"这一种情形（`rm -rf $HOME/.packnest/tools`）。
 真正的修法是把"取校验和（几 KB）→ 按摘要查缓存 → 命中就不下载"这段顺序前移（当前是下载后才能算出摘要），
 属于 install 热路径的重排，单独排期。
+
+### E1 第八步：`internal/fetch` 完成（17 个码）
+
+网络与落盘链路清零：`fetch.offline` / `too_many_redirects` / `downgrade_redirect`（https→http 降级必须拒）/
+`request` / `body_read` / `index_timeout` / `mkdir` / `persist` / `resume_range` / `resume_invalid` /
+`http_status` / `part_open` / `interrupted` / `write` / `size_mismatch` / `network` / `shard_short`。
+
+两处细节：
+- `ErrOffline` 仍是哨兵（`errors.Is(err, ErrOffline)` 照旧），返回时统一包成 `fetch.offline`，文案搬到码表；
+- "下载中断（已保留 N 字节待续传）"把 N 作为参数传出去 —— 这个数字以前浸在中文里，脚本没法用。
+
+**L2 累计**：7 个包清零 —— `verify` 28 · `archive` 23 · `fetch` 23 · `paths` 9 · `spec` 6 · `mirror` 5 · `companion` 3 = **97 处**，
+`present` 码表 **89 条**。剩 `provider` 61 · `install` 41 · `store` 20 · `env` 7。

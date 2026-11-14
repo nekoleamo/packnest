@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/packnest/packnest/internal/coded"
 	"io"
 	"net"
 	"net/http"
@@ -81,11 +82,11 @@ type Client struct {
 // 但链路被降级后，中间人可以整段替换（尤其是单校验源、本来就 weak 的产物）。
 func checkRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) >= 10 {
-		return errors.New("重定向次数过多")
+		return coded.New(CodeTooManyRedirects)
 	}
 	for _, v := range via {
 		if v.URL.Scheme == "https" && req.URL.Scheme != "https" {
-			return fmt.Errorf("拒绝 https → %s 的降级重定向（%s）", req.URL.Scheme, req.URL.Host)
+			return coded.New(CodeDowngradeRedirect, req.URL.Scheme, req.URL.Host)
 		}
 	}
 	return nil
@@ -128,11 +129,11 @@ type HeadResult struct {
 func (c *Client) Head(ctx context.Context, url string) (HeadResult, error) {
 	start := time.Now()
 	if c.Offline {
-		return HeadResult{}, ErrOffline
+		return HeadResult{}, offlineErr()
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
-		return HeadResult{}, fmt.Errorf("构造请求失败: %w", err)
+		return HeadResult{}, coded.Wrap(err, CodeRequest)
 	}
 	c.setHeaders(req)
 	resp, err := c.do(req)
@@ -158,7 +159,7 @@ func (c *Client) Head(ctx context.Context, url string) (HeadResult, error) {
 // Get 取整个响应体（小文件：索引、校验和）。
 func (c *Client) Get(ctx context.Context, url string) ([]byte, error) {
 	if c.Offline {
-		return nil, ErrOffline
+		return nil, offlineErr()
 	}
 	var lastErr error
 	for attempt := 0; attempt <= c.retries(); attempt++ {
@@ -178,7 +179,7 @@ func (c *Client) Get(ctx context.Context, url string) ([]byte, error) {
 func (c *Client) getOnce(ctx context.Context, url string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("构造请求失败: %w", err)
+		return nil, coded.Wrap(err, CodeRequest)
 	}
 	c.setHeaders(req)
 	resp, err := c.do(req)
@@ -191,7 +192,7 @@ func (c *Client) getOnce(ctx context.Context, url string) ([]byte, error) {
 	}
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("读取响应体失败: %w", err)
+		return nil, coded.Wrap(err, CodeBodyRead)
 	}
 	return data, nil
 }
@@ -235,7 +236,7 @@ func (c *Client) GetIndexAccept(ctx context.Context, url, bodyPath, metaPath str
 			res.Stale = true
 			return res, nil
 		}
-		return res, ErrOffline
+		return res, offlineErr()
 	}
 
 	fresh, status, hdr, err := c.getConditional(ctx, url, meta, hasCache, accept)
@@ -266,7 +267,7 @@ func (c *Client) GetIndexAccept(ctx context.Context, url, bodyPath, metaPath str
 func (c *Client) getConditional(ctx context.Context, url string, meta IndexMeta, hasCache bool, accept string) ([]byte, int, http.Header, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, 0, nil, fmt.Errorf("构造请求失败: %w", err)
+		return nil, 0, nil, coded.Wrap(err, CodeRequest)
 	}
 	c.setAgent(req) // 索引可压缩：交给 Transport 协商 gzip
 	if accept != "" {
@@ -289,9 +290,9 @@ func (c *Client) getConditional(ctx context.Context, url string, meta IndexMeta,
 		resp.Body.Close()
 		if readErr != nil {
 			if errors.Is(readErr, context.Canceled) || errors.Is(readErr, context.DeadlineExceeded) {
-				return nil, 0, nil, fmt.Errorf("索引拉取超时或被取消（%s，上限 %s）: %w", url, c.indexTimeout(), readErr)
+				return nil, 0, nil, coded.Wrap(readErr, CodeIndexTimeout, url, c.indexTimeout())
 			}
-			lastErr = fmt.Errorf("读取响应体失败: %w", readErr)
+			lastErr = coded.Wrap(readErr, CodeBodyRead)
 			continue
 		}
 		if resp.StatusCode == http.StatusNotModified {
@@ -315,7 +316,7 @@ func (c *Client) Download(ctx context.Context, url, dst string) (int64, error) {
 		return 0, ErrOffline
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return 0, fmt.Errorf("创建下载目录失败: %w", err)
+		return 0, coded.Wrap(err, CodeMkdir)
 	}
 	partPath := dst + ".part"
 	metaPath := partPath + ".meta"
@@ -334,7 +335,7 @@ func (c *Client) Download(ctx context.Context, url, dst string) (int64, error) {
 		n, err := c.downloadOnce(ctx, url, partPath, metaPath)
 		if err == nil {
 			if err := os.Rename(partPath, dst); err != nil {
-				return 0, fmt.Errorf("落盘 %q 失败: %w", dst, err)
+				return 0, coded.Wrap(err, CodePersist, dst)
 			}
 			_ = os.Remove(metaPath)
 			return n, nil
@@ -372,7 +373,7 @@ func (c *Client) downloadOnce(ctx context.Context, url, partPath, metaPath strin
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return 0, fmt.Errorf("构造请求失败: %w", err)
+		return 0, coded.Wrap(err, CodeRequest)
 	}
 	c.setHeaders(req)
 	if offset > 0 {
@@ -400,19 +401,19 @@ func (c *Client) downloadOnce(ctx context.Context, url, partPath, metaPath strin
 		total, ok := parseContentRangeTotal(resp.Header.Get("Content-Range"))
 		if !ok || (pm.Size > 0 && total > 0 && pm.Size != total) {
 			_ = os.Remove(partPath)
-			return 0, fmt.Errorf("续传校验失败：Content-Range %q 与本地记录不一致，已作废重下", resp.Header.Get("Content-Range"))
+			return 0, coded.New(CodeResumeRange, resp.Header.Get("Content-Range"))
 		}
 		if total > 0 {
 			pm.Size = total
 		}
 	case http.StatusRequestedRangeNotSatisfiable:
 		_ = os.Remove(partPath)
-		return 0, fmt.Errorf("续传位置无效（HTTP 416），已作废")
+		return 0, coded.New(CodeResumeInvalid)
 	default:
 		if resp.StatusCode >= 400 {
 			return 0, &StatusError{URL: url, Code: resp.StatusCode, Reason: http.StatusText(resp.StatusCode)}
 		}
-		return 0, fmt.Errorf("下载 %q 失败：HTTP %d", url, resp.StatusCode)
+		return 0, coded.New(CodeHTTPStatus, url, resp.StatusCode)
 	}
 
 	flags := os.O_CREATE | os.O_WRONLY
@@ -423,7 +424,7 @@ func (c *Client) downloadOnce(ctx context.Context, url, partPath, metaPath strin
 	}
 	f, err := os.OpenFile(partPath, flags, 0o644)
 	if err != nil {
-		return 0, fmt.Errorf("打开临时文件失败: %w", err)
+		return 0, coded.Wrap(err, CodePartOpen)
 	}
 	var reader io.Reader = resp.Body
 	if c.Progress != nil {
@@ -435,14 +436,14 @@ func (c *Client) downloadOnce(ctx context.Context, url, partPath, metaPath strin
 		return 0, err
 	}
 	if copyErr != nil {
-		return offset + n, fmt.Errorf("下载中断（已保留 %d 字节待续传）: %w", offset+n, copyErr)
+		return offset + n, coded.Wrap(copyErr, CodeInterrupted, offset+n)
 	}
 	if closeErr != nil {
-		return offset + n, fmt.Errorf("写入失败: %w", closeErr)
+		return offset + n, coded.Wrap(closeErr, CodeWrite)
 	}
 	total := offset + n
 	if pm.Size > 0 && total != pm.Size {
-		return total, fmt.Errorf("产物大小不符：期望 %d 字节，实得 %d", pm.Size, total)
+		return total, coded.New(CodeSizeMismatch, pm.Size, total)
 	}
 	return total, nil
 }
@@ -496,7 +497,7 @@ func (c *Client) setAgent(req *http.Request) {
 func (c *Client) do(req *http.Request) (*http.Response, error) {
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("网络请求失败: %w", err)
+		return nil, coded.Wrap(err, CodeNetwork)
 	}
 	return resp, nil
 }

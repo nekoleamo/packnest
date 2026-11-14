@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/packnest/packnest/internal/coded"
 	"github.com/packnest/packnest/internal/paths"
 )
 
@@ -563,8 +564,9 @@ func TestGetIndexTimeout(t *testing.T) {
 	if err == nil {
 		t.Fatal("慢源应超时报错，而不是挂住")
 	}
-	if !strings.Contains(err.Error(), "超时") {
-		t.Fatalf("错误信息应说明超时: %v", err)
+	// E1：内部包只给码 + 参数；"超时"这句人话由 cmd/pk/present 渲染
+	if ce, ok := coded.Of(err); !ok || ce.Code != CodeIndexTimeout {
+		t.Fatalf("应是 fetch.index_timeout: %v", err)
 	}
 	if elapsed := time.Since(start); elapsed > 3*time.Second {
 		t.Fatalf("超时没有生效，耗时 %s", elapsed)
