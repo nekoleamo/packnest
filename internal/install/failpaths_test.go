@@ -57,8 +57,8 @@ func TestFinalizeSaveFailures(t *testing.T) {
 func TestActivateErrors(t *testing.T) {
 	inst := newInstaller(t, nil, nil)
 	err := inst.Activate("node", "22.98.0")
-	if err == nil || !strings.Contains(err.Error(), "还没装") {
-		t.Fatalf("未安装应提示先装: %v", err)
+	if !errors.Is(err, ErrNotInstalled) {
+		t.Fatalf("未安装应返回 ErrNotInstalled（文案可改，哨兵不变）: %v", err)
 	}
 	// 台账里塞一条记录，但 provider 查不到这个工具
 	inst.ledger.Upsert(store.Install{Tool: "ghost", Version: "1.0.0", Path: t.TempDir()})

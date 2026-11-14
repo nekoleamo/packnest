@@ -321,7 +321,7 @@ func (i *Installer) checkRequires(p *provider.Provider) error {
 		if i.planned[need] || i.ledger.Active(need) != "" || len(i.installedVersions(need)) > 0 {
 			continue
 		}
-		return fmt.Errorf("%s 需要 %s：先 `pk install %s` 再装 %s（我们不隐式安装运行时）", p.ID, need, need, p.ID)
+		return fmt.Errorf("%w：%s 需要 %s，先 `pk install %s` 再装 %s（我们不隐式安装运行时）", ErrRequiresMissing, p.ID, need, need, p.ID)
 	}
 	return nil
 }

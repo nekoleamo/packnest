@@ -378,8 +378,10 @@ func TestAbortAllCleansTmp(t *testing.T) {
 	if !errors.Is(out[0].Err, cause) {
 		t.Fatal("AbortError 必须能 unwrap 到根因")
 	}
-	if !strings.Contains(out[0].Err.Error(), "未安装") {
-		t.Fatalf("AbortError 文案应说清没装: %q", out[0].Err.Error())
+	// 文案是给人看的，判定用类型（errors.As 上面已经做过）
+	var ab2 *AbortError
+	if !errors.As(out[0].Err, &ab2) || ab2.Tool != "node" {
+		t.Fatalf("应为 AbortError: %+v", out[0].Err)
 	}
 }
 

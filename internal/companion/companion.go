@@ -8,6 +8,7 @@
 package companion
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -42,6 +43,15 @@ type Request struct {
 	// IndexAvailable 为 false 表示拿不到 registry（离线/镜像挂），此时沿用自带版本。
 	IndexAvailable bool
 }
+
+// 哨兵错误（完善路线 §E1 试点）：让"没这个版本 / engines 不兼容"能被 errors.Is 判断，
+// 不必去断中文子串（文案要改要翻译，哨兵不变）。
+var (
+	// ErrNotInRegistry 表示 registry 里没有这个 npm 版本。
+	ErrNotInRegistry = errors.New("registry 里没有该版本")
+	// ErrEnginesIncompatible 表示 npm 的 engines.node 与宿主 node 不兼容。
+	ErrEnginesIncompatible = errors.New("engines 不兼容")
+)
 
 // Decision 是裁决结果。
 type Decision struct {
@@ -98,7 +108,7 @@ func decidePinned(req Request, version, mode string) (Decision, error) {
 			bundled := normalize(req.Bundled)
 			return Decision{Version: version, Replaced: version != bundled, Mode: mode, Fallback: true}, nil
 		}
-		return Decision{}, fmt.Errorf("registry 里没有 npm@%s（`pk list --available` 可看可用版本）", version)
+		return Decision{}, fmt.Errorf("%w：registry 里没有 npm@%s（`pk list --available` 可看可用版本）", ErrNotInRegistry, version)
 	}
 	if cand.Engines != "" {
 		ok, err := spec.EnginesSatisfied(cand.Engines, req.NodeVersion)
@@ -110,8 +120,8 @@ func decidePinned(req Request, version, mode string) (Decision, error) {
 			if best, ok := MaxCompatible(req.NodeVersion, req.Candidates); ok {
 				capped = fmt.Sprintf("；该 node 可用的 npm 上限 = %s", best)
 			}
-			return Decision{}, fmt.Errorf("npm@%s 要求 node %s，与当前 node %s 不兼容%s",
-				version, cand.Engines, req.NodeVersion, capped)
+			return Decision{}, fmt.Errorf("%w：npm@%s 要求 node %s，与当前 node %s 不兼容%s",
+				ErrEnginesIncompatible, version, cand.Engines, req.NodeVersion, capped)
 		}
 	}
 	bundled := normalize(req.Bundled)

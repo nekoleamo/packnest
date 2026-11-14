@@ -21,7 +21,7 @@ func (i *Installer) Activate(tool, version string) error {
 	version = i.ResolveInstalled(tool, version)
 	in := i.ledger.Find(tool, version)
 	if in == nil {
-		return fmt.Errorf("%s@%s 还没装（`pk list` 看已装版本，先 `pk install %s@%s`）", tool, version, tool, version)
+		return fmt.Errorf("%w：%s@%s（`pk list` 看已装版本，先 `pk install %s@%s`）", ErrNotInstalled, tool, version, tool, version)
 	}
 	p, err := i.opt.LookupProvider(tool)
 	if err != nil {

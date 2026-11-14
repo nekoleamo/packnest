@@ -2,6 +2,7 @@ package install
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,8 +60,8 @@ func TestCheckFrozen(t *testing.T) {
 	}
 	// 版本不满足
 	bad := &Lock{Tool: []LockTool{{Name: "node", Version: "20.18.1"}, {Name: "pnpm", Version: "10.4.1"}}}
-	if err := CheckFrozen(project, bad); err == nil || !strings.Contains(err.Error(), "不满足") {
-		t.Fatalf("版本不满足应报错: %v", err)
+	if !errors.Is(CheckFrozen(project, bad), ErrFrozenMismatch) {
+		t.Fatalf("版本不满足应报 ErrFrozenMismatch: %v", CheckFrozen(project, bad))
 	}
 	// 缺工具
 	if err := CheckFrozen(map[string]string{"bun": "1"}, lock); err == nil || !strings.Contains(err.Error(), "bun") {

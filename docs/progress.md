@@ -1252,3 +1252,21 @@ env-unset / gc-nothing / use-switch / uninstall-missing / install-dry-run / inst
 1. `--atomic` 的 commit 阶段失败时，**已落盘的目标也被标成 abort**（`abortAll` 只看 `out[].Err`，不看"是否已提交"）→ 加 `committed[]` 跳过；
 2. `abortAll` 会给"自己就失败"的目标多发一条 abort（prepare 错误没先同步进 outcome）；
 3. `store.Versions` 的排序是**字符串序**（`22.10.0 < 22.9.0`），注释里写清"要语义顺序用 `spec.SortDesc`"，并用测试钉住。
+
+## 批 4 · E1 试点（英文断言去文案化）
+
+> 报告全文：`~/Documents/Plan/17-包管理器/pn-1.8-E1-英文试点报告.md`（工具 `tools/langasserts.go` 可重跑）
+
+| 项 | 结果 |
+|---|---|
+| **口径修正** | 路线里的"1,620 条断言"把"测试里出现中文"当成了"断言依赖中文"。实测：中文字面量 2,098 条，其中**断中文子串的断言只有 69 条** |
+| 归属 | `cmd/pk` 43 条断的是 **CLI 人读输出**（中文是默认语言，**应当保留**）；`internal/*` 只有 **15 条**是 L2 真正会影响的 |
+| 机器替换率 | **100%**（69/69，无格式占位符 + 子串匹配类断言），远高于 70% 的判据线 |
+| 试点落地 | `internal/install/errors.go` 新增 `ErrNotInstalled` / `ErrRequiresMissing` / `ErrFrozenMismatch` / `ErrCompanionCeiling`；`internal/companion` 新增 `ErrEnginesIncompatible` / `ErrNotInRegistry`。**文案一行不改**，只在构造时 `%w` 包哨兵，断言改 `errors.Is/As` |
+| 效果 | `internal/install` 的断中文断言 11 → 5（剩下的是 `pk.toml` 格式断言与 `notes []string`，要"notes 带 code"这种类型改造）；总数 69 → 63 |
+| 剩余手工 | 9 条（其余 54 条是必须保留的 CLI 输出断言），逐条列在报告 §四 |
+| 工作面真相 | 非测试代码里的中文文案 **1,040 条**（`cmd/pk` 287 是渲染层、内部包 ~740）。全量 L2 应按**错误构造点**改，不按文案条数算 |
+
+**推进全量的前置条件（报告 §六）**：`--json` 的 `msg` 语义要先拍板 ——
+A. `msg` 保留"尽力而为"中文（建议）· B. `msg` 只留英文（破坏性）· C. `msg` 跟 `--lang`（golden 变脆）。
+本批**没有**动 `--json` 契约（golden 未改），也没扩 `make lang` 的扫描范围（等语义定了再扩）。

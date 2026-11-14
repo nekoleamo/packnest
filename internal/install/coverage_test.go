@@ -149,8 +149,7 @@ func TestUpgradeDryRun(t *testing.T) {
 // TestCheckFrozenMismatch：锁与清单不一致时给出可执行建议（--frozen 的硬约束）。
 func TestCheckFrozenMismatch(t *testing.T) {
 	lock := &Lock{Tool: []LockTool{{Name: "node", Version: "22.98.0"}}}
-	if err := CheckFrozen(map[string]string{"node": ">=26"}, lock); err == nil ||
-		!strings.Contains(err.Error(), "不一致") {
+	if err := CheckFrozen(map[string]string{"node": ">=26"}, lock); !errors.Is(err, ErrFrozenMismatch) {
 		t.Fatalf("锁不满足清单应报错并说明: %v", err)
 	}
 	if err := CheckFrozen(map[string]string{"node": "22"}, lock); err != nil {

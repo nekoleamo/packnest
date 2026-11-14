@@ -112,8 +112,8 @@ func CheckFrozen(project map[string]string, lock *Lock) error {
 		}
 	}
 	if len(problems) > 0 {
-		return fmt.Errorf("清单与 %s 不一致（--frozen 不做解析）：\n  %s\n建议：本地 `pk install` 更新锁并提交",
-			LockFileName, strings.Join(problems, "\n  "))
+		return fmt.Errorf("%w：清单与 %s 不一致（--frozen 不做解析）：\n  %s\n建议：本地 `pk install` 更新锁并提交",
+			ErrFrozenMismatch, LockFileName, strings.Join(problems, "\n  "))
 	}
 	return nil
 }

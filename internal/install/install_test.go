@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/packnest/packnest/internal/companion"
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/paths"
@@ -213,7 +214,10 @@ func TestInstallNpmPinConflict(t *testing.T) {
 	if err == nil {
 		t.Fatal("不兼容的 npm pin 必须硬失败")
 	}
-	if !strings.Contains(err.Error(), "上限 = 10.9.10") {
+	if !errors.Is(err, companion.ErrEnginesIncompatible) {
+		t.Fatalf("应是伴生包不兼容（哨兵比文案稳）: %v", err)
+	}
+	if !strings.Contains(err.Error(), "10.9.10") { // 版本号是数据，不是文案
 		t.Fatalf("错误信息应给出 npm 上限: %v", err)
 	}
 	// 失败不该留下任何目录
@@ -379,8 +383,11 @@ bins = ["pnpm"]
 		}
 	})
 	_, err = inst.Install(context.Background(), "pnpm", "10.4.1")
-	if err == nil || !strings.Contains(err.Error(), "先 `pk install node`") {
-		t.Fatalf("缺 node 应报错并给建议: %v", err)
+	if !errors.Is(err, ErrRequiresMissing) {
+		t.Fatalf("缺前置工具应返回 ErrRequiresMissing: %v", err)
+	}
+	if !strings.Contains(err.Error(), "node") { // 工具名是数据
+		t.Fatalf("错误信息应指出缺哪个工具: %v", err)
 	}
 }
 
