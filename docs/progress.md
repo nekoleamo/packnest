@@ -1640,7 +1640,11 @@ self-test 的 warm job 改成 **连 `state/` 一起清**（真·新 runner）后
    改成 `*eventSink`（指针）后恢复：`resolve → cache|download → verify → [companion] → done`。
    验收 `TestAcceptance_Par_JSONEventOrder` 加了一条"每个请求目标必须有 download/cache 事件"。
    ⚠️ 这条断言以前是绿的，因为它只检查"首条是 resolve、末条是 done"——**丢事件时它照样通过**。
-2. **`cache` 事件的 `tool` 字段错发成文件名**：内容寻址命中时发的是 `<sha256>.tar.gz`（GUI 按 tool 分组就分不上）。
+2. **后台索引预取活过本次操作**：`startPrefetch` 的 goroutine 会写 `cache/meta`，失败早退时没人等它 →
+   操作已返回、它还在写，调用方（CI 的 `t.TempDir` 清理、或 `pk uninstall --all --purge`）正好把目录删了。
+   表现为 CI 偶发 `TempDir RemoveAll cleanup: unlinkat …/cache: directory not empty`。
+   修法：`Installer.pfWG`（指针，值拷贝不能拷 WaitGroup）+ `Install`/`InstallMany` 返回前 `waitPrefetch()`。
+3. **`cache` 事件的 `tool` 字段错发成文件名**：内容寻址命中时发的是 `<sha256>.tar.gz`（GUI 按 tool 分组就分不上）。
    现在 `tool` 是工具名、`version` 是解析出来的版本（补全了 `version`）。
 
 ### ③.6 CI 一绿到底：四个"只在 CI 上暴露"的 bug
