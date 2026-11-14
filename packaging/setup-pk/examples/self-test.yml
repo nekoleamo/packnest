@@ -2,8 +2,12 @@
 # 两个 job 串起来验证**冷缓存 → 热缓存**两条路径。
 #
 #   cold：第一次跑，断言 cache-hit=false，且 pk install 的 NDJSON 里出现 download
-#   warm：复用 cold 存下的缓存，断言 cache-hit=true；清掉工具树（保留 PK_CACHE）后
-#         重装必须出 cache 事件（说明吃的是本地归档，不是又下了一遍）
+#   warm：复用 cold 存下的缓存，断言 cache-hit=true；清掉工具树与 state/（模拟**全新 runner**）
+#         后重装必须只出 cache 事件、不出 download（说明吃的是本地归档，不是又下了一遍）
+#
+# ⚠️ warm 的断言依赖 pk ≥ 1.8（R-CACHE-1：缓存目录里带 <PK_CACHE>/alias 上游摘要别名）。
+#    更早的 pk 在没有 TOFU/台账时会先下产物再算摘要，这条断言必然红 ——
+#    所以**等 1.8 发布并把 vars.PK_VERSION 指过去之后**，再把本文件同步到 setup-pk 仓库。
 name: self-test
 
 on:
