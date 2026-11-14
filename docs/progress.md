@@ -1141,3 +1141,12 @@ warn 消失。
 | 顺序 | `make release`：6 归档 → `provenance` → `sbom` → `checksums`（`provenance.json` / `sbom.cdx.json` 与归档同序写进清单）→ 人工 `sign-release.sh` |
 | 可复现 | 不记时间戳、`built_by` 不带主机名；同一 commit 重跑两次 `checksums.txt` 字节一致 |
 | 不被 pk 读 | `pk doctor` 不读 provenance（不引入网络自检）；它只是给用户/审计方重建比对用 |
+
+**批 1 端到端实测**（`make release DIST=build/reldist`，两轮）
+
+| 项 | 结果 |
+|---|---|
+| 产物 | 6 归档 + `provenance.json` + `sbom.cdx.json` + `checksums.txt`（8 条 sha256）→ 签名后 **10 件** |
+| 可复现 | 连跑两轮，`checksums.txt` 逐字节一致（`platforms` 数组、无时间戳起了作用） |
+| 核对 | 临时密钥签名 → `verify-release.sh --base file://…`：签名 OK + 8 个产物逐个 OK |
+| 两个坑 | ① `DIST` 用 `:=` 定义，`DIST=/x make …` 这种**环境变量**写法不生效（Makefile 赋值压过环境变量），必须 `make … DIST=x`；② `DIST` 只能是相对路径（release recipe 里拼了 `$(CURDIR)/$(DIST)`，绝对路径会拼成 `$(CURDIR)//tmp/…`） |
