@@ -1672,7 +1672,8 @@ ubuntu + windows）· `smoke`（5 平台真装 node+pnpm）· `pages` · `gitee-
    `from` 允许为空，不再 panic（`TestUpgradeBranches/索引里没有稳定版` 锁住）；
 2. **`addressed()` 盲信同名文件**（见 ①），把"坏缓存"从校验阶段拖到了解压阶段。
 
-行数：`internal/install` 2800 → **3050**（R-CACHE-1 换来：`cachealias.go` 193 行 + `artifact.go` 的命中顺序/别名记录；
+行数：`internal/install` 2800 → **3080**（R-CACHE-1 换来：`cachealias.go` 193 行 + `artifact.go` 的命中顺序/别名记录
++ `pfWG`（后台预取必须被等干净，否则会活过本次操作去写缓存目录）；
 `internal/store` 700 → **720**：`pruneAliases` 与 gc 清理）；总量只统计，不设硬顶。
 
 新增用例：`cachealias_test.go`（复用/`--force`/悬空/脏别名/摘要归一化）、`cachealias_cover_test.go`

@@ -303,8 +303,14 @@ func (i *Installer) startPrefetch(ctx context.Context, p *provider.Provider) *in
 	f := &indexFuture{done: make(chan struct{})}
 	i.pf.futures[p.ID] = f
 	i.pf.mu.Unlock()
+	if i.pfWG != nil {
+		i.pfWG.Add(1)
+	}
 	go func() {
 		defer close(f.done)
+		if i.pfWG != nil {
+			defer i.pfWG.Done()
+		}
 		if idx, err := i.loadIndex(ctx, p); err == nil {
 			f.idx = idx
 		}

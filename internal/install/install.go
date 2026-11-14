@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/packnest/packnest/internal/archive"
@@ -118,6 +119,11 @@ type Installer struct {
 	// sums 是本轮已拉到的校验和/平台元数据（键=URL）：下载前的缓存查找与随后的 verify 共用一份，
 	// 同一份几 KB 的文件不请求两次。worker() 拷贝 Installer 时是浅拷贝，所以放指针、内部自带锁。
 	sumsCache *sumsMemo
+	// pfWG 等所有后台索引预取结束。不等的话会出现"操作已经返回、goroutine 还在往缓存目录写"，
+	// 实测后果：`pk uninstall --all --purge` 之后目录又被写回来；单测里表现为
+	// `TempDir RemoveAll cleanup: unlinkat …/cache: directory not empty`（CI 上偶发，2026-11-15）。
+	// 指针共享：worker() 是值拷贝，sync.WaitGroup 不能拷。
+	pfWG *sync.WaitGroup
 }
 
 // New 加载台账与校验表。
@@ -156,7 +162,8 @@ func New(opt Options) (*Installer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Installer{opt: opt, ledger: ledger, known: known, pf: newIndexCache(), sumsCache: &sumsMemo{m: map[string][]byte{}}}, nil
+	return &Installer{opt: opt, ledger: ledger, known: known, pf: newIndexCache(),
+		sumsCache: &sumsMemo{m: map[string][]byte{}}, pfWG: &sync.WaitGroup{}}, nil
 }
 
 // Ledger 暴露台账（CLI 的 list 复用）。
@@ -181,6 +188,13 @@ func (i *Installer) now() time.Time {
 	return time.Now()
 }
 
+// waitPrefetch 等所有后台索引预取结束（见 Installer.pfWG 的注释）。
+func (i *Installer) waitPrefetch() {
+	if i.pfWG != nil {
+		i.pfWG.Wait()
+	}
+}
+
 func (i *Installer) emit(ev jsonout.Event) {
 	if i.opt.Events != nil {
 		i.opt.Events(ev)
@@ -192,6 +206,8 @@ func (i *Installer) emit(ev jsonout.Event) {
 // 拆成 prepare（可并行：校验/解压/伴生包，只写自己的 tmp）与 commit（单写者：落盘/台账/shim）。
 // 单工具路径两者紧挨着跑，行为与拆分前完全一致。
 func (i *Installer) Install(ctx context.Context, tool, specStr string) (Result, error) {
+	// 先把后台预取等干净：它们会写缓存目录（索引），不能比这次操作活得更久。
+	defer i.waitPrefetch()
 	prep, err := i.prepare(ctx, tool, specStr, true)
 	if err != nil {
 		return Result{}, err

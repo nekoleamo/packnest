@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/packnest/packnest/internal/fetch"
 	"github.com/packnest/packnest/internal/jsonout"
@@ -80,5 +81,40 @@ func TestGenericCompanionInstalled(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(p.Tools(), "demo", "1.0.0", "lib", "cc")); err != nil {
 		t.Fatalf("伴生目录不存在: %v", err)
+	}
+}
+
+// TestPrefetchWaitDrains：后台索引预取必须在操作返回前被等干净。
+//
+// 回归点（2026-11-15 CI 偶发）：`pk install` 失败早退时，预取 goroutine 还在往缓存目录写，
+// 而调用方（或测试的 TempDir 清理）已经把目录删了 —— 表现为 `directory not empty` 清理报错，
+// 生产里则是"卸载/清理之后目录又被写回来"。
+func TestPrefetchWaitDrains(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.98.0", NPMVersion: "11.20.0"}},
+		NPM:      npmMatrix(),
+	})
+	inst := newInstaller(t, fm, nil)
+	p, err := inst.opt.LookupProvider("npm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := inst.startPrefetch(context.Background(), p)
+	inst.waitPrefetch()
+	select {
+	case <-f.done:
+	default:
+		t.Fatal("waitPrefetch 返回时预取还没结束（goroutine 会活过这次操作）")
+	}
+	if f.idx == nil {
+		// 预取失败也算结束；这里只是确认结果槽已被写入或确实是 nil（无第三个状态）
+		t.Log("预取没有拿到索引（假镜像的 npm 路径可能不同），但 goroutine 已结束")
+	}
+	// 预取写过的缓存目录此刻必须存在且稳定：再等一拍不该有新文件冒出来
+	before, _ := os.ReadDir(inst.opt.Paths.CacheMeta())
+	time.Sleep(50 * time.Millisecond)
+	after, _ := os.ReadDir(inst.opt.Paths.CacheMeta())
+	if len(after) != len(before) {
+		t.Fatalf("操作返回后缓存目录还在变（%d → %d）", len(before), len(after))
 	}
 }

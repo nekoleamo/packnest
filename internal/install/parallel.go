@@ -274,6 +274,8 @@ func (i *Installer) InstallMany(ctx context.Context, targets []Target) []Outcome
 		res, err := i.Install(ctx, targets[0].Tool, targets[0].Spec)
 		return []Outcome{{Tool: targets[0].Tool, Spec: targets[0].Spec, Res: res, Err: err}}
 	}
+	// 多目标：worker 会起后台索引预取，同样不能比这次操作活得更久（见 Installer.pfWG）。
+	defer i.waitPrefetch()
 	out := make([]Outcome, len(targets))
 	for k, t := range targets {
 		out[k] = Outcome{Tool: t.Tool, Spec: t.Spec}
