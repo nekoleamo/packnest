@@ -10,7 +10,7 @@ import (
 )
 
 func (g *gui) pageDoctor(c *ui.Context) {
-	g.head(c, "体检", "Doctor", "doctor", func() { g.runDoctor(false) })
+	g.head(c, "体检", "Doctor", "doctor", nil)
 
 	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		ui.Checkbox(c, &g.dGlobals, g.t("检查全局包", "Check global packages"))
@@ -61,7 +61,7 @@ func (g *gui) pageDoctor(c *ui.Context) {
 	}
 
 	if r := g.doctor.Reload; r != nil && r.Needed {
-		ui.Column(c).Fill().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
+		ui.Column(c).FillWidth().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
 			ui.Text(c, g.t("让改动生效", "Make it take effect")).Bold()
 			if r.Msg != "" {
 				ui.Text(c, r.Msg).TextColor(c.Theme().TextMuted)

@@ -12,7 +12,7 @@ import (
 )
 
 func (g *gui) pageMirror(c *ui.Context) {
-	g.head(c, "镜像档", "Mirrors", "mirrors", func() { g.loadMirrors("") })
+	g.head(c, "镜像档", "Mirrors", "mirrors", nil)
 
 	if g.mirror.Current == "" && !g.busy["mirrors"] {
 		ui.Text(c, g.t("还没读到镜像档。", "No mirror list yet.")).TextColor(c.Theme().TextMuted)

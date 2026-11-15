@@ -25,8 +25,11 @@ func (g *gui) pageUpdate(c *ui.Context) {
 
 	shown := g.upd.GUI.Current != "" || g.upd.CLI.Current != ""
 	if !shown {
-		g.note(c, "点「检查更新」会问 CLI：它探测各源延迟、挑最快的，GUI 跟着用同一个源。",
-			"Checking asks the CLI: it probes the sources, picks the fastest, and the GUI downloads from the same one.")
+		if g.busy["update"] {
+			ui.Spinner(c)
+			return
+		}
+		g.note(c, "没读到版本信息：点「检查更新」重试。", "Could not read versions: press Check for updates to retry.")
 		return
 	}
 	if g.upd.Source != "" {
@@ -34,9 +37,9 @@ func (g *gui) pageUpdate(c *ui.Context) {
 	}
 
 	// GUI 自己
-	ui.Column(c).Fill().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
+	ui.Column(c).FillWidth().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
 		ui.Text(c, g.t("界面（GUI）", "App (GUI)")).Bold()
-		ui.Textf(c, "当前 %s · 最新 %s", g.upd.GUI.Current, orDash(g.upd.GUI.Latest))
+		ui.Textf(c, "当前 %s · 已发布 %s", g.upd.GUI.Current, orDash(g.upd.GUI.Latest))
 		ui.Row(c).FillWidth().Gap(8).Children(func() {
 			switch {
 			case g.upd.GUI.Channel == "scoop" || g.upd.GUI.Channel == "brew":
@@ -55,9 +58,9 @@ func (g *gui) pageUpdate(c *ui.Context) {
 	})
 
 	// CLI
-	ui.Column(c).Fill().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
+	ui.Column(c).FillWidth().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
 		ui.Text(c, g.t("命令行（pk）", "CLI (pk)")).Bold()
-		ui.Textf(c, "当前 %s · 最新 %s", g.upd.CLI.Current, orDash(g.upd.CLI.Latest))
+		ui.Textf(c, "当前 %s · 已发布 %s", g.upd.CLI.Current, orDash(g.upd.CLI.Latest))
 		ui.Row(c).FillWidth().Gap(8).Children(func() {
 			switch {
 			case g.upd.CLI.Channel == "scoop" || g.upd.CLI.Channel == "brew":

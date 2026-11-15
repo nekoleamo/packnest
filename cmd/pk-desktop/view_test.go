@@ -182,10 +182,18 @@ func TestAcceptance_GUI4_WriteGuards(t *testing.T) {
 	tr := ui.NewTester(g.view, 1200, 900)
 	tr.Frame()
 
-	if err := tr.Click("卸载"); err != nil {
-		t.Fatalf("点不到卸载按钮: %v", err)
+	// 行内动作在"⋯"菜单里：先开菜单再选「卸载」
+	openUninstall := func() {
+		if err := tr.Click("⋯"); err != nil {
+			t.Fatalf("点不到行菜单: %v", err)
+		}
+		tr.Frame()
+		if err := tr.ChooseMenuItem("卸载"); err != nil {
+			t.Fatalf("菜单里选不到卸载: %v", err)
+		}
+		tr.Frame()
 	}
-	tr.Frame()
+	openUninstall()
 	if f.uninstall != "" {
 		t.Fatal("确认框还没点，就已经卸载了")
 	}
@@ -203,10 +211,7 @@ func TestAcceptance_GUI4_WriteGuards(t *testing.T) {
 	}
 
 	// 再来一遍，这次确认
-	if err := tr.Click("卸载"); err != nil {
-		t.Fatalf("点不到卸载按钮: %v", err)
-	}
-	tr.Frame()
+	openUninstall()
 	if err := tr.Click("确定"); err != nil {
 		t.Fatalf("点不到确定: %v", err)
 	}
@@ -287,14 +292,14 @@ func TestAcceptance_GUI5_LayoutNotCollapsed(t *testing.T) {
 		page string
 		want []string
 	}{
-		{"installed", []string{"node", "22.1.0", "pnpm", "10.2.0", "卸载"}},
+		{"installed", []string{"node", "22.1.0", "pnpm", "10.2.0", "⋯"}},
 		{"queue", []string{"node", "22.2.0", "装最新"}},
 		{"versions", []string{"22.2.0", "20.11.0"}},
 		{"mirror", []string{"官方源", "国内镜像", "自动", "https://registry.npmmirror.com"}},
 		{"env", []string{"/root/.packnest/bin", "npm_config_registry"}},
 		{"update", []string{"检查更新"}},
 		{"doctor", []string{"开始体检", "PATH_MISSING"}},
-		{"gc", []string{"预演（只看不删）", "执行回收"}},
+		{"gc", []string{"每工具保留", "预演", "执行回收", "node@20.1.0"}},
 		{"settings", []string{"开机自启", "版本", "这个界面怎么拿数据"}},
 	}
 	for _, tc := range cases {

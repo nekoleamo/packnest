@@ -159,37 +159,35 @@ func (g *gui) view(c *ui.Context) {
 	ui.Column(c).Fill().Children(func() {
 		g.header(c)
 		ui.Divider(c)
-		ui.Row(c).FillWidth().Grow(1).Children(func() {
+		// Stretch：侧边栏要整列铺满（默认 AlignItems 是 Center，会把它挤到竖直中间）
+		ui.Row(c).Fill().Grow(1).AlignItems(ui.Stretch).Children(func() {
+			// 平铺而不是分组：mygo 的分组标题没法调样式，加一层反而看不出层级
 			ui.Sidebar(c, &g.page, func() {
-				ui.SidebarSection(c, g.t("工具", "Tools"), nil, func() {
-					ui.SidebarItem(c, "installed", nil, g.t("已装工具", "Installed")).Children(func() {
-						if n := len(g.tools.Outdated); n > 0 {
-							ui.Badge(c, fmt.Sprint(n))
-						}
-					})
-					ui.SidebarItem(c, "queue", nil, g.t("安装", "Install")).Children(func() {
-						if n := g.queuePending(); n > 0 {
-							ui.Badge(c, fmt.Sprint(n))
-						}
-					})
-					ui.SidebarItem(c, "mirror", nil, g.t("镜像", "Mirrors"))
-					ui.SidebarItem(c, "env", nil, g.t("环境", "Environment"))
+				ui.SidebarItem(c, "installed", nil, g.t("已装工具", "Installed")).Children(func() {
+					if n := len(g.tools.Outdated); n > 0 {
+						ui.Badge(c, fmt.Sprint(n))
+					}
 				})
-				ui.SidebarSection(c, g.t("维护", "Maintenance"), nil, func() {
-					ui.SidebarItem(c, "update", nil, g.t("更新", "Update"))
-					ui.SidebarItem(c, "doctor", nil, g.t("体检", "Doctor")).Children(func() {
-						if n := len(g.doctor.Issues); n > 0 {
-							ui.Badge(c, fmt.Sprint(n))
-						}
-					})
-					ui.SidebarItem(c, "gc", nil, g.t("磁盘", "Storage"))
-					ui.SidebarItem(c, "settings", nil, g.t("设置", "Settings"))
+				ui.SidebarItem(c, "queue", nil, g.t("安装", "Install")).Children(func() {
+					if n := g.queuePending(); n > 0 {
+						ui.Badge(c, fmt.Sprint(n))
+					}
 				})
-			}).Width(190)
+				ui.SidebarItem(c, "mirror", nil, g.t("镜像", "Mirrors"))
+				ui.SidebarItem(c, "env", nil, g.t("环境", "Environment"))
+				ui.SidebarItem(c, "update", nil, g.t("更新", "Update"))
+				ui.SidebarItem(c, "doctor", nil, g.t("体检", "Doctor")).Children(func() {
+					if n := len(g.doctor.Issues); n > 0 {
+						ui.Badge(c, fmt.Sprint(n))
+					}
+				})
+				ui.SidebarItem(c, "gc", nil, g.t("磁盘", "Storage"))
+				ui.SidebarItem(c, "settings", nil, g.t("设置", "Settings"))
+			}).Width(150)
 			ui.Scroll(c).Fill().Grow(1).Children(func() {
 				// 只填宽不填高：放在 Scroll 里时 Fill() 会把高度钉成视口高度，
 				// 后面的表格就只剩表头可见（2026-11-15 实测踩到）
-				ui.Column(c).FillWidth().Padding(16).Gap(12).Children(func() {
+				ui.Column(c).FillWidth().Padding(12, 14).Gap(6).Children(func() {
 					g.pageView(c)
 				})
 			})
@@ -211,6 +209,24 @@ func (g *gui) pageView(c *ui.Context) {
 	g.pageInstalled(c)
 }
 
+// refreshPage 重跑当前页的取数（顶栏刷新与进页懒加载共用）。
+func (g *gui) refreshPage() {
+	switch g.page {
+	case "mirror":
+		g.loadMirrors("")
+	case "env":
+		g.loadEnv(g.envProj)
+	case "gc":
+		g.runGC(false)
+	case "update":
+		g.checkUpdate() // 进页就查：空白页比"多一次请求"难看得多
+	case "queue", "versions":
+		g.reloadAvailable()
+	case "installed":
+		g.reloadTools()
+	}
+}
+
 // ensureLoaded 是"进页就取数"的懒加载：只认本地/缓存的便宜查询，
 // 联网的（更新检查、源探测、体检）留给用户自己点。
 func (g *gui) ensureLoaded(id string) {
@@ -228,36 +244,38 @@ func (g *gui) ensureLoaded(id string) {
 		g.loadEnv(g.envProj)
 	case "gc":
 		g.runGC(false)
+	case "update":
+		g.checkUpdate() // 进页就查：空白页比"多一次请求"难看得多
 	case "queue", "versions":
 		g.reloadAvailable()
 	}
 }
 
 // header 是顶部状态条：CLI 状态 + 语言 + 主题 + 刷新。
+//
+// 只放"全局"的东西：每一页自己的刷新/操放在页标题行上，避免同一屏两个「刷新」。
 func (g *gui) header(c *ui.Context) {
-	ui.Row(c).FillWidth().Padding(12, 16).Gap(12).Children(func() {
-		ui.Text(c, "packnest").FontSize(18).Bold()
+	ui.Row(c).FillWidth().Padding(6, 12).Gap(10).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, "packnest").FontSize(15).Bold()
 		if g.status.OK {
-			ui.Badge(c, "CLI "+g.status.CLI.Version)
-			ui.Text(c, g.status.Path).TextColor(c.Theme().TextMuted).SingleLine()
+			ui.Text(c, "CLI "+g.status.CLI.Version).TextColor(c.Theme().TextMuted)
+			ui.Text(c, g.status.Path).TextColor(c.Theme().TextMuted).SingleLine().Grow(1)
 		} else {
 			ui.Badge(c, g.t("未装 CLI", "CLI missing"))
+			ui.Row(c).Grow(1).Children(func() {})
 		}
-		ui.Row(c).Grow(1).Children(func() {}) // 弹性空隙，把右侧控件推到右边
 		if g.busy["refresh"] {
 			ui.Spinner(c)
 		}
-		if ui.Button(c, g.t("刷新", "Refresh")).Clicked() {
-			g.refreshAll()
-		}
+		ui.Button(c, g.t("刷新", "Refresh")).FontSize(12).OnClick(g.refreshAll)
 		lang := g.lang
 		ui.Segmented(c, &g.langIdx, "中文", "EN")
 		if gotLang := langOf(g.langIdx); gotLang != lang {
 			g.lang = gotLang
 			g.prefsSave()
 		}
-		ui.Segmented(c, &g.themeMode, g.t("跟随系统", "System"), g.t("浅色", "Light"), g.t("深色", "Dark"))
-	}).Height(56)
+		ui.Segmented(c, &g.themeMode, g.t("跟随", "Auto"), g.t("浅", "Light"), g.t("深", "Dark"))
+	}).Height(40)
 	if g.themeMode != themeModeSeen {
 		themeModeSeen = g.themeMode
 		g.prefsSave()
@@ -297,6 +315,10 @@ func (g *gui) applyTheme(c *ui.Context) {
 		base = ui.DarkTheme()
 	}
 	t := *base
+	// 全局字号与间距在这里定一次：控件、表格行高、内外边距都按它们缩放，
+	// 这样"信息密度"是统一的一个数，而不是每页各写一套 Padding。
+	t.FontSize = 13
+	t.Spacing = 3
 	t.Accent = ui.Hex("#0a7d4f")
 	if t.Dark {
 		t.Accent = ui.Hex("#4ade80")
@@ -325,8 +347,11 @@ func (g *gui) ask(title, msg string, action func()) {
 	g.confirm = confirmBox{open: true, title: title, message: msg, action: action}
 }
 
-// refreshAll 并行刷新首屏三份数据（状态 / 已装 / 可装版本）。
+// refreshAll 刷新顶栏状态 + 已装清单，并重跑"当前页"的取数。
+//
+// 各页不再放自己的刷新按钮：一个刷新入口，点了就把眼前这页也刷了。
 func (g *gui) refreshAll() {
+	g.refreshPage()
 	g.load("refresh", func() (commit, error) {
 		st := g.svc.Status(context.Background())
 		auto := g.svc.Autostart()

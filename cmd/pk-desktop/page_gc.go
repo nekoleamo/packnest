@@ -12,33 +12,34 @@ import (
 )
 
 func (g *gui) pageGC(c *ui.Context) {
-	g.head(c, "磁盘占用与回收", "Storage", "gc", func() { g.runGC(false) })
+	g.head(c, "磁盘占用与回收", "Storage", "gc", nil)
 
+	// 一行说完策略 + 动作：保留几个版本 → 预演 → 真删
 	keep := float64(g.gcKeep)
-	ui.Row(c).FillWidth().Gap(8).Children(func() {
-		ui.Text(c, g.t("每个工具保留最新", "Keep the newest")).TextColor(c.Theme().TextMuted)
-		ui.NumberInput(c, &keep, 0, 20, 1).Width(90)
-		if int(keep) != g.gcKeep {
-			g.gcKeep = int(keep)
-		}
-		ui.Text(c, g.t("个版本（0 = 只留当前使用的）", "versions per tool (0 = active only)")).TextColor(c.Theme().TextMuted)
-	})
-	g.gcKeep = int(keep)
-
-	ui.Row(c).FillWidth().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, g.t("每工具保留", "Keep")).TextColor(c.Theme().TextMuted)
+		ui.NumberInput(c, &keep, 0, 20, 1).Width(70)
+		ui.Text(c, g.t("个版本", "versions")).TextColor(c.Theme().TextMuted)
+		ui.Text(c, g.t("（0 = 只留当前）", "(0 = active only)")).FontSize(11).TextColor(c.Theme().TextMuted)
+		ui.Row(c).Grow(1).Children(func() {})
 		if g.busy["gc"] {
 			ui.Spinner(c)
 		}
-		if ui.Button(c, g.t("预演（只看不删）", "Dry run")).Clicked() {
-			g.runGC(false)
+		ui.Button(c, g.t("预演", "Dry run")).OnClick(func() { g.runGC(false) })
+		if ui.Button(c, g.t("执行回收", "Reclaim")).Clicked() {
+			g.askGC()
 		}
-		ui.Button(c, g.t("执行回收", "Reclaim")).OnClick(func() { g.askGC() })
 	})
+	g.gcKeep = int(keep)
 
 	res := g.gc
 	if len(res.Removed) == 0 && len(res.CacheRemoved) == 0 && len(res.KeptRecent) == 0 {
-		g.note(c, "先预演看一眼：会列出可删的版本、可清的缓存，以及因为仍被引用/最近用过的保留项。",
-			"Start with a dry run: it lists what can go, what the cache holds, and what is kept because it is referenced or recent.")
+		if g.busy["gc"] {
+			ui.Spinner(c)
+		} else {
+			g.note(c, "还没有结果：点「预演」看能回收多少（只看不删）。",
+				"Nothing yet: press Dry run to see what could be freed (it deletes nothing).")
+		}
 		return
 	}
 
@@ -46,7 +47,7 @@ func (g *gui) pageGC(c *ui.Context) {
 	if !res.DryRun {
 		verb = g.t("已删", "removed")
 	}
-	ui.Column(c).Fill().Gap(4).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
+	ui.Column(c).FillWidth().Gap(4).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
 		ui.Textf(c, "%s %d 项 · 释放 %s", verb, len(res.Removed), humanBytes(res.FreedBytes)).Bold()
 		if res.Keep > 0 {
 			ui.Textf(c, g.t("（--keep %d）", "(--keep %d)"), res.Keep).TextColor(c.Theme().TextMuted)

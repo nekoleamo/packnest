@@ -17,14 +17,14 @@ type installEvent = pkcli.Event
 
 // head 画一页的标题行：标题 + 忙指示 + 可选的刷新按钮。
 func (g *gui) head(c *ui.Context, zh, en, busyKey string, reload func()) {
-	ui.Row(c).FillWidth().Gap(8).Children(func() {
-		ui.Text(c, g.t(zh, en)).FontSize(16).Bold()
+	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, g.t(zh, en)).FontSize(15).Bold()
 		if busyKey != "" && g.busy[busyKey] {
 			ui.Spinner(c)
 		}
 		ui.Row(c).Grow(1).Children(func() {})
-		if reload != nil && ui.Button(c, g.t("刷新", "Refresh")).Clicked() {
-			reload()
+		if reload != nil {
+			ui.Button(c, g.t("刷新", "Refresh")).FontSize(12).OnClick(reload)
 		}
 	})
 }
@@ -32,7 +32,7 @@ func (g *gui) head(c *ui.Context, zh, en, busyKey string, reload func()) {
 // kv 是一行"标签：值"（值可复制时给一个复制按钮）。
 func (g *gui) kv(c *ui.Context, label, value string, copyable bool) {
 	ui.Row(c).FillWidth().Gap(8).Children(func() {
-		ui.Text(c, label).TextColor(c.Theme().TextMuted).Width(120)
+		ui.Text(c, label).TextColor(c.Theme().TextMuted).Width(96)
 		ui.Text(c, value).SingleLine().Grow(1)
 		if copyable && value != "" && ui.Button(c, g.t("复制", "Copy")).Clicked() {
 			g.copyText(value)
@@ -48,12 +48,12 @@ func (g *gui) kvTable(c *ui.Context, key string, rows [][2]string) {
 	// ui.Tester 里却正常 —— 这类"只有窗口里错"的问题只能靠 List 绕开（2026-11-15 实测）。
 	// 高度必须显式给：放在 Scroll 里没有高度约束时 List 会被压成一行。
 	ui.Row(c).FillWidth().Gap(8).Children(func() {
-		ui.Text(c, g.t("键", "Key")).TextColor(c.Theme().TextMuted).Width(240)
+		ui.Text(c, g.t("键", "Key")).TextColor(c.Theme().TextMuted).Width(150)
 		ui.Text(c, g.t("值", "Value")).TextColor(c.Theme().TextMuted)
 	})
 	ui.List(c, list, len(rows), func(i int) {
 		ui.Row(c).FillWidth().Gap(8).Padding(4).Children(func() {
-			ui.Text(c, rows[i][0]).Width(240).SingleLine()
+			ui.Text(c, rows[i][0]).Width(150).SingleLine()
 			ui.Text(c, rows[i][1]).SingleLine().Grow(1)
 		})
 	}).Height(200)

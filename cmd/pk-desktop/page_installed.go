@@ -1,8 +1,8 @@
 package main
 
-// 已装工具页：一张表 + 可升级提示 + 行内动作（升级 / 设为默认 / 复制路径 / 卸载）。
+// 已装工具页：一张对齐的清单（列宽固定，路径吃掉剩余宽度）+ 可升级提示 + 行内动作。
 //
-// 只有"卸载"会毁东西，所以只有它走确认框；其余动作直接执行并把结果弹成 toast。
+// 交互纪律不变：只有"卸载"会毁东西，走确认框；其余动作直接执行并把结果弹成 toast。
 
 import (
 	"context"
@@ -14,31 +14,38 @@ import (
 	"github.com/packnest/packnest/cmd/pk-desktop/internal/pkcli"
 )
 
+// 列的宽度集中在这里：表头与每一行共用，改一个数字两边一起动。
+const (
+	colName  float32 = 64
+	colVer   float32 = 92
+	colBadge float32 = 148
+	colSize  float32 = 68
+	colOps   float32 = 48
+)
+
 func (g *gui) pageInstalled(c *ui.Context) {
-	g.head(c, "已装工具", "Installed tools", "tools", func() { g.reloadTools() })
+	g.head(c, "已装工具", "Installed tools", "tools", nil) // 全局刷新在顶栏，这页不再重复
 
 	if !g.status.OK {
 		ui.Text(c, g.status.Reason).TextColor(c.Theme().Warning)
-		ui.Text(c, g.t("装好 CLI 后点上面的「刷新」。", "Install the CLI, then press Refresh.")).TextColor(c.Theme().TextMuted)
+		g.note(c, "装好 CLI 后点顶栏的「刷新」。", "Install the CLI, then press Refresh above.")
 		return
 	}
 
-	// 可升级提示（1.3 的 outdated[]：只读索引缓存，不联网）
+	// 可升级提示：一行一句，不占整块
 	if len(g.tools.Outdated) > 0 {
-		ui.Column(c).Fill().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
-			ui.Textf(c, g.t("有 %d 项可升级", "%d updates available"), len(g.tools.Outdated)).Bold()
-			for _, o := range g.tools.Outdated {
-				o := o
-				ui.Row(c).FillWidth().Gap(8).Children(func() {
-					ui.Textf(c, "%s %s → %s", o.Name, o.Installed, o.Latest)
-					ui.Button(c, g.t("升级", "Upgrade")).OnClick(func() {
-						g.enqueue(o.Name + "@" + o.Latest)
-						g.page = "queue"
-						g.runQueue()
-					})
+		for _, o := range g.tools.Outdated {
+			o := o
+			ui.Row(c).FillWidth().Gap(8).Padding(6).Background(c.Theme().Surface).Radius(6).AlignItems(ui.Center).Children(func() {
+				ui.Badge(c, g.t("可升级", "update"))
+				ui.Textf(c, "%s %s → %s", o.Name, o.Installed, o.Latest).Grow(1)
+				ui.Button(c, g.t("升级", "Upgrade")).FontSize(12).OnClick(func() {
+					g.enqueue(o.Name + "@" + o.Latest)
+					g.page = "queue"
+					g.runQueue()
 				})
-			}
-		})
+			})
+		}
 	}
 
 	tools := g.tools.Tools
@@ -47,49 +54,93 @@ func (g *gui) pageInstalled(c *ui.Context) {
 		g.installHint(c)
 		return
 	}
-	ui.Textf(c, g.t("%d 条记录", "%d records"), len(tools)).TextColor(c.Theme().TextMuted)
+
+	// 一行摘要：把"这一屏能一眼知道的事"挤在标题下面，别让下面是空白
+	var total int64
+	for _, t := range tools {
+		total += t.SizeBytes
+	}
+	ui.Row(c).FillWidth().Gap(6).AlignItems(ui.Center).Children(func() {
+		ui.Textf(c, g.t("%d 个工具", "%d tools"), len(tools)).Bold()
+		ui.Text(c, "·").TextColor(c.Theme().TextMuted)
+		ui.Textf(c, g.t("占用 %s", "%s on disk"), humanBytes(total)).TextColor(c.Theme().TextMuted)
+		if n := len(g.tools.Outdated); n > 0 {
+			ui.Text(c, "·").TextColor(c.Theme().TextMuted)
+			ui.Textf(c, g.t("%d 项可升级", "%d updates"), n).TextColor(c.Theme().Warning)
+		}
+	})
+
+	// 列头：让对齐自己解释自己（不然一排数字很难读）
+	ui.Row(c).FillWidth().Gap(10).Padding(0, 6).Children(func() {
+		for _, h := range [][2]any{
+			{g.t("名称", "Name"), colName},
+			{g.t("版本", "Version"), colVer},
+			{g.t("状态", "State"), colBadge},
+			{g.t("路径", "Path"), float32(0)},
+			{g.t("大小", "Size"), colSize},
+			{g.t("操作", "Actions"), colOps},
+		} {
+			txt := ui.Text(c, h[0].(string)).FontSize(11).TextColor(c.Theme().TextMuted)
+			if w, ok := h[1].(float32); ok && w > 0 {
+				txt.Width(w)
+			} else {
+				txt.Grow(1)
+			}
+		}
+	})
 
 	list := g.table("installed")
 	list.Key = func(i int) any { return tools[i].Name + "@" + tools[i].Version }
-	ui.List(c, list, len(tools), func(i int) {
+	ui.List(c, list, len(tools), func(i int) { // 列表撑满剩余高度，别在下面留一截空白
 		t := tools[i]
-		ui.Row(c).FillWidth().Gap(8).Padding(6).Children(func() {
-			ui.Text(c, t.Name).Bold().Width(90)
-			ui.Text(c, t.Version).Width(130)
-			if t.Active {
-				ui.Badge(c, g.t("默认", "active"))
-			}
-			if t.Verified != "" && t.Verified != "ok" {
-				ui.Badge(c, t.Verified) // weak / 未校验
-			}
-			if t.NPM != nil {
-				ui.Badge(c, "npm "+t.NPM.Version)
-			}
+		ui.Row(c).FillWidth().Gap(10).Padding(4, 6).AlignItems(ui.Center).Children(func() {
+			ui.Text(c, t.Name).Bold().Width(colName)
+			ui.Text(c, t.Version).Width(colVer)
+			ui.Row(c).Width(colBadge).Gap(4).Children(func() {
+				if t.Active {
+					ui.Badge(c, g.t("默认", "active"))
+				}
+				// verified 的取值：ok 之外的都是"值得看一眼"的（weak/跳过校验）
+				if t.Verified != "" && t.Verified != "ok" {
+					ui.Badge(c, t.Verified)
+				}
+				if t.NPM != nil {
+					ui.Badge(c, "npm "+t.NPM.Version)
+				}
+			})
 			ui.Text(c, t.Path).TextColor(c.Theme().TextMuted).SingleLine().Grow(1)
+			size := ""
 			if t.SizeBytes > 0 {
-				ui.Text(c, humanBytes(t.SizeBytes)).TextColor(c.Theme().TextMuted).Width(80)
+				size = humanBytes(t.SizeBytes)
 			}
-			if !t.Active {
-				ui.Button(c, g.t("设为默认", "Use")).OnClick(func() { g.useVersion(t.Name, t.Version) })
-			}
-			if ui.Button(c, g.t("复制路径", "Copy path")).Clicked() {
-				mygo.Clipboard.WriteText(t.Path)
-				g.flashNow(g.t("已复制", "Copied"))
-			}
-			ui.Button(c, g.t("卸载", "Uninstall")).OnClick(func() { g.askUninstall(t.Name) }) // 改机器的动作放到确认之后
+			ui.Text(c, size).TextColor(c.Theme().TextMuted).Width(colSize)
+			// 行内动作收进一个菜单：三个按钮平铺会把"路径"挤没，也不好看
+			ui.Button(c, "⋯").FontSize(12).Width(colOps).Center().Menu(func(m *ui.Menu) {
+				if m.Item(g.t("设为默认版本", "Make active")).Disabled(t.Active).Chosen() {
+					g.useVersion(t.Name, t.Version)
+				}
+				if m.Item(g.t("复制安装路径", "Copy install path")).Chosen() {
+					mygo.Clipboard.WriteText(t.Path)
+					g.flashNow(g.t("已复制路径", "Path copied"))
+				}
+				m.Separator()
+				if m.Item(g.t("卸载", "Uninstall")).Chosen() {
+					g.askUninstall(t.Name)
+				}
+			})
 		})
-	}).Height(320)
+	}).Grow(1)
 }
 
 // installHint 在空列表时给一条能立刻照做的命令。
 func (g *gui) installHint(c *ui.Context) {
-	ui.Row(c).FillWidth().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, g.t("装一个试试：", "Try: ")).TextColor(c.Theme().TextMuted)
 		ui.Text(c, "pk install node@lts").Font("monospace").SingleLine()
-		if ui.Button(c, g.t("复制", "Copy")).Clicked() {
+		ui.Button(c, g.t("复制", "Copy")).FontSize(12).OnClick(func() {
 			mygo.Clipboard.WriteText("pk install node@lts")
 			g.flashNow(g.t("已复制", "Copied"))
-		}
+		})
 	})
 }
 

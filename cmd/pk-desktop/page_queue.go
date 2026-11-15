@@ -12,7 +12,7 @@ import (
 )
 
 func (g *gui) pageQueue(c *ui.Context) {
-	g.head(c, "安装", "Install", "", func() { g.reloadAvailable() })
+	g.head(c, "安装", "Install", "", nil)
 
 	// 一条 spec 一行：回车或点「加进队列」
 	ui.Row(c).FillWidth().Gap(8).Children(func() {
@@ -60,7 +60,9 @@ func (g *gui) pageQueue(c *ui.Context) {
 		ui.Divider(c)
 	}
 
-	ui.Text(c, g.t("可装版本（索引缓存，24h 内不刷新）", "Available versions (cached index)")).Bold()
+	ui.Text(c, g.t("可装版本", "Available versions")).Bold()
+	ui.Text(c, g.t("索引缓存 24h 内不刷新；点版本号旁的操作即可装。", "Index is cached for 24h; install straight from a row.")).
+		FontSize(11).TextColor(c.Theme().TextMuted)
 	if len(g.available) == 0 {
 		if g.busy["available"] {
 			ui.Spinner(c)
@@ -101,7 +103,7 @@ func (g *gui) pageQueue(c *ui.Context) {
 
 // versionsPage 是"某个工具的全部版本"：从安装页点进来。
 func (g *gui) pageVersions(c *ui.Context) {
-	g.head(c, "可选版本", "Versions", "versions", func() { g.loadVersions(g.verTool, g.verAll) })
+	g.head(c, "可选版本", "Versions", "versions", nil)
 	if g.verTool == "" {
 		ui.Text(c, g.t("先从「安装」页挑一个工具。", "Pick a tool on the Install page first.")).TextColor(c.Theme().TextMuted)
 		return
