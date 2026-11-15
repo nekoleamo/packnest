@@ -312,6 +312,11 @@ The snippet contains the five PATH segments (`bin` → `global/corepack/bin` →
 (`npm_config_prefix`, `npm_config_cache`, `PNPM_HOME`, `BUN_INSTALL`, `COREPACK_HOME`,
 `COREPACK_NPM_REGISTRY`, `GOPROXY`, `PIP_INDEX_URL`, `GOTOOLCHAIN=local`).
 
+> The block **does not inject** `npm_config_prefer_offline` (since 1.9.1): npm's offline preference bypasses the
+> staleness check on cached packuments, so `npm i pkg@latest` keeps resolving to an old version. Machines whose
+> block was written by an older pk should re-run `pk env --write` after upgrading
+> (see [troubleshooting.md §2.7](troubleshooting.md)).
+
 ## 9. gc
 
 ```

@@ -227,6 +227,10 @@ checksum sources is still `strong`. The ledger records `transport: "http"`.
 - Shared prefix `~/.packnest/global` (`npm_config_prefix`), with `globalconfig` exported too → **switching Node loses neither global packages nor `npm config set -g`**
 - Package cache stays at `~/.npm` (never migrated or copied); `global/bin` is a fixed directory, so new global packages **need no reshim**
 - `pk doctor --globals` runs three checks: `GLOBAL_ENGINES_UNMET`, `GLOBAL_NATIVE_ABI` (N-API prebuilds are fine), `GLOBAL_SHADOWS_PROJECT`
+- The managed block **does not inject** `npm_config_prefer_offline` (since 1.9.1): npm's offline-preference bypasses
+  the staleness check on cached packuments, so `npm i -g x@latest` / `npx x@latest` keep resolving to an old version.
+  Machines whose block was written by 1.9.0 or earlier should re-run `pk env --write` after upgrading
+  (see [docs/en/troubleshooting.md](docs/en/troubleshooting.md) §2.7)
 - Want nvm-style behaviour: `global_mode = "per-version"`
 
 ## Coexisting with existing managers

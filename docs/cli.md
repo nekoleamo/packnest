@@ -494,6 +494,10 @@ export GOTOOLCHAIN=local
 export GOPROXY=https://goproxy.cn
 ```
 
+> 托管块**不注入** `npm_config_prefer_offline`（1.9.1 起）：离线优先会让 npm 跳过缓存元数据的新鲜度检查，
+> `npm i pkg@latest` / `npx pkg@latest` 会长期解析到旧版本。被旧版本写过托管块的机器，升级后重跑一次
+> `pk env --write` 清掉那行（见 [troubleshooting.md §2.7](troubleshooting.md)）。
+
 ```bash
 $ pk env                                          # 只打印（默认 bash 方言；自动跟随 $SHELL）
 $ pk env --shell zsh | source /dev/stdin          # 临时生效

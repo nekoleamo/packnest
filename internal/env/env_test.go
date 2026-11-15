@@ -74,6 +74,11 @@ func TestSharedVars(t *testing.T) {
 	if _, ok := vars["DENO_DIR"]; ok {
 		t.Fatalf("不该再有 DENO_DIR: %+v", vars)
 	}
+	// npm_config_prefer_offline 永远不能写：它让 npm 跳过缓存元数据的新鲜度检查，
+	// `npm i pkg@latest` 会长期解析到旧版本（2026-11-15 实测：pi 扩展升级恒失败）。
+	if _, ok := vars["npm_config_prefer_offline"]; ok {
+		t.Fatalf("托管块不得注入 prefer_offline: %+v", vars)
+	}
 }
 
 func TestExportScriptPOSIX(t *testing.T) {

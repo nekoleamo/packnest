@@ -64,7 +64,8 @@ func globalVars(prefix string, p paths.Paths, npmCache string) []KV {
 		{"npm_config_prefix", prefix},
 		{"npm_config_cache", npmCache},
 		{"npm_config_globalconfig", filepath.Join(prefix, "etc", "npmrc")},
-		{"npm_config_prefer_offline", "true"},
+		// 故意不写 npm_config_prefer_offline：npm 的离线优先会绕过缓存元数据的新鲜度检查，
+		// 让 `npm i pkg@latest` 长期解析到旧版本（2026-11-15 实测：pi 扩展升级恒失败）。
 		{"PNPM_HOME", filepath.Join(prefix, "pnpm")},
 		{"BUN_INSTALL", filepath.Join(prefix, "bun")},
 		// corepack 的缓存也进我们的缓存根（--purge 能一起清）

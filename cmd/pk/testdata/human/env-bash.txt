@@ -9,7 +9,6 @@ export GOTOOLCHAIN=local
 export npm_config_prefix=<ROOT>/global
 export npm_config_cache=<ROOT>/cache/npm
 export npm_config_globalconfig=<ROOT>/global/etc/npmrc
-export npm_config_prefer_offline=true
 export PNPM_HOME=<ROOT>/global/pnpm
 export BUN_INSTALL=<ROOT>/global/bun
 export COREPACK_HOME=<ROOT>/cache/corepack

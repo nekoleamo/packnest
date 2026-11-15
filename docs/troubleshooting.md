@@ -157,6 +157,23 @@ ls ~/.packnest/providers                  # 文件名必须等于 id（zig.toml 
 - **重装同一版本报「与本地记录不一致」**：如果你在这台机器上之前用旧方式（JS tarball）装过该版本，
   TOFU 表里是旧产物的摘要。用 `pk install pnpm@<版本> --force-rehash` 覆盖一次即可。
 
+## 2.7 `npm i -g <pkg>@latest` 一直装到旧版本（1.9.1 修）
+
+**现象**：上游明明发了新版，`npm view <pkg> version` 还是旧的，`npx <pkg>@latest` 也一样；等多久都不自愈。
+**原因**：1.9.0 及更早的 `pk env --write` 会往托管块里写 `npm_config_prefer_offline=true`。
+npm 的离线优先按官方语义**绕过缓存元数据的新鲜度检查**，`latest` 这个 dist-tag 于是长期解析成缓存里的旧版本。
+pnpm / bun 不认这个 npm 配置项，pk 自己也不调 npm，所以只有你手跑的 npm 命令中招。
+
+1.9.1 起不再注入该变量。**被旧版本写过托管块的机器要做一步**：
+
+```bash
+pk env --write                 # 或 pst doctor --fix：重写托管块，那行才会消失
+exec zsh                       # 重开 shell（当前会话的环境变量还是旧值）
+echo "${npm_config_prefer_offline:-<unset>}"   # 期望 <unset>
+```
+
+手工在 rc 里把 `true` 改成 `false` 是**临时态**：下次 `pk env --write` / `pk doctor --fix` 会按默认表重写整个块。
+
 ## 3. 全局包（`npm i -g`）相关的三个告警
 
 | 码 | 含义 | 处置 |

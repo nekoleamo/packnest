@@ -114,6 +114,26 @@ A broken external manifest **never** breaks `pk install node`: the file is skipp
 - **Reinstalling the same version reports a digest mismatch**: if this machine installed that version the old
   way (JS tarball), the TOFU table holds the old digest. Re-run with `pk install pnpm@<version> --force-rehash`.
 
+## 2.7 `npm i -g <pkg>@latest` keeps installing an old version (fixed in 1.9.1)
+
+**Symptom**: upstream has released a new version, yet `npm view <pkg> version` stays old — and so does
+`npx <pkg>@latest`. It never heals on its own, no matter how long you wait.
+**Cause**: `pk env --write` on 1.9.0 and earlier wrote `npm_config_prefer_offline=true` into the managed block.
+npm's offline preference **bypasses the staleness check on cached packuments** (by design), so the `latest`
+dist-tag keeps resolving from a stale cache entry. pnpm / bun ignore this npm setting and pk itself never
+shells out to npm, so only the npm commands you type by hand are affected.
+
+1.9.1 no longer injects that variable. **Machines whose block was written by an older pk must do one step**:
+
+```bash
+pk env --write                 # or pk doctor --fix: rewrites the block so the line disappears
+exec zsh                       # reopen the shell (this session still has the old env value)
+echo "${npm_config_prefer_offline:-<unset>}"   # expect <unset>
+```
+
+Editing `true` to `false` in your rc by hand is **temporary**: the next `pk env --write` / `pk doctor --fix`
+regenerates the whole block from the default table.
+
 ## 3. The three global-package warnings
 
 | Code | Meaning | Fix |

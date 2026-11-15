@@ -261,6 +261,9 @@ PK_PROVIDERS_DIR=/opt/corp/pk:/srv/more   # 追加目录（可多个，冒号分
 - 包缓存在 `~/.npm`（不迁移不复制）；`global/bin` 是固定目录 → 新装全局包**无需 reshim**
 - `pk doctor --globals` 三级检测：`GLOBAL_ENGINES_UNMET`（engines 不满足）、`GLOBAL_NATIVE_ABI`（原生模块，N-API 预编译不告警）、`GLOBAL_SHADOWS_PROJECT`（命令遮蔽项目 bin）
 - 三种包管理器的全局目录都扫（`detail.manager` 标来源）：npm（`global`）、pnpm（`global/pnpm/global/<N>`）、bun（`global/bun/install/global`）
+- 托管块**不注入** `npm_config_prefer_offline`（1.9.1 起）：离线优先会让 npm 跳过缓存元数据的新鲜度检查，
+  `npm i -g x@latest` / `npx x@latest` 会一直解析到旧版本 —— 用 1.9.0 及更早版本写过托管块的机器，
+  升级后跑一次 `pk env --write` 清掉那行（详见 [docs/troubleshooting.md](docs/troubleshooting.md) §2.7）
 - 想回 nvm 式行为：`global_mode = "per-version"`
 
 ## 与已有管理器共存

@@ -1942,3 +1942,34 @@ CLI 1.8.2 只有一件新增：`reload` 契约（`pk doctor --fix` / `pk env --w
 | docs/gui.md（中/英） | 新增「检查更新」小节（1.9）：CLI 与 GUI 的分工、按探测顺序选源、scoop 只提示、缺 ssh-keygen 拒绝自更新 |
 | docs/json-schema.md | `pk upgrade --self --json` 的字段表（current/latest/channel/sources/dir_url/applied） |
 | docs/publishing.md | `scripts/latest-gui` 是 GUI 版本的单一真源（不依赖 release API） |
+
+### 托管块不再注入 `npm_config_prefer_offline`（2026-11-15）
+
+- **起因**：`pk env --write` 的默认变量表里带 `npm_config_prefer_offline=true`。npm 的离线优先按官方语义**绕过缓存元数据的新鲜度检查**，
+  于是 `npm i pkg@latest` / `npm view` / `npx foo@latest` 长期解析到旧 packument —— 实测让 pi 扩展升级在新版本发布后恒失败
+  （pi 提示"等几分钟"，实际永远不会自愈）。pnpm/bun 不认这个 npm 配置项，pk 自己也不 spawn npm，影响面就是用户手跑的 npm。
+- **改动**：`internal/env/env.go` 删除该变量（回归 npm 默认 `false`）；`cmd/pk/testdata/human/env-bash.txt` 同步；
+  `internal/env/env_test.go` 的 `TestSharedVars` 增加断言「托管块不得注入 `prefer_offline`」，防止以后被重新加回来。
+- **老用户升级后要做一步**：重跑 `pk env --write`（或 `pk doctor --fix`）重写托管块，块里那行才会消失 ——
+  手工改 rc 里的值是临时态，下次重写会按旧默认值带回来。
+
+## v1.9.1 发版（2026-11-15）
+
+两个纯 bug 修复，无新命令、无契约变更（`--json` schema 仍 1）。
+
+| 修复 | 症状 | 根因 | 改动 |
+|---|---|---|---|
+| 版本缓存不刷新 | 刚发完版，`pk upgrade --self --check` 仍报"已是最新" | 6h 版本缓存里还是上一个版本（61d1387 已修，进本版） | `internal/selfupdate`：只有本机不比缓存旧才信缓存，`current >= cached` 不成立就绕过缓存回源 |
+| 托管块注入 `prefer_offline` | `npm i -g x@latest` / `npx x@latest` 长期装到旧版本，等多久都不自愈 | `pk env --write` 默认写 `npm_config_prefer_offline=true`，npm 的离线优先**绕过缓存元数据的新鲜度检查** | 删除该默认值（回归 npm 默认 `false`）+ `TestSharedVars` 加断言防止回退 |
+
+文档同步（面比代码大：这条默认值此前从未写进任何文档）：
+
+| 位置 | 改了什么 |
+|---|---|
+| `docs/troubleshooting.md` · `docs/en/troubleshooting.md` | 新增 §2.7：症状 / 根因 / **老机器三步收拾**（`pk env --write` → 重开 shell → 验 `<unset>`），并说明手改 rc 是临时态 |
+| `README.md` · `README.en.md` | 「全局包」一节补一条：托管块不注入 `prefer_offline`，1.9.0 及更早写过块的机器升级后重跑 `pk env --write` |
+| `docs/cli.md` · `docs/en/cli.md` | §8 env 的输出示例下补同一条提示 + 链接 |
+| 官网（中/英） | 版本号由 `__PK_VERSION__` 注入（tag 推送即重建），正文无需改 —— 命令面与功能面本版未变 |
+
+**升级路径**：`pk upgrade --self`（或重跑安装脚本 / `brew upgrade packnest`）。升级后**必须**再跑一次
+`pk env --write`，否则托管块里仍是旧默认值写的 `true`（`pk doctor --fix` 也会重写整块，效果相同）。
