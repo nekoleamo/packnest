@@ -48,6 +48,10 @@ curl -fsSL https://你的域名/install.sh | sh -s -- --base https://你的域�
 
 ### 桌面端（可选，必须先装 CLI）
 
+界面里有 **「更新」** 区块：同时看桌面端与 CLI 的版本，下载地址按当前网络自动挑（gitee / GitHub，复用 CLI 的探测结果），
+CLI 的升级交给 `pk upgrade --self`、桌面端由 GUI 自己换产物（验签 + 比 sha256 后替换，提示重启）。
+
+
 GUI（`pk-desktop`，当前 **0.11.2**）只是 CLI 的可视化补充：它通过子进程调 `pk <命令> --json` 干活，
 没有自己的下载器、台账或更新器。**先装上面的 `pk`**，再按平台选一种装法：
 
@@ -91,6 +95,8 @@ pk doctor --fix             # 顺手修能自动修的两类：PATH 托管块、
 pk gc --dry-run             # 零引用版本与超限缓存的回收预演
 pk gc --keep 2              # 每个工具保留最新 2 个版本，其余零引用的才回收
 pk upgrade                  # 已装工具一次升到索引最新（旧版本保留，npm 跟着 node 走）
+pk upgrade --self --check   # 只看 pk 自己有没有新版（地址按网络自动挑 gitee/GitHub）
+pk upgrade --self           # 升级 pk 自己：下载 → 验签（sshsig+sha256）→ 原子替换
 ```
 
 `pk list` 已装版本落后索引最新时会多一段可升级提示（只读 24h 索引缓存、不联网）：
@@ -101,8 +107,8 @@ pk upgrade                  # 已装工具一次升到索引最新（旧版本�
 ```
 
 命令面固定 10 个：`install` · `uninstall`（`<工具>[@<版本>]` / `--all`）· `use` · `list`（`[工具]` / `--available`）·
-`which` · `mirror`（list/probe/use/write）· `doctor` · `env` · `gc` · `upgrade`（已装工具一次升到最新），另加 `version` / `help`
-（`pk help install` 有逐命令详解）。
+`which` · `mirror`（list/probe/use/write）· `doctor` · `env` · `gc` · `upgrade`（升已装工具；`--self` 升 pk 自己），
+另加 `version` / `help`（`pk help install` 有逐命令详解）。
 
 全局开关：`--json`（GUI 与脚本的唯一契约）· `--offline` · `--yes` · `--root`（调试）。
 退出码固定：`0` 成功 / `1` 通用 / `2` 用法 / `3` 网络 / `4` 校验 / `5` 锁被占用。

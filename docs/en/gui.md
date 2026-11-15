@@ -1,7 +1,7 @@
 # Desktop app `pk-desktop` (GUI)
 
 > **One line**: a visual supplement to the CLI. **The CLI must be installed first** — every action in the UI is a
-> subprocess call to `pk <command> --json`. It ships no downloader, ledger or self-updater of its own; uninstall and
+> subprocess call to `pk <command> --json`. It ships no ledger of its own and no second implementation of upgrading; uninstall and
 > upgrade still go through the CLI.
 
 - Contract: `pk --json` ([../json-schema.md](../json-schema.md))
@@ -37,6 +37,19 @@ downloads a second runtime itself.
 curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh
 # or: brew install nekoleamo/packnest/packnest
 ```
+
+## 2.5 Check for updates (since 1.9)
+
+The **Updates** card looks at both versions (they are decoupled):
+
+- **source auto-picked**: it runs `pk upgrade --self --check --json`, and the CLI returns the sources it probed with
+  latencies already sorted — the GUI keeps that order, so China usually lands on gitee and overseas on GitHub;
+- **upgrade the CLI**: delegated to `pk upgrade --self` (channel rules, signature check and atomic replace live in one place);
+- **upgrade the desktop app**: the GUI downloads its own artifact, verifies `checksums.txt.sig` with `ssh-keygen`,
+  compares sha256, swaps the bundle/binary (whole `packnest.app` on macOS) and asks you to reopen;
+- **channel-aware**: a scoop-installed GUI only gets `scoop update packnest-desktop`;
+- without `ssh-keygen` (Windows needs the OpenSSH client feature) it **refuses** to self-update and points at the
+  install script — no "sha256 only" downgrade.
 
 ## 3. Browser form (no desktop runtime needed)
 

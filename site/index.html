@@ -148,7 +148,7 @@
       <tr><td>doctor</td><td>体检 PATH、台账、镜像、全局包、其他版本管理器；<code>--fix</code> 自动修 PATH 托管块与 pk/packnest 入口</td></tr>
       <tr><td>env</td><td>输出 shell 片段；<code>--write</code> 写进托管块（Windows 走注册表用户 Path，不受执行策略限制）</td></tr>
       <tr><td>gc</td><td>回收零引用版本与超限缓存；<code>--keep 2</code> 每个工具保留最新 2 个</td></tr>
-      <tr><td>upgrade</td><td>把已装工具一次升到索引最新（旧版本保留、全局默认跟着切、npm 随 node）；<code>--dry-run</code> 先看要升什么</td></tr>
+      <tr><td>upgrade</td><td>把已装工具一次升到索引最新（旧版本保留、全局默认跟着切、npm 随 node）；<code>--dry-run</code> 先看要升什么。<br><b>升级 pk 自己</b>：<code>pk upgrade --self</code>（地址按网络自动选 gitee/GitHub，验签后原子替换；brew/scoop 装的只提示渠道命令）</td></tr>
     </tbody>
   </table>
   <p class="after">失败时 <code>--json</code> 额外输出一条 <code>{"schema":1,"error":{"code","args","msg","exit"}}</code>（1.8 起，只增不改；人读的 stderr 与退出码不变）</p>
@@ -175,6 +175,7 @@
         <li>回收页：预演 / 真删、<code>--keep N</code> 每个工具保留最近 N 个版本</li>
         <li>只读查看 <code>which</code>（命令 → 真实路径）与 <code>env</code>（PATH / 变量）</li>
         <li>深浅色切换、<b>中英双语</b>（顶栏切换，默认跟系统语言）</li>
+        <li><b>检查更新</b>：同时看桌面端与 CLI 的版本，下载地址按当前网络自动挑（gitee / GitHub），一键升级并提示重启</li>
         <li><b>开机自启</b>（默认关，只写用户级条目：LaunchAgent / HKCU Run / XDG autostart）</li>
       </ul>
     </dd>
@@ -224,8 +225,9 @@
     不想装桌面运行时也能用浏览器形态：<code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code>，功能与桌面壳一致。</dd>
 
     <dt>不是什么</dt>
-    <dd>不是第二个安装器：没有自己的下载器、台账或更新器；卸载与升级仍指回 CLI（<code>brew upgrade packnest</code>、
-    <code>pk uninstall --all --self</code>）。</dd>
+    <dd>不是第二个安装器：没有自己的台账，也不想再实现一遍升级逻辑 —— <b>升级 CLI 交给 <code>pk upgrade --self</code></b>，
+    <b>升级桌面端由 GUI 自己换产物</b>（下载 → 验签 → 比 sha256 → 替换，提示重启）；<code>scoop</code> 装的只提示
+    <code>scoop update packnest-desktop</code>。卸载仍指回 CLI（<code>pk uninstall --all --self</code>）。</dd>
   </dl>
 </section>
 

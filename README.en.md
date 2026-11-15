@@ -66,11 +66,13 @@ pk use node@22.22.2 --project   # pin to the current project (pk.toml + pk.lock,
 pk env --shell zsh          # print PATH/registry snippet; --write puts it in the rc block
 pk doctor                   # health check (PATH / ledger / mirrors / global packages / other managers)
 pk gc --dry-run             # dry-run the reclamation of unreferenced versions and cache
+pk upgrade --self --check   # check whether pk itself has a newer release (source picked by network)
+pk upgrade --self           # upgrade pk itself: download → verify (sshsig + sha256) → atomic replace
 ```
 
-Nine fixed commands: `install` · `uninstall` (`<tool>[@<version>]` / `--all`) · `use` ·
-`list` (`[tool]` / `--available`) · `which` · `mirror` (list/probe/use/write) · `doctor` · `env` · `gc`,
-plus `version` / `help` (`pk help install` documents each one).
+Ten fixed commands: `install` · `uninstall` (`<tool>[@<version>]` / `--all`) · `use` ·
+`list` (`[tool]` / `--available`) · `which` · `mirror` (list/probe/use/write) · `doctor` · `env` · `gc` ·
+`upgrade` (upgrades installed tools; `--self` upgrades pk itself), plus `version` / `help`.
 
 Global flags: `--json` (the only contract for GUIs and scripts) · `--offline` · `--yes` ·
 `--root` (debug). Fixed exit codes: `0` ok / `1` generic / `2` usage / `3` network / `4` checksum /
@@ -81,8 +83,9 @@ human stderr line and the exit code are unchanged, `code` is omitted when no sta
 ## Desktop app (optional)
 
 `pk-desktop` is a **visual supplement** to the CLI (Wails v3 + Vue3, a separate module): the CLI must be installed first,
-and every action in the UI is a subprocess call to `pk <command> --json`. It has no downloader, ledger or self-updater of
-its own — uninstall and upgrade still go through the CLI.
+and every action in the UI is a subprocess call to `pk <command> --json`. It has no ledger of its own: the CLI upgrades itself via
+`pk upgrade --self`, while the desktop app swaps **its own** artifacts. The in-app **Updates** card shows both versions,
+picks the download source from current network conditions (gitee / GitHub) and asks for a restart after upgrading.
 
 **Install the CLI first**, then pick one row for your platform:
 

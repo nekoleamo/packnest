@@ -1931,3 +1931,14 @@ CLI 1.8.2 只有一件新增：`reload` 契约（`pk doctor --fix` / `pk env --w
   不依赖 release API（国内常限流）；
 - 行数预算：`cmd/pk` 3300 → 3400（自更新 CLI 编排）、`internal/verify` 850 → 900（SignSSHSIG + 注释）、
   新增 `internal/selfupdate` 800。
+
+### 文档/站点同步：检查更新 + 升级（2026-11-15）
+
+| 位置 | 改了什么 |
+|---|---|
+| 官网（中/英） | `upgrade` 命令行补 `--self`（含"地址按网络自动选、验签后原子替换、brew/scoop 只提示"）；桌面端特性列表新增「检查更新」；把"GUI 没有更新器"改成**分工表述**（CLI 升 CLI、GUI 换自己的产物） |
+| README.md / README.en.md | 快速开始补 `pk upgrade --self --check` / `--self`；命令面描述补 `--self`；桌面端段落补「更新」区块（两个版本 + 自动选源 + 重启提示）；英文版把"Nine fixed commands"更正为 **Ten**（漏了 upgrade） |
+| docs/cli.md（中）/ docs/en/cli.md | §10.9 升级 pk 自己：示例、三个要点（自动选源 / 渠道自知 / 校验不打折） |
+| docs/gui.md（中/英） | 新增「检查更新」小节（1.9）：CLI 与 GUI 的分工、按探测顺序选源、scoop 只提示、缺 ssh-keygen 拒绝自更新 |
+| docs/json-schema.md | `pk upgrade --self --json` 的字段表（current/latest/channel/sources/dir_url/applied） |
+| docs/publishing.md | `scripts/latest-gui` 是 GUI 版本的单一真源（不依赖 release API） |

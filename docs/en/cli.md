@@ -340,6 +340,28 @@ the new version. **Old versions are kept** — clean them up with `pk gc --keep 
 
 `pk list` prints the same information as an upgrade hint, pointing at `pk upgrade <tool>`.
 
+### 10.9 Upgrading pk itself (`--self`, since 1.9)
+
+```bash
+$ pk upgrade --self --check     # check only
+  source: gitee (320ms)
+current 1.9.0, latest 1.9.1 (source: gitee)
+a newer release is available: pk upgrade --self (channel: script-posix)
+
+$ pk upgrade --self             # really upgrade: download → verify → sha256 → atomic replace
+  source: gitee (298ms)
+  downloading packnest_1.9.1_darwin_arm64.tar.gz (gitee)
+  upgraded to 1.9.1: /Users/you/.local/bin/pk
+```
+
+- **Source auto-picked**: gitee / GitHub are ranked with the same probe `pk mirror probe` uses (6h cache);
+  the fastest one wins, and the rest are tried in order if it fails.
+- **Channel-aware**: `brew` / `scoop` / `npm` installs are **never** replaced in place (that would desync the
+  package manager ledger) — you only get the command to run. `--force` overrides the check.
+- **No downgrade of verification**: the sshsig on `checksums.txt` (built-in key) plus the artifact sha256 must both
+  pass; otherwise nothing is touched. `--json` shape: [docs/json-schema.md](json-schema.md).
+
+
 ## 11. version / help
 
 ```bash

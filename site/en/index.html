@@ -149,7 +149,7 @@
       <tr><td>doctor</td><td>checks PATH, ledger, mirrors, global packages and other version managers; <code>--fix</code> repairs the PATH managed block and the pk/packnest entries</td></tr>
       <tr><td>env</td><td>prints a shell snippet; <code>--write</code> updates the managed block (on Windows the user Path registry value, immune to ExecutionPolicy)</td></tr>
       <tr><td>gc</td><td>reclaims unreferenced versions and over-limit cache; <code>--keep 2</code> keeps the newest two per tool</td></tr>
-      <tr><td>upgrade</td><td>upgrades every installed tool to the newest indexed release (old versions kept, global default follows, npm follows node); <code>--dry-run</code> previews</td></tr>
+      <tr><td>upgrade</td><td>upgrades every installed tool to the newest indexed release (old versions kept, global default follows, npm follows node); <code>--dry-run</code> previews.<br><b>Upgrade pk itself</b>: <code>pk upgrade --self</code> (source auto-picked by network: gitee/GitHub; signature checked, replaced atomically; brew/scoop installs only get the command)</td></tr>
     </tbody>
   </table>
   <p class="after">On failure <code>--json</code> also emits <code>{"schema":1,"error":{"code","args","msg","exit"}}</code> (since 1.8, additive only; the human stderr line and exit code are unchanged)</p>
@@ -227,8 +227,10 @@
     <code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code>, same features.</dd>
 
     <dt>What it is not</dt>
-    <dd>Not a second package manager: no downloader of its own, no separate ledger, no self-updater. Uninstall and upgrade
-    still go through the CLI (<code>brew upgrade packnest</code>, <code>pk uninstall --all --self</code>).</dd>
+    <dd>Not a second package manager: no separate ledger, and no second implementation of upgrading —
+    <b>the CLI upgrades itself via <code>pk upgrade --self</code></b>, while <b>the desktop app swaps its own artifacts</b>
+    (download → verify signature → sha256 → replace → ask to restart); <code>scoop</code> installs only get
+    <code>scoop update packnest-desktop</code>. Uninstall still goes through the CLI (<code>pk uninstall --all --self</code>).</dd>
   </dl>
 </section>
 
