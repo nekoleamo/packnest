@@ -1,16 +1,16 @@
 {
-  "version": "1.8.1",
+  "version": "1.8.2",
   "description": "国内网络开箱可用的多语言运行时安装器（node/pnpm/bun/go/python）",
   "homepage": "https://gitee.com/null_593_5354/packnest",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://gitee.com/null_593_5354/packnest/releases/download/v1.8.1/packnest_1.8.1_windows_amd64.zip",
-      "hash": "d95f059b9a8ff25b7fe7c9999e8ee8638716cd073c238df622b1f932872e3da1"
+      "url": "https://gitee.com/null_593_5354/packnest/releases/download/v1.8.2/packnest_1.8.2_windows_amd64.zip",
+      "hash": "32657c2ed30c4c4ea517b6776317be7f4cac42e283ee18abaf1588aa3e45814d"
     },
     "arm64": {
-      "url": "https://gitee.com/null_593_5354/packnest/releases/download/v1.8.1/packnest_1.8.1_windows_arm64.zip",
-      "hash": "204eaf27737a7fe9ba08c43471e179f0f925cb097d913f4930d447d9b1e77fbb"
+      "url": "https://gitee.com/null_593_5354/packnest/releases/download/v1.8.2/packnest_1.8.2_windows_arm64.zip",
+      "hash": "03c40eca64314b9939676e22dd0d829cac76eda44b390a4619ebdf5fba0b5b9e"
     }
   },
   "bin": [["packnest.exe", "pk"], "packnest.exe"],
