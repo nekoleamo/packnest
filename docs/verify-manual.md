@@ -1,4 +1,7 @@
-# 需要人工确认的两项（自动化覆盖不到）
+# 需要人工确认的项（自动化覆盖不到）
+
+> **2026-11-15 更新**：第 3 项 **macOS Gatekeeper 首启已确认通过**（用户实操，见文末记录）。
+> 现在只剩第 1 项 Windows ARM64 运行时等待实机。
 
 > 出处：`docs/progress.md` 的「剩余项」表。这两项**不是没做**，而是没有可信的自动化环境：
 > 无公共 ARM Windows runner、Gatekeeper 首启只能由真人点。
@@ -61,8 +64,8 @@ pk doctor --globals                             # 期望：没有 GLOBAL_* warn
 
 ```bash
 # 从发布页下载 GUI（gui-v*，只发 Apple Silicon）
-curl -LO https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.10.2/packnest-desktop_0.10.2_darwin_arm64.app.zip
-unzip -q packnest-desktop_0.10.2_darwin_arm64.app.zip
+curl -LO https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.11.2/packnest-desktop_0.11.2_darwin_arm64.app.zip
+unzip -q packnest-desktop_0.11.2_darwin_arm64.app.zip
 spctl -a -vvv -t exec packnest.app ; echo "退出码=$?"   # 期望：rejected（ad-hoc）
 open packnest.app                                      # 期望：弹"无法验证开发者" → 系统设置里放行 → 再次 open 能起窗口
 ```
@@ -91,3 +94,17 @@ pk --version      # brew/脚本装的 CLI 不在 Gatekeeper 管辖内（未签�
 - Linux/macOS 三平台真机装一遍 + 卸载零残留：`smoke.yml` 5 个 runner
 - `install.ps1` 的语法与 `-DryRun` 分支：`smoke.yml` 的 windows 步骤（PowerShell 7 解析）
 - GUI ↔ CLI 的 `--json` 契约：`ci.yml` 的 `gui-contract` job（真 `pk`）
+
+## 记录
+
+### 2026-11-15 第 3 项 ✅
+平台/版本：macOS（Apple Silicon）· GUI **0.11.2**（`gui-v0.11.2`，ad-hoc 签名）· CLI **1.8.1**
+结果：**通过**。首次 `open packnest.app` 被 Gatekeeper 拦下（"无法验证开发者"），在
+「系统设置 → 隐私与安全性」点「仍要打开」后正常起窗口，界面能读到先装好的 CLI
+（顶部显示 `CLI 1.8.1 · <路径>`），装/切/卸载等操作都走 CLI 正常完成。
+
+备注：
+- `spctl -a -vvv -t exec` 判 `rejected` 是**符合预期**的（ad-hoc 签名未公证），不是 bug；
+- 这次**没有**记录具体 macOS 大版本；后续若要写进发布说明，补一句系统版本即可；
+- 由此**不能**推出"可以做 Homebrew cask"：cask 的准入要求是 Gatekeeper 默认放行（Developer ID + 公证），
+  与"手动放行一次能用"是两件事（见 `docs/gui.md` 的渠道表）。

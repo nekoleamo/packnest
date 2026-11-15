@@ -513,7 +513,7 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ### 接下来可做的（1.3 已落地，待发版）
 
-1. **2 项人工确认**（唯一挡在「全部自动化跑通」前面的）：Windows ARM64 运行时、macOS Gatekeeper 首启 ——
+1. **人工确认**（唯一挡在「全部自动化跑通」前面的）：Windows ARM64 运行时（macOS Gatekeeper 首启已于 2026-11-15 确认） ——
    步骤与通过标准在 `docs/verify-manual.md`，缺的是对应硬件/真人操作（`.cmd` shim 已在 1.4 自动化进 smoke）
 2. **已无阻塞项**：1.1/1.2/1.3 的可选增强与偿债全部完成；`v1.3.1` 已发（2026-11-13）
 3. **下一轮候选**在 `~/Documents/Plan/17-包管理器/pn-1.3-候选清单.md` 的“不做”一栏（`pk upgrade` 独立命令、自更新器、daemon）
@@ -774,7 +774,8 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 | 拒绝 https→http 的降级重定向 | ✅ 已做：`fetch.checkRedirect` 拒绝任何 https→http 的降级与 >10 次重定向 | — |
 | 卸载编排挪进 `internal/install`（清 `cmd/pk` 3,220 warn） | ✅ 部分完成：渠道识别（`DetectInstallChannel` / `SelfRemoveHint`）已挪进 `internal/install`，`cmd/pk` 3,220 → **3,181**（warn 消失）；剩余打印/交互编排仍留在 cmd | — |
 | winget 渠道 | ❌ 已放弃（2026-11-11 拍板）：不再生成草稿、不提 PR；`packaging/winget/` 与渠道识别已删 | — |
-| windows-arm64 运行时、Gatekeeper 首启 | ⏳ 人工确认（步骤与通过标准见 `docs/verify-manual.md`） | 无公共 ARM Windows runner；ad-hoc 签名首启只能真人放行 |
+| macOS Gatekeeper 首启 | ✅ 2026-11-15 用户实操确认（GUI 0.11.2 + CLI 1.8.1，放行一次后正常起窗口并读到 CLI） | — |
+| windows-arm64 运行时 | ⏳ 仍待实机（步骤与通过标准见 `docs/verify-manual.md` §1） | 无公共 ARM Windows runner |
 | Windows `.cmd` shim | ✅ 2026-11-13 自动化（`smoke.yml` 的 `pwsh` 步骤） | — |
 
 ## 已知缺口（按计划补齐，不是遗漏）

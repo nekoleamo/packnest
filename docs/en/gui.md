@@ -24,6 +24,7 @@ https://github.com/nekoleamo/packnest/releases/tag/gui-v<version>
 | Linux (amd64) | `packnest-desktop_<version>_linux_amd64.tar.gz` | unzip and run `pk-desktop`; needs GTK4 + WebKitGTK 6.0 (`sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev`) |
 
 macOS ships arm64 only (Apple Silicon); Intel Macs must build it themselves with `make gui-app`.
+The one-time Gatekeeper approval **has been verified** (2026-11-15, GUI 0.11.2 + CLI 1.8.1): blocked → "Open Anyway" in Privacy & Security → the window starts and the CLI is picked up. See `docs/verify-manual.md` §3.
 
 ## 2. Install the CLI first
 

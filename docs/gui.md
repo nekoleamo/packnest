@@ -23,6 +23,8 @@ https://github.com/nekoleamo/packnest/releases/tag/gui-v<版本>
 | Linux（amd64） | `packnest-desktop_<版本>_linux_amd64.tar.gz` | 解压跑 `pk-desktop`；需要 GTK4 + WebKitGTK 6.0（Debian/Ubuntu：`sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev`） |
 
 macOS 只发 arm64（Apple Silicon）；Intel Mac 需要自己 `make gui-app`（2026-11-12 拍板放弃 intel 产物）。
+首次放行这一步**已实测通过**（2026-11-15，GUI 0.11.2 + CLI 1.8.1：被拦 → 隐私与安全性点「仍要打开」→ 正常起窗口并读到 CLI），
+详见 `docs/verify-manual.md` §3。
 
 ### 用脚本装（推荐，和 CLI 一样的校验强度）
 
