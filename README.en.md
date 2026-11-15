@@ -82,7 +82,7 @@ human stderr line and the exit code are unchanged, `code` is omitted when no sta
 
 ## Desktop app (optional)
 
-`pk-desktop` is a **visual supplement** to the CLI (Wails v3 + Vue3, a separate module): the CLI must be installed first,
+`pk-desktop` is a **visual supplement** to the CLI (native UI, pure Go with no cgo and no webview; a separate module): the CLI must be installed first,
 and every action in the UI is a subprocess call to `pk <command> --json`. It has no ledger of its own: the CLI upgrades itself via
 `pk upgrade --self`, while the desktop app swaps **its own** artifacts. The in-app **Updates** card shows both versions,
 picks the download source from current network conditions (gitee / GitHub) and asks for a restart after upgrading.
@@ -113,7 +113,7 @@ together with `checksums.txt` + `checksums.txt.sig` (same release key as the CLI
 - read-only `which` / `env` views, light/dark toggle, Chinese/English UI, and launch at login (off by default)
 
 If the CLI is missing, the app shows the install command for your platform with a copy button.
-macOS builds are ad-hoc signed (allow once in System Settings → Privacy & Security); Linux needs GTK4 + WebKitGTK 6.0.
+macOS builds are ad-hoc signed (allow once in System Settings → Privacy & Security); Windows and Linux need no webview runtime (the Linux tray icon wants `libayatana-appindicator3`).
 `sh scripts/install-gui.sh` (macOS) / `install-gui.ps1` (Windows) download, verify sshsig + sha256, and unpack into `~/Applications`.
 No desktop runtime? Use `pk-desktop --serve` → `http://127.0.0.1:7799/`.
 
@@ -332,7 +332,7 @@ pk only writes `~/.packnest` plus its own managed blocks, so nothing else is lef
 - pnpm ships as per-platform packages (`@pnpm/exe.<os>-<arch>`, only from 11.0.0-rc.3); `pk install pnpm@10` fails fast with a corepack / `npm i -g pnpm@10` suggestion
 - Cache is content-addressed (`<sha256>.<ext>`) and deduped across versions; `alias/<algo>-<hex>` maps published digests to those files so a warm `PK_CACHE` is reusable on a fresh machine (no TOFU/ledger needed)
 - Per-project override of the global version requires direnv (`pk env --project`); without direnv `node` still resolves to the global default
-- The GUI is an optional supplement (Wails v3 + Vue3, current **0.11.4**): it requires the CLI and drives it via `pk --json`; four artifacts (macOS arm64, Windows amd64/arm64, Linux amd64) with upgrade hints, `doctor --fix`, `gc --keep` and a check-for-updates card (1.9); it is not a second state manager
+- The GUI is an optional supplement (native UI, pure Go, current **0.12.0**): it requires the CLI and drives it via `pk --json`; four artifacts (macOS arm64, Windows amd64/arm64, Linux amd64) with upgrade hints, `doctor --fix`, `gc --keep` and a check-for-updates card (1.9); it is not a second state manager
 
 ## License
 

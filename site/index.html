@@ -160,7 +160,7 @@
 
 <section id="gui">
   <h2>桌面端 <span class="hint">可选 · 独立产物 · 必须先装 CLI</span></h2>
-  <p class="gui-lede">GUI（<code>pk-desktop</code>，Wails + Vue3）只是 CLI 的可视化补充：不 import 任何内部包，
+  <p class="gui-lede">GUI（<code>pk-desktop</code>，原生界面：纯 Go、无 webview）只是 CLI 的可视化补充：不 import 任何内部包，
   每个操作都是子进程调 <code>pk &lt;命令&gt;</code> <code>--json</code>，业务真相始终在 CLI 和 <code>~/.packnest</code> 里。
   所以它永远比 CLI 晚半步，也不会替你下载第二份运行时。</p>
 
@@ -221,7 +221,7 @@
 
     <dt>前置条件</dt>
     <dd>先装 CLI（<code>pk</code>）—— 没装时界面顶部会直接给出<b>当前平台</b>的安装命令（Windows 走 PowerShell，其余走 <code>sh</code>）并带复制按钮。
-    macOS 是 ad-hoc 签名，首次打开要在「系统设置 → 隐私与安全性」放行一次；Linux 需要 GTK4 + WebKitGTK 6.0（<code>libgtk-4-dev</code> <code>libwebkitgtk-6.0-dev</code>）。
+    macOS 是 ad-hoc 签名，首次打开要在「系统设置 → 隐私与安全性」放行一次；Windows/Linux 不需要任何 webview 运行时（Linux 托盘另需 <code>libayatana-appindicator3</code>）。
     不想装桌面运行时也能用浏览器形态：<code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code>，功能与桌面壳一致。</dd>
 
     <dt>不是什么</dt>
