@@ -20,7 +20,7 @@ func (g *gui) pageMirror(c *ui.Context) {
 	}
 
 	// 当前档位
-	ui.Row(c).Fill().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		ui.Text(c, g.t("当前档位", "Current")).TextColor(c.Theme().TextMuted).Width(90)
 		ui.Badge(c, g.mirror.Current)
 	})
@@ -31,7 +31,7 @@ func (g *gui) pageMirror(c *ui.Context) {
 	list.Key = func(i int) any { return mirrors[i].Name }
 	ui.List(c, list, len(mirrors), func(i int) {
 		m := mirrors[i]
-		ui.Row(c).Fill().Gap(8).Padding(6).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).Padding(6).Children(func() {
 			if m.Current {
 				ui.Badge(c, g.t("使用中", "in use"))
 			}
@@ -42,12 +42,12 @@ func (g *gui) pageMirror(c *ui.Context) {
 				g.loadMirrors(m.Name)
 			}
 		})
-	})
+	}).Height(200)
 
 	ui.Divider(c)
 
 	// 探测：host + 状态 + 延迟
-	ui.Row(c).Fill().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		ui.Text(c, g.t("源探测", "Probe sources")).Bold()
 		if g.busy["probe"] {
 			ui.Spinner(c)
@@ -73,17 +73,21 @@ func (g *gui) pageMirror(c *ui.Context) {
 		}
 		rows = append(rows, [4]string{hostOf(p.URL), status, fmt.Sprintf("%d ms", p.LatencyMS), p.URL})
 	}
-	cols := []ui.TableColumn{
-		{Title: g.t("主机", "Host"), Width: 260},
-		{Title: g.t("状态", "Status"), Width: 180},
-		{Title: g.t("延迟", "Latency"), Width: 90},
-		{Title: g.t("地址", "URL")},
-	}
 	tl := g.table("probe")
 	tl.Key = func(i int) any { return rows[i][3] }
-	ui.Table(c, tl, cols, len(rows), func(row, col int) {
-		ui.Text(c, rows[row][col]).SingleLine()
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
+		for _, h := range []string{g.t("主机", "Host"), g.t("状态", "Status"), g.t("延迟", "Latency"), g.t("地址", "URL")} {
+			ui.Text(c, h).TextColor(c.Theme().TextMuted).Width(200)
+		}
 	})
+	ui.List(c, tl, len(rows), func(i int) {
+		ui.Row(c).FillWidth().Gap(8).Padding(4).Children(func() {
+			ui.Text(c, rows[i][0]).Width(200).SingleLine()
+			ui.Text(c, rows[i][1]).Width(200).SingleLine()
+			ui.Text(c, rows[i][2]).Width(80).SingleLine()
+			ui.Text(c, rows[i][3]).SingleLine().Grow(1)
+		})
+	}).Height(220)
 }
 
 func (g *gui) loadMirrors(use string) {

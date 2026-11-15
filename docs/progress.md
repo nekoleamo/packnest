@@ -735,6 +735,15 @@ mygo 的原生 ui（纯 Go、无 cgo、无 webview）把这四条一起解决。
 `_GUI4_GCGuard`、`_GUI6_I18nComplete`（切英文后不再出中文）、`_GUI6_NoRawErrorInUI`（错误翻译成人话）、
 `_GUI7_StateShared`（界面数据只来自 state 层）。全部 `ui.Tester` 无窗口跑，`go test -race ./...` 22 passed。
 
+**三个"只有真实窗口里才犯"的布局坑（都写进了测试）**：
+
+1. `ui.Row(c).Fill()` 里的子元素会塌成 `0x0`（宽高都去问父级，父级又在等子元素）→ 横向行一律 `FillWidth()`。
+2. 放在 `ui.Scroll` 里的 `List`/`Table` **必须显式给 `Height`**，否则只画表头/一行。
+3. mygo 0.9.1 的 `ui.Table` 在真实窗口（GPU）里只画表头，`ui.Tester` 里却完全正常 ——
+   这类"测试绿、窗口错"的问题逼出了 `TestAcceptance_GUI5_LayoutNotCollapsed`：
+   每页关键文字都断言"找得到 + 尺寸 > 0 + 在窗口内"，不是只看 `Texts()` 里有没有这个字。
+   环境/体检/探测三处表格改成 `List + Row` 绕开。
+
 **实测**（2026-11-15，macOS 14.6 / go1.27.4）：`CGO_ENABLED=0` 交叉编 darwin-arm64 / windows-amd64+arm64 /
 linux-amd64+arm64 全部成功；真机起窗口读到真 CLI（`CLI 1.9.1 /opt/homebrew/bin/pk`，已装 pnpm 12.21.0 45.7 MiB）；
 `--serve` 下 `/api/status` 返回真数据、静态页 200。二进制 18–21MB。

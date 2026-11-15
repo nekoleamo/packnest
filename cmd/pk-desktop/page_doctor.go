@@ -12,7 +12,7 @@ import (
 func (g *gui) pageDoctor(c *ui.Context) {
 	g.head(c, "体检", "Doctor", "doctor", func() { g.runDoctor(false) })
 
-	ui.Row(c).Fill().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		ui.Checkbox(c, &g.dGlobals, g.t("检查全局包", "Check global packages"))
 		ui.Checkbox(c, &g.dProbe, g.t("实测原生模块", "Probe native modules"))
 		if ui.PrimaryButton(c, g.t("开始体检", "Run doctor")).Clicked() {
@@ -22,10 +22,14 @@ func (g *gui) pageDoctor(c *ui.Context) {
 	})
 
 	if len(g.doctor.Issues) == 0 {
-		if g.busy["doctor"] {
+		switch {
+		case g.busy["doctor"]:
 			ui.Spinner(c)
-		} else {
+		case g.doctorRan:
 			ui.Text(c, g.t("没问题。", "No issues.")).TextColor(c.Theme().Success)
+		default:
+			g.note(c, "点「开始体检」看环境有没有问题（只读；勾上「实测原生模块」会真的用 node 加载一次原生模块）。",
+				"Press Run doctor: it only reads. Ticking native modules makes node load them once.")
 		}
 	} else {
 		ui.Textf(c, g.t("%d 个问题", "%d issues"), len(g.doctor.Issues)).Bold()
@@ -33,16 +37,20 @@ func (g *gui) pageDoctor(c *ui.Context) {
 		for _, is := range g.doctor.Issues {
 			rows = append(rows, [3]string{is.Severity, is.Code, is.Message})
 		}
-		cols := []ui.TableColumn{
-			{Title: g.t("级别", "Severity"), Width: 80},
-			{Title: g.t("代码", "Code"), Width: 220},
-			{Title: g.t("说明", "Message")},
-		}
 		tl := g.table("issues")
 		tl.Key = func(i int) any { return rows[i][1] + rows[i][2] }
-		ui.Table(c, tl, cols, len(rows), func(row, col int) {
-			ui.Text(c, rows[row][col]).SingleLine()
+		ui.Row(c).FillWidth().Gap(8).Children(func() {
+			ui.Text(c, g.t("级别", "Severity")).TextColor(c.Theme().TextMuted).Width(80)
+			ui.Text(c, g.t("代码", "Code")).TextColor(c.Theme().TextMuted).Width(220)
+			ui.Text(c, g.t("说明", "Message")).TextColor(c.Theme().TextMuted)
 		})
+		ui.List(c, tl, len(rows), func(i int) {
+			ui.Row(c).FillWidth().Gap(8).Padding(4).Children(func() {
+				ui.Text(c, rows[i][0]).Width(80).SingleLine()
+				ui.Text(c, rows[i][1]).Width(220).SingleLine()
+				ui.Text(c, rows[i][2]).SingleLine().Grow(1)
+			})
+		}).Height(240)
 	}
 
 	if len(g.doctor.Fixed) > 0 {
@@ -75,7 +83,7 @@ func (g *gui) runDoctor(fix bool) {
 		if err != nil {
 			return nil, err
 		}
-		return func() { g.doctor = res }, nil
+		return func() { g.doctor, g.doctorRan = res, true }, nil
 	})
 }
 

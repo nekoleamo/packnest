@@ -45,7 +45,7 @@ func (g *gui) pageSettings(c *ui.Context) {
 		g.note(c, "全部通过 `pk <命令> --json` 子进程：界面本身不读 PK_ROOT、不改 pk 的任何文件。",
 			"Everything goes through `pk <cmd> --json` subprocesses: this app never reads PK_ROOT and never edits pk's files.")
 		g.kv(c, g.t("偏好文件", "Preferences"), prefsPath(), true)
-		ui.Row(c).Fill().Gap(8).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).Children(func() {
 			if ui.Button(c, g.t("打开偏好目录", "Open preferences folder")).Clicked() {
 				_ = mygo.Shell.OpenPath(appDir())
 			}

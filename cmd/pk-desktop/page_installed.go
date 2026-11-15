@@ -29,7 +29,7 @@ func (g *gui) pageInstalled(c *ui.Context) {
 			ui.Textf(c, g.t("有 %d 项可升级", "%d updates available"), len(g.tools.Outdated)).Bold()
 			for _, o := range g.tools.Outdated {
 				o := o
-				ui.Row(c).Fill().Gap(8).Children(func() {
+				ui.Row(c).FillWidth().Gap(8).Children(func() {
 					ui.Textf(c, "%s %s → %s", o.Name, o.Installed, o.Latest)
 					ui.Button(c, g.t("升级", "Upgrade")).OnClick(func() {
 						g.enqueue(o.Name + "@" + o.Latest)
@@ -53,7 +53,7 @@ func (g *gui) pageInstalled(c *ui.Context) {
 	list.Key = func(i int) any { return tools[i].Name + "@" + tools[i].Version }
 	ui.List(c, list, len(tools), func(i int) {
 		t := tools[i]
-		ui.Row(c).Fill().Gap(8).Padding(6).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).Padding(6).Children(func() {
 			ui.Text(c, t.Name).Bold().Width(90)
 			ui.Text(c, t.Version).Width(130)
 			if t.Active {
@@ -78,12 +78,12 @@ func (g *gui) pageInstalled(c *ui.Context) {
 			}
 			ui.Button(c, g.t("卸载", "Uninstall")).OnClick(func() { g.askUninstall(t.Name) }) // 改机器的动作放到确认之后
 		})
-	})
+	}).Height(320)
 }
 
 // installHint 在空列表时给一条能立刻照做的命令。
 func (g *gui) installHint(c *ui.Context) {
-	ui.Row(c).Fill().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		ui.Text(c, g.t("装一个试试：", "Try: ")).TextColor(c.Theme().TextMuted)
 		ui.Text(c, "pk install node@lts").Font("monospace").SingleLine()
 		if ui.Button(c, g.t("复制", "Copy")).Clicked() {

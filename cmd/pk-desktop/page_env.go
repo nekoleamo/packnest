@@ -14,7 +14,7 @@ func (g *gui) pageEnv(c *ui.Context) {
 	g.head(c, "环境", "Environment", "env", func() { g.loadEnv(g.envProj) })
 
 	// which
-	ui.Row(c).Fill().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		ui.Text(c, "pk which").Font("monospace")
 		ui.TextInput(c, &g.whichCmd).Placeholder("node").Width(200).OnSubmit(func() { g.runWhich() })
 		if ui.Button(c, g.t("查一遍", "Look up")).Clicked() {
@@ -31,7 +31,7 @@ func (g *gui) pageEnv(c *ui.Context) {
 		}
 	})
 
-	ui.Row(c).Fill().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		if ui.Switch(c, &g.envProj).Changed() {
 			g.loadEnv(g.envProj)
 		}
@@ -81,7 +81,7 @@ func (g *gui) pageEnv(c *ui.Context) {
 	ui.Divider(c)
 
 	// 写 .npmrc（会改用户已有配置文件：只增一行 registry，写前 CLI 自己备份）
-	ui.Row(c).Fill().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		ui.Text(c, g.t("把当前档位的 registry 写进 ~/.npmrc", "Write the current registry into ~/.npmrc")).Grow(1)
 		ui.Button(c, g.t("写入 .npmrc", "Write .npmrc")).OnClick(func() { g.askNpmrc() })
 	})

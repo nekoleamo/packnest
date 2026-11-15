@@ -14,7 +14,7 @@ import (
 func (g *gui) pageUpdate(c *ui.Context) {
 	g.head(c, "更新", "Update", "update", nil)
 
-	ui.Row(c).Fill().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		if g.busy["update"] {
 			ui.Spinner(c)
 		}
@@ -37,7 +37,7 @@ func (g *gui) pageUpdate(c *ui.Context) {
 	ui.Column(c).Fill().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
 		ui.Text(c, g.t("界面（GUI）", "App (GUI)")).Bold()
 		ui.Textf(c, "当前 %s · 最新 %s", g.upd.GUI.Current, orDash(g.upd.GUI.Latest))
-		ui.Row(c).Fill().Gap(8).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).Children(func() {
 			switch {
 			case g.upd.GUI.Channel == "scoop" || g.upd.GUI.Channel == "brew":
 				ui.Textf(c, g.t("这个 GUI 是 %s 装的：%s", "Installed by %s: %s"), g.upd.GUI.Channel, g.upd.GUI.ChannelHint).
@@ -58,7 +58,7 @@ func (g *gui) pageUpdate(c *ui.Context) {
 	ui.Column(c).Fill().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
 		ui.Text(c, g.t("命令行（pk）", "CLI (pk)")).Bold()
 		ui.Textf(c, "当前 %s · 最新 %s", g.upd.CLI.Current, orDash(g.upd.CLI.Latest))
-		ui.Row(c).Fill().Gap(8).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).Children(func() {
 			switch {
 			case g.upd.CLI.Channel == "scoop" || g.upd.CLI.Channel == "brew":
 				ui.Textf(c, g.t("CLI 是 %s 装的：%s", "CLI installed by %s: %s"), g.upd.CLI.Channel, g.upd.CLI.ChannelHint).

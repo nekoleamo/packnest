@@ -81,6 +81,7 @@ type gui struct {
 	whichCmd  string
 	which     pkcli.Which
 	doctor    state.Doctor
+	doctorRan bool
 	dGlobals  bool
 	dProbe    bool
 	gc        pkcli.GCResult
@@ -105,6 +106,8 @@ type gui struct {
 	tables map[string]*ui.ListState
 	// open 是折叠组的开关（gc 的分组清单）
 	open map[string]*bool
+	// visited 记"这一页已经拉过一次数"（进页懒加载）
+	visited map[string]bool
 }
 
 // confirmBox 是"这一步会改你机器"的统一确认框：open=true 才画，yes 由各页消费。
@@ -156,7 +159,7 @@ func (g *gui) view(c *ui.Context) {
 	ui.Column(c).Fill().Children(func() {
 		g.header(c)
 		ui.Divider(c)
-		ui.Row(c).Fill().Grow(1).Children(func() {
+		ui.Row(c).FillWidth().Grow(1).Children(func() {
 			ui.Sidebar(c, &g.page, func() {
 				ui.SidebarSection(c, g.t("工具", "Tools"), nil, func() {
 					ui.SidebarItem(c, "installed", nil, g.t("已装工具", "Installed")).Children(func() {
@@ -184,7 +187,9 @@ func (g *gui) view(c *ui.Context) {
 				})
 			}).Width(190)
 			ui.Scroll(c).Fill().Grow(1).Children(func() {
-				ui.Column(c).Fill().Padding(16).Gap(12).Children(func() {
+				// 只填宽不填高：放在 Scroll 里时 Fill() 会把高度钉成视口高度，
+				// 后面的表格就只剩表头可见（2026-11-15 实测踩到）
+				ui.Column(c).FillWidth().Padding(16).Gap(12).Children(func() {
 					g.pageView(c)
 				})
 			})
@@ -194,8 +199,9 @@ func (g *gui) view(c *ui.Context) {
 	g.confirmView(c)
 }
 
-// pageView 派发到当前页。
+// pageView 派发到当前页；第一次进某页时顺手把它的数据拉一次（每页只拉一次）。
 func (g *gui) pageView(c *ui.Context) {
+	g.ensureLoaded(g.page)
 	for _, p := range pages {
 		if p.id == g.page {
 			p.build(g, c)
@@ -205,9 +211,31 @@ func (g *gui) pageView(c *ui.Context) {
 	g.pageInstalled(c)
 }
 
+// ensureLoaded 是"进页就取数"的懒加载：只认本地/缓存的便宜查询，
+// 联网的（更新检查、源探测、体检）留给用户自己点。
+func (g *gui) ensureLoaded(id string) {
+	if g.visited == nil {
+		g.visited = map[string]bool{}
+	}
+	if g.visited[id] {
+		return
+	}
+	g.visited[id] = true
+	switch id {
+	case "mirror":
+		g.loadMirrors("")
+	case "env":
+		g.loadEnv(g.envProj)
+	case "gc":
+		g.runGC(false)
+	case "queue", "versions":
+		g.reloadAvailable()
+	}
+}
+
 // header 是顶部状态条：CLI 状态 + 语言 + 主题 + 刷新。
 func (g *gui) header(c *ui.Context) {
-	ui.Row(c).Fill().Padding(12, 16).Gap(12).Children(func() {
+	ui.Row(c).FillWidth().Padding(12, 16).Gap(12).Children(func() {
 		ui.Text(c, "packnest").FontSize(18).Bold()
 		if g.status.OK {
 			ui.Badge(c, "CLI "+g.status.CLI.Version)
@@ -237,7 +265,7 @@ func (g *gui) header(c *ui.Context) {
 
 	// 没装 CLI 时给"对应平台"的安装命令（Windows 用户不该被塞一条 sh 命令）
 	if !g.status.OK {
-		ui.Row(c).Fill().Padding(0, 16, 12, 16).Gap(8).Children(func() {
+		ui.Row(c).FillWidth().Padding(0, 16, 12, 16).Gap(8).Children(func() {
 			ui.Text(c, g.t("首次使用先装 CLI：", "Install the CLI first:")).TextColor(c.Theme().Warning)
 			ui.Text(c, installCmd(g.status.Platform)).Font("monospace").SingleLine()
 			if ui.Button(c, g.t("复制", "Copy")).Clicked() {

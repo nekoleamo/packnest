@@ -15,7 +15,7 @@ func (g *gui) pageQueue(c *ui.Context) {
 	g.head(c, "安装", "Install", "", func() { g.reloadAvailable() })
 
 	// 一条 spec 一行：回车或点「加进队列」
-	ui.Row(c).Fill().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		ui.TextInput(c, &g.queueInput).Placeholder(g.t("例如 node@22 / pnpm / go@1.24.0", "e.g. node@22 / pnpm / go@1.24.0")).Grow(1).OnSubmit(func() {
 			g.enqueue(g.queueInput)
 		})
@@ -29,14 +29,14 @@ func (g *gui) pageQueue(c *ui.Context) {
 
 	// 队列
 	if len(g.queue) > 0 {
-		ui.Row(c).Fill().Gap(8).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).Children(func() {
 			ui.Textf(c, g.t("队列（%d）", "Queue (%d)"), len(g.queue)).Bold()
 			ui.Button(c, g.t("开始", "Start")).Disabled(g.queuePending() == 0 || g.busy["queue"]).OnClick(g.runQueue)
 			ui.Button(c, g.t("清掉已完成", "Clear finished")).OnClick(g.clearDone)
 		})
 		for i, q := range g.queue {
 			i, q := i, q
-			ui.Row(c).Fill().Gap(8).Padding(6).Children(func() {
+			ui.Row(c).FillWidth().Gap(8).Padding(6).Children(func() {
 				ui.Text(c, q.Spec).Width(200)
 				switch q.State {
 				case "wait":
@@ -73,7 +73,7 @@ func (g *gui) pageQueue(c *ui.Context) {
 	list.Key = func(i int) any { return g.available[i].Name }
 	ui.List(c, list, len(g.available), func(i int) {
 		a := g.available[i]
-		ui.Row(c).Fill().Gap(8).Padding(6).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).Padding(6).Children(func() {
 			ui.Text(c, a.Name).Bold().Width(90)
 			ui.Text(c, a.Latest).Width(120)
 			if a.LTS != "" {
@@ -96,7 +96,7 @@ func (g *gui) pageQueue(c *ui.Context) {
 				g.runQueue()
 			})
 		})
-	})
+	}).Height(240)
 }
 
 // versionsPage 是"某个工具的全部版本"：从安装页点进来。
@@ -106,7 +106,7 @@ func (g *gui) pageVersions(c *ui.Context) {
 		ui.Text(c, g.t("先从「安装」页挑一个工具。", "Pick a tool on the Install page first.")).TextColor(c.Theme().TextMuted)
 		return
 	}
-	ui.Row(c).Fill().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		ui.Text(c, g.verTool).Bold()
 		ui.Textf(c, g.t("最新 %s", "latest %s"), g.versions.Latest).TextColor(c.Theme().TextMuted)
 		ui.Textf(c, g.t("共 %d 个版本", "%d versions"), g.versions.Total).TextColor(c.Theme().TextMuted)
@@ -123,7 +123,7 @@ func (g *gui) pageVersions(c *ui.Context) {
 	list.Key = func(i int) any { return rows[i].Version }
 	ui.List(c, list, len(rows), func(i int) {
 		v := rows[i]
-		ui.Row(c).Fill().Gap(8).Padding(6).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).Padding(6).Children(func() {
 			ui.Text(c, v.Version).Width(140)
 			if v.LTS != "" {
 				ui.Badge(c, "lts")
@@ -140,7 +140,7 @@ func (g *gui) pageVersions(c *ui.Context) {
 				})
 			}
 		})
-	})
+	}).Height(360)
 }
 
 // filteredVersions 是"全部版本 + 本地过滤"（不过滤时直接给索引里的顺序）。

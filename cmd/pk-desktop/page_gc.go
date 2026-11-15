@@ -15,7 +15,7 @@ func (g *gui) pageGC(c *ui.Context) {
 	g.head(c, "磁盘占用与回收", "Storage", "gc", func() { g.runGC(false) })
 
 	keep := float64(g.gcKeep)
-	ui.Row(c).Fill().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		ui.Text(c, g.t("每个工具保留最新", "Keep the newest")).TextColor(c.Theme().TextMuted)
 		ui.NumberInput(c, &keep, 0, 20, 1).Width(90)
 		if int(keep) != g.gcKeep {
@@ -25,7 +25,7 @@ func (g *gui) pageGC(c *ui.Context) {
 	})
 	g.gcKeep = int(keep)
 
-	ui.Row(c).Fill().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		if g.busy["gc"] {
 			ui.Spinner(c)
 		}
@@ -70,7 +70,7 @@ func (g *gui) gcGroup(c *ui.Context, title, key string, rows []string) {
 		list.Key = func(i int) any { return rows[i] }
 		ui.List(c, list, len(rows), func(i int) {
 			ui.Text(c, rows[i]).SingleLine().TextColor(c.Theme().TextMuted)
-		})
+		}).Height(140)
 	})
 }
 

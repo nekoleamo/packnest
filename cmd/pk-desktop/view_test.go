@@ -87,7 +87,16 @@ func testGUI(t *testing.T) (*gui, *fakeCLI) {
 			},
 			Outdated: []pkcli.OutdatedTool{{Name: "node", Installed: "22.1.0", Latest: "22.2.0", Advice: "pk install node@22.2.0"}},
 		},
-		mirror: pkcli.Mirror{Current: "auto"},
+		mirror: pkcli.Mirror{Current: "auto", Mirrors: []struct {
+			Name     string `json:"name"`
+			Display  string `json:"display"`
+			Registry string `json:"registry"`
+			Current  bool   `json:"current"`
+		}{
+			{Name: "default", Display: "官方源", Registry: "https://registry.npmjs.org"},
+			{Name: "npmmirror", Display: "国内镜像", Registry: "https://registry.npmmirror.com", Current: false},
+			{Name: "auto", Display: "自动", Registry: "https://registry.npmjs.org", Current: true},
+		}},
 		doctor: pkcli.DoctorResult{
 			Issues: []pkcli.Issue{{Code: "PATH_MISSING", Severity: "warn", Message: "PATH 里没有 pk bin"}},
 		},
@@ -99,7 +108,14 @@ func testGUI(t *testing.T) (*gui, *fakeCLI) {
 			Installed bool   `json:"installed"`
 		}{{Version: "22.2.0", LTS: "22.2.0"}, {Version: "20.11.0", Installed: true}}},
 		probe: []pkcli.ProbeEntry{{URL: "https://registry.npmmirror.com/", OK: true, Status: 200, LatencyMS: 42}},
-		env:   pkcli.EnvDoc{Shell: "zsh", Paths: []string{"/root/.packnest/bin", "/usr/bin"}},
+		env: pkcli.EnvDoc{
+			Shell: "zsh",
+			Paths: []string{"/root/.packnest/bin", "/usr/bin"},
+			Env: []struct {
+				Key   string `json:"key"`
+				Value string `json:"value"`
+			}{{Key: "npm_config_registry", Value: "https://registry.npmmirror.com"}},
+		},
 		which: pkcli.Which{Name: "node", Path: "/root/.packnest/bin/node", Shim: true},
 	}
 	svc := &state.Service{
@@ -120,6 +136,8 @@ func testGUI(t *testing.T) (*gui, *fakeCLI) {
 	g.probe = f.probe
 	g.env = f.env
 	g.which = f.which
+	g.verTool = "node"
+	g.verAll = true
 	return g, f
 }
 
@@ -257,6 +275,44 @@ func TestAcceptance_GUI7_StateShared(t *testing.T) {
 	}
 	if !tr.HasText("/root/.packnest/bin") {
 		t.Fatalf("环境页没画出 PATH: %v", tr.Texts())
+	}
+}
+
+// TestAcceptance_GUI5_LayoutNotCollapsed 是"画出来但看不见"的守门：
+// mygo 里没有高度约束的 List/Table 会被压成表头一行、行元素尺寸变成 0x0，
+// 文字明明在 Texts() 里却看不见。所以每一页的关键文字都断言"有尺寸、在窗口内"。
+func TestAcceptance_GUI5_LayoutNotCollapsed(t *testing.T) {
+	g, _ := testGUI(t)
+	cases := []struct {
+		page string
+		want []string
+	}{
+		{"installed", []string{"node", "22.1.0", "pnpm", "10.2.0", "卸载"}},
+		{"queue", []string{"node", "22.2.0", "装最新"}},
+		{"versions", []string{"22.2.0", "20.11.0"}},
+		{"mirror", []string{"官方源", "国内镜像", "自动", "https://registry.npmmirror.com"}},
+		{"env", []string{"/root/.packnest/bin", "npm_config_registry"}},
+		{"update", []string{"检查更新"}},
+		{"doctor", []string{"开始体检", "PATH_MISSING"}},
+		{"gc", []string{"预演（只看不删）", "执行回收"}},
+		{"settings", []string{"开机自启", "版本", "这个界面怎么拿数据"}},
+	}
+	for _, tc := range cases {
+		g.page = tc.page
+		tr := ui.NewTester(g.view, 1040, 780)
+		tr.Frame()
+		for _, want := range tc.want {
+			r, ok := tr.Find(want)
+			if !ok {
+				t.Fatalf("%s：找不到 %q（没画）｜%v", tc.page, want, tr.Texts())
+			}
+			if r.W <= 0 || r.H <= 0 {
+				t.Fatalf("%s：%q 尺寸是 %.0fx%.0f（被压扁了，用户看不见）", tc.page, want, r.W, r.H)
+			}
+			if r.Y >= 780 {
+				t.Fatalf("%s：%q 落在窗口外（y=%.0f）", tc.page, want, r.Y)
+			}
+		}
 	}
 }
 
