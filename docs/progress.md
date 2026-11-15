@@ -1876,3 +1876,13 @@ CLI 的 `pk env --write` 本来就有一句人话，但 doctor 是**静默**调�
 
 顺带纠正一处旧文案：`present.Fixed` 以前收尾说"重跑 pk doctor 复核；新开窗口后 PATH 生效"——
 含糊且对非 Windows 不准确，现在拆开：`Fixed` 只报修了什么，生效方式由 `Reload` 精确说明。
+
+## v1.8.2 + GUI 0.11.3 发版（2026-11-15）
+
+CLI 1.8.2 只有一件新增：`reload` 契约（`pk doctor --fix` / `pk env --write --json` 告诉调用方
+"改动只对新 shell 生效"以及具体怎么生效）。GUI 0.11.3 把同一份字段渲染成体检页的高亮提示块 + 复制按钮。
+两边必须一起发才有效果，所以这次同时发。
+
+- CLI：6 平台 + provenance/SBOM + checksums + `.sig` → gitee/GitHub，随后推 brew tap / scoop bucket
+- GUI：三平台（mac arm64 / win amd64 / **win arm64** / linux amd64 → 共 4 件产物）+ 签名清单 → `gui-v0.11.3`
+- 线上回读：`make verify-release` 与 `sh scripts/verify-release.sh --gui` 各自逐条核对
