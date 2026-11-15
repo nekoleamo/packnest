@@ -360,7 +360,7 @@ Windows 上系统不允许删除正在运行的 exe，会打印出要你执行�
   `cache/alias/<algo>-<hex>` 记「上游公布的摘要 → 归档」的映射，所以**换一台机器（state 全空）也能只凭
   热缓存 + 一次几 KB 的校验和请求命中归档**，不必先下 50MB（R-CACHE-1，1.8 解决）
 - 项目内自动覆盖全局版本需要 direnv（`pk env --project`）；未装 direnv 时 `node` 仍解析到全局默认
-- `[companions]` 通用：node→npm 走 engines 反查，其它键按 `bundled|latest-compatible|pinned` 装进宿主的 `<target>`（1.1）；GUI（`pk-desktop`）是 CLI 的补充界面，必先装 `pk`，只发 macOS arm64（GUI 0.10.3 已跟齐 1.3：可升级提示 / `doctor --fix` / `gc --keep`）
+- `[companions]` 通用：node→npm 走 engines 反查，其它键按 `bundled|latest-compatible|pinned` 装进宿主的 `<target>`（1.1）；GUI（`pk-desktop`，当前 **0.11.4**）是 CLI 的补充界面，必先装 `pk`；产物 4 件（macOS arm64 / Windows amd64+arm64 / Linux amd64），带可升级提示、`doctor --fix`、`gc --keep` 与「检查更新」（1.9）
 
 ## 许可证
 
