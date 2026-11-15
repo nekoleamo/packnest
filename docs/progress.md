@@ -1919,6 +1919,12 @@ CLI 1.8.2 只有一件新增：`reload` 契约（`pk doctor --fix` / `pk env --w
 - 没有 `ssh-keygen` 时**拒绝自更新**（提示用安装脚本），不做"只比 sha256"的降级；
 - 公钥现在是**六处一致**（新增 `cmd/pk-desktop/internal/update/allowed_signers`），`make keys` 已更新。
 
+### 发版后补的一处（真机踩到）
+
+刚发完 1.9.0，`pk upgrade --self --check` 仍报"已是最新"—— 6h 版本缓存里还是 1.8.2。
+规则改成：**只有本机版本不比缓存旧时才信缓存**（`current >= cached`）；一旦本机比缓存新
+（说明刚发版），就绕过缓存重新问网络。用例 `TestCacheBypassedWhenCurrentIsNewer` 钉住。
+
 ### 配套
 
 - 新增 `scripts/latest-gui`（GUI 版本的单一真源，`release-gui.sh` 发版时自动写）——两个 raw 地址都读它，

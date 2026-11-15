@@ -112,7 +112,7 @@ func Check(ctx context.Context, opt Option) (Info, error) {
 	}
 	opt.log(fmt.Sprintf("源：%s（%s）", src.Name, latencyText(latency)))
 
-	latest, err := latestVersion(ctx, opt, src)
+	latest, err := latestVersion(ctx, opt, src, opt.Current)
 	if err != nil {
 		return Info{}, err
 	}
@@ -320,7 +320,12 @@ func rankedSources(opt Option, chosen Source, chosenLatency int64) []Source {
 }
 
 // latestVersion 取最新版本号：先问选中源，失败再按顺序问其余源；结果缓存 6h。
-func latestVersion(ctx context.Context, opt Option, src Source) (string, error) {
+// latestVersion 取最新版本号：先问选中源，失败再按顺序问其余源。
+//
+// 缓存规则（6h）里有个坑：刚发完版时缓存还是"上一个版本"，于是会报"已是最新"。
+// 所以只在本机版本**不比缓存旧**时才信任缓存（`current >= cached`）；
+// 一旦发现本机比缓存还新（说明发版了），就绕过缓存重新问一次网络。
+func latestVersion(ctx context.Context, opt Option, src Source, current string) (string, error) {
 	cacheDir := ""
 	if opt.Paths.Root != "" {
 		cacheDir = opt.Paths.CacheDir("selfupdate")
@@ -328,7 +333,7 @@ func latestVersion(ctx context.Context, opt Option, src Source) (string, error) 
 	cacheFile := ""
 	if cacheDir != "" {
 		cacheFile = filepath.Join(cacheDir, "latest-"+src.Name)
-		if v, ok := cachedVersion(cacheFile, opt.Now()); ok {
+		if v, ok := cachedVersion(cacheFile, opt.Now()); ok && !newer(current, v) {
 			return v, nil
 		}
 	}

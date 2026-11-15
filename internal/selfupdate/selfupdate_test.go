@@ -833,3 +833,33 @@ func TestProbeFileOverride(t *testing.T) {
 		t.Fatalf("默认应是 Paths.Probe(): %s", got)
 	}
 }
+
+// TestCacheBypassedWhenCurrentIsNewer：刚发完版时缓存还停在旧版本 —— 本机比缓存新时
+// 必须绕过缓存重新问一次，否则会一直报"已是最新"直到缓存过期。
+func TestCacheBypassedWhenCurrentIsNewer(t *testing.T) {
+	e := newEnv(t, "9.9.9")
+	rel := newRelease(t, "9.9.9", e.priv)
+	srv := rel.serve(t)
+	defer srv.Close()
+	opt := e.with(t, srv)
+
+	// 先塞一个"更旧"的缓存（模拟发版前留下的）
+	cacheDir := opt.Paths.CacheDir("selfupdate")
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cacheFile := filepath.Join(cacheDir, "latest-fake")
+	if err := os.WriteFile(cacheFile, []byte("1.8.0"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	info, err := Check(context.Background(), opt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Latest != "9.9.9" {
+		t.Fatalf("本机比缓存新时应绕过缓存重取: %+v", info)
+	}
+	if info.UpdateAvailable {
+		t.Fatalf("同版本不该提示更新: %+v", info)
+	}
+}
