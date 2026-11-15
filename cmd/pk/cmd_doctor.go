@@ -270,6 +270,9 @@ func (a *app) cmdDoctor(args []string) int {
 	out := jsonout.NewDoctor(issues)
 	if *fix {
 		out.Fixed = a.fixIssues(issues)
+		// 修 PATH 托管块 / 用户 Path 后，当前 shell 拿不到新环境：把"怎么生效"一并给出去，
+		// 让 GUI 与脚本能提示重开 shell 或 source 一次（1.8.2）。
+		out.Reload = a.lastReload
 	}
 	if a.json {
 		if err := jsonout.WriteJSON(a.out, out); err != nil {
@@ -279,6 +282,9 @@ func (a *app) cmdDoctor(args []string) int {
 		present.Issues(a.out, issues)
 		if *fix {
 			present.Fixed(a.out, out.Fixed)
+			if out.Reload != nil {
+				present.Reload(a.out, out.Reload)
+			}
 		}
 	}
 	if !out.OK {

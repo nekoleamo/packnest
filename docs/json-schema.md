@@ -75,6 +75,33 @@ GUI（作为 CLI 的可视化补充，走子进程 + `--json`）只需要：读 
 进度条用 `progress.bytes_done/bytes_total`（`download` 只给最终大小）；"是否校验过"看 `verify.mode`；
 结束看 `done`；破坏性命令要自己先确认再传 `--yes`。
 
+### `doctor --fix` 的 `reload`（1.8.2 起，只增字段）
+
+`pk doctor --fix` 修了 PATH 托管块 / 用户 Path 之后，**当前 shell 拿不到新环境**，所以多一个字段：
+
+```json
+{
+  "schema": 1, "ok": false, "issues": [], "fixed": ["重写 shell 的 PATH 托管块（`pk env --write`，幂等）"],
+  "reload": {
+    "needed": true,
+    "shell": "zsh",
+    "command": "source /Users/you/.zshrc",
+    "files": ["/Users/you/.zshrc"],
+    "msg": "已写进 /Users/you/.zshrc，只对新开的 shell 生效：…"
+  }
+}
+```
+
+| 字段 | 契约 | 说明 |
+|---|---|---|
+| `reload.needed` | **稳定** | 只有这次真改了环境（rc 托管块 / 注册表用户 Path）才出现整个 `reload` |
+| `reload.shell` | **稳定** | `zsh` / `bash` / `fish` / `powershell` / `other`——GUI 按它选措辞 |
+| `reload.command` | **稳定** | 可直接粘进当前 shell 的一条命令；**空字符串**表示只能重开终端（cmd.exe / Windows 注册表 Path） |
+| `reload.files` | **稳定** | 写过的 rc/profile；Windows 注册表写作 `registry:user-path` |
+| `reload.msg` | **尽力而为** | 人话（跟 `--lang` 走），脚本别拿它做匹配 |
+
+`pk env --write --json` 的输出里也带同一个 `reload` 对象（`rc` / `rcs` / `block` 之后追加）。
+
 ## 失败输出（1.8 起，与事件流同流不同形）
 
 `--json` 命令失败时，除了原有的退出码与人读 stderr，stdout 会多一条**没有 `ev` 字段**的对象：

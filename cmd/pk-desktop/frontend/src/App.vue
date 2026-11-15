@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watchEffect } from "vue";
 import { locale, setLocale, t } from "./i18n";
-import { api, install, type AvailableTool, type EnvDoc, type GCResult, type InstallEvent, type Issue, type Mirror, type Outdated, type ProbeEntry, type Tool, type WhichResult } from "./api";
+import { api, install, type AvailableTool, type EnvDoc, type GCResult, type InstallEvent, type Issue, type Mirror, type Outdated, type ProbeEntry, type ReloadAdvice, type Tool, type WhichResult } from "./api";
 
 const status = ref<{ ok: boolean; reason?: string; path?: string; version?: string; platform?: string }>({ ok: false });
 const tools = ref<Tool[]>([]);
 // 1.3：已装版本落后索引最新时后端会在 /api/tools 里带上 outdated（只读索引缓存，不联网）
 const outdated = ref<Outdated[]>([]);
 const fixed = ref<string[]>([]);
+// 一键修复后的"怎么生效"（重开 shell / source 一次）。字段来自 CLI 的 --json reload，
+// 措辞在这里按 shell 本地化，CLI 的 msg 只当兜底。
+const reload = ref<ReloadAdvice | null>(null);
+const reloadCopied = ref(false);
 // 开机自启（默认关；只写用户级条目）
 const autoStart = ref<{ supported: boolean; enabled: boolean; path: string; note?: string } | null>(null);
 async function loadAutostart() {
@@ -150,6 +154,9 @@ async function fixProblems() {
     const res = await api.doctor(globals.value, deepProbe.value, true);
     fixed.value = res.fixed ?? [];
     issues.value = res.issues ?? [];
+    // 改了 PATH 托管块 / 用户 Path 之后，当前窗口拿不到新环境 → 必须提示重开或 source
+    reload.value = res.reload?.needed ? res.reload : null;
+    reloadCopied.value = false;
     if (fixed.value.length) await loadTools();
   } catch (e) {
     err.value = String(e);
@@ -314,6 +321,37 @@ async function loadEnv() {
     envDoc.value = await api.env(envProject.value);
   } catch (e) {
     err.value = String(e);
+  }
+}
+// reloadHint：按 shell 方言给"怎么生效"的一句话（reload.shell 是 CLI 归一化过的）
+function reloadHint(r: ReloadAdvice | null): string {
+  if (!r) return "";
+  if (r.command) {
+    switch (r.shell) {
+      case "powershell":
+        return t("在当前 PowerShell 窗口执行下面这条（dot-source profile），或直接新开一个 PowerShell 窗口：");
+      case "fish":
+        return t("在当前 fish 窗口执行下面这条，或直接新开一个窗口：");
+      default:
+        return t("在当前终端执行下面这条，或直接新开一个终端窗口：");
+    }
+  }
+  switch (r.shell) {
+    case "powershell":
+      return t("改动写进了注册表里的用户 Path，只对新开的窗口生效：请新开一个 PowerShell 窗口（当前窗口不会自动更新）。");
+    default:
+      return r.msg || t("重开一个终端窗口生效（当前窗口不会自动更新环境变量）。");
+  }
+}
+async function copyReloadCmd() {
+  const cmd = reload.value?.command;
+  if (!cmd) return;
+  try {
+    await navigator.clipboard.writeText(cmd);
+    reloadCopied.value = true;
+    setTimeout(() => (reloadCopied.value = false), 1500);
+  } catch {
+    /* 没剪贴板权限就算了 */
   }
 }
 async function copyEval() {
@@ -626,6 +664,15 @@ onMounted(async () => {
         <label class="hint"><input type="checkbox" v-model="deepProbe" @change="loadDoctor" /> {{ t("实测原生模块（--probe）") }}</label>
       </div>
       <div v-for="(f, i) in fixed" :key="'fx' + i" class="ok">已修 {{ f }}</div>
+      <div v-if="reload" class="reload-box">
+        <div class="reload-title">{{ t("⚠ 环境已更新，但当前窗口还没生效") }}</div>
+        <div class="hint">{{ reloadHint(reload) }}</div>
+        <div v-if="reload.command" class="row">
+          <code class="mono">{{ reload.command }}</code>
+          <button @click="copyReloadCmd">{{ reloadCopied ? t("已复制") : t("复制命令") }}</button>
+        </div>
+        <div v-if="reload.files?.length" class="hint mono">已写入：{{ reload.files.join(" · ") }}</div>
+      </div>
       <div v-if="!issues.length" class="hint">{{ t("没有发现问题") }}</div>
 
       <template v-if="globalIssues.length">
@@ -763,6 +810,10 @@ input, select { font: inherit; padding: 6px 9px; border-radius: 7px; border: 1px
 .badge.bad { color: var(--danger); border-color: var(--danger); }
 .mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
 .ok { color: var(--accent); } .bad { color: var(--danger); }
+/* 一键修复后的"怎么生效"提示：底色 + 边框，避免和普通 hint 混在一起看不见 */
+.reload-box { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft, rgba(56,139,253,.08)); }
+.reload-title { font-weight: 600; color: var(--accent); margin-bottom: 6px; }
+.reload-box code { background: var(--bg-soft, rgba(127,127,127,.14)); padding: 2px 6px; border-radius: 4px; }
 .err { grid-column: 1 / -1; margin: 0; padding: 8px 12px; border: 1px solid var(--danger); border-radius: 8px; color: var(--danger); font-size: 13px; }
 .sev-warn { color: #b45309; } .sev-error { color: var(--danger); } .sev-info { color: var(--dim); }
 </style>

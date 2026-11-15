@@ -50,6 +50,9 @@ type app struct {
 	ctx     context.Context
 	// refreshIndex 为 true 时忽略索引缓存（list --available --refresh）
 	refreshIndex bool
+	// lastReload 是最近一次"改了环境（rc 托管块 / 用户 Path）"后的生效建议（`pk env --write`
+	// 与 `pk doctor --fix` 共用：doctor 只是静默调用 env --write，不能自己再猜一遍）。
+	lastReload *jsonout.ReloadAdvice
 }
 
 // context 返回命令上下文（Ctrl-C 会取消，M1 的下载用它做中断清理）。

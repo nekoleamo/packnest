@@ -81,7 +81,7 @@ func TestListAndDoctor(t *testing.T) {
   exit 0
 fi
 if [ "$1" = doctor ]; then
-  echo '{"schema":1,"ok":false,"issues":[{"code":"PATH_MISSING","severity":"warn","message":"bin 不在 PATH"}],"fixed":["重建 pk/packnest 入口"]}'
+  echo '{"schema":1,"ok":false,"issues":[{"code":"PATH_MISSING","severity":"warn","message":"bin 不在 PATH"}],"fixed":["重建 pk/packnest 入口"],"reload":{"needed":true,"shell":"zsh","command":"source /home/u/.zshrc","files":["/home/u/.zshrc"],"msg":"只对新开的 shell 生效"}}'
   exit 1
 fi
 `)
@@ -99,5 +99,10 @@ fi
 	}
 	if len(issues.Fixed) != 1 {
 		t.Fatalf("--fix 的 fixed[] 契约解析不对: %+v", issues)
+	}
+	// 1.8.2：修完环境要能告诉用户"怎么生效"（GUI 拿这个渲染提示 + 复制命令）
+	if issues.Reload == nil || !issues.Reload.Needed || issues.Reload.Shell != "zsh" ||
+		issues.Reload.Command != "source /home/u/.zshrc" || len(issues.Reload.Files) != 1 {
+		t.Fatalf("reload 契约解析不对: %+v", issues.Reload)
 	}
 }

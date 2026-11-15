@@ -166,8 +166,36 @@ func TestFixed(t *testing.T) {
 	buf.Reset()
 	Fixed(&buf, []string{"PATH 托管块", "pk 入口"})
 	out := buf.String()
-	if !strings.Contains(out, "已修 PATH 托管块") || !strings.Contains(out, "重跑 `pk doctor`") {
+	if !strings.Contains(out, "已修 PATH 托管块") || !strings.Contains(out, "已修 pk 入口") {
 		t.Fatalf("修复输出不对: %q", out)
+	}
+	// "怎么生效"不在这里编：由 present.Reload 按 shell 说清（1.8.2）
+	if strings.Contains(out, "新开窗口") {
+		t.Fatalf("Fixed 不该再给含糊的生效说明: %q", out)
+	}
+}
+
+// TestReload 三种情况：有命令（posix）、没有命令只能重开（cmd/unknown）、不需要重载。
+func TestReload(t *testing.T) {
+	var buf bytes.Buffer
+	Reload(&buf, nil)
+	Reload(&buf, &jsonout.ReloadAdvice{Needed: false})
+	if buf.Len() != 0 {
+		t.Fatalf("不需要重载时不该输出: %q", buf.String())
+	}
+
+	Reload(&buf, &jsonout.ReloadAdvice{Needed: true, Shell: "zsh", Command: "source ~/.zshrc"})
+	out := buf.String()
+	if !strings.Contains(out, "只对新开的 shell 生效") || !strings.Contains(out, "source ~/.zshrc") ||
+		!strings.Contains(out, "重开一个终端窗口") {
+		t.Fatalf("有命令时应给出命令 + 重开提示: %q", out)
+	}
+
+	buf.Reset()
+	Reload(&buf, &jsonout.ReloadAdvice{Needed: true, Shell: "other", Msg: "重开一个终端窗口生效"})
+	out = buf.String()
+	if !strings.Contains(out, "重开一个终端窗口生效") || strings.Contains(out, "source ") {
+		t.Fatalf("没有命令时应只给说明: %q", out)
 	}
 }
 

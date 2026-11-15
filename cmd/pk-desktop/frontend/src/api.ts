@@ -31,6 +31,15 @@ export interface Versions {
   installed: { version: string; active: boolean }[];
   available: { version: string; lts?: string; installed?: boolean }[];
 }
+// ReloadAdvice：修完环境后"怎么生效"（CLI `--json` 的 reload 字段）
+export interface ReloadAdvice {
+  needed: boolean;
+  shell?: string;
+  command?: string;
+  files?: string[];
+  msg?: string;
+}
+
 export interface Issue {
   code: string;
   severity: "info" | "warn" | "error";
@@ -125,9 +134,10 @@ export const api = {
   mirrors: () => json<Mirror>("/api/mirrors"),
   useMirror: (use: string) =>
     json<Mirror>("/api/mirrors", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ use }) }),
-  // fix=true 时后端会用 `pk doctor --fix` 修 PATH 托管块与 pk/packnest 入口
+  // fix=true 时后端会用 `pk doctor --fix` 修 PATH 托管块与 pk/packnest 入口；
+  // reload 是"怎么让改动生效"（重开 shell / source 一次），CLI 1.8.2 起提供
   doctor: (globals: boolean, probe: boolean, fix = false) =>
-    json<{ issues: Issue[]; fixed?: string[] }>(
+    json<{ issues: Issue[]; fixed?: string[]; reload?: ReloadAdvice }>(
       `/api/doctor?globals=${globals ? 1 : 0}&probe=${probe ? 1 : 0}&fix=${fix ? 1 : 0}`,
     ),
   probe: (tool?: string) =>

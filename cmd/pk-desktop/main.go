@@ -264,7 +264,11 @@ func (a *api) handleDoctor(w http.ResponseWriter, r *http.Request) {
 		httpErr(w, err)
 		return
 	}
-	writeJSON(w, map[string]any{"issues": res.Issues, "fixed": res.Fixed})
+	out := map[string]any{"issues": res.Issues, "fixed": res.Fixed}
+	if res.Reload != nil {
+		out["reload"] = res.Reload
+	}
+	writeJSON(w, out)
 }
 
 func (a *api) handleMirrors(w http.ResponseWriter, r *http.Request) {

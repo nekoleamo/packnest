@@ -291,5 +291,24 @@ func Fixed(w io.Writer, fixed []string) {
 	for _, line := range fixed {
 		fmt.Fprintf(w, T("  已修 %s\n", "  fixed %s\n"), line)
 	}
-	fmt.Fprintln(w, T("重跑 `pk doctor` 复核；新开窗口后 PATH 生效", "rerun `pk doctor` to verify; PATH takes effect in a new window"))
+}
+
+// Reload 打印"怎么让刚写好的环境生效"（`pk doctor --fix` / `pk env --write` 之后）。
+//
+// 三种壳三种说法：posix 系给一条 `source <rc>`，PowerShell 给 dot-source profile，
+// cmd.exe 只能重开窗口（`Command` 为空）。文案以 CLI 的 ReloadAdvice 为准，
+// GUI 用同一份字段自己渲染（不解析这里的文字）。
+func Reload(w io.Writer, adv *jsonout.ReloadAdvice) {
+	if adv == nil || !adv.Needed {
+		return
+	}
+	fmt.Fprintln(w, T("\n⚠ 这些改动只对新开的 shell 生效（当前窗口不会自动更新）：", "\n⚠ These changes only apply to new shells (the current window will not pick them up):"))
+	if adv.Command != "" {
+		fmt.Fprintf(w, "    %s\n", adv.Command)
+		fmt.Fprintln(w, T("    （或者直接重开一个终端窗口）", "    (or simply open a new terminal window)"))
+		return
+	}
+	if adv.Msg != "" {
+		fmt.Fprintf(w, "    %s\n", adv.Msg)
+	}
 }

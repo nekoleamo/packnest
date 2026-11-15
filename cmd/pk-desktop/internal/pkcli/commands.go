@@ -67,17 +67,31 @@ type Issue struct {
 	Detail   map[string]any `json:"detail"`
 }
 
-type doctorDoc struct {
-	Schema int      `json:"schema"`
-	OK     bool     `json:"ok"`
-	Issues []Issue  `json:"issues"`
-	Fixed  []string `json:"fixed"`
+// ReloadAdvice 是 "修完要重新载入环境" 的结构化建议（CLI 1.8.2 起，只增字段）。
+//
+// 字段都用于显示/复制：`shell` 决定措辞，`command` 有值就能直接粘进当前 shell
+// （为空表示只能重开终端，例如 Windows 的注册表用户 Path / cmd.exe）。
+type ReloadAdvice struct {
+	Needed  bool     `json:"needed"`
+	Shell   string   `json:"shell"`
+	Command string   `json:"command"`
+	Files   []string `json:"files"`
+	Msg     string   `json:"msg"`
 }
 
-// DoctorResult 是体检结果 + `--fix` 实际做过的动作。
+type doctorDoc struct {
+	Schema int           `json:"schema"`
+	OK     bool          `json:"ok"`
+	Issues []Issue       `json:"issues"`
+	Fixed  []string      `json:"fixed"`
+	Reload *ReloadAdvice `json:"reload"`
+}
+
+// DoctorResult 是体检结果 + `--fix` 实际做过的动作 +（可选）"怎么让改动生效"。
 type DoctorResult struct {
 	Issues []Issue
 	Fixed  []string
+	Reload *ReloadAdvice
 }
 
 // Doctor 返回体检结果（GUI 的“告警页”直接渲染这个）。
@@ -107,7 +121,7 @@ func (c *Client) Doctor(ctx context.Context, globals, probe, fix bool) (DoctorRe
 	if doc.Issues == nil {
 		doc.Issues = []Issue{}
 	}
-	return DoctorResult{Issues: doc.Issues, Fixed: doc.Fixed}, nil
+	return DoctorResult{Issues: doc.Issues, Fixed: doc.Fixed, Reload: doc.Reload}, nil
 }
 
 // Event 是 `pk install --json` 的一行 NDJSON。

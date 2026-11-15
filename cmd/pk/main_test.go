@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/packnest/packnest/cmd/pk/present"
+	"github.com/packnest/packnest/internal/env"
 	"github.com/packnest/packnest/internal/install"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/paths"
@@ -1650,5 +1651,109 @@ func TestUseNotInstalledNeedsConfirmation(t *testing.T) {
 	// 台账里不该多出任何版本（没有真的装）
 	if strings.Contains(out, `"ev":"download"`) {
 		t.Fatalf("没确认就不该下载: %s", out)
+	}
+}
+
+// TestEnvWriteReportsReload：`pk env --write` 写完必须告诉调用方"怎么让改动生效"（1.8.2）。
+//
+// 三种壳三种说法：posix 给 `source <rc>`，PowerShell 给 dot-source profile，认不出方言
+// （cmd.exe 等）就只让用户重开终端（command 为空）。GUI 与脚本全靠 reload 字段，不解析人话。
+func TestEnvWriteReportsReload(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		shell   string
+		wantSh  string
+		wantCmd string // 期望 command 的前缀；空串表示不该有命令
+	}{
+		{"zsh", "/bin/zsh", "zsh", "source "},
+		{"bash", "/bin/bash", "bash", "source "},
+		// 认不出的 posix shell 仍会写 .bashrc（env.RCFileFor 的既有行为），所以按文件名报 bash —— 诚实
+		{"tcsh 落到 .bashrc", "/bin/tcsh", "bash", "source "},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			t.Setenv("SHELL", tc.shell)
+			code, out, errOut := execCLI(t, "env", "--write", "--json", "--root", t.TempDir())
+			if code != 0 {
+				t.Fatalf("env --write 应成功: %d %s", code, errOut)
+			}
+			var doc struct {
+				RC     string `json:"rc"`
+				Reload struct {
+					Needed  bool     `json:"needed"`
+					Shell   string   `json:"shell"`
+					Command string   `json:"command"`
+					Files   []string `json:"files"`
+				} `json:"reload"`
+			}
+			if err := json.Unmarshal([]byte(out), &doc); err != nil {
+				t.Fatalf("非法 JSON: %v\n%s", err, out)
+			}
+			if !doc.Reload.Needed || doc.Reload.Shell != tc.wantSh {
+				t.Fatalf("reload 不对: %+v", doc.Reload)
+			}
+			if tc.wantCmd == "" {
+				if doc.Reload.Command != "" {
+					t.Fatalf("认不出方言时不该给命令: %q", doc.Reload.Command)
+				}
+				return
+			}
+			if !strings.HasPrefix(doc.Reload.Command, tc.wantCmd) || !strings.Contains(doc.Reload.Command, doc.RC) {
+				t.Fatalf("命令应指向真正写入的 rc（%s）: %q", doc.RC, doc.Reload.Command)
+			}
+			if len(doc.Reload.Files) != 1 || doc.Reload.Files[0] != doc.RC {
+				t.Fatalf("files 应列出写入的 rc: %+v", doc.Reload.Files)
+			}
+		})
+	}
+}
+
+// TestDoctorFixReportsReload：一键修复改了 PATH 托管块后，--json 里要有 reload（GUI 靠它提示重开 shell）。
+func TestDoctorFixReportsReload(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("SHELL", "/bin/zsh")
+	root := t.TempDir()
+	// PATH 里没有 <root>/bin → doctor 报 PATH_* → --fix 会重写 rc 托管块
+	t.Setenv("PATH", "/usr/bin:/bin")
+	code, out, errOut := execCLI(t, "doctor", "--fix", "--json", "--root", root)
+	if code != 0 && code != 1 {
+		t.Fatalf("doctor 退出码异常: %d %s", code, errOut)
+	}
+	var doc struct {
+		Fixed  []string `json:"fixed"`
+		Reload *struct {
+			Needed  bool   `json:"needed"`
+			Shell   string `json:"shell"`
+			Command string `json:"command"`
+		} `json:"reload"`
+	}
+	if err := json.Unmarshal([]byte(lastJSONObject(t, out)), &doc); err != nil {
+		t.Fatalf("非法 JSON: %v\n%s", err, out)
+	}
+	if len(doc.Fixed) == 0 {
+		t.Skipf("这个环境下没有可自动修的问题（PATH 已含 bin？）: %s", out)
+	}
+	if doc.Reload == nil || !doc.Reload.Needed {
+		t.Fatalf("改了 PATH 托管块就该带 reload: %s", out)
+	}
+	if doc.Reload.Shell != "zsh" || !strings.HasPrefix(doc.Reload.Command, "source ") {
+		t.Fatalf("reload 应按实际 shell 给命令: %+v", doc.Reload)
+	}
+}
+
+// TestReloadAdviceForUnknownRC：文件名认不出、$SHELL 也认不出时不给命令，只让用户重开终端。
+// （正常路径不会走到：RCFileFor 只会给出 .zshrc/.bashrc/ps1 三种。）
+func TestReloadAdviceForUnknownRC(t *testing.T) {
+	adv := reloadAdviceFor(env.ShellPOSIX, "linux", []string{"/home/u/.config/weird/rc"}, "/bin/weirdsh")
+	if adv == nil || !adv.Needed {
+		t.Fatalf("写了 rc 就该提示需要重载: %+v", adv)
+	}
+	if adv.Shell != "other" || adv.Command != "" {
+		t.Fatalf("认不出方言时不该猜命令: %+v", adv)
+	}
+	if adv.Msg == "" {
+		t.Fatal("至少要给一句人话（重开终端）")
 	}
 }

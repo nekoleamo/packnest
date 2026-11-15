@@ -83,6 +83,22 @@ type DoctorOutput struct {
 	OK     bool     `json:"ok"`
 	Issues []Issue  `json:"issues"`
 	Fixed  []string `json:"fixed,omitempty"`
+	// Reload 只在"这次修复改动了环境（rc 托管块 / 用户 Path）"时出现（1.8.2 新增，只增字段）：
+	// 当前 shell 拿不到新 PATH，必须重开或 source 一次才生效。
+	Reload *ReloadAdvice `json:"reload,omitempty"`
+}
+
+// ReloadAdvice 说明"怎么让刚写好的环境生效"（给 GUI 与脚本用，1.8.2 新增、只增字段）。
+//
+// 字段都是机器可判断的：`shell` 决定措辞、`command` 有值就能直接粘进当前 shell、
+// `files` 是这次写过的地方（rc/profile，或 Windows 的 `registry:user-path`）。
+// `msg` 只是人话（跟着 --lang 走），脚本不该拿它做匹配。
+type ReloadAdvice struct {
+	Needed  bool     `json:"needed"`
+	Shell   string   `json:"shell,omitempty"`   // zsh / bash / fish / powershell / cmd / other
+	Command string   `json:"command,omitempty"` // 当前 shell 里可直接执行；空 = 只能重开终端
+	Files   []string `json:"files,omitempty"`   // 写入的 rc/profile；Windows 注册表写作 registry:user-path
+	Msg     string   `json:"msg,omitempty"`     // 人读补充说明
 }
 
 // Event 是 `pk install --json` 的 NDJSON 事件。

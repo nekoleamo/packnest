@@ -94,6 +94,17 @@ func (a *app) cmdEnv(args []string) int {
 					fmt.Fprintln(a.out, tr("用户 Path 里已经有这些目录（无需改动）", "user Path already contains these dirs (nothing to do)"))
 				}
 			}
+			if changed {
+				// 注册表用户 Path 只对**新进程**生效：当前窗口必须重开（或临时 eval 一次）。
+				a.lastReload = &jsonout.ReloadAdvice{
+					Needed:  true,
+					Shell:   "powershell",
+					Command: "",
+					Files:   []string{"registry:user-path"},
+					Msg: tr("已改注册表里的用户 Path，只对新开的窗口生效：重开一个终端；当前窗口可临时 `pk env --shell powershell | Invoke-Expression`",
+						"the user Path in the registry was updated and only applies to new windows: reopen a terminal, or run `pk env --shell powershell | Invoke-Expression` in the current one"),
+				}
+			}
 		}
 
 		// PowerShell 执行策略禁止加载脚本时，profile 写了只会让每个新窗口报错 —— 不写，并清掉旧块。
@@ -143,13 +154,15 @@ func (a *app) cmdEnv(args []string) int {
 				fmt.Fprintf(a.out, tr("已写入 %s 的托管块（块外内容未改动；备份在 %s.pk.bak）\n", "wrote the managed block into %s (nothing outside it changed; backup at %s.pk.bak)\n"), rc, rc)
 			}
 		}
+		a.lastReload = reloadAdviceFor(sh, goos(), targets, os.Getenv("SHELL"))
 		if a.json {
 			return a.emit(struct {
-				Schema int      `json:"schema"`
-				RC     string   `json:"rc"`
-				RCs    []string `json:"rcs"`
-				Block  string   `json:"block"`
-			}{jsonout.SchemaVersion, targets[0], targets, block})
+				Schema int                   `json:"schema"`
+				RC     string                `json:"rc"`
+				RCs    []string              `json:"rcs"`
+				Block  string                `json:"block"`
+				Reload *jsonout.ReloadAdvice `json:"reload,omitempty"`
+			}{jsonout.SchemaVersion, targets[0], targets, block, a.lastReload})
 		}
 		if sh == env.ShellPowerShell {
 			fmt.Fprintln(a.out, tr("新开一个 PowerShell 窗口生效（当前窗口可先执行上面的片段，或用 `pk env --shell powershell | Invoke-Expression`）", "open a new PowerShell window (or run the snippet above / `pk env --shell powershell | Invoke-Expression`)"))
@@ -381,4 +394,70 @@ func (a *app) mirrorUse(args []string) int {
 	fmt.Fprintf(a.out, tr("镜像档已切到 %s（写入 %s）\n", "mirror profile switched to %s (written to %s)\n"), name, a.paths.Config())
 	fmt.Fprintln(a.out, tr("下次安装即生效；`pk env --shell bash` 可查看随之变化的 registry 变量", "effective on the next install; `pk env --shell bash` shows the resulting registry variables"))
 	return jsonout.ExitOK
+}
+
+// reloadAdviceFor 把"写了哪些 rc"翻译成"怎么让它生效"（1.8.2）。
+//
+// 不同 shell 的"重新载入"完全不一样：posix 系是 source 那个文件，PowerShell 是 dot-source
+// 自己的 profile，cmd.exe 没有 source 概念只能重开窗口。GUI 与 `--json` 消费方都靠这里。
+// 方言从**实际写过的文件名** + `$SHELL` 一起判断（env.Shell 只区分 posix / powershell）。
+func reloadAdviceFor(sh env.Shell, goos string, files []string, envShell string) *jsonout.ReloadAdvice {
+	if len(files) == 0 {
+		return nil
+	}
+	rc := files[0]
+	adv := &jsonout.ReloadAdvice{Needed: true, Files: files}
+	if sh == env.ShellPowerShell {
+		adv.Shell = "powershell"
+		adv.Command = ". " + rc // dot-source profile 就是 PowerShell 的"重新载入"
+		if goos == "windows" {
+			adv.Msg = tr("已改 PowerShell profile，只对新开的窗口生效：新开一个 PowerShell 窗口，或在当前窗口执行下面这条",
+				"the PowerShell profile was updated and only applies to new windows: open a new PowerShell window, or run the command below")
+		} else {
+			adv.Msg = tr("新开一个 shell，或在当前 shell 执行下面这条", "open a new shell, or run the command below in the current one")
+		}
+		return adv
+	}
+	// 以**实际写过的文件名**为准（那是事实），$SHELL 只当兜底：
+	// fish 用户目前也会落到 .bashrc（pk 的 env 只支持 posix/powershell 两种语法），
+	// 这时候说"bash: source ~/.bashrc"才是诚实的。
+	name := strings.ToLower(filepath.Base(rc))
+	shellName := strings.ToLower(envShell)
+	switch {
+	case strings.Contains(name, "fish"):
+		adv.Shell = "fish"
+		adv.Command = "source " + rc
+	case strings.Contains(name, "zsh"):
+		adv.Shell = "zsh"
+		adv.Command = "source " + rc
+	case strings.Contains(name, "bash"):
+		adv.Shell = "bash"
+		adv.Command = "source " + rc
+	default:
+		// 文件名认不出时再看 $SHELL；都不认识（或 cmd.exe）就只让用户重开终端。
+		switch {
+		case strings.Contains(shellName, "zsh"):
+			adv.Shell = "zsh"
+			adv.Command = "source " + rc
+			break
+		case strings.Contains(shellName, "bash"):
+			adv.Shell = "bash"
+			adv.Command = "source " + rc
+			break
+		case strings.Contains(shellName, "fish"):
+			adv.Shell = "fish"
+			adv.Command = "source " + rc
+			break
+		}
+		if adv.Command != "" {
+			break
+		}
+		adv.Shell = "other"
+		adv.Msg = tr("重开一个终端窗口生效（当前窗口不会自动更新环境变量）",
+			"reopen your terminal for this to take effect (the current window will not pick it up)")
+		return adv
+	}
+	adv.Msg = fmt.Sprintf(tr("已写进 %s，只对新开的 shell 生效：新开一个终端窗口，或在当前终端执行下面这条",
+		"written to %s and only applies to new shells: open a new terminal, or run the command below"), rc)
+	return adv
 }

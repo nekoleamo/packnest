@@ -4,6 +4,9 @@
 > 它没有自己的下载器、台账或更新器 —— 卸载/升级仍指回 CLI。
 
 - 命令面与契约：`pk --json`（[docs/json-schema.md](json-schema.md)）
+- 体检页的「一键修复」：修完会显示"**环境已更新，但当前窗口还没生效**"的提示块，
+  按 shell 给出要执行的命令（zsh/bash 的 `source <rc>`、PowerShell 的 `. <profile>`、
+  Windows 注册表 Path 则提示重开窗口）并带复制按钮 —— 文案来自 CLI `--json` 的 `reload` 字段（1.8.2）
 - 开发/打包/发布细节：[cmd/pk-desktop/README.md](../cmd/pk-desktop/README.md)
 
 ## 一、下载与安装

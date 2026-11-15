@@ -411,6 +411,30 @@ $ pk mirror write               # 把 registry 写进 ~/.npmrc（先备份、只
 
 ---
 
+### 6.9 一键修复之后：环境不会自动生效（1.8.2）
+
+`pk doctor --fix` 只修两件事：PATH 托管块（`pk env --write`）与 pk/packnest 入口。
+**当前 shell 不会自动拿到新 PATH** —— 所以修完会明确告诉你怎么办：
+
+```bash
+$ pk doctor --fix
+  已修 重建 pk/packnest 入口（指向当前二进制）
+  已修 重写 shell 的 PATH 托管块（`pk env --write`，幂等）
+
+⚠ 这些改动只对新开的 shell 生效（当前窗口不会自动更新）：
+    source /Users/you/.zshrc
+    （或者直接重开一个终端窗口）
+```
+
+按 shell 方言给命令（`--json` 里是 `reload.command`，GUI 的"一键修复"直接显示 + 复制）：
+
+| 环境 | 提示 |
+|---|---|
+| zsh / bash | `source <你的 rc>`（zsh 是 `~/.zshrc`，bash 是 `~/.bashrc`） |
+| PowerShell | `. <profile>`（dot-source），或新开一个 PowerShell 窗口 |
+| Windows 注册表用户 Path | 只对新开的终端生效，当前窗口可临时 `pk env --shell powershell \| Invoke-Expression` |
+| cmd.exe / 认不出 | 只能重开终端窗口 |
+
 ## 7. doctor — 环境体检
 
 ```bash

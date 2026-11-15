@@ -1856,3 +1856,23 @@ node.cmd -v -> v22.23.5
 
 至此 `docs/verify-manual.md` 的两项全部有自动化覆盖（Gatekeeper 由用户实操确认，ARM64 运行时进 CI），
 剩下的手工步骤保留成"CI 挂了怎么复核"的清单。
+
+## 一键修复后的"环境生效提示"（2026-11-15，1.8.2）
+
+问题：GUI 体检页的「一键修复」等价于 `pk doctor --fix`（内部就是 `pk env --write`），它改的是
+**rc 托管块 / Windows 注册表用户 Path** —— 当前窗口的环境变量不会跟着变，用户会觉得"修了没生效"。
+CLI 的 `pk env --write` 本来就有一句人话，但 doctor 是**静默**调用它的，GUI 更看不到。
+
+做法：把"怎么生效"变成**结构化字段**，文案由渲染层按方言决定（不再各写一套）。
+
+| 层 | 改动 |
+|---|---|
+| `internal/jsonout` | 新增 `ReloadAdvice{needed,shell,command,files,msg}`；`DoctorOutput.Reload`（**只增字段**） |
+| `cmd/pk` | `pk env --write` 写完就记一条建议（`a.lastReload`），`--json` 里与 `rc/rcs/block` 一起返回；`doctor --fix` 直接复用（不再自己猜一遍） |
+| 方言判定 | 以**实际写过的 rc 文件名**为准（zsh→`.zshrc`、bash→`.bashrc`、PowerShell→profile），`$SHELL` 只作兜底：`command` 有值就能直接粘，空值表示只能重开终端（cmd.exe / 注册表 Path） |
+| 人读 | `present.Reload`：`⚠ 这些改动只对新开的 shell 生效` + 命令 + "（或者直接重开一个终端窗口）"；没有命令时打印 `msg` |
+| GUI | `pkcli.Doctor` 解析 `reload`，`/api/doctor` 透出；体检页修完渲染一个高亮提示块（标题 + 按 shell 的措辞 + 命令 + **复制按钮** + 写入了哪些文件），中英文案都在 `i18n.ts` |
+| 测试 | `TestEnvWriteReportsReload`（zsh/bash/认不出的 posix）、`TestDoctorFixReportsReload`、`TestReloadAdviceForUnknownRC`、`present.TestReload`、GUI `TestListAndDoctor` 的 `reload` 解析 |
+
+顺带纠正一处旧文案：`present.Fixed` 以前收尾说"重跑 pk doctor 复核；新开窗口后 PATH 生效"——
+含糊且对非 Windows 不准确，现在拆开：`Fixed` 只报修了什么，生效方式由 `Reload` 精确说明。
