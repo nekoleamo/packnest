@@ -27,6 +27,9 @@ jobs:
           # 可选组合：label 不可用时不拖红整条流水线（continue-on-error）
           - { runner: macos-15-intel,   os: darwin, arch: amd64, optional: true }
           - { runner: ubuntu-24.04-arm, os: linux,  arch: arm64, optional: true }
+          # Windows ARM64 运行时：GitHub 的 arm64 托管 runner（公共 preview，公开仓库免费，
+          # 标签 windows-11-arm；私有仓库不可用）。它替掉 verify-manual.md §1 的人工项。
+          - { runner: windows-11-arm,   os: windows, arch: arm64, optional: true }
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.optional == true }}
     steps:
