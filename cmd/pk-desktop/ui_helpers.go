@@ -48,12 +48,12 @@ func (g *gui) kvTable(c *ui.Context, key string, rows [][2]string) {
 	// ui.Tester 里却正常 —— 这类"只有窗口里错"的问题只能靠 List 绕开（2026-11-15 实测）。
 	// 高度必须显式给：放在 Scroll 里没有高度约束时 List 会被压成一行。
 	ui.Row(c).FillWidth().Gap(8).Children(func() {
-		ui.Text(c, g.t("键", "Key")).TextColor(c.Theme().TextMuted).Width(150)
+		ui.Text(c, g.t("键", "Key")).TextColor(c.Theme().TextMuted).Width(190)
 		ui.Text(c, g.t("值", "Value")).TextColor(c.Theme().TextMuted)
 	})
 	ui.List(c, list, len(rows), func(i int) {
 		ui.Row(c).FillWidth().Gap(8).Padding(4).Children(func() {
-			ui.Text(c, rows[i][0]).Width(150).SingleLine()
+			ui.Text(c, rows[i][0]).Width(190).SingleLine()
 			ui.Text(c, rows[i][1]).SingleLine().Grow(1)
 		})
 	}).Height(200)

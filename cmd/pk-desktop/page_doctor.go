@@ -12,7 +12,7 @@ import (
 func (g *gui) pageDoctor(c *ui.Context) {
 	g.head(c, "体检", "Doctor", "doctor", nil)
 
-	ui.Row(c).FillWidth().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(12).AlignItems(ui.Center).Children(func() {
 		ui.Checkbox(c, &g.dGlobals, g.t("检查全局包", "Check global packages"))
 		ui.Checkbox(c, &g.dProbe, g.t("实测原生模块", "Probe native modules"))
 		if ui.PrimaryButton(c, g.t("开始体检", "Run doctor")).Clicked() {
