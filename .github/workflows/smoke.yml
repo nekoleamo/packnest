@@ -28,8 +28,9 @@ jobs:
           - { runner: macos-15-intel,   os: darwin, arch: amd64, optional: true }
           - { runner: ubuntu-24.04-arm, os: linux,  arch: arm64, optional: true }
           # Windows ARM64 运行时：GitHub 的 arm64 托管 runner（公共 preview，公开仓库免费，
-          # 标签 windows-11-arm；私有仓库不可用）。它替掉 verify-manual.md §1 的人工项。
-          - { runner: windows-11-arm,   os: windows, arch: arm64, optional: true }
+          # 标签 windows-11-arm；私有仓库不可用）。2026-11-15 实测通过后转正（不再是 optional），
+          # 它替掉了 verify-manual.md §1 原先的人工确认项。
+          - { runner: windows-11-arm,   os: windows, arch: arm64 }
     runs-on: ${{ matrix.runner }}
     continue-on-error: ${{ matrix.optional == true }}
     steps:
@@ -131,7 +132,7 @@ jobs:
         run: |
           # 为什么单独一步：上面那步走的是 git-bash，而 git-bash 不认 .cmd shim，
           # 所以 %PK_ROOT%\bin 里的 pk.cmd / packnest.cmd / node.cmd 从来没被真 PowerShell 跑过
-          # （docs/verify-manual.md 里这一项目前挂着"人工确认"）。
+          # （2026-11-15 起 windows-11-arm runner 也跑这条，ARM64 的 .cmd 分派同样是自动化的）。
           $ErrorActionPreference = 'Stop'
           $pk = Join-Path $env:RUNNER_TEMP 'bin/packnest.exe'
           & $pk install node@22

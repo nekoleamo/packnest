@@ -1,7 +1,13 @@
-# 需要人工确认的项（自动化覆盖不到）
+# 人工确认项（2026-11-15 起**已全部自动化**）
 
-> **2026-11-15 更新**：第 3 项 **macOS Gatekeeper 首启已确认通过**（用户实操，见文末记录）。
-> 现在只剩第 1 项 Windows ARM64 运行时等待实机。
+> **2026-11-15 更新**：
+> - 第 1 项 **Windows ARM64 运行时已自动化** —— GitHub 提供公共 arm64 Windows 托管 runner
+>   （标签 `windows-11-arm`，public preview 期对**公开仓库免费**），`smoke.yml` 加进矩阵后
+>   实测通过：`packnest v1.8.1 (…, windows/arm64)`、装 node@22.23.5 + pnpm@12.21.0、
+>   PowerShell 里 `.cmd` 分派正常、卸载零残留。
+> - 第 3 项 **macOS Gatekeeper 首启已确认通过**（用户实操，见文末记录）。
+>
+> 本文保留各步骤，作为"CI 挂了怎么手动复核"的清单。
 
 > 出处：`docs/progress.md` 的「剩余项」表。这两项**不是没做**，而是没有可信的自动化环境：
 > 无公共 ARM Windows runner、Gatekeeper 首启只能由真人点。
@@ -13,9 +19,14 @@
 > packnest v1.3.1 (windows/amd64)（v1.4.0 起同样通过，v1.5.1 复测通过）`、`node.cmd -v -> v22.23.5`、`npm.cmd -v -> 12.2.2`）。
 > 下面保留原文，作为"如果 CI 挂了怎么手动复核"的步骤清单。
 
-## 1. Windows ARM64 运行时
+## 1. Windows ARM64 运行时（✅ 已自动化，2026-11-15）
 
-**为什么只能人工**：GitHub 没有公共 ARM Windows runner；`smoke.yml` 矩阵里 windows 只有 amd64。
+**现状**：`smoke.yml` 矩阵里的 `windows-11-arm` 就是 ARM64 Windows 托管 runner
+（GitHub `windows-11-arm`，public preview 期对公开仓库免费；私有仓库会直接失败）。
+它跑完整的用户路径：从 gitee 取 `packnest_<ver>_windows_arm64.zip` → 装 → `pk install node@22` →
+PowerShell 里 `pk.cmd` / `node.cmd` → 零残留卸载。
+
+**为什么曾只能人工**：2026-11 之前 GitHub 没有公共 ARM Windows runner（下面留作手动复核步骤）。
 
 **怎么做**（任意一台 ARM64 Windows 11 机器，PowerShell 7）：
 

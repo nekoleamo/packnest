@@ -513,7 +513,8 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 ### 接下来可做的（1.3 已落地，待发版）
 
-1. **人工确认**（唯一挡在「全部自动化跑通」前面的）：Windows ARM64 运行时（macOS Gatekeeper 首启已于 2026-11-15 确认） ——
+1. ~~人工确认~~ **已清零（2026-11-15）**：Windows ARM64 运行时进 `smoke.yml` 的 `windows-11-arm`；
+   macOS Gatekeeper 首启已由用户实操确认 ——
    步骤与通过标准在 `docs/verify-manual.md`，缺的是对应硬件/真人操作（`.cmd` shim 已在 1.4 自动化进 smoke）
 2. **已无阻塞项**：1.1/1.2/1.3 的可选增强与偿债全部完成；`v1.3.1` 已发（2026-11-13）
 3. **下一轮候选**在 `~/Documents/Plan/17-包管理器/pn-1.3-候选清单.md` 的“不做”一栏（`pk upgrade` 独立命令、自更新器、daemon）
@@ -775,7 +776,7 @@ smoke CI（`.github/workflows/smoke.yml`）现在每个平台都装 node + **pnp
 | 卸载编排挪进 `internal/install`（清 `cmd/pk` 3,220 warn） | ✅ 部分完成：渠道识别（`DetectInstallChannel` / `SelfRemoveHint`）已挪进 `internal/install`，`cmd/pk` 3,220 → **3,181**（warn 消失）；剩余打印/交互编排仍留在 cmd | — |
 | winget 渠道 | ❌ 已放弃（2026-11-11 拍板）：不再生成草稿、不提 PR；`packaging/winget/` 与渠道识别已删 | — |
 | macOS Gatekeeper 首启 | ✅ 2026-11-15 用户实操确认（GUI 0.11.2 + CLI 1.8.1，放行一次后正常起窗口并读到 CLI） | — |
-| windows-arm64 运行时 | ⏳ 仍待实机（步骤与通过标准见 `docs/verify-manual.md` §1） | 无公共 ARM Windows runner |
+| windows-arm64 运行时 | ✅ 2026-11-15 自动化（smoke 加 `windows-11-arm` runner，实测装 node+pnpm、`.cmd` 分派、零残留卸载全通过） | — |
 | Windows `.cmd` shim | ✅ 2026-11-13 自动化（`smoke.yml` 的 `pwsh` 步骤） | — |
 
 ## 已知缺口（按计划补齐，不是遗漏）
@@ -1836,3 +1837,22 @@ GUI 侧独立发版：`gui-v0.11.2`（新增 Windows ARM64 产物，4 件 + 签�
    docs 提交没推就先发版，于是 tag 落在上一个提交上（v1.8.1 的 tag=a55ed6e，provenance=44e8acc；
    两者只差 `docs/progress.md`，代码完全一致）。`make release` 现在会先比 `HEAD` 与 `@{u}`，
    不一致直接拒绝。**正确顺序**：先提交并推送 → 再 `make release` → 签名 → 上传 → 最后提交 `scripts/latest`。
+
+## Windows ARM64 运行时：人工项清零（2026-11-15）
+
+最后一个"只能人工"的项现在也自动化了：GitHub 提供公共 **arm64 Windows 托管 runner**，
+标签 **`windows-11-arm`**（public preview 期**公开仓库免费**；私有仓库会直接失败）。
+仓库是公开的，所以直接把这一格加进 `smoke.yml` 矩阵即可。
+
+实测（run 43659070802，1m29s 通过）：
+```
+packnest v1.8.1 (go1.27.3, windows/arm64)
+已装 node@22.23.5 + pnpm@12.21.0
+pk.cmd --version -> packnest v1.8.1 (windows/arm64)
+node.cmd -v -> v22.23.5
+已卸载 2 个运行时：node@22.23.5, pnpm@12.21.0   # 零残留
+```
+先以 `optional: true` 验证一轮，通过后**转正**（不再 optional，失败会拖红流水线）。
+
+至此 `docs/verify-manual.md` 的两项全部有自动化覆盖（Gatekeeper 由用户实操确认，ARM64 运行时进 CI），
+剩下的手工步骤保留成"CI 挂了怎么复核"的清单。
