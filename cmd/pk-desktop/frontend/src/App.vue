@@ -12,6 +12,50 @@ const fixed = ref<string[]>([]);
 // 措辞在这里按 shell 本地化，CLI 的 msg 只当兜底。
 const reload = ref<ReloadAdvice | null>(null);
 const reloadCopied = ref(false);
+// 检查更新（1.9）：GUI 与 CLI 各自一个版本，地址由 CLI 的探测结果自动挑
+interface UpdateResult {
+  gui: { current: string; latest: string; update_available: boolean; channel: string; channel_hint?: string; artifact_url?: string; restart: boolean };
+  cli: { current: string; latest: string; update_available: boolean; channel: string; channel_hint?: string };
+  source: string;
+  order: { name: string; latency_ms?: number }[];
+}
+const updateInfo = ref<UpdateResult | null>(null);
+const updating = ref("");
+const updateMsg = ref("");
+const updateErr = ref("");
+
+async function checkUpdate() {
+  updateMsg.value = "";
+  updateErr.value = "";
+  updating.value = "check";
+  try {
+    updateInfo.value = await api.checkUpdate();
+  } catch (e) {
+    updateErr.value = String(e);
+  } finally {
+    updating.value = "";
+  }
+}
+async function applyUpdate(target: "gui" | "cli") {
+  updateMsg.value = "";
+  updateErr.value = "";
+  updating.value = target;
+  try {
+    const res = await api.applyUpdate(target);
+    if (res.error) updateErr.value = res.error;
+    if (res.result) updateInfo.value = res.result;
+    if (!res.error) {
+      updateMsg.value =
+        target === "gui"
+          ? t("已下载并替换完成：退出并重新打开 packnest 生效")
+          : t("CLI 已升级完成，重新打开终端后生效");
+    }
+  } catch (e) {
+    updateErr.value = String(e);
+  } finally {
+    updating.value = "";
+  }
+}
 // 开机自启（默认关；只写用户级条目）
 const autoStart = ref<{ supported: boolean; enabled: boolean; path: string; note?: string } | null>(null);
 async function loadAutostart() {
@@ -653,6 +697,57 @@ onMounted(async () => {
         </div>
       </div>
       <div v-else class="hint">{{ t("点「读取当前环境」看 pk 到底导出了什么（只读，不写任何 rc）。") }}</div>
+    </section>
+
+    <section>
+      <h2>{{ t("更新") }}</h2>
+      <div class="row">
+        <button @click="checkUpdate" :disabled="updating === 'check'">{{ updating === "check" ? t("检查中…") : t("检查更新") }}</button>
+        <span class="hint">{{ t("同时看 GUI 与 CLI，更新地址按当前网络自动挑（gitee / GitHub）") }}</span>
+      </div>
+      <div v-if="updateErr" class="err">{{ updateErr }}</div>
+      <div v-if="updateMsg" class="ok">{{ updateMsg }}</div>
+      <template v-if="updateInfo">
+        <table>
+          <thead><tr><th>{{ t("组件") }}</th><th>{{ t("当前") }}</th><th>{{ t("最新") }}</th><th>{{ t("状态") }}</th><th></th></tr></thead>
+          <tbody>
+            <tr>
+              <td>{{ t("桌面端") }}</td>
+              <td class="mono">{{ updateInfo.gui.current }}</td>
+              <td class="mono">{{ updateInfo.gui.latest }}</td>
+              <td>
+                <span v-if="updateInfo.gui.update_available">{{ t("有新版本") }}</span>
+                <span v-else class="ok">{{ t("已是最新") }}</span>
+              </td>
+              <td>
+                <button v-if="updateInfo.gui.update_available" :disabled="updating === 'gui'" @click="applyUpdate('gui')">
+                  {{ updating === "gui" ? t("升级中…") : t("升级桌面端") }}
+                </button>
+                <span v-if="updateInfo.gui.channel_hint" class="hint">{{ updateInfo.gui.channel_hint }}</span>
+              </td>
+            </tr>
+            <tr>
+              <td>CLI</td>
+              <td class="mono">{{ updateInfo.cli.current }}</td>
+              <td class="mono">{{ updateInfo.cli.latest }}</td>
+              <td>
+                <span v-if="updateInfo.cli.update_available">{{ t("有新版本") }}</span>
+                <span v-else class="ok">{{ t("已是最新") }}</span>
+              </td>
+              <td>
+                <button v-if="updateInfo.cli.update_available" :disabled="updating === 'cli'" @click="applyUpdate('cli')">
+                  {{ updating === "cli" ? t("升级中…") : t("升级 CLI") }}
+                </button>
+                <span v-if="updateInfo.cli.channel_hint" class="hint">{{ updateInfo.cli.channel_hint }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="hint">
+          {{ t("下载源：") }}{{ updateInfo.source }}
+          <span v-if="updateInfo.order?.length">（{{ updateInfo.order.map((o) => o.name + (o.latency_ms ? " " + o.latency_ms + "ms" : "")).join(" · ") }}）</span>
+        </div>
+      </template>
     </section>
 
     <section>

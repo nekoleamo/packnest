@@ -102,6 +102,36 @@ GUI（作为 CLI 的可视化补充，走子进程 + `--json`）只需要：读 
 
 `pk env --write --json` 的输出里也带同一个 `reload` 对象（`rc` / `rcs` / `block` 之后追加）。
 
+### `pk upgrade --self --json`（1.9 起）
+
+检查（`--check`）与升级共用一份输出：
+
+```json
+{
+  "schema": 1,
+  "current": "1.8.2",
+  "latest": "1.8.3",
+  "update_available": true,
+  "channel": "script-posix",
+  "channel_hint": "rm -f ~/.local/bin/pk …",
+  "source": "gitee",
+  "dir_url": "https://gitee.com/…/releases/download/v1.8.3",
+  "archive_url": "https://gitee.com/…/v1.8.3/packnest_1.8.3_darwin_arm64.tar.gz",
+  "sources": [{ "name": "gitee", "base": "…", "latest_url": "…", "latency_ms": 320 }, { "name": "github", … }],
+  "applied": false
+}
+```
+
+| 字段 | 契约 | 说明 |
+|---|---|---|
+| `current` / `latest` / `update_available` | **稳定** | 只比 semver；本地比远端新（自编译）时 `update_available=false` |
+| `channel` / `channel_hint` | **稳定** | `brew` / `scoop` / `npm` / `script-posix` / `script-windows` / `manual`；受管渠道**拒绝自替换***，只给 `channel_hint` 里的命令 |
+| `source` / `sources[]` | **稳定** | 按探测延迟排好（`mirror.Prober` 的 6h 缓存）；GUI 拿这个顺序决定从哪下 |
+| `dir_url` / `archive_url` | **稳定** | 该版本的发布目录与当前平台产物 |
+| `applied` | **稳定** | 这次是否真的替换了二进制 |
+
+失败时按"失败输出"那条规矩，额外输出一个没有 `ev` 的 `error` 对象（`code` 前缀是 `selfupdate.*`）。
+
 ## 失败输出（1.8 起，与事件流同流不同形）
 
 `--json` 命令失败时，除了原有的退出码与人读 stderr，stdout 会多一条**没有 `ev` 字段**的对象：

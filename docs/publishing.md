@@ -227,6 +227,12 @@ sh scripts/release-gui.sh --prune-only --prune 3            # 真删（gitee + G
 三个保留版本的 `checksums.txt` 都是 3 行且签名可验。随后发了 **0.11.2**（新增 Windows ARM64 产物，4 件），
 再次回收后线上只剩 0.11.0 / 0.11.1 / 0.11.2。
 
+### GUI 版本的单一真源：`scripts/latest-gui`
+
+GUI 的「检查更新」需要"最新 GUI 版本号"，所以发布流程多了一个随库提交的小文件：
+`scripts/latest-gui`（一行版本号，`release-gui.sh` 发完自动写）。它和 CLI 的 `scripts/latest` 一样
+放在两个 raw 地址上（gitee raw / GitHub raw），**不依赖 release API**（国内 API 常被限流）。
+
 ### 重发同一版本
 
 gitee 不允许替换同名附件，所以**先删 release 再重建**：

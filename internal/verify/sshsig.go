@@ -35,6 +35,50 @@ type SSHPublicKey struct {
 // VerifySSHSIG 校验 armored sshsig 是否由白名单里的某把公钥签发。
 //
 // 只支持 ssh-ed25519 + sha512：比支持全套算法少一半代码，失败模式也更明确。
+// buildSSHSIG 代码构造一个合法的 armored sshsig（夹具不存二进制）。
+// 不依赖 *testing.T：fuzz 种子在 *testing.F 上也要用同一个构造器。
+func buildSSHSIG(priv ed25519.PrivateKey, ns, hashAlg string, pubName, sigName string, msg []byte) []byte {
+	pub := priv.Public().(ed25519.PublicKey)
+
+	var pubBlob bytes.Buffer
+	writeSSHString(&pubBlob, []byte(pubName))
+	writeSSHString(&pubBlob, pub)
+
+	digest := sha512.Sum512(msg)
+	var sigBlob bytes.Buffer
+	writeSSHString(&sigBlob, []byte(sigName))
+	writeSSHString(&sigBlob, ed25519.Sign(priv, signedData(ns, nil, hashAlg, digest[:])))
+
+	var blob bytes.Buffer
+	blob.WriteString(sshSigMagic)
+	var ver [4]byte
+	binary.BigEndian.PutUint32(ver[:], 1)
+	blob.Write(ver[:])
+	writeSSHString(&blob, pubBlob.Bytes())
+	writeSSHString(&blob, []byte(ns))
+	writeSSHString(&blob, nil)
+	writeSSHString(&blob, []byte(hashAlg))
+	writeSSHString(&blob, sigBlob.Bytes())
+
+	enc := base64.StdEncoding.EncodeToString(blob.Bytes())
+	var out strings.Builder
+	out.WriteString(sshSigArmorB + "\n")
+	for len(enc) > 64 {
+		out.WriteString(enc[:64] + "\n")
+		enc = enc[64:]
+	}
+	out.WriteString(enc + "\n" + sshSigArmorE + "\n")
+	return []byte(out.String())
+}
+
+// SignSSHSIG 用私钥对 msg 生成 armored sshsig（命名空间固定为发布用的那一个）。
+//
+// 生产代码不调用它（私钥永远离线，签名走 `scripts/sign-release.sh` + ssh-keygen）；
+// 导出是为了让**测试与工具**能造出与真实发布同构的签名，不必依赖 ssh-keygen 是否安装。
+func SignSSHSIG(priv ed25519.PrivateKey, msg []byte) []byte {
+	return buildSSHSIG(priv, SSHSigNamespace, "sha512", ed25519Name, ed25519Name, msg)
+}
+
 func VerifySSHSIG(msg, armored []byte, allowed []SSHPublicKey) error {
 	blob, err := dearmor(armored)
 	if err != nil {

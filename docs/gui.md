@@ -59,6 +59,19 @@ iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -U
 确认清单本身没被镜像站换过。公钥在 `internal/verify/keys/allowed_signers`（与 `pk doctor` 内置的那份同源）。
 核对现成的发布用 `sh scripts/verify-release.sh --gui`（版本取自 `dist/gui/latest`，也可 `--version 0.11.2` 指定）。
 
+## 一点五、检查更新（1.9 起）
+
+界面里的「更新」区块同时看 **桌面端** 与 **CLI** 两个版本（它们版本号解耦）：
+
+- **地址自动选**：先跑 `pk upgrade --self --check --json`，CLI 会把探测到的源与延迟带回来
+  （`sources[]` 已按延迟排好），GUI 直接沿用这个顺序 —— 国内通常落到 gitee，海外落到 GitHub；
+- **升级 CLI**：完全交给 `pk upgrade --self`（渠道判断、验签、原子替换都只有一份实现）；
+- **升级桌面端**：GUI 自己下载 → `ssh-keygen` 验 `checksums.txt.sig` → 比 sha256 → 替换
+  （macOS 换整个 `packnest.app`，Windows/Linux 换可执行文件），然后提示「退出并重新打开」；
+- **渠道分流**：`scoop` 装的 GUI 只提示 `scoop update packnest-desktop`，不自替换；
+- 没有 `ssh-keygen` 时（Windows 需安装「OpenSSH 客户端」功能）**拒绝自更新**并提示用安装脚本 ——
+  不做"只比 sha256"的降级。
+
 ## 二、先装 CLI
 
 GUI 启动时会按 `PATH` → 常见安装目录的顺序找 `pk`，并检查它的契约版本（`schema ≥ 1` 且版本够新）。

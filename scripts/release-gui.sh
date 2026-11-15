@@ -172,6 +172,7 @@ _expected=$(printf '%s\n' "$_gui_names" | grep -c . || true)
   exit 4
 }
 printf '%s\n' "$VER" > "$DIST/gui/latest"   # verify-release --gui / gen-manifests 靠它取版本
+printf '%s\n' "$VER" > scripts/latest-gui  # GUI 版本的单一真源（GUI 的"检查更新"读它；记得提交）
 echo "已生成 $DIST/gui/checksums.txt（${_lines} 个产物）"
 
 . scripts/lib/sign.sh

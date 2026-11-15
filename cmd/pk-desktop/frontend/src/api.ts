@@ -140,6 +140,11 @@ export const api = {
     json<{ issues: Issue[]; fixed?: string[]; reload?: ReloadAdvice }>(
       `/api/doctor?globals=${globals ? 1 : 0}&probe=${probe ? 1 : 0}&fix=${fix ? 1 : 0}`,
     ),
+  // 检查更新：GUI 与 CLI 各自版本；地址由 CLI 的探测结果自动挑（gitee / GitHub）
+  checkUpdate: () => json<any>("/api/update"),
+  // 升级：target=gui（替换自身）或 cli（交给 `pk upgrade --self`）
+  applyUpdate: (target: "gui" | "cli") =>
+    json<any>("/api/update", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ target }) }),
   probe: (tool?: string) =>
     json<{ results: ProbeEntry[] }>(`/api/probe${tool ? "?tool=" + encodeURIComponent(tool) : ""}`),
   // keep>0 = 每个工具保留最新 N 个版本（`pk gc --keep N`）

@@ -3,7 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/packnest/packnest/cmd/pk/present"
 	"github.com/packnest/packnest/internal/coded"
+	"github.com/packnest/packnest/internal/selfupdate"
+	"os"
 	"runtime"
 
 	"github.com/packnest/packnest/internal/install"
@@ -208,11 +211,25 @@ func (a *app) cmdGC(args []string) int {
 // ---------------------------------------------------------------------------
 
 // cmdUpgrade 把已装工具升到索引最新（旧版本保留，想清理用 `pk gc --keep N`）。
+//
+// `--self` 另开一路：检查并升级 **pk 自己**（走发布渠道，见 internal/selfupdate）。
 func (a *app) cmdUpgrade(args []string) int {
 	fs := a.newFlagSet("upgrade")
 	dryRun := fs.Bool("dry-run", false, tr("只列出将从哪个版本升到哪个，不下载", "only report from -> to, download nothing"))
+	self := fs.Bool("self", false, tr("检查并升级 pk 自己（按发布渠道：brew/scoop/npm 只提示命令）", "check and upgrade pk itself (brew/scoop/npm installs only get the command)"))
+	checkOnly := fs.Bool("check", false, tr("配合 --self：只检查有没有新版，不下载", "with --self: only check for a newer release"))
+	forceSelf := fs.Bool("force", false, tr("配合 --self：忽略渠道判断，强行自我替换（谨慎）", "with --self: ignore the install-channel check and replace anyway (careful)"))
 	if err := parseFlexible(fs, args); err != nil {
 		return a.failUsage(err)
+	}
+	if *self {
+		if *dryRun {
+			*checkOnly = true
+		}
+		return a.upgradeSelf(*checkOnly, *forceSelf)
+	}
+	if *checkOnly || *forceSelf {
+		return a.failUsage(errors.New(tr("--check / --force 只能和 --self 一起用", "--check / --force only make sense with --self")))
 	}
 
 	unlock, err := store.Lock(a.paths.Lock())
@@ -325,4 +342,69 @@ func (a *app) ensureInstalled(inst *install.Installer, tool, version string) (st
 		return version, a.fail(errT(tr("%s@%s 装完了但台账里没有记录（先看 `pk list %s`）", "%s@%s was installed but is missing from the ledger (check `pk list %s`)"), tool, version, tool))
 	}
 	return resolved, 0
+}
+
+// upgradeSelf 是 `pk upgrade --self`：检查（可选：升级）pk 自己。
+//
+// 渠道判断与"从哪个源下"都在 selfupdate 里：brew/scoop/npm 装的**不自我替换**，
+// 只把该渠道的命令给用户；脚本装/手动放的才会下载 → 验签 → 比 sha256 → 原子替换。
+func (a *app) upgradeSelf(checkOnly, force bool) int {
+	exe, err := os.Executable()
+	if err != nil {
+		return a.fail(err)
+	}
+	opt := selfupdate.Option{
+		Current: Version,
+		Exe:     exe,
+		Client:  a.client,
+		Paths:   a.paths,
+		GOOS:    runtime.GOOS,
+		GOARCH:  runtime.GOARCH,
+	}
+	if !a.json {
+		opt.Log = func(line string) { fmt.Fprintln(a.out, "  "+line) }
+	}
+
+	var info selfupdate.Info
+	var err2 error
+	switch {
+	case checkOnly:
+		info, err2 = selfupdate.Check(a.context(), opt)
+	case force:
+		info, err2 = selfupdate.ApplyForce(a.context(), opt)
+	default:
+		info, err2 = selfupdate.Apply(a.context(), opt)
+	}
+	err = err2
+
+	if a.json {
+		if err != nil {
+			a.emitError(err, "", "", exitCodeFor(err))
+			return exitCodeFor(err)
+		}
+		return a.emit(struct {
+			Schema int `json:"schema"`
+			selfupdate.Info
+		}{jsonout.SchemaVersion, info})
+	}
+
+	if err != nil {
+		fmt.Fprintf(a.errOut, "pk: %s\n", present.Text(err))
+		// 渠道受管是"正常拒绝"，不是故障：正文只额外补一句该渠道的命令。
+		if ce, ok := coded.Of(err); ok && ce.Code == selfupdate.CodeChannelManaged && info.ChannelHint != "" {
+			fmt.Fprintf(a.out, tr("这个 pk 是 %s 装的，用它的方式升级：%s\n", "this pk came from %s; upgrade it with: %s\n"), info.Channel, info.ChannelHint)
+		}
+		return exitCodeFor(err)
+	}
+
+	fmt.Fprintf(a.out, tr("当前 %s，最新 %s（源：%s）\n", "current %s, latest %s (source: %s)\n"), info.Current, info.Latest, info.Source)
+	switch {
+	case info.Applied:
+		fmt.Fprintln(a.out, tr("已升级完成，重新执行命令即可用上新版本。", "upgraded; the next command already uses the new binary."))
+	case !info.UpdateAvailable:
+		fmt.Fprintln(a.out, tr("已经是最新版本。", "already up to date."))
+	default:
+		fmt.Fprintf(a.out, tr("有新版本可用：pk upgrade --self（渠道：%s）\n", "a newer release is available: pk upgrade --self (channel: %s)\n"), info.Channel)
+	}
+	return jsonout.ExitOK
 }

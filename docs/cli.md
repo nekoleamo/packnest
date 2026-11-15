@@ -566,6 +566,27 @@ $ pk upgrade --json       # {schema, changed, failed, items[{tool,from,to,change
 
 ---
 
+### 10.9 升级 pk 自己（`--self`，1.9 起）
+
+```bash
+$ pk upgrade --self --check     # 只查
+  源：gitee（320ms）
+当前 1.8.2，最新 1.8.3（源：gitee）
+有新版本可用：pk upgrade --self（渠道：script-posix）
+
+$ pk upgrade --self             # 真升级（下载 → 验签 → 比 sha256 → 原子替换）
+  源：gitee（298ms）
+  下载 packnest_1.8.3_darwin_arm64.tar.gz（gitee）
+  已升级到 1.8.3：/Users/you/.local/bin/pk
+```
+
+- **地址自动选**：候选源 gitee / GitHub 先用 `pk mirror probe` 同款探测排序（6h 缓存），最快的优先，
+  拿不到就按顺序回退；
+- **渠道自知**：`brew` / `scoop` / `npm` 装的 pk **不会**自我替换（那会让包管理器台账失真），
+  只打印该渠道的升级命令；`--force` 可强行覆盖判断；
+- **校验不打折**：`checksums.txt` 必须验出 sshsig（内置公钥）+ 产物 sha256，任一失败就停；
+- `--json` 的结构见 [docs/json-schema.md](json-schema.md)。
+
 ## 11. version / help
 
 ```bash

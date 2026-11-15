@@ -25,6 +25,7 @@ import (
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/paths"
 	"github.com/packnest/packnest/internal/provider"
+	"github.com/packnest/packnest/internal/selfupdate"
 	"github.com/packnest/packnest/internal/store"
 )
 
@@ -73,6 +74,10 @@ func run(args []string, out, errOut io.Writer) int {
 	defer stop()
 
 	a := &app{out: out, errOut: errOut, now: time.Now, ctx: ctx}
+	// 上次自我升级在 Windows 上留下的 `<exe>.old*`：启动时清掉（失败无妨）
+	if exe, err := os.Executable(); err == nil {
+		selfupdate.CleanupOld(exe, runtime.GOOS)
+	}
 
 	rest, err := a.parseGlobals(args)
 	if err != nil {

@@ -3,11 +3,8 @@ package verify
 import (
 	"bytes"
 	"crypto/ed25519"
-	"crypto/sha512"
 	"encoding/base64"
-	"encoding/binary"
 	"errors"
-	"strings"
 	"testing"
 )
 
@@ -17,42 +14,6 @@ func sshWirePub(pub ed25519.PublicKey) []byte {
 	writeSSHString(&buf, []byte(ed25519Name))
 	writeSSHString(&buf, pub)
 	return buf.Bytes()
-}
-
-// buildSSHSIG 代码构造一个合法的 armored sshsig（夹具不存二进制）。
-// 不依赖 *testing.T：fuzz 种子在 *testing.F 上也要用同一个构造器。
-func buildSSHSIG(priv ed25519.PrivateKey, ns, hashAlg string, pubName, sigName string, msg []byte) []byte {
-	pub := priv.Public().(ed25519.PublicKey)
-
-	var pubBlob bytes.Buffer
-	writeSSHString(&pubBlob, []byte(pubName))
-	writeSSHString(&pubBlob, pub)
-
-	digest := sha512.Sum512(msg)
-	var sigBlob bytes.Buffer
-	writeSSHString(&sigBlob, []byte(sigName))
-	writeSSHString(&sigBlob, ed25519.Sign(priv, signedData(ns, nil, hashAlg, digest[:])))
-
-	var blob bytes.Buffer
-	blob.WriteString(sshSigMagic)
-	var ver [4]byte
-	binary.BigEndian.PutUint32(ver[:], 1)
-	blob.Write(ver[:])
-	writeSSHString(&blob, pubBlob.Bytes())
-	writeSSHString(&blob, []byte(ns))
-	writeSSHString(&blob, nil)
-	writeSSHString(&blob, []byte(hashAlg))
-	writeSSHString(&blob, sigBlob.Bytes())
-
-	enc := base64.StdEncoding.EncodeToString(blob.Bytes())
-	var out strings.Builder
-	out.WriteString(sshSigArmorB + "\n")
-	for len(enc) > 64 {
-		out.WriteString(enc[:64] + "\n")
-		enc = enc[64:]
-	}
-	out.WriteString(enc + "\n" + sshSigArmorE + "\n")
-	return []byte(out.String())
 }
 
 func newKey(t *testing.T) (ed25519.PublicKey, ed25519.PrivateKey) {

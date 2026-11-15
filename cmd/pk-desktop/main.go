@@ -14,10 +14,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/packnest/packnest/cmd/pk-desktop/internal/update"
+	"io"
 	"io/fs"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 	"time"
@@ -182,6 +185,7 @@ func (a *api) routes(token string) *http.ServeMux {
 	mux.HandleFunc("/api/status", a.handleStatus)
 	mux.HandleFunc("/api/tools", a.handleTools)
 	mux.HandleFunc("/api/doctor", a.handleDoctor)
+	mux.HandleFunc("/api/update", a.handleUpdate)
 	mux.Handle("/api/mirrors", guard(token, http.HandlerFunc(a.handleMirrors)))
 	mux.Handle("/api/probe", guard(token, http.HandlerFunc(a.handleProbe)))
 	mux.Handle("/api/gc", guard(token, http.HandlerFunc(a.handleGC)))
@@ -269,6 +273,160 @@ func (a *api) handleDoctor(w http.ResponseWriter, r *http.Request) {
 		out["reload"] = res.Reload
 	}
 	writeJSON(w, out)
+}
+
+// handleUpdate 是"检查更新 / 升级"的入口。
+//
+//	GET  /api/update            → 查 GUI 与 CLI 的最新版本（地址按 CLI 的探测结果自动挑）
+//	POST /api/update {target}   → target=gui 替换 GUI 自身；target=cli 交给 `pk upgrade --self`
+//
+// GUI 自己的下载、验签、替换在这里做；CLI 的版本判断/验签/原子替换**完全交给 CLI**，
+// 这样渠道（brew/scoop）规则只有一份实现。
+func (a *api) handleUpdate(w http.ResponseWriter, r *http.Request) {
+	cl, ok := a.client(w)
+	if !ok {
+		return
+	}
+	ctx, cancel := timeout(r, 120*time.Second)
+	defer cancel()
+
+	if r.Method == http.MethodPost {
+		var body struct{ Target string }
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		switch body.Target {
+		case "cli":
+			res, err := cl.SelfUpdate(ctx)
+			if err != nil && res.Current == "" {
+				httpErr(w, err)
+				return
+			}
+			writeJSON(w, map[string]any{"target": "cli", "result": res, "error": errString(err)})
+			return
+		case "gui", "":
+			// GUI 自更新：先查（拿到产物地址与源），再下载验签替换
+			up, err := update.Check(ctx, guiVersion, func(c context.Context) (update.CLIInfo, error) {
+				info, cerr := cl.CheckSelfUpdate(c)
+				return update.CLIInfo{
+					Current: info.Current, Latest: info.Latest, UpdateAvailable: info.UpdateAvailable,
+					Channel: info.Channel, ChannelHint: info.ChannelHint, Source: info.Source,
+					Sources: convertSources(info.Sources),
+				}, cerr
+			}, fetchBytes(ctx))
+			if err != nil {
+				httpErr(w, err)
+				return
+			}
+			if !up.GUI.UpdateAvailable {
+				writeJSON(w, map[string]any{"target": "gui", "result": up, "error": ""})
+				return
+			}
+			if up.GUI.Channel == "scoop" || up.GUI.Channel == "brew" {
+				writeJSON(w, map[string]any{"target": "gui", "result": up,
+					"error": "这个 GUI 是 " + up.GUI.Channel + " 装的，请用：" + up.GUI.ChannelHint})
+				return
+			}
+			exe, err := os.Executable()
+			if err != nil {
+				httpErr(w, err)
+				return
+			}
+			_, aerr := update.ApplyGUI(ctx, update.ApplyOptions{
+				Current:     up.GUI.Latest,
+				ArtifactURL: up.GUI.ArtifactURL,
+				Exe:         exe,
+				Get:         fetchBytes(ctx),
+				Download:    fetchToFile(ctx),
+			})
+			up.GUI.Restart = aerr == nil
+			writeJSON(w, map[string]any{"target": "gui", "result": up, "error": errString(aerr)})
+			return
+		default:
+			httpErr(w, fmt.Errorf("未知的升级目标 %q", body.Target))
+			return
+		}
+	}
+
+	up, err := update.Check(ctx, guiVersion, func(c context.Context) (update.CLIInfo, error) {
+		info, cerr := cl.CheckSelfUpdate(c)
+		return update.CLIInfo{
+			Current: info.Current, Latest: info.Latest, UpdateAvailable: info.UpdateAvailable,
+			Channel: info.Channel, ChannelHint: info.ChannelHint, Source: info.Source,
+			Sources: convertSources(info.Sources),
+		}, cerr
+	}, fetchBytes(ctx))
+	if err != nil {
+		httpErr(w, err)
+		return
+	}
+	writeJSON(w, up)
+}
+
+// convertSources 把 pkcli 里的匿名结构转成 update.Source（两个包各留一份类型，避免互相依赖）。
+func convertSources(in []struct {
+	Name      string `json:"name"`
+	Base      string `json:"base"`
+	LatestURL string `json:"latest_url"`
+	LatencyMS int64  `json:"latency_ms"`
+}) []update.Source {
+	out := make([]update.Source, 0, len(in))
+	for _, s := range in {
+		out = append(out, update.Source{Name: s.Name, Base: s.Base, LatestURL: s.LatestURL, LatencyMS: s.LatencyMS})
+	}
+	return out
+}
+
+// fetchBytes 是 update 包要的"取小文件"函数（复用 CLI 同款的 fetch 语义：超时 + 重定向限制）。
+func fetchBytes(ctx context.Context) func(context.Context, string) ([]byte, error) {
+	return func(c context.Context, url string) ([]byte, error) {
+		req, err := http.NewRequestWithContext(c, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("%s 返回 HTTP %d", url, resp.StatusCode)
+		}
+		return io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	}
+}
+
+// fetchToFile 是"下载大文件到磁盘"。
+func fetchToFile(ctx context.Context) func(context.Context, string, string) error {
+	return func(c context.Context, url, dst string) error {
+		req, err := http.NewRequestWithContext(c, http.MethodGet, url, nil)
+		if err != nil {
+			return err
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("%s 返回 HTTP %d", url, resp.StatusCode)
+		}
+		f, err := os.Create(dst)
+		if err != nil {
+			return err
+		}
+		if _, err := io.Copy(f, resp.Body); err != nil {
+			f.Close()
+			return err
+		}
+		return f.Close()
+	}
+}
+
+// errString 把 error 转成给前端的一行文字（nil 就是空串）。
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func (a *api) handleMirrors(w http.ResponseWriter, r *http.Request) {

@@ -1886,3 +1886,42 @@ CLI 1.8.2 只有一件新增：`reload` 契约（`pk doctor --fix` / `pk env --w
 - CLI：6 平台 + provenance/SBOM + checksums + `.sig` → gitee/GitHub，随后推 brew tap / scoop bucket
 - GUI：三平台（mac arm64 / win amd64 / **win arm64** / linux amd64 → 共 4 件产物）+ 签名清单 → `gui-v0.11.3`
 - 线上回读：`make verify-release` 与 `sh scripts/verify-release.sh --gui` 各自逐条核对
+
+## 检查更新 + 升级（2026-11-15，CLI 1.9 / GUI 0.11.4）
+
+需求：GUI 里能"检查更新并升级"，并且**按网络环境自动判断更新地址**。
+先与既有拍板对齐：原来写的是"GUI 不自带更新器，升级指回 CLI"。这次不推翻它，而是**分工**：
+**CLI 的升级完全归 CLI**（`pk upgrade --self`），**GUI 只管替换自己的产物**。
+
+### CLI：`pk upgrade --self [--check] [--force]`
+
+新包 `internal/selfupdate`（585 行，预算 800）——命令面仍是 10 个，只加开关：
+
+| 关注点 | 做法 |
+|---|---|
+| 地址自动选 | 候选源 gitee / GitHub 用 `mirror.Prober`（6h 缓存）排序，最快的优先；探测全挂按顺序回退；版本号走 `scripts/latest`（不依赖 release API） |
+| 渠道自知 | 复用 `install.DetectInstallChannel`：brew/scoop/npm **拒绝自替换**，返回带渠道命令的码；`--force` 强行覆盖 |
+| 校验 | `checksums.txt` 必须验 sshsig（`verify.VerifySSHSIG` + 内置公钥）+ 产物 sha256；用 Go 实现，**不依赖 ssh-keygen** |
+| 替换 | posix 直接 rename 覆盖；Windows 先改名成 `.old` 再放新的（并同步 `pk.exe`/`packnest.exe` 副本），`.old` 下次启动清（`selfupdate.CleanupOld`） |
+| 契约 | `--json` 输出 current/latest/channel/source/sources[]/applied（`docs/json-schema.md` 已登记） |
+
+新增码 17 条（`selfupdate.*`，zh/en 双份，`make codes` 校验过）；`verify.SignSSHSIG` 从测试里提出来
+（与 `VerifySSHSIG` 对称，测试与工具造签名不再依赖 ssh-keygen）。`internal/selfupdate` 覆盖率 **90.3%**。
+
+### GUI：「更新」区块
+
+- `GET /api/update`：跑 `pk upgrade --self --check --json` 拿 CLI 版本与**已排序的源**，
+  再按同一顺序取 `scripts/latest-gui` 得到 GUI 最新版；界面显示两个组件 + 下载源 + 延迟；
+- `POST /api/update {target:"cli"}`：交给 `pk upgrade --self --json`（一份实现）；
+- `POST /api/update {target:"gui"}`：`internal/update` 自己下载 → `ssh-keygen -Y verify` 验签 →
+  比 sha256 → 按平台替换（macOS 换整个 `packnest.app`，Windows/Linux 换可执行文件）→ 提示重启；
+- **渠道分流**：scoop 装的 GUI 只提示 `scoop update packnest-desktop`；
+- 没有 `ssh-keygen` 时**拒绝自更新**（提示用安装脚本），不做"只比 sha256"的降级；
+- 公钥现在是**六处一致**（新增 `cmd/pk-desktop/internal/update/allowed_signers`），`make keys` 已更新。
+
+### 配套
+
+- 新增 `scripts/latest-gui`（GUI 版本的单一真源，`release-gui.sh` 发版时自动写）——两个 raw 地址都读它，
+  不依赖 release API（国内常限流）；
+- 行数预算：`cmd/pk` 3300 → 3400（自更新 CLI 编排）、`internal/verify` 850 → 900（SignSSHSIG + 注释）、
+  新增 `internal/selfupdate` 800。

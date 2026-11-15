@@ -6,13 +6,14 @@
 # 新增包必须在这里登记上限，否则 loccheck 会报"未登记"。
 #
 # 包路径              上限
-cmd/pk                3300
+cmd/pk                3400
 cmd/pk/present         800
 internal/install      3080
+internal/selfupdate    800
 internal/provider     1700
 internal/env          1050
 internal/fetch         900
-internal/verify        850
+internal/verify        900
 internal/store         720
 internal/mirror        500
 internal/archive       450

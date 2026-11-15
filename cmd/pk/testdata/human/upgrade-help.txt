@@ -10,5 +10,11 @@ pk upgrade [工具...] [--dry-run] [--json]
 开关与默认值：pk upgrade --help
 
 开关（默认值见括号）：
+  -check
+    	配合 --self：只检查有没有新版，不下载
   -dry-run
     	只列出将从哪个版本升到哪个，不下载
+  -force
+    	配合 --self：忽略渠道判断，强行自我替换（谨慎）
+  -self
+    	检查并升级 pk 自己（按发布渠道：brew/scoop/npm 只提示命令）

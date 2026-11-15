@@ -124,6 +124,49 @@ func (c *Client) Doctor(ctx context.Context, globals, probe, fix bool) (DoctorRe
 	return DoctorResult{Issues: doc.Issues, Fixed: doc.Fixed, Reload: doc.Reload}, nil
 }
 
+// SelfUpdate 是 `pk upgrade --self [--check] --json` 的结果（字段与 CLI 对齐，只取用得到的）。
+type SelfUpdate struct {
+	Current         string `json:"current"`
+	Latest          string `json:"latest"`
+	UpdateAvailable bool   `json:"update_available"`
+	Channel         string `json:"channel"`
+	ChannelHint     string `json:"channel_hint"`
+	Source          string `json:"source"`
+	Sources         []struct {
+		Name      string `json:"name"`
+		Base      string `json:"base"`
+		LatestURL string `json:"latest_url"`
+		LatencyMS int64  `json:"latency_ms"`
+	} `json:"sources"`
+	Applied bool `json:"applied"`
+}
+
+// CheckSelfUpdate 跑 `pk upgrade --self --check --json`（只查不下载）。
+func (c *Client) CheckSelfUpdate(ctx context.Context) (SelfUpdate, error) {
+	return c.selfUpdate(ctx, true)
+}
+
+// SelfUpdate 跑 `pk upgrade --self --json`（渠道受管时 CLI 只报错，不会乱动）。
+func (c *Client) SelfUpdate(ctx context.Context) (SelfUpdate, error) {
+	return c.selfUpdate(ctx, false)
+}
+
+func (c *Client) selfUpdate(ctx context.Context, checkOnly bool) (SelfUpdate, error) {
+	args := []string{"upgrade", "--self"}
+	if checkOnly {
+		args = append(args, "--check")
+	}
+	args = append(args, "--json")
+	stdout, err := c.run(ctx, nil, args...)
+	var out SelfUpdate
+	if len(stdout) > 0 {
+		if jerr := json.Unmarshal(stdout, &out); jerr == nil && out.Current != "" {
+			return out, err // 渠道受管时 CLI 也返回结构化信息 + 非零退出码
+		}
+	}
+	return out, err
+}
+
 // Event 是 `pk install --json` 的一行 NDJSON。
 type Event struct {
 	Ev         string `json:"ev"`
