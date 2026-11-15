@@ -120,7 +120,7 @@ pk upgrade --self           # 升级 pk 自己：下载 → 验签（sshsig+sha2
 
 ## 桌面端（可选）
 
-`pk-desktop` 是 CLI 的**可视化补充**（Wails v3 + Vue3，独立模块）：**必须先装 `pk`**，
+`pk-desktop` 是 CLI 的**可视化补充**（原生界面，mygo 的 ui 包：**纯 Go、无 cgo、无 webview**，独立模块）：**必须先装 `pk`**，
 界面里每个动作都是子进程调 `pk <命令> --json`，没有自己的下载器、台账或更新器 —— 卸载/升级仍指回 CLI。
 
 | 界面 | 背后的命令 |
@@ -135,7 +135,7 @@ pk upgrade --self           # 升级 pk 自己：下载 → 验签（sshsig+sha2
 安装：产物挂在**独立 tag** `gui-v<版本>` 下（macOS arm64 / Windows amd64 / Linux amd64），
 从 [gitee](https://gitee.com/null_593_5354/packnest/releases) 或 [GitHub Releases](https://github.com/nekoleamo/packnest/releases) 下载。
 没装 CLI 时界面会直接给出当前平台的安装命令（带复制按钮）。
-macOS 是 ad-hoc 签名（首次打开在「系统设置 → 隐私与安全性」放行一次）；Linux 需要 GTK4 + WebKitGTK 6.0。
+macOS 是 ad-hoc 签名（首次打开在「系统设置 → 隐私与安全性」放行一次）；**不依赖 WebView2 / WebKitGTK**（0.12 起），Linux 桌面只要 GTK3，托盘另需 `libayatana-appindicator3`。
 不想装桌面运行时也能用浏览器形态：`pk-desktop --serve` → `http://127.0.0.1:7799/`。
 
 用户向说明见 [docs/gui.md](docs/gui.md)，开发/打包细节见 [cmd/pk-desktop/README.md](cmd/pk-desktop/README.md)。

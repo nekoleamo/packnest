@@ -1,41 +1,33 @@
 // pk-desktop：packnest 的**补充式**图形界面（必须先装 CLI）。
 //
-// 设计（方案 §11 定案 2026-11-11）：
+// 设计（方案 §11 定案 2026-11-11，2026-11-15 换壳）：
 //   - 不 import 主模块任何 internal/*，全部能力都通过 `pk <cmd> --json` 子进程获得；
-//   - 前端是普通静态页 + 一个只读/只写的 HTTP 接口，因此同一份代码既能跑桌面壳，
-//     也能用 `--serve` 在浏览器里用（GUI 只是 CLI 的可视化补充，不做第二套状态机）；
-//   - 所有删除/覆盖操作都要前端显式确认，后端只负责把 `--yes` 传给 CLI。
+//   - 界面是**原生 UI**（github.com/egoist/mygo 的 ui 包，纯 Go 无 cgo、无 webview）：
+//     同一份数据既能画成桌面窗口，也能用 `--serve` 在浏览器里看（浏览器形态用冻结的旧页面）。
+//   - 所有删除/覆盖操作都要界面显式确认，后端只负责把 `--yes` 传给 CLI。
 package main
 
 import (
-	"context"
 	"embed"
-	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
-	"github.com/packnest/packnest/cmd/pk-desktop/internal/update"
-	"io"
 	"io/fs"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"runtime"
-	"strconv"
-	"time"
 
-	"github.com/wailsapp/wails/v3/pkg/application"
-	"github.com/wailsapp/wails/v3/pkg/events"
+	"github.com/egoist/mygo"
+	"github.com/egoist/mygo/ui"
 
-	"github.com/packnest/packnest/cmd/pk-desktop/internal/autostart"
-	"github.com/packnest/packnest/cmd/pk-desktop/internal/pkcli"
+	"github.com/packnest/packnest/cmd/pk-desktop/internal/state"
 )
 
-// 前端产物：Vue3 + TS（frontend/）构建到 frontend/dist，由这里嵌进二进制。
-//
-//go:embed frontend/dist
-var frontendFS embed.FS
+// guiVersion 是 GUI 自己的版本（与 CLI 解耦；CLI 版本靠 pkcli 的启动门禁检查）。
+// 发布用的 tag 与产物文件名都跟它走：`gui-v<guiVersion>`。
+const guiVersion = "0.12.0"
 
 // 图标：packaging/genicon 生成（纯标准库画的"巢"标记）。
 //
@@ -45,14 +37,11 @@ var appIcon []byte
 //go:embed assets/tray-template.png
 var trayTemplate []byte
 
-// guiVersion 是 GUI 自己的版本（与 CLI 解耦；CLI 版本靠 pkcli 的启动门禁检查）。
-// 发布用的 tag 与产物文件名都跟它走：`gui-v<guiVersion>`。
-const guiVersion = "0.11.4"
-
-// api 是前端唯一的数据来源（不用 Wails 绑定，浏览器形态也能用）。
-type api struct {
-	find func(extra ...string) (*pkcli.Client, pkcli.Info, error)
-}
+// 浏览器形态的静态页：2026-11-15 起**冻结**，不再随界面改动更新，
+// 只作"窗口起不来/远程看"的兜底（原生界面与它共用同一套 /api）。
+//
+//go:embed frontend/dist
+var frontendFS embed.FS
 
 func main() {
 	showVersion := flag.Bool("version", false, "打印 GUI 版本并退出")
@@ -61,20 +50,16 @@ func main() {
 	token := flag.String("token", "", "非回环地址时必须给：访问 /api/* 要带 ?token= 或 Authorization: Bearer")
 	flag.Parse()
 	if *showVersion {
-		fmt.Printf("pk-desktop %s（Wails v3.1.0，需要 pk CLI）\n", guiVersion)
+		fmt.Printf("pk-desktop %s（原生 UI / mygo，需要 pk CLI）\n", guiVersion)
 		return
 	}
 
-	a := &api{find: pkcli.Locate}
+	svc := &state.Service{Locate: state.Locate, GUIVersion: guiVersion}
+	a := &api{svc: svc}
 	mux := a.routes(*token)
+	web := withAPI(mux, staticHandler())
 
-	sub, err := fs.Sub(frontendFS, "frontend/dist")
-	if err != nil {
-		log.Fatal(err)
-	}
-	static := application.BundledAssetFileServer(sub)
-	// 单实例：桌面壳先占用一个固定回环端口当互斥锁（零依赖）；占不到说明已经开着一个 GUI。
-	// --serve 模式下这个检查也会生效（同一个端口不能同时被两个实例监听）。
+	// 单实例：先占用一个固定回环端口当互斥锁（零依赖）；占不到说明已经开着一个 GUI。
 	single := &singleInstance{}
 	if err := single.acquire(*addr); err != nil {
 		log.Fatalf("已经有一个 packnest 界面在运行（%s）：%v", *addr, err)
@@ -85,56 +70,36 @@ func main() {
 		if !loopback(*addr) && *token == "" {
 			log.Fatal("拒绝启动：--serve 绑到非回环地址却没有 --token（这等于把装/卸软件的接口暴露到网络）")
 		}
-		// 浏览器形态和桌面壳共用同一套接口 + 同一份静态页
-		log.Printf("pk-desktop --serve：http://%s/（需要本机已安装 pk）", *addr)
-		log.Fatal(http.Serve(single.ln, withAPI(mux, static)))
+		log.Printf("pk-desktop --serve：http://%s/（需要本机已安装 pk；这是冻结的旧页面）", *addr)
+		log.Fatal(http.Serve(single.ln, web))
 	}
 	// 桌面壳也顺带把同一个地址服务起来：单实例锁 + "浏览器里也能用"一举两得
 	go func() {
 		if loopback(*addr) || *token != "" {
 			log.Printf("同一个界面也在 http://%s/ 提供（可选用浏览器打开）", *addr)
-			_ = http.Serve(single.ln, withAPI(mux, static))
+			_ = http.Serve(single.ln, web)
 		}
 	}()
 
-	app := application.New(application.Options{
-		Name:        "packnest",
-		Description: "packnest 的可视化补充界面（需要本机已安装 pk）",
-		Icon:        appIcon,
-		Assets:      application.AssetOptions{Handler: withAPI(mux, static)},
-		Mac: application.MacOptions{
-			ApplicationShouldTerminateAfterLastWindowClosed: true,
-		},
-	})
-	winOpts := application.WebviewWindowOptions{Title: "packnest", URL: "/"}
-	if runtime.GOOS == "linux" { // Linux 的窗口图标在 LinuxWindow 里；macOS 走 .app bundle，Windows 用 exe 资源
-		winOpts.Linux = application.LinuxWindow{Icon: appIcon}
-	}
-	win := app.Window.NewWithOptions(winOpts)
-
-	// 托盘：关窗口不退出（退到托盘），菜单里能重新打开窗口或退出
-	tray := app.SystemTray.New()
-	if runtime.GOOS == "darwin" {
-		tray.SetTemplateIcon(trayTemplate) // 模板图标由系统反色，深浅菜单栏都清楚
-	} else {
-		tray.SetIcon(appIcon)
-	}
-	menu := app.NewMenu()
-	menu.Add("打开 packnest").OnClick(func(*application.Context) { win.Show(); win.Focus() })
-	menu.AddSeparator()
-	menu.Add("退出").OnClick(func(*application.Context) { app.Quit() })
-	tray.SetMenu(menu)
-	// 点窗口关闭 → 隐藏，交给托盘收起（macOS 的 ⌘Q 仍然退）
-	win.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
-		win.Hide()
-		e.Cancel()
-	})
-	if err := app.Run(); err != nil {
+	gui := newGUI(svc)
+	mygo.App.SetName("packnest")
+	mygo.App.SetVersion(guiVersion)
+	mygo.App.WhenReady(gui.start)
+	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
 }
 
-// withAPI 让 /api/* 走我们自己的处理器，其余交给 Wails 的静态资源服务。
+// staticHandler 服务冻结的浏览器页面。
+func staticHandler() http.Handler {
+	sub, err := fs.Sub(frontendFS, "frontend/dist")
+	if err != nil {
+		log.Fatal(err)
+	}
+	return http.FileServer(http.FS(sub))
+}
+
+// withAPI 让 /api/* 走我们自己的处理器，其余交给静态资源。
 func withAPI(apiHandler, assetsHandler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if len(r.URL.Path) >= 5 && r.URL.Path[:5] == "/api/" {
@@ -145,542 +110,72 @@ func withAPI(apiHandler, assetsHandler http.Handler) http.Handler {
 	})
 }
 
-// guard 给 /api/* 加一层令牌校验：`--serve` 一旦绑到非回环地址，等于把"装/卸软件"的接口
-// 暴露到网络里，必须显式给 token（桌面壳形态不走 HTTP 端口，不受影响）。
-func guard(token string, h http.Handler) http.Handler {
-	if token == "" {
-		return h
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ok := r.URL.Query().Get("token") == token
-		if !ok && r.Header.Get("Authorization") == "Bearer "+token {
-			ok = true
-		}
-		if !ok {
-			http.Error(w, "需要 token", http.StatusUnauthorized)
-			return
-		}
-		h.ServeHTTP(w, r)
+// start 建窗口与托盘。关窗口只是收进托盘，退出走托盘菜单（macOS 的 ⌘Q 仍然退）。
+func (g *gui) start() {
+	g.win = mygo.NewWindow(mygo.WindowOptions{
+		Title:   "packnest",
+		Width:   1040,
+		Height:  780,
+		Content: ui.View(g.view),
 	})
-}
+	if runtime.GOOS == "linux" { // Windows 用 exe 资源，macOS 走 .app bundle
+		_ = g.win.SetIcon(appIcon)
+	}
+	g.win.OnClose(func(e *mygo.CloseEvent) {
+		e.PreventDefault()
+		g.win.Hide()
+	})
 
-// loopback 判断监听地址是否只在本机（默认安全形态）。
-func loopback(addr string) bool {
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		host = addr
-	}
-	if host == "" {
-		return false
-	}
-	if host == "localhost" {
-		return true
-	}
-	ip := net.ParseIP(host)
-	return ip != nil && ip.IsLoopback()
-}
-
-func (a *api) routes(token string) *http.ServeMux {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/status", a.handleStatus)
-	mux.HandleFunc("/api/tools", a.handleTools)
-	mux.HandleFunc("/api/doctor", a.handleDoctor)
-	mux.HandleFunc("/api/update", a.handleUpdate)
-	mux.Handle("/api/mirrors", guard(token, http.HandlerFunc(a.handleMirrors)))
-	mux.Handle("/api/probe", guard(token, http.HandlerFunc(a.handleProbe)))
-	mux.Handle("/api/gc", guard(token, http.HandlerFunc(a.handleGC)))
-	mux.Handle("/api/install", guard(token, http.HandlerFunc(a.handleInstall))) // NDJSON 流：一行一个 CLI 事件
-	mux.Handle("/api/use", guard(token, http.HandlerFunc(a.handleUse)))
-	mux.HandleFunc("/api/available", a.handleAvailable)
-	mux.Handle("/api/uninstall", guard(token, http.HandlerFunc(a.handleUninstall)))
-	mux.HandleFunc("/api/versions", a.handleVersions)
-	mux.HandleFunc("/api/which", a.handleWhich)                                          // 只读：命令名 → 真实二进制
-	mux.HandleFunc("/api/env", a.handleEnv)                                              // 只读：当前 PATH / 环境变量
-	mux.Handle("/api/mirror-write", guard(token, http.HandlerFunc(a.handleMirrorWrite))) // 写 npmrc
-	mux.HandleFunc("/api/autostart", a.handleAutostart)                                  // 开机自启（默认关，显式打开才写）
-	return mux
-}
-
-// httpErr 把 pkcli 的错误映射成状态码：锁被占用 → 409（前端提示"另一个 pk 正在运行"），其余 → 502。
-func httpErr(w http.ResponseWriter, err error) {
-	if errors.Is(err, pkcli.ErrBusy) {
-		http.Error(w, err.Error(), http.StatusConflict)
-		return
-	}
-	http.Error(w, err.Error(), http.StatusBadGateway)
-}
-
-// client 取"已定位的 pk"；没装 CLI 时直接 412，前端据此引导安装。
-func (a *api) client(w http.ResponseWriter) (*pkcli.Client, bool) {
-	cl, _, err := a.find()
-	if err != nil {
-		status := http.StatusPreconditionFailed // 412：先装 CLI
-		if !errors.Is(err, pkcli.ErrNotFound) {
-			status = http.StatusBadGateway
-		}
-		http.Error(w, err.Error(), status)
-		return nil, false
-	}
-	return cl, true
-}
-
-func writeJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("content-type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func (a *api) handleStatus(w http.ResponseWriter, _ *http.Request) {
-	cl, info, err := a.find()
-	if err != nil {
-		// platform 让前端给"对应平台"的安装命令（Windows 用户不该被塞一条 sh 命令）
-		writeJSON(w, map[string]any{"ok": false, "reason": err.Error(), "platform": runtime.GOOS})
-		return
-	}
-	writeJSON(w, map[string]any{"ok": true, "cli": info, "path": cl.Path, "platform": runtime.GOOS})
-}
-
-func (a *api) handleTools(w http.ResponseWriter, r *http.Request) {
-	cl, ok := a.client(w)
-	if !ok {
-		return
-	}
-	ctx, cancel := timeout(r, 60*time.Second)
-	defer cancel()
-	tools, err := cl.List(ctx)
-	if err != nil {
-		httpErr(w, err)
-		return
-	}
-	// outdated 来自 `pk list --json`（1.3：只读 24h 索引缓存，没缓存就是空）
-	writeJSON(w, map[string]any{"tools": tools.Tools, "outdated": tools.Outdated})
-}
-
-func (a *api) handleDoctor(w http.ResponseWriter, r *http.Request) {
-	cl, ok := a.client(w)
-	if !ok {
-		return
-	}
-	ctx, cancel := timeout(r, 90*time.Second)
-	defer cancel()
-	q := r.URL.Query()
-	res, err := cl.Doctor(ctx, q.Get("globals") == "1", q.Get("probe") == "1", q.Get("fix") == "1")
-	if err != nil {
-		httpErr(w, err)
-		return
-	}
-	out := map[string]any{"issues": res.Issues, "fixed": res.Fixed}
-	if res.Reload != nil {
-		out["reload"] = res.Reload
-	}
-	writeJSON(w, out)
-}
-
-// handleUpdate 是"检查更新 / 升级"的入口。
-//
-//	GET  /api/update            → 查 GUI 与 CLI 的最新版本（地址按 CLI 的探测结果自动挑）
-//	POST /api/update {target}   → target=gui 替换 GUI 自身；target=cli 交给 `pk upgrade --self`
-//
-// GUI 自己的下载、验签、替换在这里做；CLI 的版本判断/验签/原子替换**完全交给 CLI**，
-// 这样渠道（brew/scoop）规则只有一份实现。
-func (a *api) handleUpdate(w http.ResponseWriter, r *http.Request) {
-	cl, ok := a.client(w)
-	if !ok {
-		return
-	}
-	ctx, cancel := timeout(r, 120*time.Second)
-	defer cancel()
-
-	if r.Method == http.MethodPost {
-		var body struct{ Target string }
-		_ = json.NewDecoder(r.Body).Decode(&body)
-		switch body.Target {
-		case "cli":
-			res, err := cl.SelfUpdate(ctx)
-			if err != nil && res.Current == "" {
-				httpErr(w, err)
-				return
-			}
-			writeJSON(w, map[string]any{"target": "cli", "result": res, "error": errString(err)})
-			return
-		case "gui", "":
-			// GUI 自更新：先查（拿到产物地址与源），再下载验签替换
-			up, err := update.Check(ctx, guiVersion, func(c context.Context) (update.CLIInfo, error) {
-				info, cerr := cl.CheckSelfUpdate(c)
-				return update.CLIInfo{
-					Current: info.Current, Latest: info.Latest, UpdateAvailable: info.UpdateAvailable,
-					Channel: info.Channel, ChannelHint: info.ChannelHint, Source: info.Source,
-					Sources: convertSources(info.Sources),
-				}, cerr
-			}, fetchBytes(ctx))
-			if err != nil {
-				httpErr(w, err)
-				return
-			}
-			if !up.GUI.UpdateAvailable {
-				writeJSON(w, map[string]any{"target": "gui", "result": up, "error": ""})
-				return
-			}
-			if up.GUI.Channel == "scoop" || up.GUI.Channel == "brew" {
-				writeJSON(w, map[string]any{"target": "gui", "result": up,
-					"error": "这个 GUI 是 " + up.GUI.Channel + " 装的，请用：" + up.GUI.ChannelHint})
-				return
-			}
-			exe, err := os.Executable()
-			if err != nil {
-				httpErr(w, err)
-				return
-			}
-			_, aerr := update.ApplyGUI(ctx, update.ApplyOptions{
-				Current:     up.GUI.Latest,
-				ArtifactURL: up.GUI.ArtifactURL,
-				Exe:         exe,
-				Get:         fetchBytes(ctx),
-				Download:    fetchToFile(ctx),
-			})
-			up.GUI.Restart = aerr == nil
-			writeJSON(w, map[string]any{"target": "gui", "result": up, "error": errString(aerr)})
-			return
-		default:
-			httpErr(w, fmt.Errorf("未知的升级目标 %q", body.Target))
-			return
-		}
-	}
-
-	up, err := update.Check(ctx, guiVersion, func(c context.Context) (update.CLIInfo, error) {
-		info, cerr := cl.CheckSelfUpdate(c)
-		return update.CLIInfo{
-			Current: info.Current, Latest: info.Latest, UpdateAvailable: info.UpdateAvailable,
-			Channel: info.Channel, ChannelHint: info.ChannelHint, Source: info.Source,
-			Sources: convertSources(info.Sources),
-		}, cerr
-	}, fetchBytes(ctx))
-	if err != nil {
-		httpErr(w, err)
-		return
-	}
-	writeJSON(w, up)
-}
-
-// convertSources 把 pkcli 里的匿名结构转成 update.Source（两个包各留一份类型，避免互相依赖）。
-func convertSources(in []struct {
-	Name      string `json:"name"`
-	Base      string `json:"base"`
-	LatestURL string `json:"latest_url"`
-	LatencyMS int64  `json:"latency_ms"`
-}) []update.Source {
-	out := make([]update.Source, 0, len(in))
-	for _, s := range in {
-		out = append(out, update.Source{Name: s.Name, Base: s.Base, LatestURL: s.LatestURL, LatencyMS: s.LatencyMS})
-	}
-	return out
-}
-
-// fetchBytes 是 update 包要的"取小文件"函数（复用 CLI 同款的 fetch 语义：超时 + 重定向限制）。
-func fetchBytes(ctx context.Context) func(context.Context, string) ([]byte, error) {
-	return func(c context.Context, url string) ([]byte, error) {
-		req, err := http.NewRequestWithContext(c, http.MethodGet, url, nil)
-		if err != nil {
-			return nil, err
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("%s 返回 HTTP %d", url, resp.StatusCode)
-		}
-		return io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	}
-}
-
-// fetchToFile 是"下载大文件到磁盘"。
-func fetchToFile(ctx context.Context) func(context.Context, string, string) error {
-	return func(c context.Context, url, dst string) error {
-		req, err := http.NewRequestWithContext(c, http.MethodGet, url, nil)
-		if err != nil {
-			return err
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("%s 返回 HTTP %d", url, resp.StatusCode)
-		}
-		f, err := os.Create(dst)
-		if err != nil {
-			return err
-		}
-		if _, err := io.Copy(f, resp.Body); err != nil {
-			f.Close()
-			return err
-		}
-		return f.Close()
-	}
-}
-
-// errString 把 error 转成给前端的一行文字（nil 就是空串）。
-func errString(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
-}
-
-func (a *api) handleMirrors(w http.ResponseWriter, r *http.Request) {
-	cl, ok := a.client(w)
-	if !ok {
-		return
-	}
-	ctx, cancel := timeout(r, 30*time.Second)
-	defer cancel()
-	if r.Method == http.MethodPost {
-		var body struct {
-			Use string `json:"use"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Use == "" {
-			http.Error(w, "需要 {\"use\":\"<档位>\"}", http.StatusBadRequest)
-			return
-		}
-		if err := cl.UseMirror(ctx, body.Use); err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
-		}
-	}
-	m, err := cl.Mirrors(ctx)
-	if err != nil {
-		httpErr(w, err)
-		return
-	}
-	writeJSON(w, m)
-}
-
-// handleProbe：并行探测镜像源（会发 HEAD 请求，慢，单独一个接口）。
-func (a *api) handleProbe(w http.ResponseWriter, r *http.Request) {
-	cl, ok := a.client(w)
-	if !ok {
-		return
-	}
-	ctx, cancel := timeout(r, 120*time.Second)
-	defer cancel()
-	rows, err := cl.Probe(ctx, r.URL.Query().Get("tool"))
-	if err != nil {
-		httpErr(w, err)
-		return
-	}
-	writeJSON(w, map[string]any{"results": rows})
-}
-
-func (a *api) handleGC(w http.ResponseWriter, r *http.Request) {
-	cl, ok := a.client(w)
-	if !ok {
-		return
-	}
-	ctx, cancel := timeout(r, 120*time.Second)
-	defer cancel()
-	dry := r.Method != http.MethodPost // POST 才真删
-	keep := 0
-	if v, err := strconv.Atoi(r.URL.Query().Get("keep")); err == nil {
-		keep = v
-	}
-	res, err := cl.GC(ctx, dry, keep)
-	if err != nil {
-		httpErr(w, err)
-		return
-	}
-	writeJSON(w, res)
-}
-
-// handleAutostart：GET 读状态、POST 改状态（{"enable":true|false}）。
-// 只动用户级位置（LaunchAgent / HKCU Run / ~/.config/autostart），永不写系统级。
-func (a *api) handleAutostart(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		writeJSON(w, autostart.Get())
-		return
-	}
-	var body struct {
-		Enable bool `json:"enable"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "请求体不是合法 JSON", http.StatusBadRequest)
-		return
-	}
-	st, err := autostart.Set(body.Enable)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
-		return
-	}
-	writeJSON(w, st)
-}
-
-func (a *api) handleInstall(w http.ResponseWriter, r *http.Request) {
-	cl, ok := a.client(w)
-	if !ok {
-		return
-	}
-	spec := r.URL.Query().Get("spec")
-	if spec == "" {
-		http.Error(w, "需要 ?spec=node@22", http.StatusBadRequest)
-		return
-	}
-	w.Header().Set("content-type", "application/x-ndjson; charset=utf-8")
-	w.Header().Set("cache-control", "no-store")
-	flusher, _ := w.(http.Flusher)
-	enc := json.NewEncoder(w)
-	err := cl.Install(r.Context(), spec, func(ev pkcli.Event) {
-		_ = enc.Encode(ev) // 一行一个事件：前端按 progress 画进度条、按 done 收尾
-		if flusher != nil {
-			flusher.Flush()
-		}
+	menu := mygo.NewMenu([]*mygo.MenuItem{
+		{Label: "打开 packnest", Click: func(*mygo.MenuItem, *mygo.Window) { g.show() }},
+		{Type: mygo.MenuItemSeparator},
+		{Label: "退出", Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
+	})
+	tray, err := mygo.NewTray(mygo.TrayOptions{
+		ID:             "packnest",
+		Icon:           iconForTray(),
+		IconIsTemplate: runtime.GOOS == "darwin",
+		Title:          "",
+		ToolTip:        "packnest",
+		Menu:           menu,
 	})
 	if err != nil {
-		_ = enc.Encode(map[string]any{"ev": "error", "msg": err.Error()})
+		// Linux 缺 libayatana-appindicator3 时会失败：降级为"无托盘、关窗即退"
+		log.Printf("托盘不可用（%v）：关窗口将直接退出", err)
+		g.win.OnClose(func(e *mygo.CloseEvent) { g.win.Destroy() })
+		return
 	}
+	_ = tray
 }
 
-// handleUninstall：卸载某工具的全部版本（前端已确认过，这里直接传 --yes）。
-func (a *api) handleUninstall(w http.ResponseWriter, r *http.Request) {
-	cl, ok := a.client(w)
-	if !ok {
+// show 从托盘/菜单回到窗口。
+func (g *gui) show() {
+	if g.win == nil {
 		return
 	}
-	var body struct{ Tool string }
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Tool == "" {
-		http.Error(w, "需要 {\"tool\":\"node\"}", http.StatusBadRequest)
-		return
-	}
-	ctx, cancel := timeout(r, 300*time.Second)
-	defer cancel()
-	if err := cl.UninstallTool(ctx, body.Tool); err != nil {
-		httpErr(w, err)
-		return
-	}
-	writeJSON(w, map[string]any{"ok": true})
+	g.win.Show()
+	g.win.Focus()
 }
 
-// handleAvailable：每个工具的最新可装版本（索引 24h 缓存，不刷新）。
-func (a *api) handleAvailable(w http.ResponseWriter, r *http.Request) {
-	cl, ok := a.client(w)
-	if !ok {
-		return
+// iconForTray 在 macOS 上用模板图（系统自动反色），其余平台用彩色图标。
+func iconForTray() []byte {
+	if runtime.GOOS == "darwin" {
+		return trayTemplate
 	}
-	ctx, cancel := timeout(r, 120*time.Second)
-	defer cancel()
-	rows, err := cl.Available(ctx)
-	if err != nil {
-		httpErr(w, err)
-		return
-	}
-	writeJSON(w, map[string]any{"available": rows})
+	return appIcon
 }
 
-// handleVersions：某个工具的可装 / 已装版本（GUI 的版本选择器）。
-func (a *api) handleVersions(w http.ResponseWriter, r *http.Request) {
-	cl, ok := a.client(w)
-	if !ok {
-		return
+// appDir 是"界面自己的状态目录"（窗口大小、主题、语言这类偏好）。
+// PK_GUI_CONFIG_DIR 让测试用临时目录，不碰真实偏好。
+func appDir() string {
+	if dir := os.Getenv("PK_GUI_CONFIG_DIR"); dir != "" {
+		return dir
 	}
-	tool := r.URL.Query().Get("tool")
-	if tool == "" {
-		http.Error(w, "需要 ?tool=node", http.StatusBadRequest)
-		return
+	base, err := os.UserConfigDir()
+	if err != nil || base == "" {
+		base = os.TempDir()
 	}
-	ctx, cancel := timeout(r, 120*time.Second)
-	defer cancel()
-	v, err := cl.ToolVersions(ctx, tool, 40, r.URL.Query().Get("all") == "1")
-	if err != nil {
-		httpErr(w, err)
-		return
-	}
-	writeJSON(w, v)
-}
-
-// handleWhich：把命令名解析回真实二进制（`pk which <cmd>`）。
-func (a *api) handleWhich(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("cmd")
-	if name == "" {
-		http.Error(w, "需要 ?cmd=<命令名>", http.StatusBadRequest)
-		return
-	}
-	cl, ok := a.client(w)
-	if !ok {
-		return
-	}
-	ctx, cancel := timeout(r, 30*time.Second)
-	defer cancel()
-	res, err := cl.Which(ctx, name)
-	if err != nil {
-		httpErr(w, err)
-		return
-	}
-	writeJSON(w, res)
-}
-
-// handleEnv：只读地看当前生效的 PATH 与环境变量（写 rc 是 `pk env --write`，GUI 不做）。
-func (a *api) handleEnv(w http.ResponseWriter, r *http.Request) {
-	cl, ok := a.client(w)
-	if !ok {
-		return
-	}
-	ctx, cancel := timeout(r, 30*time.Second)
-	defer cancel()
-	doc, err := cl.Environment(ctx, r.URL.Query().Get("project") == "1")
-	if err != nil {
-		httpErr(w, err)
-		return
-	}
-	writeJSON(w, doc)
-}
-
-// handleMirrorWrite：把当前档位的 registry 写进 npmrc（只增不改、写前备份）。
-// 它会改用户的 ~/.npmrc，所以前端必须先弹确认再打这个接口。
-func (a *api) handleMirrorWrite(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "用 POST", http.StatusMethodNotAllowed)
-		return
-	}
-	cl, ok := a.client(w)
-	if !ok {
-		return
-	}
-	ctx, cancel := timeout(r, 60*time.Second)
-	defer cancel()
-	var body struct {
-		File string `json:"file"` // 空 = 默认 ~/.npmrc
-	}
-	_ = json.NewDecoder(r.Body).Decode(&body)
-	res, err := cl.MirrorWrite(ctx, body.File)
-	if err != nil {
-		httpErr(w, err)
-		return
-	}
-	writeJSON(w, res)
-}
-
-func (a *api) handleUse(w http.ResponseWriter, r *http.Request) {
-	cl, ok := a.client(w)
-	if !ok {
-		return
-	}
-	var body struct{ Tool, Version string }
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Tool == "" || body.Version == "" {
-		http.Error(w, "需要 {\"tool\":\"node\",\"version\":\"22.23.5\"}", http.StatusBadRequest)
-		return
-	}
-	ctx, cancel := timeout(r, 60*time.Second)
-	defer cancel()
-	if err := cl.Use(ctx, body.Tool, body.Version); err != nil {
-		httpErr(w, err)
-		return
-	}
-	writeJSON(w, map[string]any{"ok": true})
-}
-
-// timeout 把 HTTP 请求的取消信号与超时合并（GUI 里用户点了"取消"要能真的杀掉 pk 子进程）。
-func timeout(r *http.Request, d time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(r.Context(), d)
+	return filepath.Join(base, "packnest")
 }
 
 // singleInstance 用"监听一个回环端口"实现单实例：跨平台、零依赖，也不需要额外的锁文件。

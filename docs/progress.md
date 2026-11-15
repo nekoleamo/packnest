@@ -12,7 +12,7 @@
 | **M3** | go + python | ✅ 完成（2026-11-10，含真网实测） | `M3_GoNoDoubleDownload` ✅ · `_PythonNoCompile` ✅ · `_PbsDirectoryIndex` ✅ |
 | **M4** | 台账/引用计数/GC/全局包/启动清扫 | ✅ 完成（2026-11-10，含真网实测） | `M4_GcZeroRef` ✅ · `_LedgerRecover` ✅ · `_FrozenMismatchExitCode` ✅ · `_CtrlCNoPartial` ✅ · `_GlobalSurvivesNodeSwitch` ✅ · `_GlobalBinNoReshim` ✅ · `_NativeGlobalDetect` ✅ · `_StartupSweep` ✅ · `_CacheMax` ✅ | `M4_GcZeroRef` / `_LedgerRecover` / `_FrozenMismatchExitCode` / `_CtrlCNoPartial` / `_GlobalSurvivesNodeSwitch` / `_GlobalBinNoReshim` / `_NativeGlobalDetect` / `_StartupSweep` |
 | **M5** | CLI 收口（doctor 全量、`--json` 冻结、6 平台产物、分发） | ✅ 完成（2026-11-10） | 见下方 CLI-DONE 10 条 | §12.2 的 10 条 CLI-DONE |
-| G0–G2 | Wails v3.1.0 桌面端 | 未开始（CLI 冻结后才动） | — |
+| G0–G2 | 桌面端：Wails v3.1.0 + Vue3（0.10–0.11）→ **mygo 原生 UI（0.12 起）** | ✅ 已发布（`gui-v0.11.4`）；0.12 换壳在分支 `gui/mygo-native` | `TestAcceptance_GUI3_ReadOnlyPages` · `_GUI4_WriteGuards` · `_GUI6_I18nComplete` · `_GUI6_NoRawErrorInUI` · `_GUI7_StateShared` |
 
 ## M0 交付清单（2026-11-10）
 
@@ -710,6 +710,34 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - 现状 **10,500 行**（余量 200）；`cmd/pk` 3,136 / 3,200；单文件无 >600 行。
 - ✅ 门禁：`make loc`（`make check` 第 2 项，`tools/loccheck.sh`）——总计 > 红线退出 1；
   `cmd/pk` > 3,200 与单文件 > 600 只 warn。
+
+## GUI 换壳：mygo 原生 UI（2026-11-15，`gui-v0.12.0`）
+
+**为什么换**：界面回 Wails 之后仍然是"Vue 前端 + webview"：前端 1,318 行 TS **零测试**、`frontend/dist` 要提交进库、
+改了前端必须记得 `make gui-frontend`、Linux 构建要 GTK4 + WebKitGTK、运行期要 WebView2/WebKitGTK。
+mygo 的原生 ui（纯 Go、无 cgo、无 webview）把这四条一起解决。
+
+**做了什么**（方案：`~/Documents/Plan/17-包管理器/pn-GUI-mygo原生界面重写-方案.md`）：
+
+- `internal/state` 装配层：18 个 `http.Handler` 的数据逻辑下沉，改成"传 ctx → 返回结构体"的函数。
+  原生界面与 `--serve` **共用同一份**，`http` 层退化成"读参数 → 调 state → 写 JSON"（`serve.go`）。
+- 8 个原生页面（已装/安装队列与版本/镜像/环境/更新/体检/磁盘/设置）+ 安装页里的版本选择子页；
+  主题三态（跟随系统/浅/深）与中英切换都落成 Go 里的状态。
+- 线程模型按 mygo 的约定：视图只在主线程读状态，后台一律 `load(key, work) → commit` 回主线程落值（`-race` 全绿）。
+- 危险动作全走统一确认框：卸载、`gc --run`、`mirror write`、GUI 自更新、`doctor --fix`。
+- GUI **首次进行数门禁**：`tools/loc-budgets.txt` 登记 `cmd/pk-desktop` 等 5 个包（2,300 / 700 / 720 / 220 / 540），
+  `tools/loccheck.sh` 不再排除 GUI。实测总量 2,329 → 4,269 行。
+- `gui-build.yml` 从 4 项矩阵（含 GTK4/WebKitGTK 装机）压成**一个 macOS job 交叉编四份产物**；
+  新增 `make gui-cross`（本地等价）；`make gui-test` 改成 `-race -count=1`。
+- 浏览器形态保留但**冻结**：`frontend/dist` 只作兜底页，接口与原生界面同源。
+
+**验收**：`TestAcceptance_GUI3_ReadOnlyPages`（三个只读页把数据画出来）、`_GUI4_WriteGuards`（卸载/回收未经确认不执行）、
+`_GUI4_GCGuard`、`_GUI6_I18nComplete`（切英文后不再出中文）、`_GUI6_NoRawErrorInUI`（错误翻译成人话）、
+`_GUI7_StateShared`（界面数据只来自 state 层）。全部 `ui.Tester` 无窗口跑，`go test -race ./...` 22 passed。
+
+**实测**（2026-11-15，macOS 14.6 / go1.27.4）：`CGO_ENABLED=0` 交叉编 darwin-arm64 / windows-amd64+arm64 /
+linux-amd64+arm64 全部成功；真机起窗口读到真 CLI（`CLI 1.9.1 /opt/homebrew/bin/pk`，已装 pnpm 12.21.0 45.7 MiB）；
+`--serve` 下 `/api/status` 返回真数据、静态页 200。二进制 18–21MB。
 
 ## GUI 定位（2026-11-11 拍板）
 

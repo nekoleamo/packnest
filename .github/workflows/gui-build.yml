@@ -1,7 +1,10 @@
 # 构建 GUI（pk-desktop）三平台产物 —— **只产出 workflow artifact，不发布**。
 #
-# 为什么在 CI 构建：GUI 需要 cgo + 各平台 WebView 工具链（macOS SDK / MSVC+WebView2 / GTK4+WebKitGTK），
-# 本机只有 macOS。产物发布仍走"本机唯一发布者"：`gh run download` 拉回来，再
+# 2026-11-15（0.12.0）起界面是 mygo 原生 UI：**纯 Go、无 cgo、无 webview**，
+# 所以整套产物在**一个 macOS runner 上交叉编译**即可（`make gui-cross` 本地等价），
+# 不再需要 MSVC+WebView2 / GTK4+WebKitGTK 的构建环境，也不再分平台矩阵。
+#
+# 产物发布仍走"本机唯一发布者"：`gh run download` 拉回来，再
 # `sh scripts/release-gui.sh --from-dir <dir>` 上传（字节与 CI 完全一致）。
 name: gui-build
 
@@ -15,65 +18,50 @@ permissions:
 
 jobs:
   build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { runner: macos-15,       os: darwin,  arch: arm64 }
-          - { runner: windows-latest, os: windows, arch: amd64 }
-          # Windows ARM64：x64 runner 直接交叉编译（Wails v3 的 windows 后端是纯 Go，
-          # go-webview2 走 syscall/go-ole，不需要 cgo —— 所以 CGO_ENABLED=0 才跨得过去）
-          - { runner: windows-latest, os: windows, arch: arm64 }
-          - { runner: ubuntu-latest,  os: linux,   arch: amd64, optional: true }
-    runs-on: ${{ matrix.runner }}
-    continue-on-error: ${{ matrix.optional == true }}
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26'
+          go-version: '1.27'
 
-      # Linux 的 Wails v3 依赖 GTK4 + WebKitGTK 6.0（方案 §11）
-      - name: Linux 依赖
-        if: matrix.os == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
-
-      - name: 构建（macOS → .app.zip）
-        if: matrix.os == 'darwin'
+      - name: 版本号
+        id: v
         run: |
           # GUI 有独立版本号（cmd/pk-desktop/main.go 的 guiVersion），别拿 scripts/latest（那是 CLI 的）
           V=$(grep -oE 'guiVersion = "[0-9.]+"' cmd/pk-desktop/main.go | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "GUI 版本: $V"
+
+      - name: 交叉编译四份产物（CGO_ENABLED=0）
+        env:
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          mkdir -p out
+          cd cmd/pk-desktop
+          for t in windows/amd64 windows/arm64 linux/amd64 linux/arm64; do
+            os=${t%/*}; arch=${t#*/}; ext=""
+            [ "$os" = windows ] && ext=".exe"
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w" \
+              -o "../../out/pk-desktop$ext" .
+            if [ "$os" = windows ]; then
+              (cd ../../out && zip -q -X "packnest-desktop_${V}_${os}_${arch}.zip" "pk-desktop.exe" && rm "pk-desktop.exe")
+            else
+              tar -czf "../../out/packnest-desktop_${V}_${os}_${arch}.tar.gz" -C ../../out pk-desktop
+              rm -f "../../out/pk-desktop"
+            fi
+            echo "  ok $os/$arch"
+          done
+
+      - name: 构建（macOS → .app.zip，本 runner 原生）
+        env:
+          V: ${{ steps.v.outputs.version }}
+        run: |
           sh cmd/pk-desktop/packaging/build-macos.sh "$V"
-          mkdir -p out
-          ( cd dist/gui && zip -q -r -X "../../out/packnest-desktop_${V}_darwin_${{ matrix.arch }}.app.zip" packnest.app )
-
-      - name: 构建（Windows / Linux → 裸二进制）
-        if: matrix.os != 'darwin'
-        shell: bash
-        run: |
-          # GUI 有独立版本号（cmd/pk-desktop/main.go 的 guiVersion），别拿 scripts/latest（那是 CLI 的）
-          V=$(grep -oE 'guiVersion = "[0-9.]+"' cmd/pk-desktop/main.go | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-          echo "GUI 版本: $V"
-          mkdir -p out
-          ext=""; [ "${{ matrix.os }}" = windows ] && ext=".exe"
-          # Windows 不需要 cgo（webview2 走 syscall）：设为 0 才能在 x64 runner 上交叉出 arm64；
-          # Linux 的 GTK4/WebKitGTK 必须有 cgo，保持 1。
-          cgo=1; [ "${{ matrix.os }}" = windows ] && cgo=0
-          ( cd cmd/pk-desktop && CGO_ENABLED=$cgo GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} \
-              go build -trimpath -ldflags "-s -w" -o "../../out/pk-desktop$ext" . )
-          if [ "${{ matrix.os }}" = windows ]; then
-            # git-bash 里没有 zip：改用 PowerShell 的 Compress-Archive
-            powershell -NoProfile -Command "Compress-Archive -Path 'out/pk-desktop.exe' -DestinationPath 'out/packnest-desktop_${V}_windows_${{ matrix.arch }}.zip' -Force"
-            rm -f out/pk-desktop.exe
-          else
-            tar -czf "out/packnest-desktop_${V}_linux_${{ matrix.arch }}.tar.gz" -C out pk-desktop
-          fi
+          ( cd dist/gui && zip -q -r -X "../../out/packnest-desktop_${V}_darwin_arm64.app.zip" packnest.app )
 
       - uses: actions/upload-artifact@v4
         with:
-          name: gui-${{ matrix.os }}-${{ matrix.arch }}
+          name: gui-all
           path: out/*
           if-no-files-found: error

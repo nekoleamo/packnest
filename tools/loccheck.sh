@@ -8,7 +8,9 @@
 #   单文件   → > 600 行只 warn（抽函数是自然结果，不该由门禁逼出来）
 #
 # 统计口径（三处门禁共用同一份文件列表，避免"门禁说一套、方案算一套"）：
-# 不含 *_test.go、不含 internal/testkit（纯测试夹具）、不含 cmd/pk-desktop（GUI 单列预算）。
+# 不含 *_test.go、不含 internal/testkit（纯测试夹具）。
+# 2026-11-15 起 cmd/pk-desktop **纳入**门禁：界面换成纯 Go 原生 UI（mygo）后，
+# "另一套语言"的豁免理由消失了，GUI 与 CLI 一样按包给上限。
 #
 # 用法：make loc / sh tools/loccheck.sh
 set -eu
@@ -17,11 +19,10 @@ cd "$(dirname "$0")/.."
 FILE_MAX=600
 BUDGETS=tools/loc-budgets.txt
 
-files=$(find cmd internal -name '*.go' ! -name '*_test.go' ! -path 'internal/testkit/*' \
-  ! -path 'cmd/pk-desktop/*' | sort)
+files=$(find cmd internal -name '*.go' ! -name '*_test.go' ! -path 'internal/testkit/*' | sort)
 total=$(printf '%s\n' "$files" | xargs wc -l | tail -1 | awk '{print $1}')
 
-echo "行数预算（cmd/ + internal/，不含 *_test.go 与 internal/testkit）"
+echo "行数预算（cmd/ + internal/，含 cmd/pk-desktop，不含 *_test.go 与 internal/testkit）"
 printf '  总计    %5d（只统计，不设硬顶）\n' "$total"
 
 fail=0
@@ -30,7 +31,7 @@ seen=""
 budget_for() {
   awk -v p="$1" '$1 == p { print $2; found=1 } END { if (!found) print "" }' "$BUDGETS"
 }
-for dir in $(find cmd internal -type d ! -path 'internal/testkit*' ! -path 'cmd/pk-desktop*' | sort); do
+for dir in $(find cmd internal -type d ! -path 'internal/testkit*' | sort); do
   # 先看这个目录里到底有没有非测试 .go：空目录（testdata/、嵌入资源目录）直接跳过。
   # ⚠️ 不能只靠 `xargs wc -l` 的判断：BSD xargs 在没输入时不执行命令，GNU xargs 会执行
   #    `wc -l`（读 stdin → 输出 "0 total"），于是 Linux 上每个空目录都会被报成

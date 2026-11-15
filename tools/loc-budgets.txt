@@ -1,9 +1,13 @@
 # 行数预算表（`make loc` / tools/loccheck.sh 读它）
 #
-# 口径：每个包一个上限（不含 *_test.go、不含 internal/testkit、不含 cmd/pk-desktop）。
+# 口径：每个包一个上限（不含 *_test.go、不含 internal/testkit），2026-11-15 起含 cmd/pk-desktop。
 # 总量只统计**不设硬顶**（完善路线 2026-11-14 拍板：行数余量不再是约束，替代纪律是"按包预算"）。
 # 规则：只增不减 —— 调高上限必须在 docs/progress.md 里给出理由（哪个功能换来的）。
 # 新增包必须在这里登记上限，否则 loccheck 会报"未登记"。
+#
+# cmd/pk-desktop 的预算（2026-11-15 GUI 换 mygo 原生 UI 时登记）：
+# 界面从 Vue(1318 行 TS) + Wails 壳(709 行) 变成 8 页原生视图 + internal/state 装配层，
+# 总量 2,329 → 4,269；换来的东西写在 docs/progress.md 与 pn-GUI-mygo原生界面重写-方案.md。
 #
 # 包路径              上限
 cmd/pk                3400
@@ -23,3 +27,10 @@ internal/companion     250
 internal/coded         120
 internal/shim          250
 internal/jsonout       250
+# GUI（cmd/pk-desktop，桌面补充界面）
+cmd/pk-desktop                 2300
+cmd/pk-desktop/internal/pkcli   700
+cmd/pk-desktop/internal/update  720
+cmd/pk-desktop/internal/autostart 220
+cmd/pk-desktop/internal/state   540
+cmd/pk-desktop/packaging/genicon  90

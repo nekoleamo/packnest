@@ -30,7 +30,7 @@ LDFLAGS := -s -w -X main.Version=$(VERSION)
 SOURCE_DATE := 202001010000
 PLATFORMS := darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64
 
-.PHONY: gitee-release help build test race check fmt loc vet cover cross fuzz bench golden accept clean dist list-providers release checksums provenance sbom site verify-release publish-manifests github-release gui gui-app gui-serve gui-test codes test-installers
+.PHONY: gitee-release help build test race check fmt loc vet cover cross fuzz bench golden accept clean dist list-providers release checksums provenance sbom site verify-release publish-manifests github-release gui gui-app gui-serve gui-test gui-cross gui-frontend codes test-installers
 
 help:
 	@echo "make build     构建 ./bin/pk（CGO_ENABLED=0）"
@@ -133,8 +133,8 @@ test-installers:
 	@sh scripts/test-installers.sh
 
 # ⭐ 11 项门禁，顺序即"越便宜越先"（loc/lang/keys/codes 是纯统计，紧跟 fmt）。
-check: fmt loc lang keys codes vet race cover cross fuzz bench golden
-	@echo "===== make check 全部通过（11 项）====="
+check: fmt loc lang keys codes vet race cover cross fuzz bench golden gui-test
+	@echo "===== make check 全部通过（12 项，含 GUI 无窗口验收）====="
 
 # 官网：site/ → site/dist（版本号注入）。部署由 .github/workflows/pages.yml 负责。
 site:
@@ -213,9 +213,11 @@ sbom:
 	@mkdir -p $(DIST)/v$(VERSION)
 	@go run tools/sbom.go -out $(DIST)/v$(VERSION)/sbom.cdx.json -version $(VERSION)
 
-# GUI（cmd/pk-desktop）：CLI 的可视化补充，必须先有 pk；GUI 不计入行数门禁（单列预算）
-# 前端是 Vue3+TS（frontend/），产物 frontend/dist 已随库提交；改了前端要重跑 gui-frontend
+# GUI（cmd/pk-desktop）：CLI 的可视化补充，必须先有 pk。
+# 2026-11-15 起界面是 **mygo 原生 UI（纯 Go、无 cgo、无 webview）**，与 CLI 一样进门禁（按包预算，见 tools/loc-budgets.txt）。
+# 剩下的 Vue 前端只是 `--serve` 的冻结兜底页：只有刻意重建它时才跑 gui-frontend。
 gui-frontend:
+	@echo "注意：浏览器形态已冻结，只有特意要更新那页时才需要重建"
 	@cd cmd/pk-desktop/frontend && npm ci --no-audit --no-fund && npm run build
 	@echo "前端已重建：cmd/pk-desktop/frontend/dist（记得一起提交）"
 
@@ -227,13 +229,23 @@ gui:
 gui-app:
 	@sh cmd/pk-desktop/packaging/build-macos.sh $(VERSION)
 
-# 浏览器形态（前端是普通静态页 + /api/*，不需要 Wails 运行时）
+# 浏览器形态（冻结静态页 + /api/*；原生界面与它共用同一个 internal/state）
 gui-serve: gui
 	@./$(BIN)-desktop --serve --addr 127.0.0.1:7799
 
-# GUI 侧单测（含"用真 CLI 校验 --json 契约"）
+# GUI 侧门禁：state 层单测 + 视图验收（ui.Tester 无窗口跑视图）+ 用真 CLI 校验 --json 契约
 gui-test:
-	@cd cmd/pk-desktop && go test ./...
+	@cd cmd/pk-desktop && go test -race -count=1 ./...
+
+# 交叉编三平台 GUI（纯 Go，任何一台机器都能出全套；CI 的矩阵因此可以只剩一个 job）
+gui-cross:
+	@mkdir -p $(DIST)/gui
+	@cd cmd/pk-desktop && for t in darwin/arm64 windows/amd64 windows/arm64 linux/amd64 linux/arm64; do \
+		os=$${t%/*}; arch=$${t#*/}; ext=""; [ "$$os" = windows ] && ext=".exe"; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "-s -w" \
+			-o "../../$(DIST)/gui/pk-desktop_$${os}_$${arch}$$ext" . || exit 1; \
+		echo "  ok $$os/$$arch"; \
+	done
 
 # 上传到 gitee release（凭据走 ~/.pi/agent/local/secrets.env 的 GITEE_TOKEN）
 gitee-release: release
