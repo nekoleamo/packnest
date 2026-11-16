@@ -23,6 +23,7 @@ FROM=""   # --from-dir：上传 CI 构建好的产物（不再本机重编）
 TAG=""    # 默认 gui-v<ver>；GUI 单独一个 release，便于整体重建
 PRUNE=""  # --prune [N]：只保留最近 N 个 gui-v* release（默认 3）。gitee 单仓库附件总量 1GB
 PRUNE_ONLY=0 # --prune-only：只做回收（不需要产物、不构建、不上传）
+REPUBLISH=0  # --republish：先删掉同名 release 再整套重传（产物重新构建后 hash 会变）
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1; shift ;;
@@ -31,6 +32,7 @@ while [ $# -gt 0 ]; do
     --tag) TAG="$2"; shift 2 ;;
     --prune) PRUNE="3"; if [ $# -ge 2 ] && [ "${2#-}" = "$2" ]; then PRUNE="$2"; shift 2; else shift; fi ;;
     --prune-only) PRUNE_ONLY=1; shift ;;
+    --republish) REPUBLISH=1; shift ;;
     *) echo "未知参数: $1" >&2; exit 2 ;;
   esac
 done
@@ -150,7 +152,7 @@ if [ "${build_gui}" = "1" ]; then
     # 双击 exe 会先弹一个黑色 cmd 窗口（而且退出后还留在任务栏）。
     ldf="-s -w"; [ "$os" = windows ] && ldf="-s -w -H windowsgui"
     ( cd cmd/pk-desktop && CGO_ENABLED=0 GOOS=$os GOARCH=$arch \
-        go build -trimpath -ldflags "$ldf" -o "../../$tmp$ext" . ) || { echo "构建 $os/$arch 失败" >&2; exit 5; }
+        go build -trimpath -buildvcs=false -ldflags "$ldf" -o "../../$tmp$ext" . ) || { echo "构建 $os/$arch 失败" >&2; exit 5; }
     if [ "$os" = windows ]; then
       out="$DIST/gui/packnest-desktop_${VER}_${os}_${arch}.zip"
       rm -f "$out"
@@ -217,6 +219,20 @@ if [ "$DRY" -eq 1 ]; then echo "dry-run：没有上传"; exit 0; fi
 TOKEN_FILE="${PK_SECRETS_FILE:-$HOME/.pi/agent/local/secrets.env}"
 TOKEN="${GITEE_TOKEN:-$(secret_from_file "$TOKEN_FILE" GITEE_TOKEN GITEE_ACCESS_TOKEN)}"
 api="https://gitee.com/api/v5/repos/$GITEE_REPO"
+if [ "$REPUBLISH" = "1" ]; then
+  # gitee 的附件删不掉、也换不掉：要"重新构建后整套重传"只能删整条 release 再建。
+  # 不这么做就会出现"产物是上一批、checksums.txt 是新的"——校验必然对不上（0.12.2 实测踩到）。
+  old=$(curl -s "$api/releases/tags/$TAG" | python3 -c 'import sys,json
+try: print((json.load(sys.stdin) or {}).get("id") or "")
+except Exception: print("")')
+  if [ -n "$old" ]; then
+    echo "  --republish: delete gitee release ${TAG} (id=${old})"
+    curl -s -o /dev/null -X DELETE "$api/releases/$old?access_token=$TOKEN"
+  fi
+  if command -v gh >/dev/null 2>&1; then
+    gh release delete "$TAG" --repo "$GH_REPO" --yes --cleanup-tag >/dev/null 2>&1 || true
+  fi
+fi
 rel_id=$(curl -s "$api/releases/tags/$TAG" | python3 -c 'import sys,json
 try: print((json.load(sys.stdin) or {}).get("id") or "")
 except Exception: print("")' 2>/dev/null || true)

@@ -44,10 +44,11 @@ make publish-manifests                  # ⑥ verify-release → gen-manifests �
 
 # ⑦ GUI（可选，独立 tag gui-v<ver>；见「五点五」）
 make gui-test                           # 先跑 GUI 契约测试（用真 bin/pk 校验 --json）
-PK_SIGNING_KEY=~/.packnest-signing/pk-release-2026 sh scripts/release-gui.sh --version 0.12.0
+PK_SIGNING_KEY=~/.packnest-signing/pk-release-2026 sh scripts/release-gui.sh --version 0.12.2
 #    0.12 起纯 Go 原生界面：mac/win/linux **四份产物都在本机交叉编译**（不再需要 CI 的 --from-dir）
+#    重发同一个 tag 必须加 --republish（详见「五点六」）
 #    旧做法（仅存档）：gh run download <run-id> -n gui-all -D /tmp/gui && \
-#                      sh scripts/release-gui.sh --version 0.12.0 --from-dir /tmp/gui
+#                      sh scripts/release-gui.sh --version 0.12.2 --from-dir /tmp/gui
 ```
 
 **顺序不能乱**：清单里的 sha256 必须指向**已经发布**的那批产物。`make publish-manifests` 依赖
@@ -199,6 +200,20 @@ Windows 那句 `CGO_ENABLED=0` 是刻意的：Wails v3 的 windows 后端是纯 
 - **`release-gui.sh` 只上传真实存在的产物**：早先把 `*.tar.gz` 等通配符直接写进 `gh release upload`，
   只构建了 mac 时整条命令每次都失败、重试 5 次后仍打印“已上传”，结果 GitHub release 上一个附件都没有。
   现在先 `ls` 出文件再传，失败以退出码 5 报出。
+
+### 重发同一个 GUI 版本：必须 `--republish`（2026-11-17，gui-v0.12.2 实测）
+
+`release-gui.sh` 每次都会**重新构建**产物并重写 `checksums.txt`/`.sig`，但 gitee 的附件**删不掉也换不掉**
+（API 不返回附件 id），同名附件会被"已存在，跳过"。于是重跑一次就会得到
+**"产物是上一批、清单是新的"** → `verify-release --gui` 必然报 hash 不符。
+
+- 重发同一版本：`sh scripts/release-gui.sh --republish --version X`（先删整条 release 再整套重传，
+  tag 也会跟着删，重建后仍指向远端 main）
+- **附件配额**：gitee 单仓库附件总量 **1GB**，满了会返回
+  `400 验证失败：文件大小已超出仓库附件配额：1 GB`（表现是某个产物 404）。先回收：
+  `sh scripts/release-gui.sh --prune-only --prune 3`
+- 上传后**必跑** `sh scripts/verify-release.sh --gui`：它逐文件比 sha256 + 验 sshsig，
+  "少传一个 linux_arm64"这种事故只有它能发现
 
 ### 两个实测坑（2026-11-15，gui-v0.11.1）
 

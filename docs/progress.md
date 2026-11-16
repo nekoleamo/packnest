@@ -711,6 +711,15 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - ✅ 门禁：`make loc`（`make check` 第 2 项，`tools/loccheck.sh`）——总计 > 红线退出 1；
   `cmd/pk` > 3,200 与单文件 > 600 只 warn。
 
+## GUI 0.12.2 已发布（2026-11-17）
+
+`gui-v0.12.2`：双源 5 产物，`verify-release --gui` 通过（签名 OK、5 个 sha256 一致），Scoop 已推 0.12.2。
+发布途中撞了两个**配额/重发**的坑，已写进 `docs/publishing.md`「五点六」并给脚本加了 `--republish`：
+
+- gitee 附件总量 1GB 满了 → 某个产物上传 `400`、```verify``` 里 404；先 `--prune-only --prune 3` 回收（本次删了 0.11.0–0.11.4 五条）。
+- 同一版本重跑 `release-gui.sh` 会重建产物但跳过已存在附件 → "旧产物 + 新清单"必然对不上；
+  现在要重发就加 `--republish`（删整条 release 再整套重传），构建也加了 `-buildvcs=false` 减少漂移。
+
 ## GUI 0.12.2 已发布（2026-11-17）：修"检查更新一直转圈"
 
 用户实测：更新页的转圈永远不停。两个成因，都堵上：
