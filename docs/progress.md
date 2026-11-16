@@ -711,6 +711,13 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - ✅ 门禁：`make loc`（`make check` 第 2 项，`tools/loccheck.sh`）——总计 > 红线退出 1；
   `cmd/pk` > 3,200 与单文件 > 600 只 warn。
 
+## GUI 0.12.1 已发布（2026-11-17）
+
+`gui-v0.12.1`：gitee + GitHub 双源，5 个产物；`verify-release --gui` 复核"签名 OK、5 个 sha256 一致"；
+Scoop `packnest-desktop.json` 已是 0.12.1（amd64+arm64）。修的三件事见下节。
+Windows 侧复核（无 Windows 机器）：从**已发布的 zip** 里取出 exe 解析 PE 头，
+两个架构都是 `subsystem=2`（GUI），不会再弹黑色控制台窗口；`GOOS=windows go vet` 通过。
+
 ## GUI 0.12.1 已发布（2026-11-17）：修"点退出进程不退" + Windows 控制台窗口
 
 用户实测两件事，都是发布前该抓到的：
