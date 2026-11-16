@@ -52,7 +52,7 @@ curl -fsSL https://你的域名/install.sh | sh -s -- --base https://你的域�
 CLI 的升级交给 `pk upgrade --self`、桌面端由 GUI 自己换产物（验签 + 比 sha256 后替换，提示重启）。
 
 
-GUI（`pk-desktop`，当前 **0.11.2**）只是 CLI 的可视化补充：它通过子进程调 `pk <命令> --json` 干活，
+GUI（`pk-desktop`，当前 **0.12.0**，原生界面）只是 CLI 的可视化补充：它通过子进程调 `pk <命令> --json` 干活，
 没有自己的下载器、台账或更新器。**先装上面的 `pk`**，再按平台选一种装法：
 
 | 平台 | 方式 | 命令 / 文件 | 校验 |
@@ -62,7 +62,7 @@ GUI（`pk-desktop`，当前 **0.11.2**）只是 CLI 的可视化补充：它通�
 | **Windows**（amd64 / **arm64**） | PowerShell 一行（推荐） | `iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -UseB \| iex` | 同 macOS（sshsig + sha256） |
 | | Scoop | `scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket`<br>`scoop install packnest-desktop`（`depends: packnest`，会先装 CLI） | 清单里的 sha256 |
 | | 手动 | `packnest-desktop_<版本>_windows_amd64.zip` 或 `…_windows_arm64.zip` → 解压 → `pk-desktop.exe` | 自己对清单 |
-| **Linux**（amd64） | 手动（无安装脚本） | `packnest-desktop_<版本>_linux_amd64.tar.gz` → 解压 → `./pk-desktop`<br>依赖：`sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev` | 自己对清单 |
+| **Linux**（amd64 / **arm64**） | 手动（无安装脚本） | `packnest-desktop_<版本>_linux_<arch>.tar.gz` → 解压 → `./pk-desktop`<br>依赖：只要 GTK3；**托盘**另需 `libayatana-appindicator3`（缺了无托盘，关窗即退） | 自己对清单 |
 
 产物挂在**独立 tag** `gui-v<版本>`（与 CLI 版本解耦）：
 [gitee](https://gitee.com/null_593_5354/packnest/releases) · [GitHub Releases](https://github.com/nekoleamo/packnest/releases)，

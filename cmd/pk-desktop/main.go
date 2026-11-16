@@ -121,31 +121,32 @@ func (g *gui) start() {
 	if runtime.GOOS == "linux" { // Windows 用 exe 资源，macOS 走 .app bundle
 		_ = g.win.SetIcon(appIcon)
 	}
-	g.win.OnClose(func(e *mygo.CloseEvent) {
-		e.PreventDefault()
-		g.win.Hide()
-	})
-
 	menu := mygo.NewMenu([]*mygo.MenuItem{
 		{Label: "打开 packnest", Click: func(*mygo.MenuItem, *mygo.Window) { g.show() }},
 		{Type: mygo.MenuItemSeparator},
 		{Label: "退出", Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
 	})
-	tray, err := mygo.NewTray(mygo.TrayOptions{
+	_, trayErr := mygo.NewTray(mygo.TrayOptions{
 		ID:             "packnest",
 		Icon:           iconForTray(),
 		IconIsTemplate: runtime.GOOS == "darwin",
-		Title:          "",
 		ToolTip:        "packnest",
 		Menu:           menu,
 	})
-	if err != nil {
+	if trayErr != nil {
 		// Linux 缺 libayatana-appindicator3 时会失败：降级为"无托盘、关窗即退"
-		log.Printf("托盘不可用（%v）：关窗口将直接退出", err)
-		g.win.OnClose(func(e *mygo.CloseEvent) { g.win.Destroy() })
-		return
+		log.Printf("托盘不可用（%v）：关窗口将直接退出", trayErr)
 	}
-	_ = tray
+
+	// 关窗口：有托盘就收进托盘，没有托盘就真的退出（只注册一次，避免两个 hook 打架）
+	g.win.OnClose(func(e *mygo.CloseEvent) {
+		if trayErr == nil {
+			e.PreventDefault()
+			g.win.Hide()
+			return
+		}
+		mygo.App.Quit()
+	})
 }
 
 // show 从托盘/菜单回到窗口。

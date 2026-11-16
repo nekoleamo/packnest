@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 
 	"github.com/egoist/mygo"
@@ -13,6 +14,14 @@ import (
 
 	"github.com/packnest/packnest/cmd/pk-desktop/internal/pkcli"
 )
+
+// moreSVG 是行尾的「更多」图标：三个点自己画，比字符 "⋯" 的对齐可控
+// （字符的垂直位置由字体的下线决定，不同系统上会看起来偏上或偏下）。
+//
+//go:embed assets/more.svg
+var moreSVG []byte
+
+var iconMore = ui.MustParseSVG(moreSVG)
 
 // 列的宽度集中在这里：表头与每一行共用，改一个数字两边一起动。
 const (
@@ -115,7 +124,9 @@ func (g *gui) pageInstalled(c *ui.Context) {
 			}
 			ui.Text(c, size).TextColor(c.Theme().TextMuted).Width(colSize)
 			// 行内动作收进一个菜单：三个按钮平铺会把"路径"挤没，也不好看
-			ui.Button(c, "⋯").FontSize(12).Width(colOps).Center().Menu(func(m *ui.Menu) {
+			// 幽灵按钮：常驻不画底色（不然深色下像个浮在行上的小块），悬停/聚焦时才有面
+			ui.Button(c, "").Label(g.t("更多", "More")).Width(colOps).Height(22).
+				Background(ui.Transparent).BorderWidth(0).Menu(func(m *ui.Menu) {
 				if m.Item(g.t("设为默认版本", "Make active")).Disabled(t.Active).Chosen() {
 					g.useVersion(t.Name, t.Version)
 				}
@@ -127,7 +138,7 @@ func (g *gui) pageInstalled(c *ui.Context) {
 				if m.Item(g.t("卸载", "Uninstall")).Chosen() {
 					g.askUninstall(t.Name)
 				}
-			})
+			}).Children(func() { ui.Icon(c, iconMore).FontSize(14) })
 		})
 	}).Grow(1)
 }

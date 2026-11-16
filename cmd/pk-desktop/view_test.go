@@ -9,6 +9,7 @@ import (
 	"context"
 	"io"
 	"log"
+	"math"
 	"os"
 	"testing"
 
@@ -184,7 +185,7 @@ func TestAcceptance_GUI4_WriteGuards(t *testing.T) {
 
 	// 行内动作在"⋯"菜单里：先开菜单再选「卸载」
 	openUninstall := func() {
-		if err := tr.Click("⋯"); err != nil {
+		if err := tr.Click("更多"); err != nil {
 			t.Fatalf("点不到行菜单: %v", err)
 		}
 		tr.Frame()
@@ -292,7 +293,7 @@ func TestAcceptance_GUI5_LayoutNotCollapsed(t *testing.T) {
 		page string
 		want []string
 	}{
-		{"installed", []string{"node", "22.1.0", "pnpm", "10.2.0", "⋯"}},
+		{"installed", []string{"node", "22.1.0", "pnpm", "10.2.0", "更多"}},
 		{"queue", []string{"node", "22.2.0", "装最新"}},
 		{"versions", []string{"22.2.0", "20.11.0"}},
 		{"mirror", []string{"官方源", "国内镜像", "自动", "https://registry.npmmirror.com"}},
@@ -319,6 +320,62 @@ func TestAcceptance_GUI5_LayoutNotCollapsed(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestAcceptance_GUI8_ThemeContrast 把"深色下看不清"这类反馈变成数字：
+// 用 WCAG 对比度直接量 Text/TextMuted 对 Background/Surface（浅色与深色都量）。
+//
+// 为什么不是截图给眼睛看：模型对"浅灰字 vs 深灰底"的判断互相矛盾过三次，
+// 而对比度是能算的（正文 ≥ 4.5:1，大字/UI 部件 ≥ 3:1）。
+func TestAcceptance_GUI8_ThemeContrast(t *testing.T) {
+	cases := []struct {
+		name string
+		base *ui.Theme
+	}{
+		{"light", ui.LightTheme()},
+		{"dark", ui.DarkTheme()},
+	}
+	for _, tc := range cases {
+		th := themeFor(tc.base)
+		pairs := []struct {
+			what   string
+			fg, bg ui.Color
+			want   float64
+		}{
+			{"正文/背景", th.Text, th.Background, 7},
+			{"正文/卡片", th.Text, th.Surface, 7},
+			{"次要文字/背景", th.TextMuted, th.Background, 4.5},
+			{"次要文字/卡片", th.TextMuted, th.Surface, 4.5},
+			{"强调色上的字/强调色", th.AccentText, th.Accent, 4.5},
+			{"强调色/背景（UI 部件）", th.Accent, th.Background, 3},
+			{"徽标字/徽标底", th.Text, th.SurfacePressed, 4.5},
+		}
+		for _, p := range pairs {
+			if got := contrast(p.fg, p.bg); got < p.want {
+				t.Errorf("%s：%s 对比度 %.2f < %.1f（%v on %v）", tc.name, p.what, got, p.want, p.fg, p.bg)
+			}
+		}
+	}
+}
+
+// contrast 是 WCAG 2.1 的相对亮度对比度。
+func contrast(a, b ui.Color) float64 {
+	la, lb := luminance(a), luminance(b)
+	if la < lb {
+		la, lb = lb, la
+	}
+	return (la + 0.05) / (lb + 0.05)
+}
+
+func luminance(c ui.Color) float64 {
+	f := func(v uint8) float64 {
+		s := float64(v) / 255
+		if s <= 0.03928 {
+			return s / 12.92
+		}
+		return math.Pow((s+0.055)/1.055, 2.4)
+	}
+	return 0.2126*f(c.R) + 0.7152*f(c.G) + 0.0722*f(c.B)
 }
 
 func TestMain(m *testing.M) {

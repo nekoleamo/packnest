@@ -4,8 +4,9 @@
 #   sh scripts/release-gui.sh [--dry-run] [--version 0.11.1]
 #   sh scripts/release-gui.sh --prune-only --prune 3 [--dry-run]   # 只回收旧 gui-v*，不构建不上传
 #
-# 只做 macOS：Windows/Linux 需要各自的 WebView 工具链（见 cmd/pk-desktop/README.md），
-# 由 CI 的 gui-build 任务产出后再下载，用同一条路径上传（保持"本机唯一发布者"）。
+# 0.12 起界面是纯 Go 原生 UI（无 cgo、无 webview），**四份产物都在本机交叉编译**：
+# macOS 打 .app.zip，Windows/Linux 打裸二进制再 zip/tar.gz。CI 的 gui-build 只是冗余校验，
+# 不再是非跑不可的一环（旧版要 Windows/Linux 各自的 WebView 工具链，才必须借 CI）。
 #
 # 产物：dist/gui/packnest-desktop_<ver>_<os>_<arch>.{app.zip,zip,tar.gz}
 #
@@ -129,28 +130,48 @@ else
   build_gui=1
   echo "构建 GUI（pk-desktop ${VER}）"
 fi
-# 只发 Apple Silicon（2026-11-12 拍板：mac intel/amd64 放弃 —— 自用机器是 arm64，
-# macos-15-intel 那个 CI job 也一直失败；Intel Mac 需自己 make gui）
-for arch in arm64; do
-  if [ "${build_gui}" = "0" ]; then break; fi
+if [ "${build_gui}" = "1" ]; then
+  # macOS：只发 Apple Silicon（2026-11-12 拍板：mac intel/amd64 放弃；Intel Mac 自己 make gui-app）
   app="$DIST/gui/packnest.app"
   rm -rf "$app"
   # 打包逻辑只有一处：cmd/pk-desktop/packaging/build-macos.sh（图标 / Info.plist / 签名都在里面）
-  ( cd cmd/pk-desktop && sh packaging/build-macos.sh "$VER" "$arch" >/dev/null )
-  out="$DIST/gui/packnest-desktop_${VER}_darwin_${arch}.app.zip"
+  ( cd cmd/pk-desktop && sh packaging/build-macos.sh "$VER" arm64 >/dev/null )
+  out="$DIST/gui/packnest-desktop_${VER}_darwin_arm64.app.zip"
   rm -f "$out"
   ( cd "$DIST/gui" && zip -q -r -X "$(basename "$out")" packnest.app )
   printf '  %-52s %s\n' "$(basename "$out")" "$(du -h "$out" | cut -f1)"
-done
+
+  # Windows / Linux：纯 Go，任何一台机器都能交叉编（CGO_ENABLED=0 是项目硬约束）
+  for t in windows/amd64 windows/arm64 linux/amd64 linux/arm64; do
+    os=${t%/*}; arch=${t#*/}
+    tmp="$DIST/gui/pk-desktop"
+    ext=""; [ "$os" = windows ] && ext=".exe"
+    ( cd cmd/pk-desktop && CGO_ENABLED=0 GOOS=$os GOARCH=$arch \
+        go build -trimpath -ldflags "-s -w" -o "../../$tmp$ext" . ) || { echo "构建 $os/$arch 失败" >&2; exit 5; }
+    if [ "$os" = windows ]; then
+      out="$DIST/gui/packnest-desktop_${VER}_${os}_${arch}.zip"
+      rm -f "$out"
+      ( cd "$DIST/gui" && zip -q -X "$(basename "$out")" "pk-desktop.exe" )
+    else
+      out="$DIST/gui/packnest-desktop_${VER}_${os}_${arch}.tar.gz"
+      rm -f "$out"
+      tar -czf "$out" -C "$DIST/gui" pk-desktop
+    fi
+    rm -f "$tmp$ext"
+    printf '  %-52s %s\n' "$(basename "$out")" "$(du -h "$out" | cut -f1)"
+  done
+fi
 
 # ── 校验清单 + 发布签名 ────────────────────────────────────────────────
 # GUI 产物也要能被独立核对：下载 .app.zip 的人拿 checksums.txt 对 sha256，
 # 再拿 checksums.txt.sig 验"清单没被镜像站换过"。签名与 CLI 共用
 # scripts/lib/sign.sh（一把密钥、一个发布者）。
 gui_artifacts() {
+  # 只算**这一版**的产物：dist/gui 里常留着上一版的 zip，混进 checksums.txt 会让
+  # 用户拿清单核对当前产物时对不上（也把旧版本重新"发布"了一次）。
   # sort -u：mac 的 .app.zip 同时匹配 *.app.zip 与 *.zip，不去重会算两遍
-  ls "$DIST/gui"/packnest-desktop_*.app.zip "$DIST/gui"/packnest-desktop_*.zip \
-     "$DIST/gui"/packnest-desktop_*.tar.gz 2>/dev/null | sort -u || true
+  ls "$DIST/gui"/packnest-desktop_"${VER}"_*.app.zip "$DIST/gui"/packnest-desktop_"${VER}"_*.zip \
+     "$DIST/gui"/packnest-desktop_"${VER}"_*.tar.gz 2>/dev/null | sort -u || true
 }
 # 先列清单再算：--from-dir 进来的 CI 产物与本地构建的产物一视同仁
 _gui_list=$(gui_artifacts)

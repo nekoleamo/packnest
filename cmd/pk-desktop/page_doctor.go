@@ -61,7 +61,7 @@ func (g *gui) pageDoctor(c *ui.Context) {
 	}
 
 	if r := g.doctor.Reload; r != nil && r.Needed {
-		ui.Column(c).FillWidth().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
+		g.card(c, func() {
 			ui.Text(c, g.t("让改动生效", "Make it take effect")).Bold()
 			if r.Msg != "" {
 				ui.Text(c, r.Msg).TextColor(c.Theme().TextMuted)

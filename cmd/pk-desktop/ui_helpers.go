@@ -64,6 +64,16 @@ func codeBlock(c *ui.Context, s string) {
 	ui.Text(c, s).Font("monospace").SingleLine().TextColor(c.Theme().TextMuted)
 }
 
+// card 是"信息块"的统一外观：浅底 + 圆角 + 细边线。
+//
+// 深色下光靠 Surface 与 Background 的色差分不开卡片，边线才是分层的那根线；
+// 顺带把 GAP/内边距收成一处，卡片之间不再忽大忽小。
+func (g *gui) card(c *ui.Context, fn func()) {
+	ui.Column(c).FillWidth().Gap(6).Padding(12).
+		Background(c.Theme().Surface).Radius(8).
+		Border(1, c.Theme().Border).Children(fn)
+}
+
 // note 是灰字说明。
 func (g *gui) note(c *ui.Context, zh, en string) {
 	ui.Text(c, g.t(zh, en)).TextColor(c.Theme().TextMuted)

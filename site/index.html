@@ -204,10 +204,10 @@
             <td>脚本：sshsig + sha256；Scoop：清单里的 sha256</td>
           </tr>
           <tr>
-            <td>Linux<br><span class="hint">amd64</span></td>
+            <td>Linux<br><span class="hint">amd64 / arm64</span></td>
             <td><b>手动下载</b>（没有安装脚本）<br>
-              <code>packnest-desktop___GUI_VERSION___linux_amd64.tar.gz</code> → 解压后跑 <code>./pk-desktop</code><br>
-              依赖：<code>sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev</code></td>
+              <code>packnest-desktop___GUI_VERSION___linux_amd64.tar.gz</code>（ARM 用 <code>…_linux_arm64.tar.gz</code>）→ 解压后跑 <code>./pk-desktop</code><br>
+              依赖：只要 GTK3；托盘另需 <code>libayatana-appindicator3</code></td>
             <td>自己 <code>shasum -a 256</code> 对清单</td>
           </tr>
         </tbody>

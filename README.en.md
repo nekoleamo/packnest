@@ -96,7 +96,7 @@ picks the download source from current network conditions (gitee / GitHub) and a
 | **Windows** (amd64 / **arm64**) | PowerShell one-liner (recommended) | `iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -UseB \| iex` | same as macOS (sshsig + sha256) |
 | | Scoop | `scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket`<br>`scoop install packnest-desktop` (`depends: packnest`, installs the CLI first) | sha256 from the manifest |
 | | manual | `packnest-desktop_<version>_windows_{amd64,arm64}.zip` → unzip → `pk-desktop.exe` | check the manifest yourself |
-| **Linux** (amd64) | manual (no script) | `packnest-desktop_<version>_linux_amd64.tar.gz` → unpack → `./pk-desktop`<br>needs `sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev` | check the manifest yourself |
+| **Linux** (amd64 / **arm64**) | manual (no script) | `packnest-desktop_<version>_linux_<arch>.tar.gz` → unpack → `./pk-desktop`<br>needs GTK3 only; the **tray** also wants `libayatana-appindicator3` | check the manifest yourself |
 
 Artifacts live under a **separate tag** `gui-v<version>` (decoupled from the CLI version):
 [gitee](https://gitee.com/null_593_5354/packnest/releases) · [GitHub Releases](https://github.com/nekoleamo/packnest/releases),

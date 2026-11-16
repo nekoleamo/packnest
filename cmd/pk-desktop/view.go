@@ -149,11 +149,11 @@ func (g *gui) view(c *ui.Context) {
 	if g.flash != "" {
 		msg := g.flash
 		g.flash = ""
-		if g.flashErr {
-			c.Toast(msg)
-		} else {
-			c.Toast(msg)
-		}
+		c.Toast(msg)
+	}
+	if g.page != pageSeen {
+		pageSeen = g.page
+		g.prefsSave()
 	}
 
 	ui.Column(c).Fill().Children(func() {
@@ -227,8 +227,8 @@ func (g *gui) refreshPage() {
 	}
 }
 
-// ensureLoaded 是"进页就取数"的懒加载：只认本地/缓存的便宜查询，
-// 联网的（更新检查、源探测、体检）留给用户自己点。
+// ensureLoaded 是"进页就取数"的懒加载：镜像档、环境、磁盘预演、可装版本、更新检查各拉一次。
+// 只有"会真的联网探测"的两个（源探测、体检）留给用户自己点 —— 它们慢且没必要自动跑。
 func (g *gui) ensureLoaded(id string) {
 	if g.visited == nil {
 		g.visited = map[string]bool{}
@@ -257,7 +257,7 @@ func (g *gui) ensureLoaded(id string) {
 func (g *gui) header(c *ui.Context) {
 	ui.Row(c).FillWidth().Padding(6, 12).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, "packnest").FontSize(15).Bold()
-		if g.status.OK {
+		if g.status.OK && g.status.CLI != nil {
 			ui.Text(c, "CLI "+g.status.CLI.Version).TextColor(c.Theme().TextMuted)
 			ui.Text(c, g.status.Path).TextColor(c.Theme().TextMuted).SingleLine().Grow(1)
 		} else {
@@ -294,8 +294,12 @@ func (g *gui) header(c *ui.Context) {
 	}
 }
 
-// themeModeSeen 用来在 Segmented 改值后落盘偏好（Segmented 直接写 &g.themeMode）。
-var themeModeSeen = 0
+// themeModeSeen / pageSeen 用来在控件直接改了绑定的值之后落盘偏好
+// （Segmented 写 &g.themeMode、Sidebar 写 &g.page，都不经过我们的函数）。
+var (
+	themeModeSeen = 0
+	pageSeen      = ""
+)
 
 // langOf 把 Segmented 的下标换成语言代码。
 func langOf(idx int) string {
@@ -314,16 +318,51 @@ func (g *gui) applyTheme(c *ui.Context) {
 	case 2:
 		base = ui.DarkTheme()
 	}
+	c.SetTheme(cachedTheme(g.themeMode, base))
+}
+
+// 主题按 (模式, 系统深浅) 缓存：视图每帧都要它，没必要每帧重新拼一遍调色板。
+var themeCache = map[[2]int]*ui.Theme{}
+
+func cachedTheme(mode int, base *ui.Theme) *ui.Theme {
+	key := [2]int{mode, 0}
+	if base.Dark {
+		key[1] = 1
+	}
+	if t, ok := themeCache[key]; ok {
+		return t
+	}
+	t := themeFor(base)
+	themeCache[key] = t
+	return t
+}
+
+// themeFor 是"我们的配色"：视图与对比度测试共用同一份，改颜色只改这里。
+func themeFor(base *ui.Theme) *ui.Theme {
 	t := *base
 	// 全局字号与间距在这里定一次：控件、表格行高、内外边距都按它们缩放，
 	// 这样"信息密度"是统一的一个数，而不是每页各写一套 Padding。
 	t.FontSize = 13
 	t.Spacing = 3
-	t.Accent = ui.Hex("#0a7d4f")
 	if t.Dark {
+		// 深色下自己定一套：默认的 TextMuted 在 #161616 上偏暗（路径/大小这类次要信息看不清），
+		// 侧边栏的"非焦点选中态"也会糊成一团灰。
+		t.Background = ui.Hex("#161616")
+		t.Surface = ui.Hex("#232323")
+		t.SurfaceHover = ui.Hex("#2a2a2a")
+		t.SurfacePressed = ui.Hex("#333333")
+		t.Border = ui.Hex("#3a3a3a")
+		t.Text = ui.Hex("#e9e9e9")
+		t.TextMuted = ui.Hex("#a8a8a8")
+		t.Selection = ui.Hex("#2f5f46")
+		t.InactiveAccent = ui.Hex("#5a5a5a")
 		t.Accent = ui.Hex("#4ade80")
+		t.AccentText = ui.Hex("#10240f")
+	} else {
+		t.Accent = ui.Hex("#0a7d4f")
+		t.TextMuted = ui.Hex("#5c5c5c") // 浅色下默认的 #666 在灰底卡片上偏淡
 	}
-	c.SetTheme(&t)
+	return &t
 }
 
 // confirmView 画统一的确认框；action 只在用户点"确定"时执行。
@@ -478,6 +517,7 @@ func (g *gui) prefsLoad() {
 	if g.lang == "en" {
 		g.langIdx = 1
 	}
+	pageSeen = g.page
 }
 
 func (g *gui) prefsSave() {

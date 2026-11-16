@@ -44,11 +44,10 @@ make publish-manifests                  # ⑥ verify-release → gen-manifests �
 
 # ⑦ GUI（可选，独立 tag gui-v<ver>；见「五点五」）
 make gui-test                           # 先跑 GUI 契约测试（用真 bin/pk 校验 --json）
-sh scripts/release-gui.sh --version 0.10.2
-#    三平台的 Windows/Linux 由 CI gui-build.yml 构建后下载回来，再用 --from-dir 上传
-gh run download <run-id> -n gui-windows-amd64 -D /tmp/gui -R nekoleamo/packnest
-gh run download <run-id> -n gui-linux-amd64   -D /tmp/gui -R nekoleamo/packnest
-sh scripts/release-gui.sh --version 0.10.2 --from-dir /tmp/gui
+PK_SIGNING_KEY=~/.packnest-signing/pk-release-2026 sh scripts/release-gui.sh --version 0.12.0
+#    0.12 起纯 Go 原生界面：mac/win/linux **四份产物都在本机交叉编译**（不再需要 CI 的 --from-dir）
+#    旧做法（仅存档）：gh run download <run-id> -n gui-all -D /tmp/gui && \
+#                      sh scripts/release-gui.sh --version 0.12.0 --from-dir /tmp/gui
 ```
 
 **顺序不能乱**：清单里的 sha256 必须指向**已经发布**的那批产物。`make publish-manifests` 依赖

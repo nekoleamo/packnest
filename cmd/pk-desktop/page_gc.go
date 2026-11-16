@@ -47,7 +47,7 @@ func (g *gui) pageGC(c *ui.Context) {
 	if !res.DryRun {
 		verb = g.t("已删", "removed")
 	}
-	ui.Column(c).FillWidth().Gap(4).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
+	g.card(c, func() {
 		ui.Textf(c, "%s %d 项 · 释放 %s", verb, len(res.Removed), humanBytes(res.FreedBytes)).Bold()
 		if res.Keep > 0 {
 			ui.Textf(c, g.t("（--keep %d）", "(--keep %d)"), res.Keep).TextColor(c.Theme().TextMuted)

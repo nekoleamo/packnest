@@ -61,7 +61,7 @@ func (g *gui) pageEnv(c *ui.Context) {
 
 	// 重载提示（doctor --fix 之后要开新 shell 或 source 一次）
 	if r := g.doctor.Reload; r != nil && r.Needed {
-		ui.Column(c).FillWidth().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
+		g.card(c, func() {
 			ui.Text(c, g.t("改动要重载环境才生效", "Reload your environment")).Bold()
 			if r.Msg != "" {
 				ui.Text(c, r.Msg).TextColor(c.Theme().TextMuted)

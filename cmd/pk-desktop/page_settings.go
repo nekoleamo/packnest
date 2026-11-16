@@ -11,7 +11,7 @@ func (g *gui) pageSettings(c *ui.Context) {
 	g.head(c, "设置", "Settings", "", nil)
 
 	// 开机自启（只动用户级条目；不支持的平台直接说清楚，不画一个假的开关）
-	ui.Column(c).FillWidth().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
+	g.card(c, func() {
 		ui.Text(c, g.t("开机自启", "Launch at login")).Bold()
 		if g.auto.Supported {
 			enabled := g.auto.Enabled
@@ -25,7 +25,7 @@ func (g *gui) pageSettings(c *ui.Context) {
 	})
 
 	// 版本
-	ui.Column(c).FillWidth().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
+	g.card(c, func() {
 		ui.Text(c, g.t("版本", "Versions")).Bold()
 		cli := g.t("未安装", "not installed")
 		if g.status.OK && g.status.CLI != nil {
@@ -40,7 +40,7 @@ func (g *gui) pageSettings(c *ui.Context) {
 	})
 
 	// 数据怎么来的（排障时第一句要问的）
-	ui.Column(c).FillWidth().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
+	g.card(c, func() {
 		ui.Text(c, g.t("这个界面怎么拿数据", "Where the data comes from")).Bold()
 		g.note(c, "全部通过 `pk <命令> --json` 子进程：界面本身不读 PK_ROOT、不改 pk 的任何文件。",
 			"Everything goes through `pk <cmd> --json` subprocesses: this app never reads PK_ROOT and never edits pk's files.")
@@ -56,7 +56,7 @@ func (g *gui) pageSettings(c *ui.Context) {
 	})
 
 	// 说明
-	ui.Column(c).FillWidth().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
+	g.card(c, func() {
 		ui.Text(c, g.t("说明", "About")).Bold()
 		g.note(c, "packnest 是只解决国内网络环境的多语言运行时安装器；这个界面是它的可视化补充，必须先装 pk。",
 			"packnest installs language runtimes with China-friendly mirrors; this app is its visual companion and needs the CLI.")

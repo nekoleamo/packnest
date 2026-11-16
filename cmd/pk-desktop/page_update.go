@@ -37,7 +37,7 @@ func (g *gui) pageUpdate(c *ui.Context) {
 	}
 
 	// GUI 自己
-	ui.Column(c).FillWidth().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
+	g.card(c, func() {
 		ui.Text(c, g.t("界面（GUI）", "App (GUI)")).Bold()
 		ui.Textf(c, "当前 %s · 已发布 %s", g.upd.GUI.Current, orDash(g.upd.GUI.Latest))
 		ui.Row(c).FillWidth().Gap(8).Children(func() {
@@ -58,7 +58,7 @@ func (g *gui) pageUpdate(c *ui.Context) {
 	})
 
 	// CLI
-	ui.Column(c).FillWidth().Gap(6).Padding(10).Background(c.Theme().Surface).Radius(8).Children(func() {
+	g.card(c, func() {
 		ui.Text(c, g.t("命令行（pk）", "CLI (pk)")).Bold()
 		ui.Textf(c, "当前 %s · 已发布 %s", g.upd.CLI.Current, orDash(g.upd.CLI.Latest))
 		ui.Row(c).FillWidth().Gap(8).Children(func() {
