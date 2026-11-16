@@ -6,10 +6,15 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
 
 // 这里是 GUI 自更新需要的两个传输原语（取小文件 / 下载大文件）。
 // 放在 state 里而不是 main：--serve 与原生界面走的是同一条升级路径。
+
+// httpClient 是所有 GUI 自更新请求共用的客户端：每个请求都有上限，
+// 卡住的源不该让"检查更新"转圈到天荒地老。
+var httpClient = &http.Client{Timeout: 15 * time.Second}
 
 // exe 是"我自己"的路径（GUI 自更新要替换它）。
 func exe() (string, error) { return os.Executable() }
@@ -21,7 +26,7 @@ func fetchBytes() func(context.Context, string) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			return nil, err
 		}
@@ -40,7 +45,7 @@ func fetchToFile() func(context.Context, string, string) error {
 		if err != nil {
 			return err
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := httpClient.Do(req)
 		if err != nil {
 			return err
 		}

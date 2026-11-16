@@ -711,6 +711,20 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - ✅ 门禁：`make loc`（`make check` 第 2 项，`tools/loccheck.sh`）——总计 > 红线退出 1；
   `cmd/pk` > 3,200 与单文件 > 600 只 warn。
 
+## GUI 0.12.2 已发布（2026-11-17）：修"检查更新一直转圈"
+
+用户实测：更新页的转圈永远不停。两个成因，都堵上：
+
+1. **取数没有上限**：`UpdateCheck` 给 120 秒，而 `fetchBytes` 用的 `http.DefaultClient` 没有自己的
+   超时 —— 源被墙/挂住时就一直等。现在：更新检查整体 **20 秒**，自更新的 HTTP 客户端
+   **15 秒**，超时给一句人话（"超时：这次请求 20 秒没完成…"）而不是 `context deadline exceeded`。
+2. **`busy` 可能永久卡住**：`load` 里 `work` 一旦 panic，goroutine 直接消失、
+   `busy[key]` 永远是 true —— 界面上就是"永远在转圈"。现在把 `work` 包进 `safeWork`（recover → 错误），
+   `busy` 的解绑统一在 `onMain` 里做，成功/失败/panic 三条路都会解。
+
+守门测试：`TestAcceptance_GUI10_LoadPanicDoesNotLatch`（panic → 返回错误、正常路径仍执行 commit）、
+`_GUI10_UpdateCheckTimeoutIsShort`（超时值被改大就红）。
+
 ## GUI 0.12.1 已发布（2026-11-17）
 
 `gui-v0.12.1`：gitee + GitHub 双源，5 个产物；`verify-release --gui` 复核"签名 OK、5 个 sha256 一致"；

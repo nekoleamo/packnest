@@ -317,7 +317,9 @@ func (s *Service) UpdateCheck(ctx context.Context) (update.Result, error) {
 	if err != nil {
 		return update.Result{}, err
 	}
-	ctx, cancel := timeout(ctx, 120*time.Second)
+	// 20 秒上限：CLI 的 --check 是毫秒级，剩下的是取 latest 小文件；
+	// 再慢就是网络不通，界面该显示"超时"而不是一直转圈。
+	ctx, cancel := timeout(ctx, 20*time.Second)
 	defer cancel()
 	return update.Check(ctx, s.GUIVersion, func(c context.Context) (update.CLIInfo, error) {
 		info, cerr := cmds.CheckSelfUpdate(c)

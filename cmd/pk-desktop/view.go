@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -387,14 +388,20 @@ func (g *gui) load(key string, work func() (commit, error)) {
 	if g.busy[key] {
 		return
 	}
+	if g.win == nil {
+		// 测试环境（没有窗口）：同步执行，别起 goroutine —— 否则 commit 会与视图并发改状态，
+		// -race 立刻红（而且测试本来就该是确定性的）。
+		done, err := safeWork(work)
+		if err == nil && done != nil {
+			done()
+		}
+		return
+	}
 	g.busy[key] = true
 	go func() {
-		done, err := work()
-		if g.win == nil { // 测试里没有窗口：不落值，由测试自己摆数据
-			return
-		}
+		done, err := safeWork(work)
 		g.onMain(func() {
-			delete(g.busy, key)
+			delete(g.busy, key) // 无论成功、失败还是 panic，这里一定要解掉
 			if err != nil {
 				g.flashErr = true
 				g.flash = friendly(err)
@@ -416,8 +423,21 @@ func friendly(err error) string {
 		return "找不到 pk：这个界面需要先安装 CLI"
 	case err == pkcli.ErrBusy:
 		return "另一个 pk 正在运行，稍后再试"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "超时：这次请求 20 秒没完成（网络不通或源被墙），稍后再试或换镜像档"
 	}
 	return err.Error()
+}
+
+// safeWork 跑一次取数并兜住 panic：work 里崩了要变成一条错误交回去，
+// 而不是让 goroutine 消失、busy 永久卡在 true —— 那在界面上就是"永远在转圈"。
+func safeWork(work func() (commit, error)) (done commit, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("内部错误：%v", r)
+		}
+	}()
+	return work()
 }
 
 // onMain 把一段改状态的代码丢回主线程执行（测试里没有窗口时直接跑）。

@@ -28,7 +28,7 @@ import (
 
 // guiVersion 是 GUI 自己的版本（与 CLI 解耦；CLI 版本靠 pkcli 的启动门禁检查）。
 // 发布用的 tag 与产物文件名都跟它走：`gui-v<guiVersion>`。
-const guiVersion = "0.12.1"
+const guiVersion = "0.12.2"
 
 // 图标：packaging/genicon 生成（纯标准库画的"巢"标记）。
 //

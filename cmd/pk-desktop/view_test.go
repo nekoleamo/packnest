@@ -11,6 +11,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -466,6 +467,45 @@ func TestAcceptance_GUI5_FirstFrameShowsEveryRow(t *testing.T) {
 		if math.Abs(float64(h-heights[0])) > 1 {
 			t.Fatalf("行高不一致（被截断的行会矮一截）：%v", heights)
 		}
+	}
+}
+
+// TestAcceptance_GUI10_LoadPanicDoesNotLatch 守"转圈不会永久卡住"：
+// 取数里 panic 必须变成一条错误交回去，而不是让 busy 卡在 true
+// （卡住的表现就是"一直在检查更新转圈"，2026-11-17 用户实测到过）。
+func TestAcceptance_GUI10_LoadPanicDoesNotLatch(t *testing.T) {
+	_, err := safeWork(func() (commit, error) { panic("boom") })
+	if err == nil {
+		t.Fatal("work panic 时应当返回错误，否则界面会一直转圈")
+	}
+	if !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("错误里要看得到原因：%v", err)
+	}
+
+	// 正常路径不受影响
+	ran := false
+	done, err := safeWork(func() (commit, error) {
+		return func() { ran = true }, nil
+	})
+	if err != nil || done == nil {
+		t.Fatalf("正常路径返回 %v %v", done, err)
+	}
+	done()
+	if !ran {
+		t.Fatal("commit 没被执行")
+	}
+}
+
+// TestAcceptance_GUI10_UpdateCheckTimeoutIsShort 守"检查更新不该转两分钟"：
+// state 层的更新检查上限必须是几十秒级（现在的实现是 20s）。
+func TestAcceptance_GUI10_UpdateCheckTimeoutIsShort(t *testing.T) {
+	// 这条用静态断言守着：超时值改大（比如回到 120s）就会红
+	src, err := os.ReadFile("internal/state/state.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), "timeout(ctx, 20*time.Second)") {
+		t.Fatal("更新检查的超时不是 20s 了：改大等于让用户盯着转圈")
 	}
 }
 
