@@ -711,6 +711,20 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - ✅ 门禁：`make loc`（`make check` 第 2 项，`tools/loccheck.sh`）——总计 > 红线退出 1；
   `cmd/pk` > 3,200 与单文件 > 600 只 warn。
 
+## GUI 0.12.0 已发布（2026-11-15）
+
+`gui-v0.12.0`：gitee + GitHub 双源，5 个产物（mac arm64 `.app.zip`、win amd64/arm64 zip、
+linux amd64/arm64 tar.gz）+ `checksums.txt` + `checksums.txt.sig`（sshsig，密钥 `pk-release-2026`）；
+`verify-release --gui` 复核"签名 OK、5 个产物 sha256 全部一致"；Scoop 清单已推进 bucket（amd64+arm64）。
+
+- **四份产物全部本机交叉编译**（`release-gui.sh` 扩了 win/linux 段）：0.12 起纯 Go 无 cgo，
+  不再需要 CI 的 `--from-dir`；CI 的 `gui-build` 降为冗余校验。
+- 打包体积 5.0–6.1MB（此前 Wails+Vue 的 `.app.zip` 4.7MB、win zip 5.1MB —— 量级持平，
+  但少了 webview 运行时依赖与 `frontend/dist` 入库）。
+- 发布前 review 修掉的四个真问题（托盘双 hook、切页偏好不落盘、CLI 指针未判空、主题每帧重建调色板）
+  与两个发布链坑（`checksums.txt` 会把 dist 里上一版产物一起算进去；release tag 建在旧 commit 上 ——
+  先 push main 再删/重建 release 才让 tag 与代码对齐），都写进了对应提交信息。
+
 ## GUI 换壳：mygo 原生 UI（2026-11-15，`gui-v0.12.0`）
 
 **为什么换**：界面回 Wails 之后仍然是"Vue 前端 + webview"：前端 1,318 行 TS **零测试**、`frontend/dist` 要提交进库、
