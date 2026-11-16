@@ -14,14 +14,50 @@ import (
 func (g *gui) pageUpdate(c *ui.Context) {
 	g.head(c, "更新", "Update", "update", nil)
 
-	ui.Row(c).FillWidth().Gap(8).Children(func() {
+	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 		if g.busy["update"] {
 			ui.Spinner(c)
+			ui.Text(c, g.t("正在检查…", "Checking…")).TextColor(c.Theme().TextMuted)
 		}
-		if ui.Button(c, g.t("检查更新", "Check for updates")).Clicked() {
-			g.checkUpdate()
-		}
+		ui.Button(c, g.t("检查更新", "Check for updates")).
+			Disabled(g.busy["update"] || g.busy["apply"]).
+			OnClick(func() { g.checkUpdate() })
 	})
+
+	// 升级中：阶段 + 进度条（下载大文件时按字节走），别再"点了没反应"
+	if g.busy["apply"] {
+		ui.Column(c).FillWidth().Gap(4).Padding(12).
+			Background(c.Theme().Surface).Radius(8).Border(1, c.Theme().Border).Children(func() {
+			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
+				ui.Spinner(c)
+				ui.Text(c, g.applyStage).Grow(1)
+				if g.applyPct > 0 {
+					ui.Textf(c, "%.0f%%", g.applyPct*100).TextColor(c.Theme().TextMuted)
+				}
+			})
+			if g.applyPct > 0 {
+				ui.Progress(c, g.applyPct)
+			}
+			g.note(c, "正在下载并校验，完成后会替换当前程序；请等这一条变成结果再关窗口。",
+				"Downloading and verifying; it will replace the app. Wait for the result line before closing.")
+		})
+	}
+
+	// 上一次升级的结果：成功后"要重开窗口才生效"这句话必须留在页面上，不能只弹个 toast
+	if g.applyMsg != "" {
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Padding(10).
+			Background(c.Theme().Surface).Radius(8).Border(1, c.Theme().Border).Children(func() {
+			col := c.Theme().Success
+			if g.applyErr {
+				col = c.Theme().Warning
+			}
+			ui.Text(c, g.applyMsg).Grow(1).TextColor(col)
+			if g.applyErr {
+				ui.Button(c, g.t("复制错误", "Copy error")).FontSize(12).OnClick(func() { g.copyText(g.applyMsg) })
+			}
+			ui.Button(c, g.t("知道了", "Dismiss")).FontSize(12).OnClick(func() { g.applyMsg = "" })
+		})
+	}
 
 	shown := g.upd.GUI.Current != "" || g.upd.CLI.Current != ""
 	if !shown {
@@ -46,9 +82,9 @@ func (g *gui) pageUpdate(c *ui.Context) {
 				ui.Textf(c, g.t("这个 GUI 是 %s 装的：%s", "Installed by %s: %s"), g.upd.GUI.Channel, g.upd.GUI.ChannelHint).
 					TextColor(c.Theme().TextMuted)
 			case g.upd.GUI.UpdateAvailable:
-				if ui.PrimaryButton(c, g.t("升级界面", "Upgrade app")).Clicked() {
-					g.askGUUpdate()
-				}
+				ui.PrimaryButton(c, g.t("升级界面", "Upgrade app")).
+					Disabled(g.busy["apply"]).
+					OnClick(func() { g.askGUUpdate() })
 			case g.upd.GUI.Restart:
 				ui.Text(c, g.t("已替换，重开这个窗口生效。", "Replaced: reopen the window to use it.")).TextColor(c.Theme().Success)
 			default:
@@ -97,21 +133,51 @@ func (g *gui) checkUpdate() {
 }
 
 func (g *gui) applyUpdate(target string) {
+	g.applyStage = g.t("准备下载…", "Preparing…")
+	g.applyPct = 0
+	g.applyMsg = ""
+	g.applyErr = false
+
+	// 进度钩子在后台 goroutine 里被调用：一律回主线程改状态
+	g.svc.Progress = func(stage string, done, total int64) {
+		g.onMain(func() {
+			g.applyStage = stage
+			if total > 0 {
+				g.applyPct = float64(done) / float64(total)
+			}
+		})
+	}
+
 	g.load("apply", func() (commit, error) {
 		res, err := g.svc.UpdateApply(context.Background(), target)
 		if err != nil {
-			return nil, err
+			// 失败也要留在页面上：升级按钮点了没反应 = 用户以为坏了
+			return func() {
+				g.applyPct = 0
+				g.applyStage = ""
+				g.applyErr = true
+				g.applyMsg = friendly(err)
+			}, nil
 		}
 		return func() {
+			g.applyPct = 0
+			g.applyStage = ""
 			if res.Error != "" {
-				g.flashErr = true
-				g.flash = res.Error
+				g.applyErr = true
+				g.applyMsg = res.Error
 				return
 			}
-			g.flashNow(g.t("升级完成", "Upgraded"))
+			if res.Noop {
+				g.applyMsg = g.t("已经是最新版本，没有需要替换的。", "Already up to date: nothing to replace.")
+				return
+			}
 			if target == "cli" {
 				g.reloadTools()
+				g.applyMsg = g.t("CLI 已升级完成。", "The CLI is up to date.")
+				return
 			}
+			g.applyMsg = g.t("界面已替换：重开这个窗口后生效（当前窗口还是旧版本）。",
+				"The app was replaced: reopen this window to run the new version.")
 		}, nil
 	})
 }

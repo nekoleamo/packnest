@@ -28,7 +28,7 @@ import (
 
 // guiVersion 是 GUI 自己的版本（与 CLI 解耦；CLI 版本靠 pkcli 的启动门禁检查）。
 // 发布用的 tag 与产物文件名都跟它走：`gui-v<guiVersion>`。
-const guiVersion = "0.12.2"
+const guiVersion = "0.12.3"
 
 // 图标：packaging/genicon 生成（纯标准库画的"巢"标记）。
 //
@@ -85,6 +85,15 @@ func main() {
 	gui := newGUI(svc)
 	// 本地/发布前冒烟：PK_GUI_SMOKE=quit 让界面启动后自己走一遍退出流程，
 	// 用来验证"点了退出进程真的没了"（各平台通用；不进 make check，需要真 GUI 会话）。
+	if os.Getenv("PK_GUI_SMOKE") == "upgrade" {
+		// 自升级的冒烟：启动后自动走一遍"升级界面"，用来核对进度/结果 UI（本地验证用）
+		gui.quitGrace = 120 * time.Second
+		go func() {
+			time.Sleep(2 * time.Second)
+			gui.onMain(func() { gui.page = "update" })
+			gui.onMain(func() { gui.applyUpdate("gui") })
+		}()
+	}
 	if os.Getenv("PK_GUI_SMOKE") == "quit" {
 		gui.quitGrace = 5 * time.Second
 		go func() {

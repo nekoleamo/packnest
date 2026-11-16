@@ -74,11 +74,17 @@ func (g *gui) setAutostart(enable bool) {
 	})
 }
 
-// copyText 把一段文字放剪贴板并给一条提示（所有“复制”按钮共用）。
+// copyText 把一段文字放剪贴板并给一条提示（所有"复制"按钮共用）。
+//
+// 没有窗口时（ui.Tester 跑测试）不能碰 mygo 的剪贴板：那会等应用启动而永久阻塞。
+// 测试里改记到 g.clipboard，方便断言"按钮真的把东西放到了剪贴板"。
 func (g *gui) copyText(s string) {
 	if s == "" {
 		return
 	}
-	mygo.Clipboard.WriteText(s)
-	g.flashNow(g.t("已复制", "Copied"))
+	if g.win == nil {
+		g.clipboard = s
+		return
+	}
+	g.copyText(s)
 }

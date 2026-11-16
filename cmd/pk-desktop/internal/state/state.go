@@ -54,6 +54,16 @@ type Service struct {
 	GUIVersion string
 	// Exe 返回自己的可执行文件路径（GUI 自更新要替换它）
 	Exe func() (string, error)
+	// Progress 是可选的上报钩子：GUI 用它显示"正在下载 42%"。
+	// 在后台 goroutine 里被调用，实现方自己负责回到主线程。
+	Progress func(stage string, done, total int64)
+}
+
+// progress 上报一次进度（没装钩子就什么也不做）。
+func (s *Service) progress(stage string, done, total int64) {
+	if s.Progress != nil {
+		s.Progress(stage, done, total)
+	}
 }
 
 // Locate 把 pkcli.Locate 包成 Locator（生产用）。
@@ -337,6 +347,8 @@ type UpdateApply struct {
 	Result any    `json:"result,omitempty"`
 	Error  string `json:"error"`
 	OK     bool   `json:"ok"`
+	// Noop 表示"本来就不需要升"（已经是最新）：界面要说清楚，而不是假装替换成功
+	Noop bool `json:"noop,omitempty"`
 }
 
 // UpdateApply 执行升级：target=gui 替换自身；target=cli 全部交给 `pk upgrade --self`。
@@ -358,7 +370,7 @@ func (s *Service) UpdateApply(ctx context.Context, target string) (UpdateApply, 
 			return UpdateApply{}, cerr
 		}
 		if !up.GUI.UpdateAvailable {
-			return UpdateApply{Target: "gui", Result: up, OK: true}, nil
+			return UpdateApply{Target: "gui", Result: up, OK: true, Noop: true}, nil
 		}
 		if up.GUI.Channel == "scoop" || up.GUI.Channel == "brew" {
 			return UpdateApply{Target: "gui", Result: up,
@@ -368,12 +380,14 @@ func (s *Service) UpdateApply(ctx context.Context, target string) (UpdateApply, 
 		if eerr != nil {
 			return UpdateApply{}, eerr
 		}
+		s.progress("下载 "+shortName(up.GUI.ArtifactURL), 0, 0)
 		_, aerr := update.ApplyGUI(ctx, update.ApplyOptions{
 			Current:     up.GUI.Latest,
 			ArtifactURL: up.GUI.ArtifactURL,
 			Exe:         exe,
 			Get:         fetchBytes(),
-			Download:    fetchToFile(),
+			Download:    fetchToFileWithProgress(s),
+			Log:         func(msg string) { s.progress(msg, 0, 0) },
 		})
 		up.GUI.Restart = aerr == nil
 		return UpdateApply{Target: "gui", Result: up, Error: errString(aerr), OK: aerr == nil}, nil

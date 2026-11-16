@@ -9,7 +9,6 @@ import (
 	_ "embed"
 	"fmt"
 
-	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"github.com/packnest/packnest/cmd/pk-desktop/internal/pkcli"
@@ -131,8 +130,7 @@ func (g *gui) pageInstalled(c *ui.Context) {
 					g.useVersion(t.Name, t.Version)
 				}
 				if m.Item(g.t("复制安装路径", "Copy install path")).Chosen() {
-					mygo.Clipboard.WriteText(t.Path)
-					g.flashNow(g.t("已复制路径", "Path copied"))
+					g.copyText(t.Path)
 				}
 				m.Separator()
 				if m.Item(g.t("卸载", "Uninstall")).Chosen() {
@@ -149,8 +147,7 @@ func (g *gui) installHint(c *ui.Context) {
 		ui.Text(c, g.t("装一个试试：", "Try: ")).TextColor(c.Theme().TextMuted)
 		ui.Text(c, "pk install node@lts").Font("monospace").SingleLine()
 		ui.Button(c, g.t("复制", "Copy")).FontSize(12).OnClick(func() {
-			mygo.Clipboard.WriteText("pk install node@lts")
-			g.flashNow(g.t("已复制", "Copied"))
+			g.copyText("pk install node@lts")
 		})
 	})
 }

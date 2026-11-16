@@ -1,4 +1,4 @@
-# pk-desktop —— packnest 的可视化补充界面（0.12.2）
+# pk-desktop —— packnest 的可视化补充界面（0.12.3）
 
 > **定位**：GUI 不是独立端。**必须先装 CLI**（`pk`），这里只把 `pk <cmd> --json` 的结果投影成界面。
 > 不 import 主模块任何 `internal/*`，业务真相永远在 CLI 与 `PK_ROOT`（方案 §11 定案 2026-11-11）。
@@ -86,8 +86,8 @@ open dist/gui/packnest.app
 release 里有独立产物（需要先装 CLI），挂在 **`gui-v<版本>`** 这个 tag 下：
 
 ```
-https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.12.2/<文件名>
-https://github.com/nekoleamo/packnest/releases/download/gui-v0.12.2/<文件名>
+https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.12.3/<文件名>
+https://github.com/nekoleamo/packnest/releases/download/gui-v0.12.3/<文件名>
 ```
 
 | 平台 | 文件 | 用法 |

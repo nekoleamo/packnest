@@ -711,6 +711,24 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - ✅ 门禁：`make loc`（`make check` 第 2 项，`tools/loccheck.sh`）——总计 > 红线退出 1；
   `cmd/pk` > 3,200 与单文件 > 600 只 warn。
 
+## GUI 0.12.3 已发布（2026-11-17）：升级过程可见
+
+用户实测：点「升级界面」确认后**什么都没有** —— 不显示下载、不显示进度，失败也只弹 4 秒 toast，
+完全无法判断在不在升。原因：自升级走的是 `busy["apply"]`，而页面只画了 `busy["update"]` 的转圈，
+进度根本没接到 UI 上。
+
+改法：
+
+- `state.Service` 加 `Progress(stage, done, total)` 钩子；自升级的下载走
+  `fetchToFileWithProgress`（128KB 步长上报字节进度），`ApplyOptions.Log` 的阶段也一并上报。
+- 更新页新增两块：升级中（转圈 + 阶段文字 + **百分比 + 进度条** + "别关窗口"提示）、
+  升级结果（**留在页面上**：成功说"重开窗口生效"，失败给原因 + 复制按钮 + 知道了）。
+- 升级中「检查更新」与「升级界面」都禁用；`UpdateApply` 增加 `Noop`（本来就是最新时
+  不再假装替换成功，而是明说"已经是最新"）。
+- 顺手修测试基建：没有窗口时 `copyText` 不碰 mygo 剪贴板（那会永久阻塞），改记到 `g.clipboard`。
+
+守门测试：`TestAcceptance_GUI11_ApplyShowsProgressAndResult`（阶段/百分比/按钮禁用/结果留存/失败可复制）。
+
 ## GUI 0.12.2 已发布（2026-11-17）
 
 `gui-v0.12.2`：双源 5 产物，`verify-release --gui` 通过（签名 OK、5 个 sha256 一致），Scoop 已推 0.12.2。

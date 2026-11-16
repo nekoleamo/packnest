@@ -38,6 +38,67 @@ func fetchBytes() func(context.Context, string) ([]byte, error) {
 	}
 }
 
+// shortName 取 URL 最后一段（进度文案里显示文件名就够了）。
+func shortName(u string) string {
+	if i := lastIndexByte(u, '/'); i >= 0 {
+		return u[i+1:]
+	}
+	return u
+}
+
+func lastIndexByte(s string, b byte) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == b {
+			return i
+		}
+	}
+	return -1
+}
+
+// fetchToFileWithProgress 下载大文件并上报进度（GUI 的升级进度条吃这个）。
+func fetchToFileWithProgress(s *Service) func(context.Context, string, string) error {
+	return func(ctx context.Context, url, dst string) error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return err
+		}
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("%s 返回 HTTP %d", url, resp.StatusCode)
+		}
+		f, err := os.Create(dst)
+		if err != nil {
+			return err
+		}
+		total := resp.ContentLength
+		var done int64
+		buf := make([]byte, 128<<10)
+		for {
+			n, rerr := resp.Body.Read(buf)
+			if n > 0 {
+				if _, werr := f.Write(buf[:n]); werr != nil {
+					f.Close()
+					return werr
+				}
+				done += int64(n)
+				s.progress("下载 "+shortName(url), done, total)
+			}
+			if rerr == io.EOF {
+				break
+			}
+			if rerr != nil {
+				f.Close()
+				return rerr
+			}
+		}
+		return f.Close()
+	}
+}
+
 // fetchToFile 下载大文件到磁盘。
 func fetchToFile() func(context.Context, string, string) error {
 	return func(ctx context.Context, url, dst string) error {

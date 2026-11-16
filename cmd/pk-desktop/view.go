@@ -102,6 +102,15 @@ type gui struct {
 	queue      []*queueItem
 	queueInput string
 
+	// clipboard 是测试用：没有窗口时 copyText 记在这里（不碰真实剪贴板）
+	clipboard string
+
+	// 自升级的进度与结果（点「升级界面」之后页面上要有东西可看）
+	applyStage string
+	applyPct   float64
+	applyMsg   string
+	applyErr   bool
+
 	// 界面偏好与临时状态
 	themeMode int    // 0 跟随系统 / 1 浅色 / 2 深色
 	lang      string // zh / en

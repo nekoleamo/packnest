@@ -60,7 +60,7 @@ iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -U
 下载后先 `shasum -a 256 <文件>` 与清单比对，再
 `ssh-keygen -Y verify -f <allowed_signers> -I release@packnest.dev -n pk-release -s checksums.txt.sig < checksums.txt`
 确认清单本身没被镜像站换过。公钥在 `internal/verify/keys/allowed_signers`（与 `pk doctor` 内置的那份同源）。
-核对现成的发布用 `sh scripts/verify-release.sh --gui`（版本取自 `dist/gui/latest`，也可 `--version 0.12.2` 指定）。
+核对现成的发布用 `sh scripts/verify-release.sh --gui`（版本取自 `dist/gui/latest`，也可 `--version 0.12.3` 指定）。
 
 ## 一点五、检查更新（1.9 起，0.12.2 收紧超时）
 
@@ -140,6 +140,7 @@ pk-desktop --serve --addr 0.0.0.0:7799 --token <随机串>   # 绑非回环地�
 | **首次打开时列表只显示两三行、过几秒才补全** | 0.12.0 的 bug：列表嵌在外层滚动容器里，第一帧按估算高度只画了几行。**升到 0.12.1+** |
 | **「检查更新」一直转圈** | 0.12.1 及更早没有给自更新请求设上限（源被墙时会一直等）。**升到 0.12.2+**：整次 20 秒、单请求 15 秒，超时会明确提示 |
 | Windows 双击后弹一个黑色控制台窗口 | 0.12.0 的 exe 是控制台子系统。**升到 0.12.1+**（`-H windowsgui`） |
+| **点「升级界面」确认后没有任何反应** | 0.12.2 及更早：升级过程不显示阶段/进度，失败只弹一条 4 秒 toast。**升到 0.12.3+**：页面上有「下载 …」阶段文字 + 百分比 + 进度条，结束后结果留在页面上（成功会说"重开窗口生效"，失败给原因 + 复制按钮） |
 | Linux 托盘图标不出现 | 缺 `libayatana-appindicator3`：装上就有；没有托盘时关窗口会直接退出（不会崩） |
 | 界面显示旧版本号 | 桌面端版本是编译进去的：换版本要重装 GUI；CLI 版本看界面顶部 `CLI x.y.z` |
 

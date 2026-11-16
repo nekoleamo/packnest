@@ -509,6 +509,56 @@ func TestAcceptance_GUI10_UpdateCheckTimeoutIsShort(t *testing.T) {
 	}
 }
 
+// TestAcceptance_GUI11_ApplyShowsProgressAndResult 守"点升级不能像死的"：
+// 升级中要有阶段文字 + 进度百分比，结束后要有留在页面上的结果（不能只弹 4 秒 toast）。
+func TestAcceptance_GUI11_ApplyShowsProgressAndResult(t *testing.T) {
+	g, _ := testGUI(t)
+	g.page = "update"
+	g.upd.GUI.Current = "0.12.1"
+	g.upd.GUI.Latest = "0.12.2"
+	g.upd.GUI.UpdateAvailable = true
+
+	// 升级中
+	g.busy["apply"] = true
+	g.applyStage = "下载 packnest-desktop_0.12.2_darwin_arm64.app.zip"
+	g.applyPct = 0.42
+	tr := ui.NewTester(g.view, 980, 680)
+	tr.Frame()
+	if !tr.HasText("下载 packnest-desktop_0.12.2_darwin_arm64.app.zip") {
+		t.Fatalf("升级中没显示阶段：%v", tr.Texts())
+	}
+	if !tr.HasText("42%") {
+		t.Fatalf("升级中没显示百分比：%v", tr.Texts())
+	}
+	// 按钮在升级中必须禁用（避免连点触发两次替换）
+	for _, a := range tr.AccessAll() {
+		if a.Name == "检查更新" && !a.Disabled {
+			t.Fatal("升级中「检查更新」应当禁用")
+		}
+	}
+
+	// 升级结束：结果留在页面上
+	g.busy["apply"] = false
+	g.applyStage = ""
+	g.applyPct = 0
+	g.applyMsg = "界面已替换：重开这个窗口后生效（当前窗口还是旧版本）。"
+	tr.Frame()
+	if !tr.HasText("界面已替换：重开这个窗口后生效（当前窗口还是旧版本）。") {
+		t.Fatalf("升级结果没留在页面上：%v", tr.Texts())
+	}
+
+	// 失败：结果 + 复制错误按钮
+	g.applyErr = true
+	g.applyMsg = "下载失败: dial tcp: i/o timeout"
+	tr.Frame()
+	if !tr.HasText("下载失败: dial tcp: i/o timeout") {
+		t.Fatalf("失败原因没显示：%v", tr.Texts())
+	}
+	if err := tr.Click("复制错误"); err != nil {
+		t.Fatalf("失败时应当能复制错误：%v", err)
+	}
+}
+
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
