@@ -98,7 +98,7 @@ func (g *gui) pageQueue(c *ui.Context) {
 				g.runQueue()
 			})
 		})
-	}).Height(240)
+	}).Grow(1)
 }
 
 // versionsPage 是"某个工具的全部版本"：从安装页点进来。
@@ -142,7 +142,7 @@ func (g *gui) pageVersions(c *ui.Context) {
 				})
 			}
 		})
-	}).Height(360)
+	}).Grow(1)
 }
 
 // filteredVersions 是"全部版本 + 本地过滤"（不过滤时直接给索引里的顺序）。

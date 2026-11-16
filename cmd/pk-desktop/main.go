@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
@@ -27,7 +28,7 @@ import (
 
 // guiVersion 是 GUI 自己的版本（与 CLI 解耦；CLI 版本靠 pkcli 的启动门禁检查）。
 // 发布用的 tag 与产物文件名都跟它走：`gui-v<guiVersion>`。
-const guiVersion = "0.12.0"
+const guiVersion = "0.12.1"
 
 // 图标：packaging/genicon 生成（纯标准库画的"巢"标记）。
 //
@@ -82,6 +83,15 @@ func main() {
 	}()
 
 	gui := newGUI(svc)
+	// 本地/发布前冒烟：PK_GUI_SMOKE=quit 让界面启动后自己走一遍退出流程，
+	// 用来验证"点了退出进程真的没了"（各平台通用；不进 make check，需要真 GUI 会话）。
+	if os.Getenv("PK_GUI_SMOKE") == "quit" {
+		gui.quitGrace = 5 * time.Second
+		go func() {
+			time.Sleep(1500 * time.Millisecond)
+			gui.quit()
+		}()
+	}
 	mygo.App.SetName("packnest")
 	mygo.App.SetVersion(guiVersion)
 	mygo.App.WhenReady(gui.start)
@@ -114,17 +124,19 @@ func withAPI(apiHandler, assetsHandler http.Handler) http.Handler {
 func (g *gui) start() {
 	g.win = mygo.NewWindow(mygo.WindowOptions{
 		Title:   "packnest",
-		Width:   1040,
-		Height:  780,
+		Width:   980,
+		Height:  680,
 		Content: ui.View(g.view),
 	})
-	if runtime.GOOS == "linux" { // Windows 用 exe 资源，macOS 走 .app bundle
+	// 窗口/任务栏图标：macOS 走 .app bundle 的 icon.icns；Windows 的 exe 里没有嵌 ico
+	// （go build 不生成资源段），所以在运行时补一张，任务栏与 Alt-Tab 才不会显示白图标。
+	if runtime.GOOS != "darwin" {
 		_ = g.win.SetIcon(appIcon)
 	}
 	menu := mygo.NewMenu([]*mygo.MenuItem{
 		{Label: "打开 packnest", Click: func(*mygo.MenuItem, *mygo.Window) { g.show() }},
 		{Type: mygo.MenuItemSeparator},
-		{Label: "退出", Click: func(*mygo.MenuItem, *mygo.Window) { mygo.App.Quit() }},
+		{Label: "退出", Click: func(*mygo.MenuItem, *mygo.Window) { g.quit() }},
 	})
 	_, trayErr := mygo.NewTray(mygo.TrayOptions{
 		ID:             "packnest",
@@ -138,8 +150,14 @@ func (g *gui) start() {
 		log.Printf("托盘不可用（%v）：关窗口将直接退出", trayErr)
 	}
 
-	// 关窗口：有托盘就收进托盘，没有托盘就真的退出（只注册一次，避免两个 hook 打架）
+	// 关窗口：有托盘就收进托盘，没有托盘就真的退出（只注册一次，避免两个 hook 打架）。
+	//
+	// ⚠️ "退出"（托盘菜单 / ⌘Q / Dock 右键退出）也会走这里：那时必须放行，
+	// 否则 PreventDefault 会把退出取消掉 —— 表现就是"点了退出但进程还在后台"。
 	g.win.OnClose(func(e *mygo.CloseEvent) {
+		if g.quitting {
+			return // 正在退出：让窗口正常关闭，进程随之结束
+		}
 		if trayErr == nil {
 			e.PreventDefault()
 			g.win.Hide()
@@ -147,6 +165,44 @@ func (g *gui) start() {
 		}
 		mygo.App.Quit()
 	})
+
+	// 任何"退出"入口（⌘Q、Dock 菜单、系统注销）先打标记，再让 mygo 走正常退出流程
+	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
+		g.markQuitting()
+	})
+}
+
+// quit 是托盘菜单里的"退出"：先打标记，再请求退出；
+// 若平台没走 OnBeforeQuit（例如托盘直接关窗口），标记已经就位，OnClose 会放行。
+func (g *gui) quit() {
+	g.markQuitting()
+	mygo.App.Quit()
+}
+
+// markQuitting 是"退出"的唯一开关：打标记 + 落盘偏好 + 起一个硬退出兜底。
+func (g *gui) markQuitting() {
+	if g.quitting {
+		return
+	}
+	g.quitting = true
+	g.prefsSave() // 窗口关掉之后再写就晚了
+
+	// 兜底：各平台的退出流程都可能被"托盘"/"窗口关闭被拦"拖住（macOS 实测过一次：
+	// 托盘点退出 → 窗口关闭被 OnClose 拦住 → 进程留在后台）。
+	// 正常流程 3 秒内会自己走完，走不完就强制结束 —— "退出"必须真的退出。
+	grace := g.quitGrace
+	if grace <= 0 {
+		grace = 3 * time.Second
+	}
+	exit := g.exitFn
+	if exit == nil {
+		exit = os.Exit
+	}
+	go func() {
+		time.Sleep(grace)
+		log.Println("退出流程未在预期时间内完成，强制结束进程")
+		exit(0)
+	}()
 }
 
 // show 从托盘/菜单回到窗口。

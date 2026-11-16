@@ -7,11 +7,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -29,19 +25,23 @@ type page struct {
 	zh    string
 	en    string
 	build func(g *gui, c *ui.Context)
+	// fill=true：整页就是一张列表（List 自己滚动），不要套外层 Scroll。
+	// 套了会出"首帧只画两三行、过几秒才对"的毛病：Scroll 里没有高度约束，
+	// 列表先用估算高度画了一帧，等下一次 Update 才收敛（用户实测到的那个截图）。
+	fill bool
 }
 
 var pages = []page{
-	{"installed", "已装工具", "Installed", (*gui).pageInstalled},
-	{"queue", "安装", "Install", (*gui).pageQueue},
-	{"mirror", "镜像", "Mirrors", (*gui).pageMirror},
-	{"env", "环境", "Environment", (*gui).pageEnv},
-	{"update", "更新", "Update", (*gui).pageUpdate},
-	{"doctor", "体检", "Doctor", (*gui).pageDoctor},
-	{"gc", "磁盘", "Storage", (*gui).pageGC},
-	{"settings", "设置", "Settings", (*gui).pageSettings},
+	{"installed", "已装工具", "Installed", (*gui).pageInstalled, true},
+	{"queue", "安装", "Install", (*gui).pageQueue, true},
+	{"mirror", "镜像", "Mirrors", (*gui).pageMirror, false},
+	{"env", "环境", "Environment", (*gui).pageEnv, false},
+	{"update", "更新", "Update", (*gui).pageUpdate, false},
+	{"doctor", "体检", "Doctor", (*gui).pageDoctor, false},
+	{"gc", "磁盘", "Storage", (*gui).pageGC, false},
+	{"settings", "设置", "Settings", (*gui).pageSettings, false},
 	// 只在安装页里跳转进来，不画在侧边栏
-	{"versions", "可选版本", "Versions", (*gui).pageVersions},
+	{"versions", "可选版本", "Versions", (*gui).pageVersions, true},
 }
 
 // queueItem 是安装队列的一行：一个 spec 一条，状态机 wait → run → done/fail。
@@ -66,6 +66,14 @@ type gui struct {
 
 	// 当前页
 	page string
+
+	// quitting 是"正在退出"：关窗口时要放行（有托盘时平时是收进托盘）
+	quitting bool
+	// relayout 记"首屏数据已经到了、还要再要一帧"（首帧视口没生效时会少画几行）
+	relayout bool
+	// quitGrace / exitFn 是退出兜底的注入点（测试用；生产是 3s + os.Exit）
+	quitGrace time.Duration
+	exitFn    func(int)
 
 	// 各页数据（每页自己刷，互不阻塞）
 	available []pkcli.AvailableTool
@@ -155,6 +163,12 @@ func (g *gui) view(c *ui.Context) {
 		pageSeen = g.page
 		g.prefsSave()
 	}
+	// 首屏数据到位的这一帧之后再要一帧：第一帧是按"视口还没生效"的高度算的，
+	// 只画得出两三行，看起来像列表少了一半（2026-11-17 用户实测）。
+	if g.relayout {
+		g.relayout = false
+		c.Invalidate()
+	}
 
 	ui.Column(c).Fill().Children(func() {
 		g.header(c)
@@ -184,17 +198,34 @@ func (g *gui) view(c *ui.Context) {
 				ui.SidebarItem(c, "gc", nil, g.t("磁盘", "Storage"))
 				ui.SidebarItem(c, "settings", nil, g.t("设置", "Settings"))
 			}).Width(150)
-			ui.Scroll(c).Fill().Grow(1).Children(func() {
-				// 只填宽不填高：放在 Scroll 里时 Fill() 会把高度钉成视口高度，
-				// 后面的表格就只剩表头可见（2026-11-15 实测踩到）
-				ui.Column(c).FillWidth().Padding(12, 14).Gap(6).Children(func() {
+			if g.pageFills() {
+				// 列表页：不套 Scroll，让 List 自己占满并滚动（首帧就画对，不会先画两三行）
+				ui.Column(c).Fill().Grow(1).Padding(12, 14).Gap(6).Children(func() {
 					g.pageView(c)
 				})
-			})
+			} else {
+				ui.Scroll(c).Fill().Grow(1).Children(func() {
+					// 只填宽不填高：放在 Scroll 里时 Fill() 会把高度钉成视口高度，
+					// 后面的表格就只剩表头可见（2026-11-15 实测踩到）
+					ui.Column(c).FillWidth().Padding(12, 14).Gap(6).Children(func() {
+						g.pageView(c)
+					})
+				})
+			}
 		})
 	})
 
 	g.confirmView(c)
+}
+
+// pageFills 判断当前页是不是"整页一张列表"（决定要不要套外层 Scroll）。
+func (g *gui) pageFills() bool {
+	for _, p := range pages {
+		if p.id == g.page {
+			return p.fill
+		}
+	}
+	return false
 }
 
 // pageView 派发到当前页；第一次进某页时顺手把它的数据拉一次（每页只拉一次）。
@@ -301,69 +332,8 @@ var (
 	pageSeen      = ""
 )
 
-// langOf 把 Segmented 的下标换成语言代码。
-func langOf(idx int) string {
-	if idx == 1 {
-		return "en"
-	}
-	return "zh"
-}
-
-// applyTheme 把主题三态落到 ui 上：默认跟随系统，手动选浅/深时换主题。
-func (g *gui) applyTheme(c *ui.Context) {
-	base := c.Theme()
-	switch g.themeMode {
-	case 1:
-		base = ui.LightTheme()
-	case 2:
-		base = ui.DarkTheme()
-	}
-	c.SetTheme(cachedTheme(g.themeMode, base))
-}
-
 // 主题按 (模式, 系统深浅) 缓存：视图每帧都要它，没必要每帧重新拼一遍调色板。
 var themeCache = map[[2]int]*ui.Theme{}
-
-func cachedTheme(mode int, base *ui.Theme) *ui.Theme {
-	key := [2]int{mode, 0}
-	if base.Dark {
-		key[1] = 1
-	}
-	if t, ok := themeCache[key]; ok {
-		return t
-	}
-	t := themeFor(base)
-	themeCache[key] = t
-	return t
-}
-
-// themeFor 是"我们的配色"：视图与对比度测试共用同一份，改颜色只改这里。
-func themeFor(base *ui.Theme) *ui.Theme {
-	t := *base
-	// 全局字号与间距在这里定一次：控件、表格行高、内外边距都按它们缩放，
-	// 这样"信息密度"是统一的一个数，而不是每页各写一套 Padding。
-	t.FontSize = 13
-	t.Spacing = 3
-	if t.Dark {
-		// 深色下自己定一套：默认的 TextMuted 在 #161616 上偏暗（路径/大小这类次要信息看不清），
-		// 侧边栏的"非焦点选中态"也会糊成一团灰。
-		t.Background = ui.Hex("#161616")
-		t.Surface = ui.Hex("#232323")
-		t.SurfaceHover = ui.Hex("#2a2a2a")
-		t.SurfacePressed = ui.Hex("#333333")
-		t.Border = ui.Hex("#3a3a3a")
-		t.Text = ui.Hex("#e9e9e9")
-		t.TextMuted = ui.Hex("#a8a8a8")
-		t.Selection = ui.Hex("#2f5f46")
-		t.InactiveAccent = ui.Hex("#5a5a5a")
-		t.Accent = ui.Hex("#4ade80")
-		t.AccentText = ui.Hex("#10240f")
-	} else {
-		t.Accent = ui.Hex("#0a7d4f")
-		t.TextMuted = ui.Hex("#5c5c5c") // 浅色下默认的 #666 在灰底卡片上偏淡
-	}
-	return &t
-}
 
 // confirmView 画统一的确认框；action 只在用户点"确定"时执行。
 func (g *gui) confirmView(c *ui.Context) {
@@ -395,13 +365,13 @@ func (g *gui) refreshAll() {
 		st := g.svc.Status(context.Background())
 		auto := g.svc.Autostart()
 		if !st.OK {
-			return func() { g.status, g.auto = st, auto }, nil
+			return func() { g.status, g.auto = st, auto; g.relayout = true }, nil
 		}
 		tools, err := g.svc.Tools(context.Background())
 		if err != nil {
-			return func() { g.status, g.auto = st, auto }, err
+			return func() { g.status, g.auto = st, auto; g.relayout = true }, err
 		}
-		return func() { g.status, g.auto, g.tools = st, auto, tools }, nil
+		return func() { g.status, g.auto, g.tools = st, auto, tools; g.relayout = true }, nil
 	})
 }
 
@@ -465,110 +435,4 @@ func (g *gui) onMain(fn func()) {
 func (g *gui) flashNow(msg string) {
 	g.flashErr = false
 	g.flash = msg
-}
-
-// t 是界面文案的唯一入口：中文即源串，英文内联（不用 key 表，改文案即改这里）。
-func (g *gui) t(zh, en string) string {
-	if g.lang == "en" {
-		return en
-	}
-	return zh
-}
-
-// installCmd 给没装 CLI 的用户一条"对应平台"的命令。
-func installCmd(platform string) string {
-	switch platform {
-	case "windows":
-		return `powershell -c "irm https://nekoleamo.github.io/packnest/install.ps1 | iex"`
-	default:
-		return "curl -fsSL https://nekoleamo.github.io/packnest/install.sh | sh"
-	}
-}
-
-// 偏好文件：只存"界面自己的"偏好（主题/语言/上次的页），不碰 pk 的任何配置。
-type prefs struct {
-	Theme int    `json:"theme"`
-	Lang  string `json:"lang"`
-	Page  string `json:"page"`
-}
-
-func prefsPath() string { return filepath.Join(appDir(), "gui.json") }
-
-func (g *gui) prefsLoad() {
-	b, err := os.ReadFile(prefsPath())
-	if err != nil {
-		return
-	}
-	var p prefs
-	if json.Unmarshal(b, &p) != nil {
-		return
-	}
-	g.themeMode = p.Theme
-	themeModeSeen = p.Theme
-	if p.Lang == "en" || p.Lang == "zh" {
-		g.lang = p.Lang
-	}
-	for _, pg := range pages {
-		if pg.id == p.Page {
-			g.page = p.Page
-		}
-	}
-	g.langIdx = 0
-	if g.lang == "en" {
-		g.langIdx = 1
-	}
-	pageSeen = g.page
-}
-
-func (g *gui) prefsSave() {
-	if err := os.MkdirAll(appDir(), 0o755); err != nil {
-		return
-	}
-	b, err := json.Marshal(prefs{Theme: g.themeMode, Lang: g.lang, Page: g.page})
-	if err != nil {
-		return
-	}
-	_ = os.WriteFile(prefsPath(), b, 0o644)
-}
-
-// queuePending 是"还没跑完的 spec 数"（侧边栏徽标）。
-func (g *gui) queuePending() int {
-	n := 0
-	for _, q := range g.queue {
-		if q.State == "wait" || q.State == "run" {
-			n++
-		}
-	}
-	return n
-}
-
-// humanBytes 把字节数写成人读的（GC 统计块用）。
-func humanBytes(n int64) string {
-	const unit = 1024
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := int64(unit), 0
-	for v := n / unit; v >= unit; v /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
-}
-
-// since 是"多久以前"，用于首屏的时间戳。
-func since(t time.Time) string {
-	if t.IsZero() {
-		return ""
-	}
-	d := time.Since(t).Truncate(time.Second)
-	if d < time.Minute {
-		return d.String()
-	}
-	return d.Truncate(time.Minute).String()
-}
-
-// platformHint 在设置页显示（排障时第一句要问的）。
-func platformHint() string {
-	return runtime.GOOS + "/" + runtime.GOARCH
 }

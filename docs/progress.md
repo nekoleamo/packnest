@@ -711,6 +711,33 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - ✅ 门禁：`make loc`（`make check` 第 2 项，`tools/loccheck.sh`）——总计 > 红线退出 1；
   `cmd/pk` > 3,200 与单文件 > 600 只 warn。
 
+## GUI 0.12.1 已发布（2026-11-17）：修"点退出进程不退" + Windows 控制台窗口
+
+用户实测两件事，都是发布前该抓到的：
+
+1. **托盘点「退出」后进程还在后台**。根因：`OnClose` 里为了"关窗收进托盘"无条件
+   `PreventDefault()`，而退出时窗口也要走 Close —— 退出被自己拦掉了。
+   修法：加 `quitting` 标记（托盘退出 / `OnBeforeQuit`（⌘Q、Dock 菜单、系统注销）都先置位），
+   `OnClose` 见标记就放行；再加 3 秒兜底（`markQuitting` 起 watchdog，正常流程走不完就强制结束），
+   把"某个平台退出被托盘/窗口拖住"这类问题一次性兜死。
+2. **Windows 的 exe 是控制台子系统**：`go build` 默认 `subsystem=3`，双击先弹一个黑 cmd 窗口。
+   修法：Windows 构建统一加 `-ldflags "-H windowsgui"`（`release-gui.sh` / `make gui-cross` /
+   `gui-build.yml` 三处），并让 Windows 也在运行时设置窗口图标（exe 里没有嵌 ico 资源段，
+   否则任务栏是白图标）。
+
+3. **首次打开列表只画了两行半**（用户第二天实测截图）：列表套在 `Scroll` 里、`Grow(1)` 拿不到
+   高度，第一帧按估算只画了几行，`pnpm` 被截断，几秒后一次重排才补全。
+   修法：列表页（已装/安装/可选版本）标 `fill`，**不套外层 Scroll**，让 `List` 自己占满并滚动；
+   数据到位的那一帧再 `c.Invalidate()` 要一帧，兜住"视口晚生效"。守门测试
+   `TestAcceptance_GUI5_FirstFrameShowsEveryRow`：单帧渲染必须三行齐全、行高一致、在窗口内。
+
+新增两个守门测试：`TestAcceptance_GUI9_QuitReallyQuits`（打标记 + 落盘偏好 + 兜底退出且幂等）、
+`_GUI9_CloseWithoutQuit`（没点退出时关窗必须被拦成"收进托盘"）。
+本地冒烟用 `PK_GUI_SMOKE=quit`（启动后自己走一遍退出，用来验证"退出后进程真的没了"，三平台通用）。
+
+Windows 侧核查（无 Windows 机器，靠静态+构建期）：PE 头 `subsystem=2`（GUI）逐架构确认、
+`GOOS=windows go vet` 通过、版本串在 exe 里、`-H windowsgui` 入三处构建脚本。
+
 ## GUI 0.12.0 已发布（2026-11-15）
 
 `gui-v0.12.0`：gitee + GitHub 双源，5 个产物（mac arm64 `.app.zip`、win amd64/arm64 zip、

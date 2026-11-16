@@ -52,7 +52,7 @@ curl -fsSL https://你的域名/install.sh | sh -s -- --base https://你的域�
 CLI 的升级交给 `pk upgrade --self`、桌面端由 GUI 自己换产物（验签 + 比 sha256 后替换，提示重启）。
 
 
-GUI（`pk-desktop`，当前 **0.12.0**，原生界面）只是 CLI 的可视化补充：它通过子进程调 `pk <命令> --json` 干活，
+GUI（`pk-desktop`，当前 **0.12.1**，原生界面）只是 CLI 的可视化补充：它通过子进程调 `pk <命令> --json` 干活，
 没有自己的下载器、台账或更新器。**先装上面的 `pk`**，再按平台选一种装法：
 
 | 平台 | 方式 | 命令 / 文件 | 校验 |

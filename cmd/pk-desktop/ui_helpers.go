@@ -4,8 +4,11 @@ package main
 // 只放"两页以上都要用"的东西，单页用的留在各自文件里。
 
 import (
+	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -87,4 +90,46 @@ func trimSpace(s string) string { return strings.TrimSpace(s) }
 // containsFold 是大小写无关的子串判断（版本过滤用）。
 func containsFold(s, sub string) bool {
 	return strings.Contains(strings.ToLower(s), strings.ToLower(sub))
+}
+
+// humanBytes 把字节数写成人读的（GC 统计块用）。
+func humanBytes(n int64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := int64(unit), 0
+	for v := n / unit; v >= unit; v /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
+}
+
+// since 是"多久以前"，用于首屏的时间戳。
+func since(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	d := time.Since(t).Truncate(time.Second)
+	if d < time.Minute {
+		return d.String()
+	}
+	return d.Truncate(time.Minute).String()
+}
+
+// platformHint 在设置页显示（排障时第一句要问的）。
+func platformHint() string {
+	return runtime.GOOS + "/" + runtime.GOARCH
+}
+
+// queuePending 是"还没跑完的 spec 数"（侧边栏徽标）。
+func (g *gui) queuePending() int {
+	n := 0
+	for _, q := range g.queue {
+		if q.State == "wait" || q.State == "run" {
+			n++
+		}
+	}
+	return n
 }

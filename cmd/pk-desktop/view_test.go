@@ -12,6 +12,7 @@ import (
 	"math"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -85,6 +86,7 @@ func testGUI(t *testing.T) (*gui, *fakeCLI) {
 			Tools: []pkcli.Tool{
 				{Name: "node", Version: "22.1.0", Active: true, Path: "/root/.packnest/tools/node/22.1.0/bin/node", Verified: "ok", SizeBytes: 52 << 20},
 				{Name: "pnpm", Version: "10.2.0", Path: "/root/.packnest/tools/pnpm/10.2.0/bin/pnpm", Verified: "weak"},
+				{Name: "go", Version: "1.27.4", Path: "/root/.packnest/tools/go/1.27.4/bin/go", Verified: "weak"},
 			},
 			Outdated: []pkcli.OutdatedTool{{Name: "node", Installed: "22.1.0", Latest: "22.2.0", Advice: "pk install node@22.2.0"}},
 		},
@@ -293,7 +295,7 @@ func TestAcceptance_GUI5_LayoutNotCollapsed(t *testing.T) {
 		page string
 		want []string
 	}{
-		{"installed", []string{"node", "22.1.0", "pnpm", "10.2.0", "更多"}},
+		{"installed", []string{"node", "22.1.0", "pnpm", "10.2.0", "go", "1.27.4", "更多"}},
 		{"queue", []string{"node", "22.2.0", "装最新"}},
 		{"versions", []string{"22.2.0", "20.11.0"}},
 		{"mirror", []string{"官方源", "国内镜像", "自动", "https://registry.npmmirror.com"}},
@@ -376,6 +378,95 @@ func luminance(c ui.Color) float64 {
 		return math.Pow((s+0.055)/1.055, 2.4)
 	}
 	return 0.2126*f(c.R) + 0.7152*f(c.G) + 0.0722*f(c.B)
+}
+
+// TestAcceptance_GUI9_QuitReallyQuits 守"点退出必须真的退出"：
+// markQuitting 要一次打标记、落盘偏好，并在宽限期内兜底强制结束
+// （macOS 上曾因为 OnClose 拦掉关窗，托盘点退出后进程留在后台）。
+func TestAcceptance_GUI9_QuitReallyQuits(t *testing.T) {
+	g, _ := testGUI(t)
+	done := make(chan int, 2)
+	g.quitGrace = 20 * time.Millisecond
+	g.exitFn = func(code int) { done <- code }
+
+	g.markQuitting()
+	if !g.quitting {
+		t.Fatal("markQuitting 没打上退出标记：关窗会被 OnClose 拦成「收进托盘」")
+	}
+	// 偏好必须已经落盘（窗口关掉之后就写不了了）
+	if _, err := os.Stat(prefsPath()); err != nil {
+		t.Fatalf("退出前没落盘偏好: %v", err)
+	}
+	select {
+	case code := <-done:
+		if code != 0 {
+			t.Fatalf("兜底退出码 = %d", code)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("宽限期过了还没兜底强制退出")
+	}
+
+	// 重复调用不应再起一个兜底（幂等）
+	g.markQuitting()
+	select {
+	case <-done:
+		t.Fatal("markQuitting 不是幂等的")
+	case <-time.After(60 * time.Millisecond):
+	}
+}
+
+// TestAcceptance_GUI9_CloseWithoutQuit 守"平时关窗只是收进托盘"：
+// 没打退出标记时，OnClose 的语义是拦截并隐藏，而不是结束进程。
+func TestAcceptance_GUI9_CloseWithoutQuit(t *testing.T) {
+	g, _ := testGUI(t)
+	if g.quitting {
+		t.Fatal("新界面不该带着退出标记")
+	}
+	// 与 main.go 里的 OnClose 判断一致：quitting 为真才放行
+	shouldClose := func(g *gui) bool { return g.quitting }
+	if shouldClose(g) {
+		t.Fatal("未点退出时关窗应被拦截")
+	}
+	g.markQuittingOrFlag()
+	if !shouldClose(g) {
+		t.Fatal("点了退出后关窗必须放行")
+	}
+}
+
+// markQuittingOrFlag 是测试用的轻量版（不真的起兜底 goroutine）
+func (g *gui) markQuittingOrFlag() { g.quitting = true }
+
+// TestAcceptance_GUI5_FirstFrameShowsEveryRow 守"首次打开列表就完整"：
+// 一帧（ui.Tester 的第一次 Frame）里三行都要画出来、行高一致、都在窗口内。
+//
+// 路径：2026-11-17 用户实测首帧只画了两行半（pnpm 被截断），几秒后才补全 ——
+// 根因是列表套在 Scroll 里、Grow 拿不到高度，第一帧按估算高度只画了几行。
+// 现在列表页不套 Scroll（见 pages[].fill），这条测试钉住它。
+func TestAcceptance_GUI5_FirstFrameShowsEveryRow(t *testing.T) {
+	g, _ := testGUI(t)
+	g.page = "installed"
+	tr := ui.NewTester(g.view, 980, 680)
+	tr.Frame() // 只渲染这一帧，模拟"刚打开"
+
+	var heights []float32
+	for _, name := range []string{"go", "node", "pnpm"} {
+		r, ok := tr.Find(name)
+		if !ok {
+			t.Fatalf("首帧没画出 %q", name)
+		}
+		if r.H <= 0 {
+			t.Fatalf("首帧 %q 高度 %.0f（被压扁）", name, r.H)
+		}
+		if r.Y+r.H > 680 {
+			t.Fatalf("首帧 %q 掉出窗口（y=%.0f h=%.0f）", name, r.Y, r.H)
+		}
+		heights = append(heights, r.H)
+	}
+	for _, h := range heights {
+		if math.Abs(float64(h-heights[0])) > 1 {
+			t.Fatalf("行高不一致（被截断的行会矮一截）：%v", heights)
+		}
+	}
 }
 
 func TestMain(m *testing.M) {

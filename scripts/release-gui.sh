@@ -146,8 +146,11 @@ if [ "${build_gui}" = "1" ]; then
     os=${t%/*}; arch=${t#*/}
     tmp="$DIST/gui/pk-desktop"
     ext=""; [ "$os" = windows ] && ext=".exe"
+    # Windows 必须 -H windowsgui：否则 go build 默认是控制台子系统，
+    # 双击 exe 会先弹一个黑色 cmd 窗口（而且退出后还留在任务栏）。
+    ldf="-s -w"; [ "$os" = windows ] && ldf="-s -w -H windowsgui"
     ( cd cmd/pk-desktop && CGO_ENABLED=0 GOOS=$os GOARCH=$arch \
-        go build -trimpath -ldflags "-s -w" -o "../../$tmp$ext" . ) || { echo "构建 $os/$arch 失败" >&2; exit 5; }
+        go build -trimpath -ldflags "$ldf" -o "../../$tmp$ext" . ) || { echo "构建 $os/$arch 失败" >&2; exit 5; }
     if [ "$os" = windows ]; then
       out="$DIST/gui/packnest-desktop_${VER}_${os}_${arch}.zip"
       rm -f "$out"

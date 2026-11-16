@@ -242,7 +242,8 @@ gui-cross:
 	@mkdir -p $(DIST)/gui
 	@cd cmd/pk-desktop && for t in darwin/arm64 windows/amd64 windows/arm64 linux/amd64 linux/arm64; do \
 		os=$${t%/*}; arch=$${t#*/}; ext=""; [ "$$os" = windows ] && ext=".exe"; \
-		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "-s -w" \
+		ldf="-s -w"; [ "$$os" = windows ] && ldf="-s -w -H windowsgui"; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$$ldf" \
 			-o "../../$(DIST)/gui/pk-desktop_$${os}_$${arch}$$ext" . || exit 1; \
 		echo "  ok $$os/$$arch"; \
 	done
