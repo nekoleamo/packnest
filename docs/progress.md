@@ -12,7 +12,7 @@
 | **M3** | go + python | ✅ 完成（2026-11-10，含真网实测） | `M3_GoNoDoubleDownload` ✅ · `_PythonNoCompile` ✅ · `_PbsDirectoryIndex` ✅ |
 | **M4** | 台账/引用计数/GC/全局包/启动清扫 | ✅ 完成（2026-11-10，含真网实测） | `M4_GcZeroRef` ✅ · `_LedgerRecover` ✅ · `_FrozenMismatchExitCode` ✅ · `_CtrlCNoPartial` ✅ · `_GlobalSurvivesNodeSwitch` ✅ · `_GlobalBinNoReshim` ✅ · `_NativeGlobalDetect` ✅ · `_StartupSweep` ✅ · `_CacheMax` ✅ | `M4_GcZeroRef` / `_LedgerRecover` / `_FrozenMismatchExitCode` / `_CtrlCNoPartial` / `_GlobalSurvivesNodeSwitch` / `_GlobalBinNoReshim` / `_NativeGlobalDetect` / `_StartupSweep` |
 | **M5** | CLI 收口（doctor 全量、`--json` 冻结、6 平台产物、分发） | ✅ 完成（2026-11-10） | 见下方 CLI-DONE 10 条 | §12.2 的 10 条 CLI-DONE |
-| G0–G2 | 桌面端：Wails v3.1.0 + Vue3（0.10–0.11）→ **mygo 原生 UI（0.12 起）** | ✅ 已发布（`gui-v0.11.4`）；0.12 换壳在分支 `gui/mygo-native` | `TestAcceptance_GUI3_ReadOnlyPages` · `_GUI4_WriteGuards` · `_GUI6_I18nComplete` · `_GUI6_NoRawErrorInUI` · `_GUI7_StateShared` |
+| G0–G2 | 桌面端：Wails v3.1.0 + Vue3（0.10–0.11）→ **mygo 原生 UI（0.12 起）** | ✅ 已发布 **`gui-v0.12.2`**（5 产物：mac arm64 / win amd64+arm64 / linux amd64+arm64） | `TestAcceptance_GUI3_ReadOnlyPages` · `_GUI4_WriteGuards` · `_GUI6_I18nComplete` · `_GUI6_NoRawErrorInUI` · `_GUI7_StateShared` |
 
 ## M0 交付清单（2026-11-10）
 

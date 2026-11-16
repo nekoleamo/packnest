@@ -1,4 +1,4 @@
-# pk-desktop —— packnest 的可视化补充界面（0.12.0）
+# pk-desktop —— packnest 的可视化补充界面（0.12.2）
 
 > **定位**：GUI 不是独立端。**必须先装 CLI**（`pk`），这里只把 `pk <cmd> --json` 的结果投影成界面。
 > 不 import 主模块任何 `internal/*`，业务真相永远在 CLI 与 `PK_ROOT`（方案 §11 定案 2026-11-11）。
@@ -86,8 +86,8 @@ open dist/gui/packnest.app
 release 里有独立产物（需要先装 CLI），挂在 **`gui-v<版本>`** 这个 tag 下：
 
 ```
-https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.12.0/<文件名>
-https://github.com/nekoleamo/packnest/releases/download/gui-v0.12.0/<文件名>
+https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.12.2/<文件名>
+https://github.com/nekoleamo/packnest/releases/download/gui-v0.12.2/<文件名>
 ```
 
 | 平台 | 文件 | 用法 |
@@ -98,6 +98,17 @@ https://github.com/nekoleamo/packnest/releases/download/gui-v0.12.0/<文件名>
 
 四份产物由 CI 的 `gui-build.yml` 在**一个 macOS job 上交叉编译**（纯 Go、无 cgo），
 发布时用 `release-gui.sh --from-dir` 上传，字节与 CI 完全一致。
+
+## 退出与首帧（0.12.1/0.12.2 修过的两个坑，别再犯）
+
+- **退出**：`OnClose` 平时拦成"关窗收进托盘"，但任何退出入口（托盘「退出」/`OnBeforeQuit`）都会先置
+  `quitting`，`OnClose` 见标记就放行；还有 3 秒 watchdog 兜底（正常流程走不完就硬退）。
+  写窗口 hook 时别再无条件下 `PreventDefault()`。
+- **首帧**：列表页（已装/安装/可选版本）**不套外层 Scroll**，`List` 自己占满并滚动（`pages[].fill`）。
+  套进去会让 `Grow(1)` 拿不到高度，第一帧只画两三行。
+- **Windows**：构建必须 `-ldflags "-H windowsgui"`，否则是控制台子系统（双击先弹黑窗）。
+- **取数**：`load(key, work)` 的 `work` 跑在 goroutine 里，只返回 `commit`；panic 会被 `safeWork`
+  转成错误（否则 `busy` 永久卡住 = 界面永远转圈）。
 
 ## 托盘与单实例
 

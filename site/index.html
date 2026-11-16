@@ -215,14 +215,14 @@
       <p class="after">产物都在独立 tag <code>gui-v__GUI_VERSION__</code> 下：
       <a href="https://gitee.com/null_593_5354/packnest/releases/tag/gui-v__GUI_VERSION__">gitee</a> ·
       <a href="https://github.com/nekoleamo/packnest/releases/tag/gui-v__GUI_VERSION__">GitHub</a>（附 <code>checksums.txt</code> + <code>.sig</code>）。
-      同目录还有 <code>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</code> 等三个产物原名，方便手动核对。</p>
+      同目录还有 <code>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</code> 等 5 个产物原名（mac arm64、win amd64+arm64、linux amd64+arm64），方便手动核对。</p>
       <p class="after">不发 Intel Mac 产物（要就自己 <code>make gui-app</code>）；Homebrew cask 不做（ad-hoc 签名过不了 Gatekeeper）。</p>
     </dd>
 
     <dt>前置条件</dt>
     <dd>先装 CLI（<code>pk</code>）—— 没装时界面顶部会直接给出<b>当前平台</b>的安装命令（Windows 走 PowerShell，其余走 <code>sh</code>）并带复制按钮。
     macOS 是 ad-hoc 签名，首次打开要在「系统设置 → 隐私与安全性」放行一次；Windows/Linux 不需要任何 webview 运行时（Linux 托盘另需 <code>libayatana-appindicator3</code>）。
-    不想装桌面运行时也能用浏览器形态：<code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code>，功能与桌面壳一致。</dd>
+    浏览器形态 <code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code> 保留为兜底页（0.12 起冻结，排版与功能以原生界面为准）。</dd>
 
     <dt>不是什么</dt>
     <dd>不是第二个安装器：没有自己的台账，也不想再实现一遍升级逻辑 —— <b>升级 CLI 交给 <code>pk upgrade --self</code></b>，

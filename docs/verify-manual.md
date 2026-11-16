@@ -75,8 +75,8 @@ pk doctor --globals                             # 期望：没有 GLOBAL_* warn
 
 ```bash
 # 从发布页下载 GUI（gui-v*，只发 Apple Silicon）
-curl -LO https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.11.2/packnest-desktop_0.11.2_darwin_arm64.app.zip
-unzip -q packnest-desktop_0.11.2_darwin_arm64.app.zip
+curl -LO https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.12.2/packnest-desktop_0.12.2_darwin_arm64.app.zip
+unzip -q packnest-desktop_0.12.2_darwin_arm64.app.zip
 spctl -a -vvv -t exec packnest.app ; echo "退出码=$?"   # 期望：rejected（ad-hoc）
 open packnest.app                                      # 期望：弹"无法验证开发者" → 系统设置里放行 → 再次 open 能起窗口
 ```
@@ -90,6 +90,32 @@ pk --version      # brew/脚本装的 CLI 不在 Gatekeeper 管辖内（未签�
 
 **通过标准**：`spctl` 判 rejected（符合 ad-hoc 预期，不是 bug）；放行一次后 GUI 能正常起窗口、
 能读到 CLI（顶部显示 `CLI <版本> · <路径>`）；CLI 用脚本装完直接可用。
+
+## 4. Windows 首次运行（只能人工）
+
+**为什么只能人工**：`pk-desktop.exe` 是 GUI 子系统（`-H windowsgui`），行为只有在真机上双击才看得见；
+agent 只能静态核对 PE 头 `subsystem=2`。
+
+**怎么做**：
+
+```powershell
+# 解压 gui-v* 的 windows zip，然后**双击** pk-desktop.exe（不要从 PowerShell 启动）
+#   · 期望：直接出窗口，**没有任何黑色控制台窗口**
+#   · 期望：任务栏/Alt-Tab 里是 packnest 的图标（不是白图标）
+#   · 期望：先装好的 CLI 能被读到（顶部显示 CLI 版本 + 路径）
+```
+
+**通过标准**：不弹控制台；窗口出得来；托盘图标可见；点托盘「退出」后**任务管理器里没有残留进程**。
+
+## 5. 退出行为（三平台，0.12.1 起）
+
+| 操作 | 期望 |
+|---|---|
+| 点窗口关闭按钮 | 窗口消失 → 托盘图标还在（0.11 时代就是这样，故意保留） |
+| 托盘菜单「退出」 | 窗口、托盘、**进程全部结束**（0.12.0 的 bug：进程留在后台） |
+| macOS ⌘Q / Windows 任务管理器结束任务 | 同上，进程结束；偏好文件已落盘 |
+
+**通过标准**：`pgrep -f pk-desktop`（或任务管理器）里没有残留；再打开时主题/语言/上次的页都还在。
 
 ## 记录格式
 
@@ -117,5 +143,7 @@ pk --version      # brew/脚本装的 CLI 不在 Gatekeeper 管辖内（未签�
 备注：
 - `spctl -a -vvv -t exec` 判 `rejected` 是**符合预期**的（ad-hoc 签名未公证），不是 bug；
 - 这次**没有**记录具体 macOS 大版本；后续若要写进发布说明，补一句系统版本即可；
+- ⚠️ 这条记录是 **0.11.2（Wails + Vue）** 时代的；0.12 起界面是 mygo 原生 UI（无 webview），
+  ad-hoc 签名与首启放行流程不变，但换壳后**应当按 0.12.x 重跑一次**再引用；
 - 由此**不能**推出"可以做 Homebrew cask"：cask 的准入要求是 Gatekeeper 默认放行（Developer ID + 公证），
   与"手动放行一次能用"是两件事（见 `docs/gui.md` 的渠道表）。

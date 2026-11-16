@@ -161,7 +161,7 @@
 
 <section id="gui">
   <h2>Desktop app <span class="hint">optional · separate artifact · requires the CLI</span></h2>
-  <p class="gui-lede">The GUI (<code>pk-desktop</code>, Wails + Vue3) is a visual supplement to the CLI, not a second installer:
+  <p class="gui-lede">The GUI (<code>pk-desktop</code>, native UI — pure Go, no webview) is a visual supplement to the CLI, not a second installer:
   it imports no internal packages and every action is a subprocess call to <code>pk &lt;command&gt;</code> <code>--json</code>,
   so the truth always stays in the CLI and in <code>~/.packnest</code>.</p>
 
@@ -205,10 +205,10 @@
             <td>script: sshsig + sha256 · Scoop: sha256 from the manifest</td>
           </tr>
           <tr>
-            <td>Linux<br><span class="hint">amd64</span></td>
+            <td>Linux<br><span class="hint">amd64 / arm64</span></td>
             <td><b>Manual download</b> (no install script)<br>
-              <code>packnest-desktop___GUI_VERSION___linux_amd64.tar.gz</code> → unpack and run <code>./pk-desktop</code><br>
-              needs: <code>sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev</code></td>
+              <code>packnest-desktop___GUI_VERSION___linux_amd64.tar.gz</code> (ARM: <code>…_linux_arm64.tar.gz</code>) → unpack and run <code>./pk-desktop</code><br>
+              needs: GTK3 only; the tray icon also wants <code>libayatana-appindicator3</code></td>
             <td>compare with <code>shasum -a 256</code> yourself</td>
           </tr>
         </tbody>
@@ -223,9 +223,10 @@
     <dt>Requirements</dt>
     <dd>The CLI must be installed first — if it is missing, the header shows the install command for <b>your platform</b>
     (PowerShell on Windows, <code>sh</code> elsewhere) with a copy button.
-    macOS builds are ad-hoc signed: allow the app once under System Settings → Privacy &amp; Security. Linux needs GTK4 + WebKitGTK 6.0
-    (<code>libgtk-4-dev</code> <code>libwebkitgtk-6.0-dev</code>). No desktop runtime? Use the browser form:
-    <code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code>, same features.</dd>
+    macOS builds are ad-hoc signed: allow the app once under System Settings → Privacy &amp; Security.
+    Windows and Linux need no webview runtime (the Linux tray icon wants <code>libayatana-appindicator3</code>).
+    The browser form (<code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code>) is kept as a frozen fallback
+    page — layout and features follow the native app.</dd>
 
     <dt>What it is not</dt>
     <dd>Not a second package manager: no separate ledger, and no second implementation of upgrading —
