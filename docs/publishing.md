@@ -44,11 +44,11 @@ make publish-manifests                  # ⑥ verify-release → gen-manifests �
 
 # ⑦ GUI（可选，独立 tag gui-v<ver>；见「五点五」）
 make gui-test                           # 先跑 GUI 契约测试（用真 bin/pk 校验 --json）
-PK_SIGNING_KEY=~/.packnest-signing/pk-release-2026 sh scripts/release-gui.sh --version 0.12.2
+PK_SIGNING_KEY=~/.packnest-signing/pk-release-2026 sh scripts/release-gui.sh --version 0.14.0
 #    0.12 起纯 Go 原生界面：mac/win/linux **四份产物都在本机交叉编译**（不再需要 CI 的 --from-dir）
 #    重发同一个 tag 必须加 --republish（详见「五点六」）
 #    旧做法（仅存档）：gh run download <run-id> -n gui-all -D /tmp/gui && \
-#                      sh scripts/release-gui.sh --version 0.12.2 --from-dir /tmp/gui
+#                      sh scripts/release-gui.sh --version 0.14.0 --from-dir /tmp/gui
 ```
 
 **顺序不能乱**：清单里的 sha256 必须指向**已经发布**的那批产物。`make publish-manifests` 依赖
@@ -158,8 +158,8 @@ GUI 是**独立产物**（需要 cgo + 各平台 WebView 工具链），但有�
 ### 本机打包（macOS，arm64 单架构）
 
 ```bash
-sh scripts/release-gui.sh --version 0.10.2            # 构建 arm64 .app.zip 并上传
-sh scripts/release-gui.sh --version 0.10.2 --from-dir dist/gui --prune 3   # 收 CI 产物上传并只留最近 3 个 gui-v*
+sh scripts/release-gui.sh --version 0.14.0            # 构建 arm64 .app.zip 并上传
+sh scripts/release-gui.sh --version 0.14.0 --from-dir dist/gui --prune 3   # 收 CI 产物上传并只留最近 3 个 gui-v*
 # 只打包不上传：
 sh cmd/pk-desktop/packaging/build-macos.sh 0.10.2 arm64   # → dist/gui/packnest.app
 ```

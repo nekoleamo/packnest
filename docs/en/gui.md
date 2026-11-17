@@ -20,8 +20,8 @@ https://github.com/nekoleamo/packnest/releases/tag/gui-v<version>
 | Platform | File | How to run |
 |---|---|---|
 | macOS (arm64) | `packnest-desktop_<version>_darwin_arm64.app.zip` | unzip → `packnest.app`; on first launch allow it once in System Settings → Privacy & Security (ad-hoc signed, not notarized) |
-| Windows (amd64 / **arm64**) | `packnest-desktop_<version>_windows_{amd64,arm64}.zip` | unzip and run `pk-desktop.exe`; needs the built-in WebView2 runtime (present on Win10/11). Use the `arm64` one on ARM machines (available since 0.11.2) |
-| Linux (amd64) | `packnest-desktop_<version>_linux_amd64.tar.gz` | unzip and run `pk-desktop`; needs GTK4 + WebKitGTK 6.0 (`sudo apt install libgtk-4-dev libwebkitgtk-6.0-dev`) |
+| Windows (amd64 / **arm64**) | `packnest-desktop_<version>_windows_{amd64,arm64}.zip` | unzip and run `pk-desktop.exe`; **no WebView2 needed** and it is a GUI-subsystem binary (no console window). Use the `arm64` one on ARM machines (available since 0.11.2) |
+| Linux (amd64 / **arm64**) | `packnest-desktop_<version>_linux_<arch>.tar.gz` | unzip and run `pk-desktop`; needs only GTK3 (shipped by the desktop). The **tray** additionally needs `libayatana-appindicator3` (without it the window closes to exit, no crash) |
 
 macOS ships arm64 only (Apple Silicon); Intel Macs must build it themselves with `make gui-app`.
 The one-time Gatekeeper approval **has been verified** (2026-11-15, GUI 0.11.2 + CLI 1.8.1): blocked → "Open Anyway" in Privacy & Security → the window starts and the CLI is picked up. See `docs/verify-manual.md` §3.
@@ -92,6 +92,9 @@ need `?token=` or `Authorization: Bearer <token>`.
 | "another pk is running" | CLI exit code 5 (`state/lock` held): wait for the running install/uninstall |
 | 404 / 401 | `--serve --addr` on a non-loopback address without `--token`: add one, or pass the token in the browser |
 | macOS refuses to open the app | ad-hoc signature: System Settings → Privacy & Security → "Open Anyway" once |
+| **Any "Copy" button makes the app vanish** | bug in 0.13.0: `copyText` called itself in the windowed branch, overflowing the stack (the windowless test path took the other branch, so it slipped through). **Upgrade to 0.14.0+** |
+| **The install queue installs nothing after "Start"** | bug in 0.13.0: the queue posted "take the next item" with the async `Window.Update` and read the result immediately, so it always saw an empty slot and exited. **Upgrade to 0.14.0+** |
+| **"Upgrade app" downloads a second time right after succeeding** | bug in 0.13.0: `update_available` was never cleared after the replace. **Upgrade to 0.14.0+** (the success line now says "tray → Quit → reopen") |
 | Linux tray icon missing | install `libayatana-appindicator3`; without a tray the window closes to exit (no crash) |
 | UI shows an old version | the desktop shell embeds its frontend: reinstall the GUI to upgrade it; the CLI version is shown at the top |
 
