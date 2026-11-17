@@ -802,6 +802,18 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 
 review 判定“可延后”的 P2 已在下面「1.9.x：review P2 收尾」一节里处理完（含一条**故意不做**的）。
 
+## v1.9.2 已发布（2026-11-18）
+
+上面那批 P2（9 项修复 + 1 项明确不做）随 **v1.9.2** 出厂。双源 6 平台 + `provenance.json` +
+`sbom.cdx.json` + `checksums.txt`(+sshsig)；`verify-release`：签名 OK、8 个 sha256 全部一致；
+brew tap / scoop bucket 已推 1.9.2，`brew uninstall && brew install` 实测装到 `packnest v1.9.2`。
+
+**踩到一个配额坑（记下来免得下次重踩）**：上传 6 个归档时 gitee 全返 `400 验证失败：文件大小已超出仓库附件配额：1 GB`。
+原因是 **CLI 的旧 release 也在吃同一个 1 GB**（`gui-v*` 只是其中一部分）。恢复步骤：
+`sh scripts/release-gui.sh --prune-only --prune 3`（删掉最旧 3 个 gui-v*，gitee + GitHub 一起），
+腾出空间后重跑 `sh scripts/release-gitee.sh` 即可（同名附件不会替换，但本机是同一批产物、字节一致）。
+真到不够用时，下一步只能清更老的 `v1.x` release（附件挂在 tag 上，删了那些版本就再也装不到）。
+
 ## 1.9.x：review P2 收尾（2026-11-18，GUI 0.14.0 之后）
 
 这一批**不发 GUI**，随下一次 CLI 版本（v1.9.2）出厂。每条都先写失败用例、再改实现：
