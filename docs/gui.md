@@ -14,7 +14,7 @@
 
 ## 一、下载与安装
 
-产物挂在**独立 tag** `gui-v<版本>` 下（GUI 与 CLI 版本解耦：CLI 是 `v1.9.1` 时 GUI 是 `0.14.0`），
+产物挂在**独立 tag** `gui-v<版本>` 下（GUI 与 CLI 版本解耦：CLI 是 `v1.9.2` 时 GUI 是 `0.14.0`），
 gitee 与 GitHub 的 releases 页各一份：
 
 ```
