@@ -12,7 +12,7 @@
 | **M3** | go + python | ✅ 完成（2026-11-10，含真网实测） | `M3_GoNoDoubleDownload` ✅ · `_PythonNoCompile` ✅ · `_PbsDirectoryIndex` ✅ |
 | **M4** | 台账/引用计数/GC/全局包/启动清扫 | ✅ 完成（2026-11-10，含真网实测） | `M4_GcZeroRef` ✅ · `_LedgerRecover` ✅ · `_FrozenMismatchExitCode` ✅ · `_CtrlCNoPartial` ✅ · `_GlobalSurvivesNodeSwitch` ✅ · `_GlobalBinNoReshim` ✅ · `_NativeGlobalDetect` ✅ · `_StartupSweep` ✅ · `_CacheMax` ✅ | `M4_GcZeroRef` / `_LedgerRecover` / `_FrozenMismatchExitCode` / `_CtrlCNoPartial` / `_GlobalSurvivesNodeSwitch` / `_GlobalBinNoReshim` / `_NativeGlobalDetect` / `_StartupSweep` |
 | **M5** | CLI 收口（doctor 全量、`--json` 冻结、6 平台产物、分发） | ✅ 完成（2026-11-10） | 见下方 CLI-DONE 10 条 | §12.2 的 10 条 CLI-DONE |
-| G0–G2 | 桌面端：Wails v3.1.0 + Vue3（0.10–0.11）→ **mygo 原生 UI（0.12 起）** | ✅ 已发布 **`gui-v0.12.3`**（5 产物：mac arm64 / win amd64+arm64 / linux amd64+arm64）；1.0 口径见 `~/Documents/Plan/17-包管理器/pn-GUI-1.0-口径.md`（H1/H2 已落地） | `TestAcceptance_GUI1_CrossCompile` · `_GUI2_TrayAndSingleInstance` · `_GUI3_ReadOnlyPages` · `_GUI4_WriteGuards` · `_GUI6_I18nComplete` · `_GUI6_NoRawErrorInUI` · `_GUI7_StateShared` · `_GUI12_PrefsSchemaForwardCompat` |
+| G0–G2 | 桌面端：Wails v3.1.0 + Vue3（0.10–0.11）→ **mygo 原生 UI（0.12 起）** | ✅ 已发布 **`gui-v0.13.0`**（5 产物：mac arm64 / win amd64+arm64 / linux amd64+arm64）；1.0 口径见 `~/Documents/Plan/17-包管理器/pn-GUI-1.0-口径.md`（H1/H2 已落地） | `TestAcceptance_GUI1_CrossCompile` · `_GUI2_TrayAndSingleInstance` · `_GUI3_ReadOnlyPages` · `_GUI4_WriteGuards` · `_GUI6_I18nComplete` · `_GUI6_NoRawErrorInUI` · `_GUI7_StateShared` · `_GUI12_PrefsSchemaForwardCompat` |
 
 ## M0 交付清单（2026-11-10）
 
@@ -738,12 +738,16 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - `internal/pkcli` 57.5% → **83.4%**（假 pk 脚本）；`autostart` 72.2% → **83.3%**（无 HOME / 目录被占 / 删不掉三条失败路径）。
 - 顺手修了两个真 bug：`orderSources` 不去重（CLI 重复报同一源时界面列两行、探测白跑）；`replaceGUI` 的 macOS 回滚（copyTree 失败时目标目录已存在，`os.Rename` 还原会失败 → 变成“旧应用没了、新的也不完整”。现在先清半成品再还原）。
 
-## GUI 0.13.0 收口候选（未发布，2026-11-17）
+## GUI 0.13.0 已发布（2026-11-17）
 
-`guiVersion` 已 bump 到 **0.13.0**（H1–H3 落地、等 H4 三平台真机一轮再发 1.0.0）。
-**没有发布**：`scripts/latest-gui` 与 `dist/gui/latest` 仍是 0.12.3，用户文档里的下载链接也仍是
-`gui-v0.12.3` —— 提前改这两个会让人去下不存在的 release。0.13.0 目前只作为本地产物存在
-（`dist/gui-test-0.13.0/`，含 sha256 清单，无签名：不是发布件）。
+`gui-v0.13.0`：gitee + GitHub 双源，5 产物 + `checksums.txt`(+sshsig)，Scoop `packnest-desktop.json` 已推 0.13.0。
+`verify-release --gui`：签名 OK、5 个 sha256 全部一致；`release-taps.sh` 两次线上核对（tap + bucket）都 OK。
+
+这一版的内容 = GUI 1.0 口径的 H1–H3（契约冻结 / 两条缺失验收门 / 覆盖率门禁，见下一节），
+外加两个真 bug 修复（`orderSources` 去重、macOS 自更新回滚）。H4（三平台真机一轮）**用这一版的发布件跑**。
+
+发版顺序与产物：`make check` 12 项 → `release-gui.sh --version 0.13.0`（本机构建 5 件 + 签名 + 双源上传）→
+`verify-release --gui` → `gen-manifests.sh` + `release-taps.sh`。
 
 ## GUI 0.12.3 已发布（2026-11-17）
 

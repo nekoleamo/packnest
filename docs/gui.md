@@ -14,7 +14,7 @@
 
 ## 一、下载与安装
 
-产物挂在**独立 tag** `gui-v<版本>` 下（GUI 与 CLI 版本解耦：CLI 是 `v1.9.1` 时 GUI 是 `0.12.2`），
+产物挂在**独立 tag** `gui-v<版本>` 下（GUI 与 CLI 版本解耦：CLI 是 `v1.9.1` 时 GUI 是 `0.13.0`），
 gitee 与 GitHub 的 releases 页各一份：
 
 ```
@@ -50,7 +50,7 @@ iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -U
 |---|---|---|
 | 安装脚本（curl / iwr） | ✅ 已提供 | 与 CLI 同一把发布密钥、同一套清单校验；`--skip-verify` 只在拿不到清单时用 |
 | 手动下载 zip | ✅ | 见上面表格；先 `shasum -a 256` 对清单 |
-| Scoop | ✅ 已发布（0.12.2，amd64 + arm64） | `scoop install packnest-desktop`（`depends: packnest`，会先装 CLI）；manifest 带 `shortcuts`（开始菜单），GUI 不进 PATH；未签名 exe 首次启动有 SmartScreen 提示。**清单按 `checksums.txt` 里实有的架构声明**，不写空 hash 的架构 |
+| Scoop | ✅ 已发布（0.13.0，amd64 + arm64） | `scoop install packnest-desktop`（`depends: packnest`，会先装 CLI）；manifest 带 `shortcuts`（开始菜单），GUI 不进 PATH；未签名 exe 首次启动有 SmartScreen 提示。**清单按 `checksums.txt` 里实有的架构声明**，不写空 hash 的架构 |
 | **Homebrew cask** | ❌ **不做** | 产物是 ad-hoc 签名（未公证），过不了 Gatekeeper；而 Homebrew 已移除 `--no-quarantine` 并会禁用过不了检查的 cask。要做 cask 的前提是先买 **Developer ID + 公证（$99/年）**，2026-11-14 拍板**不排期** |
 | winget | ❌ 不做 | 2026-11-11 已放弃 |
 
@@ -60,7 +60,7 @@ iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -U
 下载后先 `shasum -a 256 <文件>` 与清单比对，再
 `ssh-keygen -Y verify -f <allowed_signers> -I release@packnest.dev -n pk-release -s checksums.txt.sig < checksums.txt`
 确认清单本身没被镜像站换过。公钥在 `internal/verify/keys/allowed_signers`（与 `pk doctor` 内置的那份同源）。
-核对现成的发布用 `sh scripts/verify-release.sh --gui`（版本取自 `dist/gui/latest`，也可 `--version 0.12.3` 指定）。
+核对现成的发布用 `sh scripts/verify-release.sh --gui`（版本取自 `dist/gui/latest`，也可 `--version 0.13.0` 指定）。
 
 ## 一点五、检查更新（1.9 起，0.12.2 收紧超时）
 
