@@ -188,13 +188,15 @@ Safety rules for external manifests (a violation only rejects that one file —
 
 - URLs must be `https://`; internal `http` sources require an explicit `PK_ALLOW_HTTP=1`
   (`pk doctor` reports `PROVIDER_HTTP_URL`)
-- `layout.single` / `bin_targets` must be relative and free of `..`; `strip` must not be negative
+- `layout.single` / `bin_targets` / `layout.bins` / `[companions.*].target` must be relative and free of `..`
+  (`bins` entries are command names only — no path separators); `strip` must not be negative
 - `index.kind = "pbs"` is not allowed (python's directory parsing lives in the embedded logic)
 - URL templates may only use `{version} {platform} {ext} {registry} {tool} {filename} {tag}`
 - `checksum.urls` is required (except `registry-integrity` / `index-inline`, where the digest comes from the index);
   `{filename}` falls back to the artifact URL's basename on indexes without a file list (`github-releases` / `dirlist`)
 - `[companions.<name>]` `registry` must point at an existing tool id; `mode = bundled|latest-compatible|pinned`,
-  `target` is relative to the tool root (node→npm is the `latest-compatible` special case with engines lookup);
+  `target` is relative to the tool root (no absolute paths or `..` — a companion is written *inside* the host tree);
+  node→npm is the `latest-compatible` special case with engines lookup;
   `pinned` requires a `version`. A companion is part of its host: it is uninstalled/GC'd with the host and stays out of the ledger
 - one manifest ≤ 256KB (so a stray binary cannot masquerade as a manifest)
 

@@ -106,7 +106,7 @@
     <dt>校验</dt>
     <dd>首次安装要求<b>至少两个源给出相同摘要</b>并写进 TOFU 表，之后同一版本完全离线可验证；源之间矛盾时硬失败，并告诉你产物与哪个源一致。</dd>
     <dt>卸载</dt>
-    <dd>台账是唯一事实源：只删自己记录过的目录，切版本靠 shim 原子重指，卸载回到零残留；<b><code>pk uninstall --all --self</code> 连 pk 自己一起清</b>（Windows 上延时删除）。</dd>
+    <dd>台账是唯一事实源：只删自己记录过的目录（1.9.2 起还会核一次「这条 path 真的在 <code>~/.packnest/tools</code> 下」，坏记录不会删到别处），切版本靠 shim 原子重指，卸载回到零残留；<b><code>pk uninstall --all --self</code> 连 pk 自己一起清</b>（Windows 上延时删除）。</dd>
     <dt>长尾工具</dt>
     <dd>内嵌 6 个 provider，其余靠 <b>自写 TOML 清单</b>（<code>~/.packnest/providers/&lt;id&gt;.toml</code>）：索引、产物、校验、布局、伴生包全在清单里声明，纯数据不执行代码；字段见 <a href="https://github.com/nekoleamo/packnest/blob/main/docs/providers.md">docs/providers.md</a>。</dd>
     <dt>下载</dt>

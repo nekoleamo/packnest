@@ -206,6 +206,8 @@ pk doctor | grep FOREIGN_MANAGER        # 会列出检测到的其他管理器
 ## 5. 断电 / 强杀之后
 
 - 崩溃残留（`tools/*/*.tmp.*`、`*.old`、`cache/archives/*.part`）会在**下一次写操作前**被清扫（只清 24h 以上的）。
+  1.9.2 起也扫**版本树内部**的残留：伴生包替换时的 `lib/node_modules/npm.tmp.<rand>` / `<target>.old`
+  （有界下钻 6 层，不碰 `node_modules` 的正常嵌套）。
 - 台账损坏：`pk list` 会自动用 `installs.json.bak` 恢复（`LEDGER_RECOVERED`）；两个都坏才会 `LEDGER_BROKEN`，
   这时删掉 `state/installs.json*` 重装（`tools/` 下的目录**不会**被自动删，确认后手工清理）。
 - `another pk is running`（退出码 5）：有另一个 pk 进程持锁，等它结束；确认没有残留进程时可以删 `state/lock`。
@@ -237,6 +239,16 @@ Remove-Item "$env:LOCALAPPDATA\packnest\bin" -ErrorAction SilentlyContinue   # �
 另外，`install.ps1` 会把**安装目录**写进用户 Path（和 `pk env --write` 写的五段 `~/.packnest`
 目录不是一回事）。0.7.7 起 `uninstall --all` 会把这两拨一起从注册表用户 Path 里摘掉，
 不会再留一个指向空目录的死项。
+
+## 5.5 1.9.2 起的几条新行为（报错时能对上号）
+
+| 现象 / 报错码 | 含义 | 处置 |
+|---|---|---|
+| `archive.too_large` | 归档解压后总量超过 **4 GiB**（投毒、或者镜像给了一个异常大的归档），pk 拒绝继续写并删掉半成品 | 换镜像档（`pk mirror use default`）或换版本；确认来源可信再反馈 |
+| `archive.bin_not_found` | 装完了但在解压树里找不到**主命令**（`layout.bins` 的第一个）。1.9.2 起这是硬错误（以前静默跳过，于是"装成功但没有 `node`"） | 多半是清单的 `layout` 过时：对照 `docs/providers.md` 改，或升级 pk |
+| 路径特别深（Windows） | 解压阶段对超过 240 字符的路径自动加 `\\?\` 前缀，npm 的 `node_modules` 层层嵌套不再撞 260 上限 | 无需操作；`pk which` / `--json` 里仍是普通路径（没有前缀） |
+| `pk env --write` / `pk mirror write` 中途被打断 | rc 与 `.npmrc` 改成**原子写**（同目录临时文件 + rename），不会再留半截文件；原文件权限（如 `.npmrc` 的 0600）保持不变 | 重跑一次即可 |
+| 装第二个工具时提示缓存被清 | `state/cache.json` 的读改写已加锁（并行安装不再互相覆盖 LRU 记录） | 无需操作 |
 
 ## 6. 想彻底回滚
 

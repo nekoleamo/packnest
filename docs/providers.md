@@ -128,7 +128,7 @@ cn      = "https://golang.google.cn/dl/?mode=json"
 |---|---|---|
 | `strip` | int | 剥掉几层目录（node 的 tar 内是 `node-vX/...` → `strip = 1`） |
 | `single` | string | 产物是**单文件**时落到这个相对路径（如 `bin/singlefile`）；给了它就不用 `strip` |
-| `bins` | []string | 要暴露成命令的名字（写进 `<PK_ROOT>/bin` 的 shim） |
+| `bins` | []string | 要暴露成命令的名字（写进 `<PK_ROOT>/bin` 的 shim）；**只能是命令名**，带路径分隔符或 `..` 的清单直接判非法（否则会在 `bin/` 外面造 shim） |
 | `bin_targets` | map | bin 名 → 解压树里的真实入口（npm 是 `bin/npm-cli.js`，需要 node 解释执行） |
 
 ## 6. `[companions.<名>]` 伴生包
@@ -139,7 +139,7 @@ cn      = "https://golang.google.cn/dl/?mode=json"
 |---|---|---|
 | `mode` | `bundled` \| `latest-compatible` \| `pinned` | 自带（不动）/ 取该 provider 最新版 / 用 `version` 指定的版本 |
 | `registry` | 工具 id | 到哪个 provider 取产物（必须是能加载到的清单） |
-| `target` | 相对路径 | 落到主产物目录的哪个位置，如 `lib/node_modules/npm` |
+| `target` | 相对路径 | 落到主产物目录的哪个位置，如 `lib/node_modules/npm`；**不许绝对路径或 `..`**（越界就能写到 `PK_ROOT` 之外） |
 | `version` | string | 仅 `pinned` 用，且**必填**（缺了清单非法） |
 
 > node→npm 是特例：它的 `latest-compatible` 走 engines 反查（挑满足该 node 的最新 npm），

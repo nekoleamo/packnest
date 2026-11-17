@@ -151,8 +151,8 @@ pk-desktop --serve --addr 0.0.0.0:7799 --token <随机串>   # 绑非回环地�
 | # | 契约 | 具体取值 |
 |---|---|---|
 | C1 | 偏好文件 | `gui.json`（macOS `~/Library/Application Support/packnest/`、Linux `~/.config/packnest/`、Windows `%AppData%\packnest\`）里的 `schema`/`theme`/`lang`/`page`；**字段只增不改** |
-| C2 | 单实例与浏览器形态 | 占住 `--addr`（默认 `127.0.0.1:7799`）实现单实例，第二个实例报「已经有一个 packnest 界面在运行」；同地址就是 `--serve` 的浏览器形态，`/api/*` 认 `?token=` 或 `Authorization: Bearer` |
-| C3 | 自更新路径 | `scripts/latest-gui` 取版本 → 下载产物 → `ssh-keygen -Y verify` 验 `checksums.txt.sig` → 比 sha256 → macOS 换整个 `packnest.app`、Windows/Linux 换可执行文件 → 提示退出重开；scoop 渠道只提示不自替换 |
+| C2 | 单实例与浏览器形态 | 占住 `--addr`（默认 `127.0.0.1:7799`）实现单实例，第二个实例报「已经有一个 packnest 界面在运行**或端口被占用**」并给出 `--addr` 换端口的下一步；同地址就是 `--serve` 的浏览器形态，`/api/*` 认 `?token=` 或 `Authorization: Bearer`，**并且从 0.14.0 起拒绝跨源请求**（`Origin` 必须是本机 Host、`Sec-Fetch-Site: cross-site` 直接 403；curl/脚本不受影响） |
+| C3 | 自更新路径 | `scripts/latest-gui` 取版本 → 下载产物 → `ssh-keygen -Y verify` 验 `checksums.txt.sig` → 比 sha256 → macOS 换整个 `packnest.app`（不是 `.app` 的扁平二进制换文件）、Windows/Linux 换可执行文件 → 提示「托盘 → 退出 → 重新打开」；换代期间点退出会等替换收尾再退；scoop/brew 渠道只提示不自替换；**只在发布矩阵的 5 个平台提示可升**（Intel mac 等自建产物不提示，避免点了 404） |
 | C4 | 安装位置 | 偏好只在 App 配置目录；开机自启只写**用户级** `~/Library/LaunchAgents/packnest-desktop.plist`、`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`、`~/.config/autostart/packnest-desktop.desktop`，关闭只删自己那条 |
 
 配套的 `gui.json` 版本策略：

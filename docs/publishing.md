@@ -123,6 +123,11 @@ make verify-release                                     # 远端有 .sig 就一�
 - 同名文件**不会**被替换：重发同一版本必须先删掉旧附件（或换版本号），否则线上还是旧字节；
 - `install.sh` / `install.ps1` 默认从 `https://gitee.com/<owner>/<repo>/releases/download/v<ver>/<文件>` 取，
   版本号从 gitee release API → 仓库里的 `scripts/latest`（`make release` 自动更新，记得提交）。
+- **1 GB 是"整个仓库"的附件配额，CLI 与 GUI 共用**（2026-11-18 v1.9.2 实测：6 个 CLI 归档全返
+  `400 验证失败：文件大小已超出仓库附件配额：1 GB`，而 GUI 只占其中一小部分）。满了按这个顺序腾：
+  ① `sh scripts/release-gui.sh --prune-only --prune 3`（删最旧 `gui-v*`，gitee + GitHub 一起，腾 ~50MB）；
+  ② 还不够就只能清更老的 `v1.x` release —— 附件挂在 tag 上，删掉的那些版本从此装不到，
+  所以**别把这件事留到发版当天**；③ 腾完重跑 `sh scripts/release-gitee.sh`（本机是同一批产物，字节一致，跳过/覆盖都安全）。
 
 ## 五、Homebrew tap / Scoop bucket
 

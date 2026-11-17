@@ -225,13 +225,14 @@ PK_PROVIDERS_DIR=/opt/corp/pk:/srv/more   # 追加目录（可多个，冒号分
 外部清单的安全边界（不满足就拒绝加载该文件，`pk doctor` 报 `PROVIDER_EXTERNAL_INVALID` 并带文件名与原因）：
 
 - URL 必须是 `https://`；内网 http 源要 `PK_ALLOW_HTTP=1` 显式放行（`pk doctor` 报 `PROVIDER_HTTP_URL`）
-- `layout.single` / `bin_targets` 必须是相对路径且不含 `..`；`strip` 不许为负
+- `layout.single` / `bin_targets` / `layout.bins` / `[companions.*].target` 都要是相对路径且不含 `..`（bins 只能是命令名，不许带路径分隔符）；`strip` 不许为负
 - 禁用 `index.kind = "pbs"`（python 的目录列举解析在内嵌逻辑里）
 - URL 模板只能用 `{version} {platform} {ext} {registry} {tool} {filename} {tag}`
 - 校验和：`checksum.urls` 必填（`registry-integrity` / `index-inline` 例外，摘要在索引里）；
   `{filename}` 在没有文件清单的索引（`github-releases` / `dirlist`）上会回落成产物 URL 的末段
 - `[companions.<名>]` 的 `registry` 必须指向已存在的工具 id；`mode = bundled|latest-compatible|pinned`，
-  `target` 是相对工具根目录的落地位置（node 的 npm 走 `latest-compatible` + engines 反查，属于特例）；
+  `target` 是相对工具根目录的落地位置（**同样不许绝对路径或 `..`**：伴生包是写进主产物目录里的，越界就能写到 `PK_ROOT` 外面）；
+  node 的 npm 走 `latest-compatible` + engines 反查，属于特例；
   `pinned` 要同时写 `version`，否则清单非法。伴生包是宿主的一部分：跟着宿主一起卸载/回收，不单独进台账
 - 单个清单 ≤ 256KB（防止误把二进制当清单）
 

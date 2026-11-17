@@ -18,7 +18,7 @@ internal/provider     1700
 internal/env          1050
 internal/fetch         900
 internal/verify        900
-internal/store         780  # 1.9.x：版本树内的深层残留清扫（sweepDeep）
+internal/store         820  # 1.9.x：版本树内深层残留清扫（sweepDeep，已抽到 sweep.go）
 internal/mirror        500
 internal/archive       510  # 1.9.x：解压总量上限（extractBudget）+ Windows 长路径长调用
 internal/spec          300

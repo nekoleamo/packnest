@@ -172,6 +172,9 @@ Migrating global packages: check `pk doctor --globals` for engines/ABI first, th
 
 - Crash residue (`tools/*/*.tmp.*`, `*.old`, `cache/archives/*.part`) is swept **before the next
   write** — only entries older than 24h, so another running process is never robbed.
+  Since 1.9.2 the sweep also goes **inside version trees**: companion replacement leaves
+  `lib/node_modules/npm.tmp.<rand>` / `<target>.old` there (bounded to 6 levels, so the normal
+  `node_modules` nesting is never walked).
 - Corrupt ledger: `pk list` restores from `installs.json.bak` automatically (`LEDGER_RECOVERED`).
   Only when both are broken do you get `LEDGER_BROKEN`; then delete `state/installs.json*` and
   reinstall. Directories under `tools/` are **not** deleted automatically — clean them by hand
@@ -205,6 +208,16 @@ Remove-Item "$env:LOCALAPPDATA\packnest\bin" -ErrorAction SilentlyContinue
 Note the installer script adds the **install directory** to the user Path, which is not the same thing as
 the four `~/.packnest` segments written by `pk env --write`. Since 0.7.7 `uninstall --all` removes both
 sets from the user Path registry value, so no dangling entry is left behind.
+
+## 5.5 Behaviours new in 1.9.2 (for matching error output)
+
+| Symptom / code | Meaning | What to do |
+|---|---|---|
+| `archive.too_large` | the archive expands past the **4 GiB** budget (poisoned or absurd artifact); pk stops writing and removes the partial file | switch mirror (`pk mirror use default`) or version; report it if the source is trusted |
+| `archive.bin_not_found` | the primary command (first `layout.bins` entry) is missing from the extracted tree. Since 1.9.2 this is a hard error (it used to be skipped silently, leaving "install succeeded but no `node`") | usually a stale manifest `layout`: fix it per `docs/providers.md`, or upgrade pk |
+| Very deep paths (Windows) | during extraction, paths beyond 240 characters get the `\\?\` prefix automatically, so npm's nested `node_modules` no longer hit the 260 limit | nothing; `pk which` and `--json` still report plain paths (no prefix) |
+| `pk env --write` / `pk mirror write` interrupted | rc files and `.npmrc` are written **atomically** (temp file in the same directory + rename), so no half-written file is left; the original mode (e.g. `0600` on `.npmrc`) is preserved | just run it again |
+| cache evicted right after use | the `state/cache.json` read-modify-write is now locked, so parallel installs no longer overwrite each other's LRU entry | nothing |
 
 ## 6. Full rollback
 
