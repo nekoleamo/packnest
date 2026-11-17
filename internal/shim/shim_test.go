@@ -290,3 +290,24 @@ func TestListFilters(t *testing.T) {
 		t.Fatalf("目录不存在应返回空: %v %v", names, err)
 	}
 }
+
+// TestWindowsCmdEscapesPercent：cmd.exe 在双引号里也会展开 %VAR%，
+// 路径里带 % 时 shim 必须写成 %% 才不会指到别处（0.14 前没转义）。
+func TestWindowsCmdEscapesPercent(t *testing.T) {
+	dir := t.TempDir()
+	target := `C:\100%\packnest\tools\node\22.22.2\node.exe`
+	if err := Ensure(dir, "node", target, "windows"); err != nil {
+		t.Fatalf("Ensure: %v", err)
+	}
+	b, err := os.ReadFile(CmdPath(dir, "node"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `C:\100%%\packnest`) {
+		t.Fatalf(".cmd 里的 %% 没转义：\n%s", b)
+	}
+	// Resolve 读的是同一行，验证还原逻辑不会把 %% 当成路径的一部分
+	if got, _, err := Resolve(dir, "node", "windows"); err != nil || got != target {
+		t.Fatalf("Resolve = %q %v，期望 %q", got, err, target)
+	}
+}

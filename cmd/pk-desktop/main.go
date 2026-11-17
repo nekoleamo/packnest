@@ -24,11 +24,12 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/packnest/packnest/cmd/pk-desktop/internal/state"
+	"github.com/packnest/packnest/cmd/pk-desktop/internal/update"
 )
 
 // guiVersion 是 GUI 自己的版本（与 CLI 解耦；CLI 版本靠 pkcli 的启动门禁检查）。
 // 发布用的 tag 与产物文件名都跟它走：`gui-v<guiVersion>`。
-const guiVersion = "0.13.0"
+const guiVersion = "0.14.0"
 
 // 图标：packaging/genicon 生成（纯标准库画的"巢"标记）。
 //
@@ -67,6 +68,13 @@ func main() {
 	}
 	defer single.release()
 
+	// 上一次自升级留下的 `<exe>.old.*` / `packnest.app.old.*`：本进程已经跑起来了，
+	// 说明替换是成功的，这时才清（更早清会把唯一那份回滚备份删掉）。
+	// 不清的话 Windows 每次自升级都永久多一个几十 MB 的旧 exe。
+	if exe, err := os.Executable(); err == nil {
+		update.CleanupOld(exe, runtime.GOOS)
+	}
+
 	if *serve {
 		if !loopback(*addr) && *token == "" {
 			log.Fatal("拒绝启动：--serve 绑到非回环地址却没有 --token（这等于把装/卸软件的接口暴露到网络）")
@@ -83,6 +91,7 @@ func main() {
 	}()
 
 	gui := newGUI(svc)
+	gui.addr = *addr // 设置页“在浏览器里打开”要拼对端口（--addr 能改）
 	// 本地/发布前冒烟：PK_GUI_SMOKE=quit 让界面启动后自己走一遍退出流程，
 	// 用来验证"点了退出进程真的没了"（各平台通用；不进 make check，需要真 GUI 会话）。
 	if os.Getenv("PK_GUI_SMOKE") == "upgrade" {
@@ -119,10 +128,12 @@ func staticHandler() http.Handler {
 }
 
 // withAPI 让 /api/* 走我们自己的处理器，其余交给静态资源。
+// /api/* 全部先过 sameOrigin（挡浏览器里的跨源页面）。
 func withAPI(apiHandler, assetsHandler http.Handler) http.Handler {
+	guarded := sameOrigin(apiHandler)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if len(r.URL.Path) >= 5 && r.URL.Path[:5] == "/api/" {
-			apiHandler.ServeHTTP(w, r)
+			guarded.ServeHTTP(w, r)
 			return
 		}
 		assetsHandler.ServeHTTP(w, r)
@@ -203,6 +214,9 @@ func (g *gui) markQuitting() {
 	if grace <= 0 {
 		grace = 3 * time.Second
 	}
+	// 正在替换自己时不能半夜硬结束：替换是"旧的挪开 → 拷新的 → 删旧的"多步，
+	// os.Exit 落在中间会留下半个应用（macOS 上甚至一个能跑的 app 都没有）。
+	grace = quitGraceAfterApply(grace, g.applying.Load())
 	exit := g.exitFn
 	if exit == nil {
 		exit = os.Exit
@@ -294,4 +308,16 @@ func closeBehavior(quitting, hasTray bool) closeAction {
 		return closeHide
 	}
 	return closeQuit
+}
+
+// quitGraceAfterApply 是退出兜底的等待时长：正在替换自己时等替换收尾（最多 2 分钟），
+// 其余情况就是原来那 3 秒。抽成纯函数是为了能断言（真跑一个 os.Exit 测不了）。
+func quitGraceAfterApply(base time.Duration, applying bool) time.Duration {
+	if applying {
+		return 2 * time.Minute
+	}
+	if base <= 0 {
+		return 3 * time.Second
+	}
+	return base
 }

@@ -81,6 +81,8 @@ func (g *gui) pageUpdate(c *ui.Context) {
 			case g.upd.GUI.Channel == "scoop" || g.upd.GUI.Channel == "brew":
 				ui.Textf(c, g.t("这个 GUI 是 %s 装的：%s", "Installed by %s: %s"), g.upd.GUI.Channel, g.upd.GUI.ChannelHint).
 					TextColor(c.Theme().TextMuted)
+			case g.upd.GUI.Restart:
+				ui.Text(c, g.t("已替换：托盘 → 退出 → 重新打开。", "Replaced: tray → Quit → reopen.")).TextColor(c.Theme().Success)
 			case g.upd.GUI.UpdateAvailable:
 				ui.PrimaryButton(c, g.t("升级界面", "Upgrade app")).
 					Disabled(g.busy["apply"]).
@@ -149,6 +151,8 @@ func (g *gui) applyUpdate(target string) {
 	}
 
 	g.load("apply", func() (commit, error) {
+		g.applying.Store(true)
+		defer g.applying.Store(false)
 		res, err := g.svc.UpdateApply(context.Background(), target)
 		if err != nil {
 			// 失败也要留在页面上：升级按钮点了没反应 = 用户以为坏了
@@ -176,8 +180,12 @@ func (g *gui) applyUpdate(target string) {
 				g.applyMsg = g.t("CLI 已升级完成。", "The CLI is up to date.")
 				return
 			}
-			g.applyMsg = g.t("界面已替换：重开这个窗口后生效（当前窗口还是旧版本）。",
-				"The app was replaced: reopen this window to run the new version.")
+			// 已经替换完成：必须把“可升级”降下来，否则页面继续画“升级界面”，
+			// 再点一次会重新下载 + 再替换一次（正在运行的这个进程永远是旧版本号）。
+			g.upd.GUI.UpdateAvailable = false
+			g.upd.GUI.Restart = true
+			g.applyMsg = g.t("界面已替换：托盘菜单 → 退出 → 重新打开就是新版本。",
+				"The app was replaced: tray menu → Quit → reopen to run the new version.")
 		}, nil
 	})
 }

@@ -228,6 +228,9 @@ func (i *Installer) Uninstall(tool, version string, force bool) error {
 		}
 		return coded.New(CodeStillReferenced, tool, version, strings.Join(refs, ", "))
 	}
+	if !i.insideTools(in.Path) {
+		return coded.Wrap(fmt.Errorf("台账里的路径不在 tools/ 下: %q", in.Path), CodeRemoveFailed, in.Path)
+	}
 	if err := removeDirWithRetry(in.Path, 3); err != nil {
 		return coded.Wrap(err, CodeRemoveFailed, in.Path)
 	}
@@ -274,6 +277,9 @@ func (i *Installer) UninstallTool(tool string, force bool) ([]string, error) {
 		if refs := nonGlobalRefs(in); len(refs) > 0 && !force {
 			blocked = append(blocked, fmt.Sprintf("%s@%s（%s）", tool, v, strings.Join(refs, ", ")))
 			continue
+		}
+		if !i.insideTools(in.Path) {
+			return removed, coded.Wrap(fmt.Errorf("台账里的路径不在 tools/ 下: %q", in.Path), CodeRemoveFailed, in.Path)
 		}
 		if err := removeDirWithRetry(in.Path, 3); err != nil {
 			return removed, coded.Wrap(err, CodeRemoveFailed, in.Path)
@@ -469,6 +475,21 @@ func randomSuffix() string {
 		return fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(buf)
+}
+
+// insideTools 保证台账里的 path 真的在 PK_ROOT/tools 下。
+//
+// 台账是纯文件（可以拷贝、手改、或者用 --root/PK_ROOT 指向另一份）：一条坏记录就能
+// 让“卸载”把任意目录 RemoveAll 掉。删之前必须核一次。
+func (i *Installer) insideTools(p string) bool {
+	if p == "" {
+		return false
+	}
+	rel, err := filepath.Rel(i.opt.Paths.Tools(), p)
+	if err != nil {
+		return false
+	}
+	return rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
 func removeDirWithRetry(dir string, attempts int) error {

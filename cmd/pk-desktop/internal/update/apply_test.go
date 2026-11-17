@@ -785,3 +785,34 @@ func TestCleanupOldDarwin(t *testing.T) {
 		t.Fatal("正在用的 .app 被误删")
 	}
 }
+
+// TestReplaceGUI_DarwinFlatBinary 守 0.14.0 修的真问题：mac 上不是 .app 的扁平二进制
+// （`make gui` 出来的 bin/pk-desktop）以前会走"换整个 bundle"的分支 —— 它把 exe 当目录写，
+// 还把唯一那份二进制当旧版本删掉，最后返回 nil 假装成功。
+func TestReplaceGUI_DarwinFlatBinary(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "pk-desktop")
+	if err := os.WriteFile(exe, []byte("OLD"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	unpacked := t.TempDir()
+	if err := os.WriteFile(filepath.Join(unpacked, "pk-desktop"), []byte("NEW"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := replaceGUI(exe, unpacked, "darwin"); err != nil {
+		t.Fatalf("扁平二进制的 macOS 替换失败: %v", err)
+	}
+	b, err := os.ReadFile(exe)
+	if err != nil {
+		t.Fatalf("替换后 exe 不见了（这就是那个 bug）: %v", err)
+	}
+	if string(b) != "NEW" {
+		t.Fatalf("exe 内容没换: %q", b)
+	}
+	if info, err := os.Stat(exe); err != nil || info.IsDir() {
+		t.Fatalf("exe 被写成了目录: %v", err)
+	}
+	if _, err := os.Stat(exe + ".new"); !os.IsNotExist(err) {
+		t.Fatal("半成品 exe.new 没清掉")
+	}
+}

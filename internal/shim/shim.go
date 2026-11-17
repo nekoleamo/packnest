@@ -132,6 +132,9 @@ func writeSymlink(binDir, name, target string) error {
 
 func writeCmd(binDir, name, target string) error {
 	path := CmdPath(binDir, name)
+	// cmd.exe 在双引号里也会展开 `%VAR%`：路径里有 `%`（合法目录名）就会变成另一条路径。
+	// `%` → `%%` 是 .cmd 里的转义写法；`&` / `^` 在引号内不会被当成分隔符，不用管。
+	target = strings.ReplaceAll(target, "%", "%%")
 	content := "@ECHO off\r\nREM managed by packnest\r\n\"" + target + "\" %*\r\n"
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, []byte(content), 0o755); err != nil {
@@ -156,7 +159,8 @@ func parseCmdTarget(content string) (string, bool) {
 			continue
 		}
 		if end := strings.Index(line[1:], `"`); end >= 0 {
-			return line[1 : 1+end], true
+			// .cmd 里 `%` 写成 `%%`（否则 cmd 会当变量展开）：对外的路径要还原成单个 `%`。
+			return strings.ReplaceAll(line[1:1+end], "%%", "%"), true
 		}
 	}
 	return "", false

@@ -165,6 +165,11 @@ func (c *Client) run(ctx context.Context, onLine func([]byte) error, args ...str
 		if errors.As(werr, &ee) && ee.ExitCode() == 5 {
 			return buf, ErrBusy
 		}
+		// ctx 到期（用户取消 / 超时）时把原因说清楚：否则用户看到的是 `signal: killed`，
+		// 而 friendly() 里的超时分支永远走不到。
+		if cerr := ctx.Err(); cerr != nil {
+			return buf, fmt.Errorf("pk %s 超时或被取消: %w", strings.Join(args, " "), cerr)
+		}
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			msg = werr.Error()

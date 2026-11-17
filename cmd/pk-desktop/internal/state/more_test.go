@@ -233,6 +233,18 @@ func TestFetchBytes(t *testing.T) {
 	}
 }
 
+// TestHTTPClientHasNoGlobalTimeout 守住 0.14.0 修掉的真问题：
+// Client.Timeout 覆盖"整个请求含读完 body"，15s 会把 25–40MB 的 GUI 产物下载截断。
+// 上限必须分层（小文件 fetchBytes 用 ctx 限时，大文件由 UpdateApply 的 ctx 管）。
+func TestHTTPClientHasNoGlobalTimeout(t *testing.T) {
+	if httpClient.Timeout != 0 {
+		t.Fatalf("httpClient 不能设全局 Timeout（会截断大产物下载），实际 %v", httpClient.Timeout)
+	}
+	if fetchBytesTimeout <= 0 {
+		t.Fatalf("fetchBytesTimeout 必须为正，实际 %v", fetchBytesTimeout)
+	}
+}
+
 func TestShortName(t *testing.T) {
 	if got := shortName("https://ex/a/b/pk.tar.gz"); got != "pk.tar.gz" {
 		t.Fatalf("shortName = %q", got)

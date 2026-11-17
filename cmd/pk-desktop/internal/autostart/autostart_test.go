@@ -5,6 +5,8 @@ package autostart
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -52,5 +54,30 @@ func TestEnableDisableWritesUserLevelEntry(t *testing.T) {
 	// 再关一次：幂等，不该报错
 	if _, err := Set(false); err != nil {
 		t.Fatalf("重复关闭应幂等: %v", err)
+	}
+}
+
+// TestPlistEscapesPath：路径里有 `&` / `<` 时 plist 必须仍是合法 XML
+// （直接 Sprintf 会写出非法 plist，launchd 静默不生效）。
+func TestPlistEscapesPath(t *testing.T) {
+	if got := xmlEscape("/Users/tom & jerry/app<1>"); got != "/Users/tom &amp; jerry/app&lt;1&gt;" {
+		t.Fatalf("xmlEscape = %q", got)
+	}
+	if runtime.GOOS != "darwin" {
+		t.Skip("只有 macOS 写 plist")
+	}
+	path := filepath.Join(t.TempDir(), "x.plist")
+	if err := add(Status{Self: "/Users/a & b/pk-desktop", Path: path}); err != nil {
+		t.Fatalf("写 plist: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), " & ") {
+		t.Fatalf("plist 里还有没转义的 &：%s", data)
+	}
+	if !strings.Contains(string(data), "&amp;") {
+		t.Fatalf("plist 里应有转义后的 &amp;：%s", data)
 	}
 }

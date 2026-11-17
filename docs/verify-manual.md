@@ -75,8 +75,8 @@ pk doctor --globals                             # 期望：没有 GLOBAL_* warn
 
 ```bash
 # 从发布页下载 GUI（gui-v*，只发 Apple Silicon）
-curl -LO https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.13.0/packnest-desktop_0.13.0_darwin_arm64.app.zip
-unzip -q packnest-desktop_0.13.0_darwin_arm64.app.zip
+curl -LO https://gitee.com/null_593_5354/packnest/releases/download/gui-v0.14.0/packnest-desktop_0.14.0_darwin_arm64.app.zip
+unzip -q packnest-desktop_0.14.0_darwin_arm64.app.zip
 spctl -a -vvv -t exec packnest.app ; echo "退出码=$?"   # 期望：rejected（ad-hoc）
 open packnest.app                                      # 期望：弹"无法验证开发者" → 系统设置里放行 → 再次 open 能起窗口
 ```

@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakePK 造一个假 pk 脚本：GUI 侧的所有断言都不需要真装 node（也不需要网络）。
@@ -104,5 +105,21 @@ fi
 	if issues.Reload == nil || !issues.Reload.Needed || issues.Reload.Shell != "zsh" ||
 		issues.Reload.Command != "source /home/u/.zshrc" || len(issues.Reload.Files) != 1 {
 		t.Fatalf("reload 契约解析不对: %+v", issues.Reload)
+	}
+}
+
+// TestRunReportsCancelledOrTimeout：ctx 到期时错误必须说"超时/被取消"，
+// 而不是把 `signal: killed` 原样抛给用户（friendly 的超时分支就靠这个）。
+func TestRunReportsCancelledOrTimeout(t *testing.T) {
+	p := fakePK(t, "sleep 5\n")
+	cl := &Client{Path: p}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
+	defer cancel()
+	_, err := cl.run(ctx, nil, "install", "node@22")
+	if err == nil {
+		t.Fatal("超时应当报错")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) && !strings.Contains(err.Error(), "超时") {
+		t.Fatalf("错误里要能看出是超时: %v", err)
 	}
 }

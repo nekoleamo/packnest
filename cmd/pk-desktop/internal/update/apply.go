@@ -139,6 +139,11 @@ func replaceGUI(exe, unpacked, goos string) error {
 	switch goos {
 	case "darwin":
 		app := appBundleOf(exe)
+		if !strings.HasSuffix(app, ".app") {
+			// 不是 .app bundle（例如 `make gui` 直接出的扁平二进制）：
+			// 整包替换会把自己的文件当目录写、还会把唯一的二进制当"旧版本"删掉。
+			return replaceFlat(exe, unpacked, "pk-desktop")
+		}
 		newApp := findDir(unpacked, "packnest.app")
 		if newApp == "" {
 			return fmt.Errorf("更新包里没有 packnest.app")
@@ -180,20 +185,26 @@ func replaceGUI(exe, unpacked, goos string) error {
 		_ = os.Remove(old)
 		return nil
 	default:
-		newBin := findFile(unpacked, "pk-desktop")
-		if newBin == "" {
-			return fmt.Errorf("更新包里没有 pk-desktop")
-		}
-		tmpNew := exe + ".new"
-		if err := copyFileTo(newBin, tmpNew, 0o755); err != nil {
-			return err
-		}
-		if err := os.Rename(tmpNew, exe); err != nil {
-			_ = os.Remove(tmpNew)
-			return fmt.Errorf("替换失败: %w", err)
-		}
-		return nil
+		return replaceFlat(exe, unpacked, "pk-desktop")
 	}
+}
+
+// replaceFlat 替换一个扁平二进制（Linux / `make gui` 出来的 mac 二进制）：先把新文件写到 `<exe>.new`，
+// rename 旧的就位再换进去（同目录 rename 是原子的，中途被打断至少还留着一份能跑的）。
+func replaceFlat(exe, unpacked, name string) error {
+	newBin := findFile(unpacked, name)
+	if newBin == "" {
+		return fmt.Errorf("更新包里没有 %s", name)
+	}
+	tmpNew := exe + ".new"
+	if err := copyFileTo(newBin, tmpNew, 0o755); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpNew, exe); err != nil {
+		_ = os.Remove(tmpNew)
+		return fmt.Errorf("替换失败: %w", err)
+	}
+	return nil
 }
 
 // CleanupOld 清掉上次替换留下的 `<exe>.old*` 与 macOS 的 `packnest.app.old*`（启动时调用）。

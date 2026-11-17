@@ -165,10 +165,21 @@ func validateExternal(p *Provider, known map[string]bool) error {
 	for _, bin := range p.Layout.BinTargets {
 		paths = append(paths, bin)
 	}
+	// 伴生包的 target 也是"相对工具根目录的落盘位置"，同样不能越界（
+	// 否则一条 target = "../../.." 就能写到 PK_ROOT 之外，replace 还会先把原目录改名再删）。
+	for _, c := range p.Companions {
+		paths = append(paths, c.Target)
+	}
 	for _, v := range paths {
 		s := filepath.ToSlash(v)
 		if filepath.IsAbs(v) || s == ".." || strings.HasPrefix(s, "../") || strings.Contains(s, "/../") {
 			return coded.New(CodeExtRelative, v)
+		}
+	}
+	// bins 只是命令名（shim 会把它们拼到 bin/ 下）：带路径分隔符、带 .. 就是越界。
+	for _, b := range p.Layout.Bins {
+		if b == "" || b == "." || b == ".." || strings.ContainsAny(b, `/\`) {
+			return coded.New(CodeExtRelative, b)
 		}
 	}
 	for name, c := range p.Companions {

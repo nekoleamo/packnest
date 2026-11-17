@@ -107,6 +107,10 @@ func TestExternalProviderRejects(t *testing.T) {
 		{"未知占位符", strings.ReplaceAll(externalTOML(https), "{version}", "{versoin}"), CodeTemplateKey, false},
 		{"id 与文件名不符", strings.Replace(externalTOML(https), `id = "demo"`, `id = "other"`, 1), CodeExtIDMismatch, false},
 		{"伴生 registry 不存在", externalTOML(https) + "\n[companions.npm]\nmode = \"bundled\"\nregistry = \"nope\"\ntarget = \"lib/node_modules/npm\"\n", CodeExtCompanionReg, false},
+		// 0.14.0 review：伴生 target 与 bins 以前没校验 —— 一条 target 就能写到 PK_ROOT 之外，
+		// replace 还会先把原目录改名再删。
+		{"伴生 target 越界", externalTOML(https) + "\n[companions.npm]\nmode = \"bundled\"\nregistry = \"npm\"\ntarget = \"../../../.config\"\n", CodeExtRelative, false},
+		{"bins 带路径分隔符", strings.Replace(externalTOML(https), `bins = ["demo"]`, "bins = [\"../evil\"]", 1), CodeExtRelative, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

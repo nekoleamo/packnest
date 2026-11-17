@@ -366,7 +366,7 @@ func (i *Installer) verifyArtifact(ctx context.Context, p *provider.Provider, re
 		SumsURLs:          sumsURLs,
 		Format:            p.Checksum.Format,
 		InlineShasum:      inline,
-		Insecure:          i.opt.Insecure,
+		Insecure:          i.opt.Insecure || p.Checksum.Mode == "none",
 		InsecureTransport: p.InsecureTransport,
 		Rehash:            i.opt.Rehash,
 	}

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/packnest/packnest/cmd/pk-desktop/internal/pkcli"
@@ -40,7 +41,7 @@ func (a *api) routes(token string) *http.ServeMux {
 	rw("/api/use", a.use)
 	rw("/api/uninstall", a.uninstall)
 	rw("/api/mirror-write", a.mirrorWrite)
-	ro("/api/autostart", a.autostart)
+	rw("/api/autostart", a.autostart) // 有 POST 写分支（SetAutostart），跟其它写接口同档
 	return mux
 }
 
@@ -61,6 +62,36 @@ func guard(token string, h http.Handler) http.Handler {
 		}
 		h.ServeHTTP(w, r)
 	})
+}
+
+// sameOrigin 挡住"浏览器里的任意网页驱动本机接口"（CSRF）。
+//
+// 桌面壳默认不给 token，而 http://127.0.0.1:7799/api/uninstall 是 GET/POST 就能打的：
+// 用户上一次恶意页面，页面就能让 GUI 卸载工具 / 跑回收 / 替换自身。
+// 浏览器对跨源请求一定会带 `Origin`（或至少 `Sec-Fetch-Site`），命令行工具两者都不带：
+// 所以"带了但不等于自己"与 cross-site 一律拒，其余放行（curl / install 脚本 / 本页不受影响）。
+func sameOrigin(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if origin := r.Header.Get("Origin"); origin != "" && !originMatchesHost(origin, r.Host) {
+			http.Error(w, "拒绝跨源请求", http.StatusForbidden)
+			return
+		}
+		if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+			http.Error(w, "拒绝跨源请求", http.StatusForbidden)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
+// originMatchesHost 判断 Origin（如 `http://127.0.0.1:7799`）是否就是这个 Host。
+// 只认 http/https、主机名与端口必须一致（不搞后缀匹配）。
+func originMatchesHost(origin, host string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return false
+	}
+	return u.Host == host
 }
 
 // loopback 判断监听地址是否只在本机（默认安全形态）。

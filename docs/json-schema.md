@@ -44,13 +44,14 @@
 | `ev` | 附带字段 | 说明 |
 |---|---|---|
 | `resolve` | `tool,version` | 版本解析完成 |
+| `plan` | `tool,version,source,mode` | `--dry-run` 的计划（这种模式下**不会有** `done`） |
 | `mirror` | `tool,source,latency_ms,cached` | 探测出镜像档（`cached=true` 表示 6h 内探过，没再发请求） |
 | `progress` | `tool,version,bytes_done,bytes_total` | 下载字节进度（约 200ms 一次，`bytes_total` 未知时为 0；GUI 画进度条用） |
 | `cache` | `tool,version,bytes` | 缓存命中（0 网络） |
 | `download` | `tool,version,bytes,source` | 实际下载（`source` 是最终使用的 URL） |
 | `verify` | `tool,version,mode,ok,msg` | `mode ∈ tofu/network/insecure`；`msg` 只在"上游重新发布按同源配对接受"时出现 |
 | `companion` | `tool,version,replaced,path` | 伴生包替换：`replaced` 是被换掉的版本（原来只在 `msg` 里）；通用伴生包用 `path` 给落地位置 |
-| `done` | `tool,version,path` | 落盘完成 |
+| `done` | `tool,version,path` | 落盘完成（**即使已经是最新、无需重装，也以 `done` 收尾**） |
 | `uninstall` | `tool,version` | 卸载完成 |
 | `abort` | `tool,msg` | **1.8 起**：`--atomic` 下这一批被整体放弃，本目标没有落盘（`msg` 说明原因）。出现在该目标其它事件之后；GUI 按 `tool` 分组时遇到 `abort` 就把整组作废 |
 

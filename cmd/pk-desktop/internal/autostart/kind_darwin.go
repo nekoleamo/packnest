@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // macOS：~/Library/LaunchAgents 里一个 RunAtLoad 的 plist。
@@ -30,8 +31,15 @@ func add(st Status) error {
   <key>ProcessType</key><string>Interactive</string>
 </dict>
 </plist>
-`, Label, st.Self)
+`, Label, xmlEscape(st.Self))
 	return os.WriteFile(st.Path, []byte(plist), 0o644)
+}
+
+// xmlEscape 转义 XML 特殊字符：路径里带 `&` / `<`（例如 `/Users/tom & jerry/`）时
+// 直接 sprintf 进 plist 会让文件不合法，launchd 静默不生效。
+func xmlEscape(s string) string {
+	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "\"", "&quot;", "'", "&apos;")
+	return r.Replace(s)
 }
 
 func remove(st Status) error {

@@ -714,6 +714,21 @@ func TestVerifyArtifactBranches(t *testing.T) {
 		_, _ = inst.verifyArtifact(context.Background(), p, res, "darwin-arm64",
 			"https://x/a.tar.gz", arch, sum, nil) // 分支要覆盖的是"算摘要的方式"，不是校验结果
 	})
+	// mode = "none"：清单自己声明"不要校验"，就不该再要求 --insecure（0.14 之前这个字段
+	// 只在 plan 里打印，实际仍会报"没有校验源"，与 docs/troubleshooting.md 的说法正面矛盾）。
+	t.Run("清单声明 checksum.mode=none", func(t *testing.T) {
+		inst := newInstaller(t, nil, nil)
+		p := mkProvider("x", nil, "x")
+		p.Checksum = provider.ChecksumBlock{Format: "gnu-sums", Mode: "none"} // 没有 URLs
+		res, err := inst.verifyArtifact(context.Background(), p, provider.Version{Version: "1.0.0"},
+			"darwin-arm64", "https://x/a.tar.gz", arch, sum, nil)
+		if err != nil {
+			t.Fatalf("mode=none 不该要求校验源: %v", err)
+		}
+		if res.Verified != verify.VerifiedUnverified {
+			t.Fatalf("mode=none 必须标成 unverified: %+v", res)
+		}
+	})
 	t.Run("其它格式（gnu-sums）用本地 sha256", func(t *testing.T) {
 		inst := newInstaller(t, nil, nil)
 		p := mkProvider("x", nil, "x")

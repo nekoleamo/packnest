@@ -104,6 +104,12 @@ func Check(ctx context.Context, guiCurrent string, cliCheck func(context.Context
 	res.GUI.UpdateAvailable = newer(guiVer, guiCurrent)
 	ch := guiChannel()
 	res.GUI.Channel, res.GUI.ChannelHint = ch.Name, ch.Hint
+	if res.GUI.UpdateAvailable && !selfUpdatePlatform(runtime.GOOS, runtime.GOARCH) {
+		// 发布矩阵只覆盖 5 个 (os,arch)；其它平台还是诚实地说"去下载安装包"，
+		// 而不是摆一个点了必然 404 的"升级"按钮。
+		res.GUI.UpdateAvailable = false
+		res.GUI.ChannelHint = "这个平台没有 GUI 自更新产物，请到发布页下载安装包"
+	}
 	if res.GUI.UpdateAvailable {
 		res.GUI.ArtifactURL = artifactURL(srcName, guiVer, runtime.GOOS, runtime.GOARCH)
 	}
@@ -154,6 +160,16 @@ func latestGUI(ctx context.Context, order []Source, get func(context.Context, st
 		lastErr = fmt.Errorf("没有可用的更新源")
 	}
 	return "", "", lastErr
+}
+
+// selfUpdatePlatform 是发布矩阵里有产物的平台（scripts/release-gui.sh 的四份 +
+// packaging/build-macos.sh 的 .app.zip）。
+func selfUpdatePlatform(goos, goarch string) bool {
+	switch goos + "/" + goarch {
+	case "darwin/arm64", "windows/amd64", "windows/arm64", "linux/amd64", "linux/arm64":
+		return true
+	}
+	return false
 }
 
 // artifactURL 是某个版本某个平台的 GUI 产物地址。

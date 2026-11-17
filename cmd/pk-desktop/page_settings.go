@@ -50,7 +50,7 @@ func (g *gui) pageSettings(c *ui.Context) {
 				_ = mygo.Shell.OpenPath(appDir())
 			}
 			if ui.Button(c, g.t("在浏览器里打开", "Open in browser")).Clicked() {
-				_ = mygo.Shell.OpenExternal("http://127.0.0.1:7799/")
+				_ = mygo.Shell.OpenExternal(g.browserURL())
 			}
 		})
 	})
@@ -86,5 +86,8 @@ func (g *gui) copyText(s string) {
 		g.clipboard = s
 		return
 	}
-	g.copyText(s)
+	// ⚠️ 这里必须真的写系统剪贴板。0.13.0 这里误写成递归调用自己：
+	// 真窗口里点任意「复制」按钮都会栈溢出、整个进程死（ui.Tester 走的是上面的 win==nil 分支，测不到）。
+	mygo.Clipboard.WriteText(s)
+	g.flashNow(g.t("已复制", "Copied"))
 }

@@ -9,6 +9,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -77,6 +79,8 @@ type gui struct {
 	// quitGrace / exitFn 是退出兜底的注入点（测试用；生产是 3s + os.Exit）
 	quitGrace time.Duration
 	exitFn    func(int)
+	// addr 是本进程实际监听的回环地址（设置页“在浏览器里打开”要拼对端口）
+	addr string
 
 	// 各页数据（每页自己刷，互不阻塞）
 	available []pkcli.AvailableTool
@@ -112,6 +116,9 @@ type gui struct {
 	applyPct   float64
 	applyMsg   string
 	applyErr   bool
+	// applying 为真表示“正在替换当前程序”：退出兑底要等它收尾，
+	// 否则 os.Exit 会把应用停在“旧的已挪走、新的没拷完”的半残状态
+	applying atomic.Bool
 
 	// 界面偏好与临时状态
 	themeMode int    // 0 跟随系统 / 1 浅色 / 2 深色
@@ -330,8 +337,7 @@ func (g *gui) header(c *ui.Context) {
 			ui.Text(c, g.t("首次使用先装 CLI：", "Install the CLI first:")).TextColor(c.Theme().Warning)
 			ui.Text(c, installCmd(g.status.Platform)).Font("monospace").SingleLine()
 			if ui.Button(c, g.t("复制", "Copy")).Clicked() {
-				mygo.Clipboard.WriteText(installCmd(g.status.Platform))
-				g.flashNow(g.t("已复制", "Copied"))
+				g.copyText(installCmd(g.status.Platform))
 			}
 		})
 	}
@@ -454,12 +460,39 @@ func safeWork(work func() (commit, error)) (done commit, err error) {
 // onMain 把一段改状态的代码丢回主线程执行（测试里没有窗口时直接跑）。
 //
 // mygo 的约定：视图只在主线程读状态，所以任何后台 goroutine 改字段都必须过这里。
+// onMain 把 fn 投递到 UI 主线程（**异步**：调用方不等它执行）。
 func (g *gui) onMain(fn func()) {
 	if g.win == nil {
 		fn()
 		return
 	}
 	g.win.Update(fn)
+}
+
+// onMainSync 是“要把主线程算出的结果拿回来”时用的：mygo.Window.Update 只投递不等待，
+// 工作 goroutine 里“投递完立刻读那个变量”会读到零值（0.13.0 的安装队列就这么整队不装）。
+// mygo.RunOnMain 会阻塞到 fn 执行完；没有窗口（ui.Tester）时直接内联执行。
+func (g *gui) onMainSync(fn func()) {
+	if g.win == nil {
+		fn()
+		return
+	}
+	mygo.RunOnMain(fn)
+}
+
+// browserURL 是“在浏览器里打开”要用的地址（跟 --addr 走，不硬编码端口）。
+func (g *gui) browserURL() string {
+	addr := g.addr
+	if addr == "" {
+		addr = "127.0.0.1:7799"
+	}
+	if host, port, err := net.SplitHostPort(addr); err == nil {
+		if host == "" || host == "0.0.0.0" || host == "::" {
+			host = "127.0.0.1"
+		}
+		addr = net.JoinHostPort(host, port)
+	}
+	return "http://" + addr + "/"
 }
 
 // flashNow 直接在主线程弹一条提示。

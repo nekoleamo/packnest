@@ -200,15 +200,9 @@ func (g *gui) runQueue() {
 	go func() {
 		for {
 			var item *queueItem
-			g.onMain(func() {
-				for _, q := range g.queue {
-					if q.State == "wait" {
-						item = q
-						q.State = "run"
-						break
-					}
-				}
-			})
+			// 必须在主线程**同步**算出下一条：mygo 的 Window.Update 是异步投递，
+			// 投递完立刻读 item 会恒为 nil（队列“点开始什么都不装”就是这么来的）。
+			g.onMainSync(func() { item = nextWaitingItem(g.queue) })
 			if item == nil {
 				break
 			}
@@ -232,6 +226,18 @@ func (g *gui) runQueue() {
 			g.reloadTools()
 		})
 	}()
+}
+
+// nextWaitingItem 挑出下一条待装项并标成 run。
+// **只能在 UI 主线程调用**：queue 归主线程所有（工作 goroutine 只能通过 onMainSync 碰它）。
+func nextWaitingItem(queue []*queueItem) *queueItem {
+	for _, q := range queue {
+		if q.State == "wait" {
+			q.State = "run"
+			return q
+		}
+	}
+	return nil
 }
 
 // applyEvent 把一行 NDJSON 事件画进队列行：progress 用字节数算百分比。

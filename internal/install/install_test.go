@@ -1393,3 +1393,64 @@ func errText(err error) string {
 	}
 	return err.Error()
 }
+
+// TestInstallAlreadyInstalledEmitsDone 守 `--json` 契约：结束看 done。
+// 0.14 之前"已经是最新"的分支只发 resolve 就返回了，脚本/GUI 队列会一直等 done。
+func TestInstallAlreadyInstalledEmitsDone(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.22.2"}},
+		NPM:      map[string]string{"11.20.0": "^20.17.0 || >=22.9.0"},
+	})
+	var evs []string
+	inst := newInstaller(t, fm, func(o *Options) {
+		o.Events = func(ev jsonout.Event) { evs = append(evs, ev.Ev) }
+	})
+	ctx := context.Background()
+	if _, err := inst.Install(ctx, "node", "22.22.2"); err != nil {
+		t.Fatalf("首次安装: %v", err)
+	}
+	evs = nil // 只看第二次
+	res, err := inst.Install(ctx, "node", "22.22.2")
+	if err != nil {
+		t.Fatalf("重复安装: %v", err)
+	}
+	if !res.AlreadyInstalled {
+		t.Fatalf("应报告已安装: %+v", res)
+	}
+	if len(evs) == 0 || evs[len(evs)-1] != "done" {
+		t.Fatalf("「已是最新」也要以 done 收尾，实际事件：%v", evs)
+	}
+}
+
+// TestUninstallRefusesLedgerPathOutsideTools 守"坏台账记录不能删任意目录"：
+// 台账是纯文件，一条手改的 path 就能让卸载 RemoveAll 掉用户目录。
+func TestUninstallRefusesLedgerPathOutsideTools(t *testing.T) {
+	fm := testkit.NewFakeNode(t, testkit.FakeNodeOptions{
+		Versions: []testkit.NodeSpec{{Version: "22.22.2"}},
+		NPM:      map[string]string{"11.20.0": "^20.17.0 || >=22.9.0"},
+	})
+	inst := newInstaller(t, fm, nil)
+	ctx := context.Background()
+	if _, err := inst.Install(ctx, "node", "22.22.2"); err != nil {
+		t.Fatalf("安装: %v", err)
+	}
+	victim := t.TempDir()
+	if err := os.WriteFile(filepath.Join(victim, "keep.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	in := inst.ledger.Find("node", "22.22.2")
+	if in == nil {
+		t.Fatal("台账里应有 node@22.22.2")
+	}
+	if err := inst.Uninstall("node", "22.22.2", true); err != nil {
+		t.Fatalf("正常卸载: %v", err)
+	}
+	// 手改台账：把 path 指向一个不该被删的目录
+	inst.ledger.Upsert(store.Install{Tool: "node", Version: "22.22.2", Path: victim})
+	if err := inst.Uninstall("node", "22.22.2", true); err == nil {
+		t.Fatal("台账路径在 tools/ 之外时必须拒绝删除")
+	}
+	if _, err := os.Stat(filepath.Join(victim, "keep.txt")); err != nil {
+		t.Fatalf("tools/ 之外的目录被删了: %v", err)
+	}
+}

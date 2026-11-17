@@ -214,6 +214,9 @@ func (i *Installer) commit(ctx context.Context, prep *prepared) (Result, error) 
 			}
 			res.Corepack = enabled
 		}
+		// 已经是最新版本也要发 done：`--json` 契约说“结束看 done”，
+		// 少这一条会让脚本/GUI 队列行永远停在 resolve 上（0.14 前就是这样）。
+		i.emit(jsonout.Event{Ev: "done", Tool: res.Tool, Version: res.Version, Path: res.Path})
 		return res, nil
 	}
 	placed := false

@@ -194,3 +194,18 @@ func TestMarshalCLI(t *testing.T) {
 		t.Fatal("垃圾输入应当报错")
 	}
 }
+
+// TestSelfUpdatePlatform：只有发布矩阵里的 5 个平台才提示"有新版"，
+// 其它平台（Intel mac 等）点了必然 404 —— 要诚实地引导去下载安装包。
+func TestSelfUpdatePlatform(t *testing.T) {
+	for _, ok := range [][2]string{{"darwin", "arm64"}, {"windows", "amd64"}, {"windows", "arm64"}, {"linux", "amd64"}, {"linux", "arm64"}} {
+		if !selfUpdatePlatform(ok[0], ok[1]) {
+			t.Fatalf("%s/%s 应有自更新产物", ok[0], ok[1])
+		}
+	}
+	for _, bad := range [][2]string{{"darwin", "amd64"}, {"linux", "386"}, {"plan9", "amd64"}} {
+		if selfUpdatePlatform(bad[0], bad[1]) {
+			t.Fatalf("%s/%s 不该被当成有自更新产物", bad[0], bad[1])
+		}
+	}
+}
