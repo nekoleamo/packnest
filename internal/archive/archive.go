@@ -12,6 +12,7 @@ import (
 	"archive/zip"
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"github.com/packnest/packnest/internal/coded"
 	"io"
 	"os"
@@ -62,6 +63,28 @@ func FormatFor(ext string) (Format, error) {
 	return "", coded.New(CodeFormatUnsupported, ext)
 }
 
+// MaxExtractBytes 是一次解压允许写出的**总**字节上限。
+//
+// 为什么需要：归档是外部输入（镜像可被投毒/截断重传），解压前只有一个 sha256 ——
+// 校验通过后照样可能是"声明很小、解出来几十 GB"的构造，裸 io.Copy 能把磁盘写满。
+// 4 GiB 对一个语言运行时（最大的是 go/python 的 ~200 MiB）足够宽松，
+// 测试里可以临时改小（全局变量，只在这一处读）。
+var MaxExtractBytes int64 = 4 << 30
+
+// extractBudget 是整个解压过程共用的字节预算（一次 Extract 一个，非并发安全）。
+type extractBudget struct{ left int64 }
+
+func newExtractBudget() *extractBudget {
+	left := MaxExtractBytes
+	if left <= 0 {
+		left = 4 << 30
+	}
+	return &extractBudget{left: left}
+}
+
+// ErrTooLarge 表示归档解出来的总量超过 MaxExtractBytes。
+var ErrTooLarge = errors.New("archive expands past the size limit")
+
 // Extract 把 archivePath 解到 dstDir。
 //
 // dstDir 必须是干净的（调用方给 tools/<tool>/<ver>.tmp.<rand>）。
@@ -97,6 +120,7 @@ func extractTarGz(archivePath, dstDir string, layout Layout, goos string) error 
 	defer gz.Close()
 	tr := tar.NewReader(gz)
 
+	budget := newExtractBudget()
 	var singles []string
 	for {
 		hdr, err := tr.Next()
@@ -120,7 +144,7 @@ func extractTarGz(archivePath, dstDir string, layout Layout, goos string) error 
 
 		switch hdr.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0o755); err != nil {
+			if err := os.MkdirAll(long(target), 0o755); err != nil {
 				return coded.Wrap(err, CodeMkdir)
 			}
 		case tar.TypeSymlink:
@@ -128,18 +152,18 @@ func extractTarGz(archivePath, dstDir string, layout Layout, goos string) error 
 				// Windows 建符号链接需要开发者模式/管理员，且我们一律取 zip 产物。
 				return coded.New(CodeLinkUnsupported, "tar", hdr.Name)
 			}
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			if err := os.MkdirAll(long(filepath.Dir(target)), 0o755); err != nil {
 				return err
 			}
 			if err := checkLinkTarget(dstDir, target, hdr.Linkname); err != nil {
 				return err
 			}
-			_ = os.Remove(target)
-			if err := os.Symlink(hdr.Linkname, target); err != nil {
+			_ = os.Remove(long(target))
+			if err := os.Symlink(hdr.Linkname, long(target)); err != nil {
 				return coded.Wrap(err, CodeLinkCreate, rel)
 			}
 		case tar.TypeReg:
-			n, err := writeEntry(target, tr, hdr.FileInfo().Mode().Perm())
+			n, err := writeEntry(target, tr, hdr.FileInfo().Mode().Perm(), budget)
 			if err != nil {
 				return err
 			}
@@ -160,6 +184,7 @@ func extractZip(archivePath, dstDir string, layout Layout, goos string) error {
 	}
 	defer zr.Close()
 
+	budget := newExtractBudget()
 	var singles []string
 	for _, f := range zr.File {
 		rel, ok, err := stripPath(f.Name, layout.Strip)
@@ -174,7 +199,7 @@ func extractZip(archivePath, dstDir string, layout Layout, goos string) error {
 			return err
 		}
 		if strings.HasSuffix(f.Name, "/") {
-			if err := os.MkdirAll(target, 0o755); err != nil {
+			if err := os.MkdirAll(long(target), 0o755); err != nil {
 				return coded.Wrap(err, CodeMkdir)
 			}
 			continue
@@ -192,14 +217,14 @@ func extractZip(archivePath, dstDir string, layout Layout, goos string) error {
 			if err != nil {
 				return err
 			}
-			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			if err := os.MkdirAll(long(filepath.Dir(target)), 0o755); err != nil {
 				return err
 			}
 			if err := checkLinkTarget(dstDir, target, string(link)); err != nil {
 				return err
 			}
-			_ = os.Remove(target)
-			if err := os.Symlink(string(link), target); err != nil {
+			_ = os.Remove(long(target))
+			if err := os.Symlink(string(link), long(target)); err != nil {
 				return coded.Wrap(err, CodeLinkCreate, rel)
 			}
 			continue
@@ -208,7 +233,7 @@ func extractZip(archivePath, dstDir string, layout Layout, goos string) error {
 		if err != nil {
 			return coded.Wrap(err, CodeEntryOpen, rel)
 		}
-		n, err := writeEntry(target, rc, f.Mode().Perm())
+		n, err := writeEntry(target, rc, f.Mode().Perm(), budget)
 		rc.Close()
 		if err != nil {
 			return err
@@ -221,19 +246,34 @@ func extractZip(archivePath, dstDir string, layout Layout, goos string) error {
 }
 
 // writeEntry 写一个常规文件，返回写出的字节数。
-func writeEntry(target string, r io.Reader, mode os.FileMode) (int64, error) {
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+func writeEntry(target string, r io.Reader, mode os.FileMode, budget *extractBudget) (int64, error) {
+	if err := os.MkdirAll(long(filepath.Dir(target)), 0o755); err != nil {
 		return 0, coded.Wrap(err, CodeMkdir)
 	}
 	perm := mode.Perm()
 	if perm == 0 {
 		perm = 0o644
 	}
-	f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
+	f, err := os.OpenFile(long(target), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
 	if err != nil {
 		return 0, coded.Wrap(err, CodeCreate, target)
 	}
-	n, copyErr := io.Copy(f, r)
+	// 多留 1 字节给"刚好超一点"的情况：超了就删掉半成品并报错，
+	// 绝不让一个恶意归档把盘写满（也可能只是截断重传后的坏归档）。
+	limit := r
+	if budget != nil {
+		limit = io.LimitReader(r, budget.left+1)
+	}
+	n, copyErr := io.Copy(f, limit)
+	if budget != nil {
+		budget.left -= n
+		if budget.left < 0 {
+			_ = f.Close()
+			_ = os.Remove(long(target))
+			return 0, coded.Wrap(ErrTooLarge, CodeTooLarge,
+				humanBytes(MaxExtractBytes), filepath.Base(target))
+		}
+	}
 	closeErr := f.Close()
 	if copyErr != nil {
 		return 0, coded.Wrap(copyErr, CodeWriteTruncated, filepath.Base(target))
@@ -242,10 +282,28 @@ func writeEntry(target string, r io.Reader, mode os.FileMode) (int64, error) {
 		return 0, coded.Wrap(closeErr, CodeWrite, filepath.Base(target))
 	}
 	// 显式 chmod：某些归档（尤其是 zip）不带权限位。
-	if err := os.Chmod(target, perm); err != nil {
+	if err := os.Chmod(long(target), perm); err != nil {
 		return 0, coded.Wrap(err, CodeChmod, filepath.Base(target))
 	}
 	return n, nil
+}
+
+// long 是"真正交给文件 API 的路径"：Windows 上深层路径要 `\\?\` 前缀（见 paths.Long），
+// 其它平台原样返回。解压是最容易撞 260 字符的地方（npm 伴生包的 node_modules 层层嵌套），
+// 所以这里全程走它；而返回给调用方的路径（`Result.Path`、`--json`）仍然是没前缀的原样。
+func long(p string) string { return paths.Long(p) }
+
+// humanBytes 把字节数写成人话（只用于错误信息）。
+func humanBytes(n int64) string {
+	switch {
+	case n >= 1<<30:
+		return fmt.Sprintf("%d GiB", n>>30)
+	case n >= 1<<20:
+		return fmt.Sprintf("%d MiB", n>>20)
+	case n >= 1<<10:
+		return fmt.Sprintf("%d KiB", n>>10)
+	}
+	return fmt.Sprintf("%d B", n)
 }
 
 // checkLinkTarget 确认符号链接不会把写入引到解压根之外（tar-slip 的符号链接变体）。
@@ -284,11 +342,11 @@ func applySingle(dstDir string, layout Layout, files []string) error {
 		return err
 	}
 	if files[0] != target {
-		if err := os.Rename(files[0], target); err != nil {
+		if err := os.Rename(long(files[0]), long(target)); err != nil {
 			return coded.Wrap(err, CodeSingleMove)
 		}
 	}
-	return os.Chmod(target, 0o755)
+	return os.Chmod(long(target), 0o755)
 }
 
 // markExecutables 保证 bins 里声明的命令有可执行位（zip 常见丢权限）。

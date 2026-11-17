@@ -2,6 +2,7 @@ package archive
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"errors"
@@ -731,12 +732,12 @@ func TestWriteEntryBranches(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "as-dir"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := writeEntry(filepath.Join(dir, "as-dir"), strings.NewReader("x"), 0o644); err == nil {
+	if _, err := writeEntry(filepath.Join(dir, "as-dir"), strings.NewReader("x"), 0o644, nil); err == nil {
 		t.Fatal("目标是目录时必须报错")
 	}
 	// ② 正常写入并按 mode 落权限位（zip 常不带权限位，靠这里补）
 	target := filepath.Join(dir, "sub", "tool")
-	n, err := writeEntry(target, strings.NewReader("payload"), 0o755)
+	n, err := writeEntry(target, strings.NewReader("payload"), 0o755, nil)
 	if err != nil || n != 7 {
 		t.Fatalf("写入应成功: n=%d err=%v", n, err)
 	}
@@ -749,10 +750,64 @@ func TestWriteEntryBranches(t *testing.T) {
 	}
 	// ③ perm=0 时回落 0644（归档里没写权限位的条目）
 	target2 := filepath.Join(dir, "plain")
-	if _, err := writeEntry(target2, strings.NewReader("x"), 0); err != nil {
+	if _, err := writeEntry(target2, strings.NewReader("x"), 0, nil); err != nil {
 		t.Fatal(err)
 	}
 	if fi, _ := os.Stat(target2); fi.Mode().Perm() != 0o644 {
 		t.Fatalf("perm=0 应回落 0644: %v", fi.Mode().Perm())
+	}
+}
+
+// TestExtractRejectsOversizedArchive：解压要有总量上限。
+// 归档通过 sha256 校验后仍可能是"声明很小、解出来几十 GB"的构造（镜像投毒 / 截断重传），
+// 裸 io.Copy 能把磁盘写满。
+func TestExtractRejectsOversizedArchive(t *testing.T) {
+	old := MaxExtractBytes
+	MaxExtractBytes = 1024
+	t.Cleanup(func() { MaxExtractBytes = old })
+
+	dir := t.TempDir()
+	zipPath := filepath.Join(dir, "big.zip")
+	mkZip(t, zipPath, 4<<10) // 4 KiB 内容，远小于 MaxExtractBytes 之外的预期
+	dst := filepath.Join(dir, "out")
+	err := Extract(zipPath, dst, FormatZip, Layout{Bins: []string{"tool"}}, "darwin")
+	if err == nil {
+		t.Fatal("超过上限必须报错")
+	}
+	if !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("错误应可判定为 ErrTooLarge: %v", err)
+	}
+	// 半成品必须删掉（不留半个超大文件）
+	entries, _ := os.ReadDir(dst)
+	for _, e := range entries {
+		if e.Name() == "tool" {
+			t.Fatal("超限的半成品文件没删掉")
+		}
+	}
+	// 上限内照常解压
+	MaxExtractBytes = 1 << 20
+	if err := Extract(zipPath, dst, FormatZip, Layout{Bins: []string{"tool"}}, "darwin"); err != nil {
+		t.Fatalf("上限内应成功: %v", err)
+	}
+}
+
+// mkZip 造一个含 <size> 字节随机内容「tool」文件的 zip。
+func mkZip(t *testing.T, path string, size int) {
+	t.Helper()
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	zw := zip.NewWriter(f)
+	w, err := zw.CreateHeader(&zip.FileHeader{Name: "tool", Method: zip.Deflate})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write(bytes.Repeat([]byte("x"), size)); err != nil {
+		t.Fatal(err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
 	}
 }

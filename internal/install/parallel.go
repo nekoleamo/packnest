@@ -95,13 +95,17 @@ func (i *Installer) prepare(ctx context.Context, tool, specStr string, emitNow b
 		}
 	}
 
+	// prep 在算版本之前就建好：下面任何一步失败都要把它带回给调用方 ——
+	// 已经发过 resolve/download/verify 的事件不能因为后面失败就整段丢掉。
+	prep := &prepared{p: p, events: evs, known: sub.known}
+
 	var lockedSHA string
 	var resolved provider.Version
 	var idx *provider.Index
 	if i.opt.Frozen {
 		version, sha, err := i.lockedVersion(i.opt.Lock, tool)
 		if err != nil {
-			return nil, err
+			return prep, err
 		}
 		lockedSHA = sha
 		resolved = provider.Version{Version: version}
@@ -109,17 +113,16 @@ func (i *Installer) prepare(ctx context.Context, tool, specStr string, emitNow b
 		sub.resolveAutoProfile(ctx, p)
 		resolved, idx, err = sub.resolveVersion(ctx, p, specStr)
 		if err != nil {
-			return nil, err
+			return prep, err
 		}
 	}
 	version := resolved.Version
 	if err := checkMinVersion(p, version); err != nil {
-		return nil, err
+		return prep, err
 	}
 	sub.emit(jsonout.Event{Ev: "resolve", Tool: tool, Version: version})
 
 	target := i.opt.Paths.ToolVersion(tool, version)
-	prep := &prepared{p: p, events: evs, known: sub.known}
 	prep.res = Result{Tool: tool, Version: version, Path: target}
 	if existing := i.ledger.Find(tool, version); existing != nil && !i.opt.Force {
 		if _, statErr := os.Stat(target); statErr == nil {
@@ -135,7 +138,7 @@ func (i *Installer) prepare(ctx context.Context, tool, specStr string, emitNow b
 	if i.opt.DryRun {
 		urls, err := p.ArtifactURLsFor(resolved, i.opt.GOOS, i.opt.GOARCH, i.opt.Profile)
 		if err != nil {
-			return nil, err
+			return prep, err
 		}
 		prep.res.Planned, prep.res.PlanURL, prep.res.PlanFormat = true, urls[0], extOrDefault(p, i.opt.GOOS)
 		prep.res.PlanChecksum = fmt.Sprintf("%s(%s)", p.Checksum.Format, p.Checksum.Mode)
@@ -146,7 +149,7 @@ func (i *Installer) prepare(ctx context.Context, tool, specStr string, emitNow b
 
 	archivePath, _, sha, vr, err := sub.fetchArtifactVerified(ctx, p, resolved, idx)
 	if err != nil {
-		return nil, err
+		return prep, err
 	}
 	prep.res.SHA256, prep.res.Verified = sha, vr.Verified
 	sub.emit(jsonout.Event{Ev: "verify", Tool: tool, Version: version, Mode: vr.Mode, OK: boolPtr(true),
@@ -154,7 +157,7 @@ func (i *Installer) prepare(ctx context.Context, tool, specStr string, emitNow b
 
 	if i.opt.Frozen && lockedSHA != "" {
 		if err := verifyLockedSHA(archivePath, lockedSHA); err != nil {
-			return nil, err
+			return prep, err
 		}
 	}
 
@@ -162,7 +165,7 @@ func (i *Installer) prepare(ctx context.Context, tool, specStr string, emitNow b
 	layout := archive.Layout{Strip: p.Layout.Strip, Single: p.Layout.Single, Bins: p.Layout.Bins, BinTargets: p.Layout.BinTargets}
 	format, err := archive.FormatFor(extOrDefault(p, i.opt.GOOS))
 	if err != nil {
-		return nil, err
+		return prep, err
 	}
 	// 解压要 1s 上下（纯 CPU），这段时间把伴生包的索引先拉回来。
 	sub.prefetchCompanionIndex(ctx, p)
@@ -175,17 +178,17 @@ func (i *Installer) prepare(ctx context.Context, tool, specStr string, emitNow b
 	}()
 	if err := archive.Extract(archivePath, tmpDir, format, layout, i.opt.GOOS); err != nil {
 		_ = os.Remove(archivePath) // 归档损坏：缓存也删掉，下次重下
-		return nil, coded.Wrap(err, CodeExtractFailed)
+		return prep, coded.Wrap(err, CodeExtractFailed)
 	}
 
 	npmVersion, npmBundled, err := sub.applyCompanion(ctx, p, version, tmpDir, idx)
 	if err != nil {
-		return nil, err
+		return prep, err
 	}
 	prep.res.NPMVersion, prep.res.NPMReplaced = npmVersion, npmBundled
 
 	if err := sub.applyGenericCompanions(ctx, p, version, tmpDir); err != nil {
-		return nil, err
+		return prep, err
 	}
 
 	prep.tmpDir = tmpDir
@@ -230,6 +233,13 @@ func (i *Installer) commit(ctx context.Context, prep *prepared) (Result, error) 
 	}
 	placed = true
 
+	// 只并回"宿主自己那条"TOFU 记录（knownKey）。
+	//
+	// 曾经想整体合并 worker 副本（那样 npm 伴生的条目也能留下来、省一次求校验和），
+	// 但实测会炸：npm 伴生包在有 shasum 时用 sha1、独立 npm 包用 sha512 integrity，
+	// 同一个 key（npm@<ver>/<platform>）两种算法，整体合并后下一个校验就报
+	// `sum.algo_changed`（TestAcceptance_Par_NPMConflict）。要合并必须先统一两条路径的算法，
+	// 那是另一件事，记在 docs/progress.md 的待办里。
 	if prep.known != nil && prep.knownKey != "" {
 		if e, ok := prep.known.Get(prep.knownKey); ok {
 			i.known.Entries[prep.knownKey] = e
@@ -316,6 +326,10 @@ func (i *Installer) InstallMany(ctx context.Context, targets []Target) []Outcome
 		wg.Wait()
 		for s, k := range lvl {
 			if errs[s] != nil {
+				// 失败目标已经发生的事件（resolve/download/verify）也要发出去：
+				// --json 契约里 abort / 失败排在"该目标其它事件之后"，整段丢弃会让
+				// 消费方以为这个工具什么都没发生。统一在主 goroutine 发，避免并发写事件流。
+				i.flushEvents(preps[s])
 				out[k].Err = errs[s]
 				continue
 			}
@@ -486,6 +500,9 @@ func (i *Installer) installAtomic(ctx context.Context, targets []Target, out []O
 // committed 里的目标是"已经落盘的"：不回滚、不发 abort（commit 阶段失败只影响后面的人）。
 func (i *Installer) abortAll(targets []Target, out []Outcome, preps []*prepared, committed []bool, cause error) {
 	for k := range targets {
+		// 不管这个目标是自己失败还是被放弃，prepare 阶段已经发生的事件都要先补发，
+		// abort 必须排在它们之后（否则消费方按 tool 分组时会看到"先 abort 后 resolve"）。
+		i.flushEvents(preps[k])
 		if out[k].Err != nil { // 自己就失败了：保留它自己的错误，不再发 abort
 			continue
 		}
@@ -499,6 +516,19 @@ func (i *Installer) abortAll(targets []Target, out []Outcome, preps []*prepared,
 		i.emit(jsonout.Event{Ev: "abort", Tool: targets[k].Tool,
 			MsgCode: CodeAbortBatch, MsgArgs: []any{cause.Error()}})
 	}
+}
+
+// flushEvents 把 prepare 阶段收集到的事件补发出去（**只在主 goroutine 调用**）。
+// 并行路径的事件先攒在 prepared.events 里，正常由 commit 补发；失败/放弃的目标
+// 以前直接丢掉这一份，等于把"这个工具下过载、验过签"的事实抹掉。
+func (i *Installer) flushEvents(prep *prepared) {
+	if prep == nil || prep.events == nil {
+		return
+	}
+	for _, ev := range prep.events.evs {
+		i.emit(ev)
+	}
+	prep.events.evs = nil // 防重复：commit 之后还会再补一次
 }
 
 // AbortError 表示"因为同一批里别的工具失败，这个目标没被落盘"（--atomic）。

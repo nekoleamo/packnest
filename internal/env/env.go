@@ -276,7 +276,9 @@ func WriteManagedBlock(path, content string) error {
 			return coded.Wrap(err, CodeMkdir, dir)
 		}
 	}
-	if err := os.WriteFile(path, []byte(text), 0o644); err != nil {
+	// 必须原子写：写到一半被 Ctrl-C / 断电，用户的 .zshrc 就被截断了
+	// （`.pk.bak` 只有上一版，救不回"正在写的这一版"）。权限跟原文件走。
+	if err := paths.WriteAtomicMode(path, []byte(text), 0); err != nil {
 		return coded.Wrap(err, CodeWrite, path)
 	}
 	return nil

@@ -129,7 +129,8 @@ func TestAcceptance_GUI2_TrayAndSingleInstance(t *testing.T) {
 			t.Fatal("第二个实例占到了同一个端口：单实例锁失效，会开出两个窗口")
 		}
 		msg := singleInstanceMsg(addr, err)
-		for _, want := range []string{"已经有一个 packnest 界面在运行", "退出"} {
+		// 端口被别的程序占着时也得给出可执行的下一步（换 --addr），不能只说"已经开着一个"
+		for _, want := range []string{"已经有一个 packnest 界面在运行", "退出", "--addr"} {
 			if !strings.Contains(msg, want) {
 				t.Fatalf("单实例文案缺 %q：%s", want, msg)
 			}

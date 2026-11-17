@@ -244,7 +244,14 @@ func (i *Installer) lockedVersion(lock *Lock, tool string) (string, string, erro
 }
 
 // recordCacheTouch 记录缓存使用时间（LRU 依据）。
+//
+// 并行安装时多个 worker 会同时走到这里：必须把 Load→Touch→Save 整体纳入锁，
+// 否则两边各读到同一份旧索引、各写回一条，后写的把先写的盖掉（丢更新）。
 func (i *Installer) recordCacheTouch(name string, now time.Time) {
+	if i.cacheMu != nil {
+		i.cacheMu.Lock()
+		defer i.cacheMu.Unlock()
+	}
 	idx, err := store.LoadCacheIndex(i.opt.Paths.CacheIndex())
 	if err != nil {
 		return

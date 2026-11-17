@@ -119,6 +119,10 @@ type Installer struct {
 	// sums 是本轮已拉到的校验和/平台元数据（键=URL）：下载前的缓存查找与随后的 verify 共用一份，
 	// 同一份几 KB 的文件不请求两次。worker() 拷贝 Installer 时是浅拷贝，所以放指针、内部自带锁。
 	sumsCache *sumsMemo
+	// cacheMu 是 state/cache.json 的读-改-写互斥：并行 worker 命中缓存时会各自
+	// Load→Touch→Save 同一份索引，后写的把先写的盖掉（丢一条 LRU 记录，
+	// `pk gc` 就可能把刚用过的归档当冷数据删）。指针共享（worker() 是值拷贝）。
+	cacheMu *sync.Mutex
 	// pfWG 等所有后台索引预取结束。不等的话会出现"操作已经返回、goroutine 还在往缓存目录写"，
 	// 实测后果：`pk uninstall --all --purge` 之后目录又被写回来；单测里表现为
 	// `TempDir RemoveAll cleanup: unlinkat …/cache: directory not empty`（CI 上偶发，2026-11-15）。
@@ -163,7 +167,8 @@ func New(opt Options) (*Installer, error) {
 		return nil, err
 	}
 	return &Installer{opt: opt, ledger: ledger, known: known, pf: newIndexCache(),
-		sumsCache: &sumsMemo{m: map[string][]byte{}}, pfWG: &sync.WaitGroup{}}, nil
+		sumsCache: &sumsMemo{m: map[string][]byte{}}, cacheMu: &sync.Mutex{},
+		pfWG: &sync.WaitGroup{}}, nil
 }
 
 // Ledger 暴露台账（CLI 的 list 复用）。
@@ -448,10 +453,16 @@ func transportOf(p *provider.Provider) string {
 }
 
 func (i *Installer) installShims(p *provider.Provider, toolDir string) error {
-	for _, name := range p.Layout.Bins {
+	for idx, name := range p.Layout.Bins {
 		binPath, err := archive.FindBin(toolDir, name, i.opt.GOOS, p.Layout.BinTargets)
 		if err != nil {
-			// node 的 npm/npx 在 Windows zip 里是 .cmd，FindBin 已覆盖；真找不到就跳过（不阻断安装）。
+			// 主命令（bins[0]）找不到 = 产物形态变了或清单过时：必须报错。
+			// 以前一律 continue，于是 `pk install node@22` 可以"成功返回 0"但 bin/node 根本没建出来，
+			// 而项目规矩是"不静默降级"。其余别名（npm/npx 之类）允许跳过：
+			// 它们取决于伴生包的落地形态，缺了不影响这个工具本身可用。
+			if idx == 0 {
+				return coded.Wrap(err, archive.CodeBinNotFound, p.ID, name)
+			}
 			continue
 		}
 		if err := shim.Ensure(i.opt.Paths.Bin(), name, binPath, i.opt.GOOS); err != nil {

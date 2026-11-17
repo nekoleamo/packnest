@@ -93,6 +93,7 @@ var codeTable = map[string]codeText{
 	"archive.entry_open":         {zh: "打开 %q 失败: %v", en: "cannot open %q: %v"},
 	"archive.create":             {zh: "创建文件 %q 失败: %v", en: "cannot create file %q: %v"},
 	"archive.write_truncated":    {zh: "写入 %q 失败（归档截断？）: %v", en: "writing %q failed (truncated archive?): %v"},
+	"archive.too_large":          {zh: "归档解压后超过 %s 上限（%s）：可能是投毒或异常归档，已拒绝写入", en: "the archive expands past the %s limit (%s): refusing to write (poisoned or broken archive?)"},
 	"archive.write":              {zh: "写入 %q 失败: %v", en: "writing %q failed: %v"},
 	"archive.link_empty":         {zh: "符号链接目标为空: %q", en: "symlink target is empty: %q"},
 	"archive.link_absolute":      {zh: "符号链接 %q 指向绝对路径 %q，拒绝", en: "symlink %q points at the absolute path %q, refusing"},

@@ -101,9 +101,17 @@ func TestInstallShimsFailure(t *testing.T) {
 	if err := inst.installShims(mkProvider("node", nil, "node"), toolDir); err == nil {
 		t.Fatal("bin 不可用时必须报错")
 	}
-	// 找不到二进制时是"跳过"而不是报错（Windows zip 里的 .cmd 兼容性靠这条）
-	if err := inst.installShims(mkProvider("node", nil, "node"), t.TempDir()); err != nil {
-		t.Fatalf("找不到二进制应跳过: %v", err)
+	// 主命令（bins[0]）找不到 → 报错：以前"跳过"，结果 `pk install` 能返回 0 但 bin/node 不存在
+	if err := inst.installShims(mkProvider("node", nil, "node"), t.TempDir()); err == nil {
+		t.Fatal("主命令找不到必须报错（不静默降级）")
+	}
+	// 次要别名（npm/npx）找不到 → 仍跳过（形态取决于伴生包，缺了不阻断安装）
+	aliasDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(aliasDir, "node"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := newInstaller(t, nil, nil).installShims(mkProvider("node", nil, "node", "npx"), aliasDir); err != nil {
+		t.Fatalf("只有别名缺失时应跳过: %v", err)
 	}
 }
 

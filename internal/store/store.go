@@ -450,7 +450,65 @@ func SweepStale(p paths.Paths, now time.Time, maxAge time.Duration) (SweepResult
 			res.Bytes += size
 		}
 	}
+	// 深层残留：伴生包替换的临时目录在版本树**里面**
+	// （`tools/node/<ver>/lib/node_modules/npm.tmp.<rand>`、`<target>.old`），
+	// 上面那两条 glob 只到 `tools/*/*` 这一层，扫不到。这里按"最多 6 层"有界下钻：
+	// 再深就是 node_modules 的正常嵌套（几万个文件），扫它不划算，残留也不会落在那里。
+	deep, derr := sweepDeep(p, now, maxAge)
+	if derr == nil {
+		res.Removed = append(res.Removed, deep.Removed...)
+		res.Bytes += deep.Bytes
+	}
 	sort.Strings(res.Removed)
+	return res, nil
+}
+
+// deepSweepDepth 是"从版本目录再往下钻几层"（npm 的临时目录在第 3 层：
+// lib/node_modules/npm.tmp.<rand>）。
+const deepSweepDepth = 6
+
+// skipDirOnly 只对目录返回 SkipDir：WalkDir 对**文件**返回 SkipDir 时会跳过
+// 同一目录下剩下的条目（不是"跳过这个文件"），会漏掉真正的残留。
+func skipDirOnly(d os.DirEntry) error {
+	if d.IsDir() {
+		return filepath.SkipDir
+	}
+	return nil
+}
+
+// sweepDeep 在版本树里找伴生包替换留下的 `.tmp.` / `.old`（有界深度，见 deepSweepDepth）。
+func sweepDeep(p paths.Paths, now time.Time, maxAge time.Duration) (SweepResult, error) {
+	var res SweepResult
+	tools := p.Tools()
+	_ = filepath.WalkDir(tools, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d == nil {
+			return nil
+		}
+		rel, rerr := filepath.Rel(tools, path)
+		if rerr != nil {
+			return nil
+		}
+		// rel 形如 `node/22.22.2/lib/node_modules/npm.tmp.7`：深度 = 段数
+		depth := len(strings.Split(filepath.ToSlash(rel), "/"))
+		if d.IsDir() && depth > 2+deepSweepDepth {
+			return filepath.SkipDir
+		}
+		name := d.Name()
+		if !(strings.Contains(name, ".tmp.") || strings.HasSuffix(name, ".old")) {
+			return nil
+		}
+		info, ierr := d.Info()
+		if ierr != nil || now.Sub(info.ModTime()) < maxAge {
+			return skipDirOnly(d) // 没超时就别往下走（但别把同目录的兄弟条目一起跳过）
+		}
+		size := DirSize(path)
+		if err := os.RemoveAll(path); err != nil {
+			return skipDirOnly(d)
+		}
+		res.Removed = append(res.Removed, path)
+		res.Bytes += size
+		return skipDirOnly(d)
+	})
 	return res, nil
 }
 

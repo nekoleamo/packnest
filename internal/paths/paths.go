@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"github.com/packnest/packnest/internal/coded"
 	"os"
+	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 )
@@ -179,12 +181,60 @@ func SafeJoin(base, name string) (string, error) {
 	return filepath.Join(base, cleaned), nil
 }
 
+// ---- Windows 长路径（\\?\ 前缀化）----
+//
+// Windows 的 260 字符 MAX_PATH 限制在 Win10 1607 之后可以绕过，但**必须**用 `\\?\`
+// 绝对路径前缀（UNC 是 `\\?\UNC\server\share`）。只有真正碰文件系统时才加前缀：
+// 前缀不能出现在 `--json` 输出、shim 内容、PATH 里（用户看不懂，别的工具也不认）。
+//
+// 典型触发点：`<PK_ROOT>/tools/node/<ver>/lib/node_modules/<pkg>/node_modules/...` 这类深层
+// 目录（解压 npm 伴生包时），PK_ROOT 稍长一点就超 260。
+const winMaxPath = 240 // 留 20 字符余量给 `\\?\` 与即将拼接的文件名
+
+// Long 返回"可以安全交给 Windows 文件 API"的路径：
+// 非 Windows、相对路径、已经带前缀、或长度没超阈值时原样返回。
+func Long(p string) string { return longPath(p, runtime.GOOS) }
+
+// longPath 是 Long 的纯函数版（便于在任意平台测 Windows 的逻辑）。
+func longPath(p, goos string) string {
+	if goos != "windows" || len(p) < winMaxPath || !winAbs(p) {
+		return p
+	}
+	if strings.HasPrefix(p, `\\?\`) {
+		return p
+	}
+	// 归一化不依赖平台：先把分隔符统一成 `/` 交给 path.Clean（解决 `..`/重复分隔符），
+	// 再换回反斜杠 —— `\\?\` 前缀要求路径已归一化。
+	clean := func(s string) string {
+		return strings.ReplaceAll(path.Clean(strings.ReplaceAll(s, `\`, "/")), "/", `\`)
+	}
+	// UNC（\\server\share\...）不能整段交给 path.Clean：它会把开头的 `//` 收成一个 `/`。
+	if strings.HasPrefix(p, `\\`) {
+		return `\\?\UNC\` + clean(strings.TrimPrefix(p, `\\`))
+	}
+	return `\\?\` + clean(p)
+}
+
+// winAbs 判 Windows 绝对路径（盘符或 UNC），与运行平台无关（测试要在 mac 上跑这段）。
+func winAbs(p string) bool {
+	if len(p) >= 3 && p[1] == ':' && (p[2] == '\\' || p[2] == '/') {
+		c := p[0]
+		return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
+	}
+	return strings.HasPrefix(p, `\\`)
+}
+
 // ---- 原子落盘（原 atomic.go）：全项目只有这一份实现 ----
 
 var tmpSeq atomic.Uint64 // 临时文件编号（进程内唯一即可）
 
 // WriteAtomic 原子写文件（自动建父目录）。data 已完整在内存里，失败不留半个文件。
-func WriteAtomic(path string, data []byte) error {
+func WriteAtomic(path string, data []byte) error { return WriteAtomicMode(path, data, 0) }
+
+// WriteAtomicMode 是 WriteAtomic 的"保留权限"版本：mode 为 0 时沿用已有文件的权限
+// （不存在则 0644）。写用户配置（`.zshrc` / `.npmrc` 常是 0600，里面有 token）必须走这个，
+// 否则一次原子写就把权限放宽成 0644。
+func WriteAtomicMode(path string, data []byte, mode os.FileMode) error {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return coded.Wrap(err, CodeMkdir, dir)
@@ -192,8 +242,14 @@ func WriteAtomic(path string, data []byte) error {
 	}
 	// 临时名带随机后缀：同一文件可能被并发写（索引预取、并发下载的探测缓存），
 	// 固定 ".tmp" 会让两个 goroutine 抢同一个临时文件，rename 必有一个失败。
+	if mode == 0 {
+		mode = 0o644
+		if fi, err := os.Stat(path); err == nil {
+			mode = fi.Mode().Perm()
+		}
+	}
 	tmp := fmt.Sprintf("%s.tmp.%d", path, tmpSeq.Add(1))
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	if err := os.WriteFile(tmp, data, mode); err != nil {
 		return coded.Wrap(err, CodeWrite, path)
 	}
 	if err := os.Rename(tmp, path); err != nil {

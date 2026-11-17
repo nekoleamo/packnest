@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/packnest/packnest/internal/archive"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/paths"
 	"github.com/packnest/packnest/internal/provider"
@@ -804,4 +805,27 @@ func TestUninstallBranches(t *testing.T) {
 			t.Fatalf("当前默认应被清空: %q", got)
 		}
 	})
+}
+
+// TestInstallShimsFailsWithoutPrimaryBin：主命令（bins[0]）找不到时必须报错。
+// 以前一律 continue，于是 `pk install node@22` 能"成功返回 0"但 bin/node 根本没建出来
+// （项目规矩：不静默降级）。次要别名（npm/npx）仍允许缺。
+func TestInstallShimsFailsWithoutPrimaryBin(t *testing.T) {
+	inst := newInstaller(t, nil, nil)
+	dir := t.TempDir() // 空树：一个 bin 都找不到
+	p := mkProvider("x", nil, "tool", "extra")
+	err := inst.installShims(p, dir)
+	if err == nil {
+		t.Fatal("主命令找不到时必须报错")
+	}
+	if !hasCode(err, archive.CodeBinNotFound) {
+		t.Fatalf("错误码应是 %s，实际 %v", archive.CodeBinNotFound, err)
+	}
+	// 主命令在、别名不在：允许通过
+	if err := os.WriteFile(filepath.Join(dir, "tool"), nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := inst.installShims(p, dir); err != nil {
+		t.Fatalf("只有别名缺失时不该失败: %v", err)
+	}
 }

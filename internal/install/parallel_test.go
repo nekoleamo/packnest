@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/provider"
 	"github.com/packnest/packnest/internal/testkit"
 )
@@ -393,5 +394,84 @@ func TestFirstErr(t *testing.T) {
 	e1, e2 := errors.New("a"), errors.New("b")
 	if got := firstErr([]error{nil, e1, e2}); got != e1 {
 		t.Fatalf("应取第一个错误: %v", got)
+	}
+}
+
+// TestInstallManyFlushesFailedWorkerEvents：并行路径里某个目标 prepare 失败时，
+// 它已经发生的 resolve / download / verify 事件必须补发。
+// 0.14 之前失败分支直接丢掉 prepared.events，消费方按 tool 分组只会看到"这个工具什么都没发生"，
+// 而 --json 契约说 abort / 失败排在"该目标其它事件之后"。
+func TestInstallManyFlushesFailedWorkerEvents(t *testing.T) {
+	mkTool := func(id string, opts ...testkit.Option) *provider.Provider {
+		ft := testkit.NewFakeTool(t, testkit.FakeToolOptions{
+			Tool:         id, // 两个工具的产物路径必须不同：一样的话会命中同一份缓存，投毒字节被发现不了
+			Versions:     []string{"1.0.0"},
+			ProviderTOML: testkit.SingleFileProviderTOML,
+			MakeArtifact: func(platform, _ string) []byte { return testkit.MakeFakeSingleFileZip() },
+			Platforms:    []testkit.FakePlatform{{Goos: "darwin", Goarch: "arm64", Ext: "zip", Name: "aarch64-apple-darwin"}},
+			ChecksumPath: id + "-%s.zip.sha256sum", ChecksumFormat: "per-artifact",
+			Behaviors: opts,
+		})
+		toml := strings.Replace(testkit.SingleFileProviderTOML(ft.Server.URL), `id = "singlefile"`, `id = "`+id+`"`, 1)
+		p, err := provider.Parse([]byte(toml))
+		if err != nil {
+			t.Fatalf("parse %s: %v", id, err)
+		}
+		return p
+	}
+	good := mkTool("good")
+	bad := mkTool("bad", testkit.Corrupt())
+
+	var evs []jsonout.Event
+	inst := newInstaller(t, nil, func(o *Options) {
+		o.LookupProvider = func(id string) (*provider.Provider, error) {
+			if id == "bad" {
+				return bad, nil
+			}
+			return good, nil
+		}
+		o.Events = func(ev jsonout.Event) { evs = append(evs, ev) }
+	})
+	out := inst.InstallMany(context.Background(), []Target{
+		{Tool: "good", Spec: "1.0.0"},
+		{Tool: "bad", Spec: "1.0.0"},
+	})
+	if len(out) != 2 || out[1].Err == nil {
+		t.Fatalf("第二个目标应失败: %+v", out)
+	}
+	var badEvs []string
+	for _, ev := range evs {
+		if ev.Tool == "bad" {
+			badEvs = append(badEvs, ev.Ev)
+		}
+	}
+	if len(badEvs) == 0 {
+		t.Fatalf("失败目标的已发生事件被整段丢弃（事件总数 %d）", len(evs))
+	}
+	if badEvs[0] != "resolve" {
+		t.Fatalf("失败目标的第一条事件应是 resolve，实际 %v", badEvs)
+	}
+}
+
+// TestInstallManyKeepsCompanionTOFUOut 记录一条**故意不做**的事：
+// worker 的 TOFU 副本不能整体并回主表（那样 npm 伴生条目能留下来、省一次求校验和），
+// 因为 npm 伴生包用 sha1（有 shasum 时）、独立 npm 包用 sha512 integrity，
+// 同一个 key 两种算法 → 合并后下一次校验报 sum.algo_changed（见 TestAcceptance_Par_NPMConflict）。
+// 这条用例钉住现状：合并或统一算法时必须同时改这里。
+func TestInstallManyKeepsCompanionTOFUOut(t *testing.T) {
+	fm := testkitNode(t) // node 22.98.0 + 伴生 npm
+	inst := newInstaller(t, fm, nil)
+	out := inst.InstallMany(context.Background(), []Target{
+		{Tool: "node", Spec: "22.98.0"}, {Tool: "node", Spec: "22.98.0"},
+	})
+	for _, o := range out {
+		if o.Err != nil {
+			t.Fatalf("%s 安装失败: %v", o.Tool, o.Err)
+		}
+	}
+	for k := range inst.known.Entries {
+		if strings.HasPrefix(k, "npm@") {
+			t.Fatalf("npm 伴生条目被并进主表了（%s）：先统一两条路径的算法，否则会 sum.algo_changed", k)
+		}
 	}
 }

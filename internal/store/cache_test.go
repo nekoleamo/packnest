@@ -356,3 +356,46 @@ func TestPruneCacheDropsDanglingAliases(t *testing.T) {
 		t.Fatal("dry-run 不该动别名")
 	}
 }
+
+// TestSweepStaleDeepResidue：伴生包替换的临时目录在版本树**里面**
+// （tools/node/<ver>/lib/node_modules/npm.tmp.<rand>），只扫 tools/*/* 那一层是漏的。
+func TestSweepStaleDeepResidue(t *testing.T) {
+	root := t.TempDir()
+	p, _ := paths.New(root)
+	now := time.Now()
+	stale := now.Add(-48 * time.Hour)
+
+	verDir := p.ToolVersion("node", "22.22.2")
+	deepTmp := filepath.Join(verDir, "lib", "node_modules", "npm.tmp.abc123")
+	deepOld := filepath.Join(verDir, "lib", "node_modules", "npm.old")
+	legit := filepath.Join(verDir, "lib", "node_modules", "npm", "index.js")
+	for _, d := range []string{deepTmp, deepOld, filepath.Dir(legit)} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(deepTmp, "x"), []byte("12345"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(legit, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{deepTmp, deepOld} {
+		if err := os.Chtimes(path, stale, stale); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	res, err := SweepStale(p, now, StaleMaxAge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, gone := range []string{deepTmp, deepOld} {
+		if _, err := os.Stat(gone); !os.IsNotExist(err) {
+			t.Fatalf("版本树里的残留没清掉: %s（清掉的: %v）", gone, res.Removed)
+		}
+	}
+	if _, err := os.Stat(legit); err != nil {
+		t.Fatalf("正常文件被误删: %v", err)
+	}
+}

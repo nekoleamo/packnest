@@ -798,11 +798,34 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 **行数预算上调理由**（`tools/loc-budgets.txt`）：`cmd/pk-desktop` 2650 → 2800、
 `internal/update` 720 → 750、`internal/install` 3080 → 3120 —— 全是上面这些修复与其守卫/注释换来的。
 
-### 下一轮（未做，记在这里免得重找）
+### 下一轮
 
-review 里判定“可延后”的 P2：`pk install` 多工具失败目标的事件被整段丢弃、索引 meta 文件按 id 不按
-cacheName 分开（完整/轻量索引互相续命）、`state/cache.json` 读改写无锁、`.zshrc`/`.npmrc` 非原子写、
-解压无大小上限、Windows `\\?\` 长路径前缀化仍未实现。
+review 判定“可延后”的 P2 已在下面「1.9.x：review P2 收尾」一节里处理完（含一条**故意不做**的）。
+
+## 1.9.x：review P2 收尾（2026-11-18，GUI 0.14.0 之后）
+
+这一批**不发 GUI**，随下一次 CLI 版本（v1.9.2）出厂。每条都先写失败用例、再改实现：
+
+| 项 | 改法 | 钉住它的测试 |
+|---|---|---|
+| 并行安装里失败目标的事件被整段丢弃 | `prepare` 提前建 `prepared`，失败也把它带回来；`InstallMany`/`abortAll` 先 `flushEvents` 再报错/发 `abort`（统一在主协程发，避免并发写事件流） | `TestInstallManyFlushesFailedWorkerEvents` |
+| 完整索引与轻量索引共用一个 `<id>.meta.json` | meta 名跟 body 走（`<id>.stable.meta.json`），TTL 不再互相续命 | `TestStableIndexView` 加了 meta 断言 |
+| `state/cache.json` 读-改-写无锁 | `Installer.cacheMu`（指针共享，worker 值拷贝）把 Load→Touch→Save 整段串起来 | `TestRecordCacheTouchConcurrent`（去掉锁必红） |
+| `.zshrc` / `.npmrc` 非原子写 | 新增 `paths.WriteAtomicMode`（原子 + **保留原权限**，`.npmrc` 常是 0600 带 token）；`env.WriteManagedBlock` 与 `pk mirror write` 都改走它 | `TestWriteAtomicMode` |
+| 解压无大小上限 | `archive.MaxExtractBytes`（默认 4 GiB）+ 每次 `Extract` 一份 `extractBudget`，超了删半成品并报新码 `archive.too_large` | `TestExtractRejectsOversizedArchive` |
+| Windows `\\?\` 长路径“承诺了但没实现” | `paths.Long`/`longPath`（纯函数可测）只加在**真碰文件系统**的地方：解压全程走它（npm 伴生包的 node_modules 最容易撞 260）；`--json`/shim/PATH 里仍然是没前缀的原样 | `TestLongPath` |
+| 版本树**内部**的 `.tmp.` / `.old` 永远扫不到 | `store.sweepDeep`：在 `tools/*/*` 下有界下钻 6 层（npm 的临时目录在第 3 层），再深是 node_modules 正常嵌套 | `TestSweepStaleDeepResidue` |
+| 主命令找不到时静默跳过 | `installShims`：`bins[0]` 找不到 → 报 `archive.bin_not_found`；次要别名（npm/npx）仍允许缺 | `TestInstallShimsFailsWithoutPrimaryBin` + 改了两条旧用例的期望 |
+| 单实例端口被别的程序占用 | 文案补上第二种原因与下一步（`pk-desktop --addr 127.0.0.1:7899`） | `TestAcceptance_GUI2_TrayAndSingleInstance` |
+
+**故意没做**：并行 worker 的 TOFU 副本**整体**并回主表。本想这样能把 npm 伴生条目留下来、省一次求校验和，
+但实测直接炸：npm 伴生包在有 `shasum` 时用 **sha1**、独立 npm 包用 **sha512** integrity，同一个
+key（`npm@<ver>/<platform>`）两种算法，合并后下一次校验就报 `sum.algo_changed`
+（`TestAcceptance_Par_NPMConflict`）。要合并必须先统一两条路径的算法 —— 那是另一件事。
+现状由 `TestInstallManyKeepsCompanionTOFUOut` 钉住，谁要动必须同时改它。
+
+行数预算按实际改动上调（理由写进 `tools/loc-budgets.txt`）：`internal/install` 3120→3160、
+`internal/store` 720→780、`internal/archive` 450→510、`internal/paths` 250→290。
 
 ## GUI 0.13.0 已发布（2026-11-17）
 

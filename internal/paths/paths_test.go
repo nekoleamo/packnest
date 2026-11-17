@@ -200,3 +200,78 @@ func TestWriteAtomic(t *testing.T) {
 		t.Fatal("父路径是文件应报错")
 	}
 }
+
+// TestWriteAtomicMode：写用户配置要"原子 + 保留原权限"。
+// 裸 os.WriteFile 会在 Ctrl-C/断电时留下截断的 .zshrc；固定 0644 又会把 0600 放宽。
+func TestWriteAtomicMode(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".zshrc")
+	if err := os.WriteFile(path, []byte("old\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteAtomicMode(path, []byte("new\n"), 0); err != nil {
+		t.Fatalf("WriteAtomicMode: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || string(data) != "new\n" {
+		t.Fatalf("内容没写对: %q %v", data, err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fi.Mode().Perm(); got != 0o600 {
+		t.Fatalf("权限被改成 %o，应保持 0600", got)
+	}
+	// 文件不存在时给默认 0644
+	fresh := filepath.Join(dir, ".npmrc")
+	if err := WriteAtomicMode(fresh, []byte("registry=x\n"), 0); err != nil {
+		t.Fatal(err)
+	}
+	if fi, err := os.Stat(fresh); err != nil || fi.Mode().Perm() != 0o644 {
+		t.Fatalf("新文件应是 0644，实际 %v %v", fi.Mode().Perm(), err)
+	}
+	// 不留临时文件
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".tmp.") {
+			t.Fatalf("残留临时文件: %s", e.Name())
+		}
+	}
+}
+
+// TestLongPath：Windows 长路径前缀化（纯字符串逻辑，任何平台可测）。
+// 只有"真的碰文件系统"时才该加前缀：`--json` 输出、shim 内容、PATH 里出现 `\\?\` 都是 bug。
+func TestLongPath(t *testing.T) {
+	short := `C:\packnest\tools\node\22\bin`
+	if got := longPath(short, "windows"); got != short {
+		t.Fatalf("短路径不该加前缀: %q", got)
+	}
+	deep := `C:\Users\someone\Documents\packnest\tools\node\22.22.2\lib\node_modules\npm\node_modules\` +
+		strings.Repeat(`nested\`, 20) + `build-ideal-tree.js`
+	if len(deep) < 240 {
+		t.Fatalf("测试路径要真的超过 240 字符，实际 %d", len(deep))
+	}
+	if !strings.HasPrefix(longPath(deep, "windows"), `\\?\`) {
+		t.Fatalf("深层绝对路径应加 \\\\?\\ 前缀: %q", longPath(deep, "windows"))
+	}
+	// UNC：\\server\share\... → \\?\UNC\server\share\...
+	unc := `\\server\share\` + strings.Repeat(`deep\`, 60)
+	if got := longPath(unc, "windows"); !strings.HasPrefix(got, `\\?\UNC\server\share\`) {
+		t.Fatalf("UNC 应转成 \\\\?\\UNC\\: %q", got)
+	}
+	// 已经带前缀的不重复加
+	pref := `\\?\C:\` + strings.Repeat(`deep\`, 60)
+	if got := longPath(pref, "windows"); strings.Count(got, `\\?\`) != 1 {
+		t.Fatalf("不要重复加前缀: %q", got)
+	}
+	// 相对路径不加（前缀只对绝对路径合法）
+	rel := strings.Repeat("deep/", 80)
+	if got := longPath(rel, "windows"); got != rel {
+		t.Fatalf("相对路径应原样返回: %q", got)
+	}
+	// 非 Windows 一律原样
+	if got := longPath(deep, "darwin"); got != deep {
+		t.Fatalf("非 Windows 不该动路径: %q", got)
+	}
+}

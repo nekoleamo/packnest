@@ -12,17 +12,17 @@
 # 包路径              上限
 cmd/pk                3400
 cmd/pk/present         800
-internal/install      3120  # 0.14.0：台账路径必须落在 tools/ 下才允许删（insideTools 守卫 + 注释）
+internal/install      3160  # 1.9.x：review P2 收尾（事件补发/主 bin 缺失报错/cache 锁/TOFU 合并的取舍说明）
 internal/selfupdate    800
 internal/provider     1700
 internal/env          1050
 internal/fetch         900
 internal/verify        900
-internal/store         720
+internal/store         780  # 1.9.x：版本树内的深层残留清扫（sweepDeep）
 internal/mirror        500
-internal/archive       450
+internal/archive       510  # 1.9.x：解压总量上限（extractBudget）+ Windows 长路径长调用
 internal/spec          300
-internal/paths         250
+internal/paths         290  # 1.9.x：Long/longPath/winAbs（Windows \\?\ 前缀化）+ WriteAtomicMode
 internal/companion     250
 internal/coded         120
 internal/shim          250

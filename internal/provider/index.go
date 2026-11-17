@@ -127,7 +127,10 @@ func (l *IndexLoader) Load(ctx context.Context, p *Provider, profile string) (*I
 	var errs []string
 	for _, url := range urls {
 		bodyPath := filepath.Join(l.CacheDir, cacheName)
-		metaPath := filepath.Join(l.CacheDir, p.ID+".meta.json")
+		// meta 必须跟 body 一一对应：以前两者都叫 `<id>.meta.json`，于是每次刷新轻量索引
+		// 都给完整索引"续命"（TTL 看 FetchedAt，于是 `pk install node@latest` 可能
+		// 长期读到旧 body 还以为在 TTL 内）。
+		metaPath := filepath.Join(l.CacheDir, strings.TrimSuffix(cacheName, ".json")+".meta.json")
 		// registry 用 abbreviated 元数据：同一个包的完整元数据可能有几十 MB，
 		// 而我们只要 versions[].version/engines/dist —— 小一个数量级，慢源上差别很大。
 		accept := ""

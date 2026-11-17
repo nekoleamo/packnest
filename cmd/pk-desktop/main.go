@@ -286,7 +286,10 @@ func (s *singleInstance) release() {
 // singleInstanceMsg 是"已经有另一个界面在跑"时用户看到的话（带上下一步，不让人去猜）。
 // 独立成函数是为了让 `TestAcceptance_GUI2_TrayAndSingleInstance` 能钉住这句话。
 func singleInstanceMsg(addr string, err error) string {
-	return fmt.Sprintf("已经有一个 packnest 界面在运行（%s）：%v。先关掉那个窗口（或托盘菜单里点退出）再打开", addr, err)
+	// 两种原因共用一个回环端口当锁：①真的已经开着一个界面；②端口被别的程序占了。
+	// 以前只说①，端口冲突的用户会一直在找那个不存在的窗口。
+	return fmt.Sprintf("已经有一个 packnest 界面在运行（%s），或者这个端口被别的程序占着：%v。"+
+		"先关掉那个窗口（托盘菜单里点退出）再打开；如果确认没开着，换一个端口：pk-desktop --addr 127.0.0.1:7899", addr, err)
 }
 
 // closeAction 是"点了窗口关闭"该干什么。

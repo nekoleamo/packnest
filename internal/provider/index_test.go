@@ -501,6 +501,13 @@ func TestStableIndexView(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(cache, "node.stable.json")); !os.IsNotExist(err) {
 		t.Fatal("没有 stable_urls 时不该另存轻量缓存")
 	}
+	// meta 也必须一一对应：共用 <id>.meta.json 时，刷新轻量索引会给完整索引"续命"
+	// （TTL 读的是 meta.FetchedAt），于是 `pk install node@latest` 可能长期吃旧索引。
+	for _, name := range []string{"go.meta.json", "go.stable.meta.json"} {
+		if _, err := os.Stat(filepath.Join(cache, name)); err != nil {
+			t.Fatalf("缺少缓存 %s: %v", name, err)
+		}
+	}
 }
 
 // TestParseRegistryIndexExported：对外的 ParseRegistryIndex 是 install 取平台包摘要的入口，

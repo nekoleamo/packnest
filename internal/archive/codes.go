@@ -14,6 +14,7 @@ const (
 	CodeEntryOpen         = "archive.entry_open"
 	CodeCreate            = "archive.create"
 	CodeWriteTruncated    = "archive.write_truncated"
+	CodeTooLarge          = "archive.too_large"
 	CodeWrite             = "archive.write"
 	CodeLinkEmpty         = "archive.link_empty"
 	CodeLinkAbsolute      = "archive.link_absolute"

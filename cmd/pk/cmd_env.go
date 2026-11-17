@@ -6,6 +6,7 @@ import (
 	"github.com/packnest/packnest/internal/env"
 	"github.com/packnest/packnest/internal/jsonout"
 	"github.com/packnest/packnest/internal/mirror"
+	"github.com/packnest/packnest/internal/paths"
 	"github.com/packnest/packnest/internal/provider"
 	"os"
 	"path/filepath"
@@ -356,7 +357,8 @@ func (a *app) mirrorWrite(args []string) int {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return a.fail(err)
 	}
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+	// 原子写 + 保留原权限（.npmrc 里常有 token，可能是 0600）
+	if err := paths.WriteAtomicMode(path, []byte(body), 0); err != nil {
 		return a.fail(err)
 	}
 

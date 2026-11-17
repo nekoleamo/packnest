@@ -152,6 +152,18 @@ func seedLedger(t *testing.T, p paths.Paths) {
 			t.Fatal(err)
 		}
 	}
+	// 台账说"这两个装好了"，那就得有真的主命令：`pk use` 会重装 shim，
+	// 找不到 bins[0] 现在是硬错误（不静默降级）。
+	for tool, dir := range map[string]string{"node": nodeDir, "pnpm": pnpmDir} {
+		name := tool
+		if goos() == "windows" {
+			name += ".exe"
+		}
+		// 空文件：存在即可（FindBin 只看文件在不在），这样 list 快照里的体积仍是 0 B
+		if err := os.WriteFile(filepath.Join(dir, "bin", name), nil, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	ledger := &store.Ledger{}
 	ledger.Upsert(store.Install{Tool: "node", Version: "26.13.0", Path: nodeDir,
 		NpmVersion: "12.2.2", NpmBundled: "11.20.0", References: []store.Ref{{Kind: store.RefGlobal}}})
