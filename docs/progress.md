@@ -808,6 +808,9 @@ review 判定“可延后”的 P2 已在下面「1.9.x：review P2 收尾」一
 `sbom.cdx.json` + `checksums.txt`(+sshsig)；`verify-release`：签名 OK、8 个 sha256 全部一致；
 brew tap / scoop bucket 已推 1.9.2，`brew uninstall && brew install` 实测装到 `packnest v1.9.2`。
 
+**发版清单里要留的值**（`packaging/setup-pk` 的 `installer-sha256` 输入，CI 侧 pin 用）：
+`scripts/install.sh` = `9ff50b1185e64022608b151ad342de87c23c815e271db59f915eae1b7f7e7293`。
+
 **踩到一个配额坑（记下来免得下次重踩）**：上传 6 个归档时 gitee 全返 `400 验证失败：文件大小已超出仓库附件配额：1 GB`。
 原因是 **CLI 的旧 release 也在吃同一个 1 GB**（`gui-v*` 只是其中一部分）。恢复步骤：
 `sh scripts/release-gui.sh --prune-only --prune 3`（删掉最旧 3 个 gui-v*，gitee + GitHub 一起），

@@ -350,13 +350,13 @@ the new version. **Old versions are kept** — clean them up with `pk gc --keep 
 ```bash
 $ pk upgrade --self --check     # check only
   source: gitee (320ms)
-current 1.9.0, latest 1.9.1 (source: gitee)
+current 1.9.1, latest 1.9.2 (source: gitee)
 a newer release is available: pk upgrade --self (channel: script-posix)
 
 $ pk upgrade --self             # really upgrade: download → verify → sha256 → atomic replace
   source: gitee (298ms)
-  downloading packnest_1.9.1_darwin_arm64.tar.gz (gitee)
-  upgraded to 1.9.1: /Users/you/.local/bin/pk
+  downloading packnest_1.9.2_darwin_arm64.tar.gz (gitee)
+  upgraded to 1.9.2: /Users/you/.local/bin/pk
 ```
 
 - **Source auto-picked**: gitee / GitHub are ranked with the same probe `pk mirror probe` uses (6h cache);
@@ -370,7 +370,7 @@ $ pk upgrade --self             # really upgrade: download → verify → sha256
 ## 11. version / help
 
 ```bash
-$ pk version          # packnest v1.8.1 (go1.27.3, darwin/arm64)
+$ pk version          # packnest v1.9.2 (go1.27.4, darwin/arm64)
 $ pk version --json   # {schema, name, version, go, os, arch}
 $ pk help install     # per-command help
 ```

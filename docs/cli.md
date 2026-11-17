@@ -575,13 +575,13 @@ $ pk upgrade --json       # {schema, changed, failed, items[{tool,from,to,change
 ```bash
 $ pk upgrade --self --check     # 只查
   源：gitee（320ms）
-当前 1.8.2，最新 1.8.3（源：gitee）
+当前 1.9.1，最新 1.9.2（源：gitee）
 有新版本可用：pk upgrade --self（渠道：script-posix）
 
 $ pk upgrade --self             # 真升级（下载 → 验签 → 比 sha256 → 原子替换）
   源：gitee（298ms）
-  下载 packnest_1.8.3_darwin_arm64.tar.gz（gitee）
-  已升级到 1.8.3：/Users/you/.local/bin/pk
+  下载 packnest_1.9.2_darwin_arm64.tar.gz（gitee）
+  已升级到 1.9.2：/Users/you/.local/bin/pk
 ```
 
 - **地址自动选**：候选源 gitee / GitHub 先用 `pk mirror probe` 同款探测排序（6h 缓存），最快的优先，
@@ -595,13 +595,13 @@ $ pk upgrade --self             # 真升级（下载 → 验签 → 比 sha256 �
 
 ```bash
 $ pk --version
-packnest v1.8.1 (go1.27.3, darwin/arm64)
+packnest v1.9.2 (go1.27.4, darwin/arm64)
 
 $ pk --json version
 {
   "schema": 1,
   "name": "packnest",
-  "version": "1.8.1",
+  "version": "1.9.2",
   "go": "go1.27.3",
   "os": "darwin",
   "arch": "arm64"
