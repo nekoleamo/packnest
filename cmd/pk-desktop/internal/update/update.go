@@ -115,7 +115,8 @@ func orderSources(in []Source) []Source {
 	out := make([]Source, 0, len(in))
 	seen := map[string]bool{}
 	for _, s := range in {
-		if RawLatestURLs[s.Name] == "" {
+		// 同一个源只留一条（CLI 的 sources[] 里偶尔会重复报；重复了界面会列两行、探测也会白跑一次）
+		if RawLatestURLs[s.Name] == "" || seen[s.Name] {
 			continue
 		}
 		seen[s.Name] = true
@@ -176,6 +177,12 @@ func guiChannel() struct{ Name, Hint string } {
 	if err != nil {
 		return struct{ Name, Hint string }{"unknown", ""}
 	}
+	return channelOf(exe)
+}
+
+// channelOf 是纯函数版（路径 → 渠道），便于穷举测试：渠道判断错了就会让 scoop/brew
+// 装的那份去自替换，轻则白下一份产物，重则把包管理器管的文件改坏。
+func channelOf(exe string) struct{ Name, Hint string } {
 	p := strings.ToLower(strings.ReplaceAll(exe, `\`, "/"))
 	switch {
 	case strings.Contains(p, "/scoop/apps/packnest-desktop/"):

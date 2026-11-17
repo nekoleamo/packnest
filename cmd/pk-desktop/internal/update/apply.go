@@ -148,7 +148,12 @@ func replaceGUI(exe, unpacked, goos string) error {
 			return fmt.Errorf("挪开旧版本失败: %w", err)
 		}
 		if err := copyTree(newApp, app); err != nil {
-			_ = os.Rename(old, app) // 还原，别让用户没有应用
+			// 先把拷了一半的新版本清掉：留着它的话，下面的还原 rename 会因为
+			// 目标目录已存在而失败——那就变成"旧应用没了、新应用也不完整"。
+			_ = os.RemoveAll(app)
+			if rerr := os.Rename(old, app); rerr != nil {
+				return fmt.Errorf("放入新版本失败: %w（旧版本暂存在 %s，可手动改回）", err, old)
+			}
 			return fmt.Errorf("放入新版本失败: %w", err)
 		}
 		_ = os.RemoveAll(old) // 删不掉就算了（可能还在被引用）

@@ -1,4 +1,4 @@
-# pk-desktop —— packnest 的可视化补充界面（0.12.3）
+# pk-desktop —— packnest 的可视化补充界面（0.13.0，1.0 收口候选）
 
 > **定位**：GUI 不是独立端。**必须先装 CLI**（`pk`），这里只把 `pk <cmd> --json` 的结果投影成界面。
 > 不 import 主模块任何 `internal/*`，业务真相永远在 CLI 与 `PK_ROOT`（方案 §11 定案 2026-11-11）。

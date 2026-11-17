@@ -70,6 +70,8 @@ type gui struct {
 
 	// quitting 是"正在退出"：关窗口时要放行（有托盘时平时是收进托盘）
 	quitting bool
+	// prefsFrozen 是"gui.json 是更新版本写的"：本会话不回写，避免降级后覆盖新格式的偏好
+	prefsFrozen bool
 	// relayout 记"首屏数据已经到了、还要再要一帧"（首帧视口没生效时会少画几行）
 	relayout bool
 	// quitGrace / exitFn 是退出兜底的注入点（测试用；生产是 3s + os.Exit）

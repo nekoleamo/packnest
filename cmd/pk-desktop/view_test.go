@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"math"
@@ -556,6 +557,67 @@ func TestAcceptance_GUI11_ApplyShowsProgressAndResult(t *testing.T) {
 	}
 	if err := tr.Click("复制错误"); err != nil {
 		t.Fatalf("失败时应当能复制错误：%v", err)
+	}
+}
+
+// TestAcceptance_GUI12_PrefsSchemaForwardCompat 守 GUI 1.0 契约 C1（gui.json 只增不改）：
+// ① 读到比本程序新的 schema → 按默认值运行、本会话不回写、文件原样保留（降级也不能毁数据）；
+// ② 1.0 之前的老文件（没有 schema 字段）照旧读，回写时补上 `schema:1`。
+func TestAcceptance_GUI12_PrefsSchemaForwardCompat(t *testing.T) {
+	t.Setenv("PK_GUI_CONFIG_DIR", t.TempDir())
+	log.SetOutput(io.Discard)
+
+	newer := []byte(`{"schema":2,"theme":2,"lang":"en","page":"settings","theme_v2":"solarized"}`)
+	if err := os.WriteFile(prefsPath(), newer, 0o644); err != nil {
+		t.Fatalf("造未来版本的偏好失败: %v", err)
+	}
+	g := &gui{}
+	g.prefsLoad()
+	if !g.prefsFrozen {
+		t.Fatal("读到 schema 2 却没冻住回写：降级后会把新格式的偏好覆盖掉")
+	}
+	if g.lang == "en" || g.themeMode == 2 || g.page == "settings" {
+		t.Fatalf("套用了读不懂的新版本偏好: theme=%d lang=%q page=%q", g.themeMode, g.lang, g.page)
+	}
+
+	// 用户在降级后的界面里改了设置：不许落盘，文件必须原样
+	g.themeMode, g.lang, g.page = 1, "zh", "mirror"
+	g.prefsSave()
+	got, err := os.ReadFile(prefsPath())
+	if err != nil {
+		t.Fatalf("偏好文件被删了: %v", err)
+	}
+	if string(got) != string(newer) {
+		t.Fatalf("回写了读不懂的偏好文件：\n 原 %s\n 现 %s", newer, got)
+	}
+
+	// 老文件（1.0 之前，没有 schema 字段）必须照旧读，回写补 schema
+	old := []byte(`{"theme":1,"lang":"en","page":"mirror"}`)
+	if err := os.WriteFile(prefsPath(), old, 0o644); err != nil {
+		t.Fatalf("造老版本偏好失败: %v", err)
+	}
+	g2 := &gui{}
+	g2.prefsLoad()
+	if g2.prefsFrozen {
+		t.Fatal("老文件（无 schema）被当成高版本冻住了")
+	}
+	if g2.themeMode != 1 || g2.lang != "en" || g2.page != "mirror" {
+		t.Fatalf("老版本偏好没读进来: theme=%d lang=%q page=%q", g2.themeMode, g2.lang, g2.page)
+	}
+	g2.prefsSave()
+	b, err := os.ReadFile(prefsPath())
+	if err != nil {
+		t.Fatalf("读回写后的偏好失败: %v", err)
+	}
+	var p prefs
+	if err := json.Unmarshal(b, &p); err != nil {
+		t.Fatalf("回写不是合法 JSON: %v", err)
+	}
+	if p.Schema != prefsSchema {
+		t.Fatalf("回写没带 schema=%d: %s", prefsSchema, b)
+	}
+	if p.Theme != 1 || p.Lang != "en" || p.Page != "mirror" {
+		t.Fatalf("回写丢了偏好: %+v", p)
 	}
 }
 

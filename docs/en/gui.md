@@ -92,8 +92,26 @@ need `?token=` or `Authorization: Bearer <token>`.
 | "another pk is running" | CLI exit code 5 (`state/lock` held): wait for the running install/uninstall |
 | 404 / 401 | `--serve --addr` on a non-loopback address without `--token`: add one, or pass the token in the browser |
 | macOS refuses to open the app | ad-hoc signature: System Settings → Privacy & Security → "Open Anyway" once |
-| Linux reports missing WebKit | install `libgtk-4-dev libwebkitgtk-6.0-dev` (package names vary per distro) |
+| Linux tray icon missing | install `libayatana-appindicator3`; without a tray the window closes to exit (no crash) |
 | UI shows an old version | the desktop shell embeds its frontend: reinstall the GUI to upgrade it; the CLI version is shown at the top |
+
+## 5.5 Stability promise (GUI 1.0 contract)
+
+Since 1.0.0 the four things below are a **release contract**: `1.0.x` only fixes bugs and never changes them; changing one means a major bump (or `schema:2` with a compatible read path).
+
+| # | Contract | Value |
+|---|---|---|
+| C1 | Preferences file | `gui.json` (`~/Library/Application Support/packnest/` on macOS, `~/.config/packnest/` on Linux, `%AppData%\packnest\` on Windows) holding `schema`/`theme`/`lang`/`page`; **fields are only added, never renamed** |
+| C2 | Single instance and browser form | occupies `--addr` (default `127.0.0.1:7799`); a second instance reports "a packnest window is already running"; the same address is the `--serve` browser form, whose `/api/*` accepts `?token=` or `Authorization: Bearer` |
+| C3 | Self-update path | version from `scripts/latest-gui` → download the artifact → `ssh-keygen -Y verify` against `checksums.txt.sig` → compare sha256 → replace the whole `packnest.app` on macOS, the executable on Windows/Linux → tell the user to reopen; a scoop install only prints `scoop update packnest-desktop` |
+| C4 | Install locations | preferences only under the app config dir; launch-at-login only writes the user-level entry (`~/Library/LaunchAgents/packnest-desktop.plist`, `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, `~/.config/autostart/packnest-desktop.desktop`) and removes only its own entry |
+
+`gui.json` version policy:
+
+- an **old file** (no `schema` field, written before 1.0) is read as before and gets `"schema": 1` on the next save;
+- a **higher `schema`** (you downgraded after running a newer GUI) → run on defaults, **do not write back this session**, leave the file untouched and say so in the log — a downgrade must never destroy a newer format.
+
+The CLI-side contract the GUI relies on is `pk --json` with `schema ≥ 1` (see [json-schema.md](../json-schema.md)); both sides only add fields.
 
 ## 6. Uninstall
 

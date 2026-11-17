@@ -144,6 +144,24 @@ pk-desktop --serve --addr 0.0.0.0:7799 --token <随机串>   # 绑非回环地�
 | Linux 托盘图标不出现 | 缺 `libayatana-appindicator3`：装上就有；没有托盘时关窗口会直接退出（不会崩） |
 | 界面显示旧版本号 | 桌面端版本是编译进去的：换版本要重装 GUI；CLI 版本看界面顶部 `CLI x.y.z` |
 
+## 五点五、GUI 1.0 契约（不再破坏性改）
+
+1.0.0 起，下面四件事属于**发布契约**：`1.0.x` 只修 bug，不动它们；要改就是大版本（或先加到 `schema:2` 并保留兼容读）。
+
+| # | 契约 | 具体取值 |
+|---|---|---|
+| C1 | 偏好文件 | `gui.json`（macOS `~/Library/Application Support/packnest/`、Linux `~/.config/packnest/`、Windows `%AppData%\packnest\`）里的 `schema`/`theme`/`lang`/`page`；**字段只增不改** |
+| C2 | 单实例与浏览器形态 | 占住 `--addr`（默认 `127.0.0.1:7799`）实现单实例，第二个实例报「已经有一个 packnest 界面在运行」；同地址就是 `--serve` 的浏览器形态，`/api/*` 认 `?token=` 或 `Authorization: Bearer` |
+| C3 | 自更新路径 | `scripts/latest-gui` 取版本 → 下载产物 → `ssh-keygen -Y verify` 验 `checksums.txt.sig` → 比 sha256 → macOS 换整个 `packnest.app`、Windows/Linux 换可执行文件 → 提示退出重开；scoop 渠道只提示不自替换 |
+| C4 | 安装位置 | 偏好只在 App 配置目录；开机自启只写**用户级** `~/Library/LaunchAgents/packnest-desktop.plist`、`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`、`~/.config/autostart/packnest-desktop.desktop`，关闭只删自己那条 |
+
+配套的 `gui.json` 版本策略：
+
+- **老文件**（1.0 之前没有 `schema` 字段）照旧读，下次回写补上 `"schema": 1`；
+- **读到更高的 `schema`**（比如用新版 GUI 后降级）→ 按默认值运行、**本会话不回写**、文件原样保留，只在日志里说明一句 —— 降级不能把新格式的偏好毁掉。
+
+GUI 依赖的 CLI 侧契约是 `pk --json` 的 `schema ≥ 1`（见 [json-schema.md](json-schema.md)），两侧都只增不改。
+
 ## 六、卸载
 
 GUI 自己只是个可执行文件，删掉即可；它装的运行时都在 `~/.packnest` 里，统一走 CLI：

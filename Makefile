@@ -235,7 +235,7 @@ gui-serve: gui
 
 # GUI 侧门禁：state 层单测 + 视图验收（ui.Tester 无窗口跑视图）+ 用真 CLI 校验 --json 契约
 gui-test:
-	@cd cmd/pk-desktop && go test -race -count=1 ./...
+	@sh tools/guicov.sh
 
 # 交叉编三平台 GUI（纯 Go，任何一台机器都能出全套；CI 的矩阵因此可以只剩一个 job）
 gui-cross:

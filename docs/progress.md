@@ -12,7 +12,7 @@
 | **M3** | go + python | ✅ 完成（2026-11-10，含真网实测） | `M3_GoNoDoubleDownload` ✅ · `_PythonNoCompile` ✅ · `_PbsDirectoryIndex` ✅ |
 | **M4** | 台账/引用计数/GC/全局包/启动清扫 | ✅ 完成（2026-11-10，含真网实测） | `M4_GcZeroRef` ✅ · `_LedgerRecover` ✅ · `_FrozenMismatchExitCode` ✅ · `_CtrlCNoPartial` ✅ · `_GlobalSurvivesNodeSwitch` ✅ · `_GlobalBinNoReshim` ✅ · `_NativeGlobalDetect` ✅ · `_StartupSweep` ✅ · `_CacheMax` ✅ | `M4_GcZeroRef` / `_LedgerRecover` / `_FrozenMismatchExitCode` / `_CtrlCNoPartial` / `_GlobalSurvivesNodeSwitch` / `_GlobalBinNoReshim` / `_NativeGlobalDetect` / `_StartupSweep` |
 | **M5** | CLI 收口（doctor 全量、`--json` 冻结、6 平台产物、分发） | ✅ 完成（2026-11-10） | 见下方 CLI-DONE 10 条 | §12.2 的 10 条 CLI-DONE |
-| G0–G2 | 桌面端：Wails v3.1.0 + Vue3（0.10–0.11）→ **mygo 原生 UI（0.12 起）** | ✅ 已发布 **`gui-v0.12.2`**（5 产物：mac arm64 / win amd64+arm64 / linux amd64+arm64） | `TestAcceptance_GUI3_ReadOnlyPages` · `_GUI4_WriteGuards` · `_GUI6_I18nComplete` · `_GUI6_NoRawErrorInUI` · `_GUI7_StateShared` |
+| G0–G2 | 桌面端：Wails v3.1.0 + Vue3（0.10–0.11）→ **mygo 原生 UI（0.12 起）** | ✅ 已发布 **`gui-v0.12.3`**（5 产物：mac arm64 / win amd64+arm64 / linux amd64+arm64）；1.0 口径见 `~/Documents/Plan/17-包管理器/pn-GUI-1.0-口径.md`（H1/H2 已落地） | `TestAcceptance_GUI1_CrossCompile` · `_GUI2_TrayAndSingleInstance` · `_GUI3_ReadOnlyPages` · `_GUI4_WriteGuards` · `_GUI6_I18nComplete` · `_GUI6_NoRawErrorInUI` · `_GUI7_StateShared` · `_GUI12_PrefsSchemaForwardCompat` |
 
 ## M0 交付清单（2026-11-10）
 
@@ -710,6 +710,40 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - 现状 **10,500 行**（余量 200）；`cmd/pk` 3,136 / 3,200；单文件无 >600 行。
 - ✅ 门禁：`make loc`（`make check` 第 2 项，`tools/loccheck.sh`）——总计 > 红线退出 1；
   `cmd/pk` > 3,200 与单文件 > 600 只 warn。
+
+## GUI 1.0 口径 · H1/H2/H3 已落地（2026-11-17）
+口径文档：`~/Documents/Plan/17-包管理器/pn-GUI-1.0-口径.md`（H1–H4；已完成 H1+H2+H3，剩 H4 真机一轮）。
+
+**H1 契约冻结**
+
+- `cmd/pk-desktop/prefs.go`：`prefs` 加 `schema`（`prefsSchema = 1`）。读到 `schema > 1` 的偏好 → `prefsFrozen`：**按默认值跑、本会话不回写、文件原样保留**（降级不能毁掉新格式）；老文件（无 `schema` 字段）照旧读，回写补 `"schema":1`。
+- `docs/gui.md` §五点五 / `docs/en/gui.md` §5.5「GUI 1.0 契约」：C1 偏好格式 · C2 单实例 `7799` 与 `--serve` · C3 自更新验签替换路径 · C4 自启只写用户级条目；`1.0.x` 只修 bug，改契约 = 大版本或 `schema:2` + 兼容读。
+- 验收：`TestAcceptance_GUI12_PrefsSchemaForwardCompat`（高版本不套用/不回写/原样保留；老文件照读并补 schema）。
+- 顺带修 `docs/en/gui.md` 一条过时故障项（还写着装 `libgtk-4-dev libwebkitgtk-6.0-dev`，0.12 起原生 UI 只要 GTK3、托盘另需 appindicator）。
+
+**H2 补上方案里承诺却一直没写的两条验收壳**（新增 `cmd/pk-desktop/acceptance_test.go`）
+
+- `TestAcceptance_GUI1_CrossCompile`：5 个发布目标实际交叉编一遍（5.4s）→ 版本串在二进制里 → PE/ELF/Mach-O 与架构对得上 → **Windows 子系统必须是 2（GUI）**，否则就是 0.12.0 那个双击弹黑窗的 bug。已反向验证：去掉 `-H windowsgui` 后 `subsystem=3`，测试会红。
+- `TestAcceptance_GUI2_TrayAndSingleInstance`：单实例互斥（第二个实例做不得，文案含「已经有一个 packnest 界面在运行」+ 下一步，释放后必须能再占）；关窗语义纯函数 `closeBehavior(quitting, hasTray)` —— 有托盘收进托盘 / 无托盘关窗即退 / 正在退出优先放行（0.12.1 退出不退的根因）；托盘图标非空。
+- 顺带把 `main.go` 里的两处内联逻辑提成可测函数：`singleInstanceMsg(addr, err)`、`closeBehavior(quitting, hasTray)`（行为不变）。
+
+行数：`cmd/pk-desktop` **2,632 / 2,650**（余量 18）；`internal/update` **698 / 720**（H3 补测后）。
+
+**H3 GUI 覆盖率门禁**（`tools/guicov.sh` + `tools/guicover.awk`，已接进 `make gui-test`）
+
+逐包下限：`internal/update` ≥85（现 89.1）· `autostart` ≥80（83.3）· `state` ≥70（91.1）· `pkcli` ≥70（83.4）；根包（视图）不设。涨了测试后可调高，调低必须在口径文档里写理由。
+
+- `internal/update` 从 **16.6% → 89.1%**：假 release 目录（真 zip/tar.gz + 真 sha256）+ 可注入 Download/VerifySignature，跑通 linux/windows/darwin 三条替换路径与 8 个失败分支（任何一步失败都断言“旧二进制没动”）；另外用真 `ssh-keygen` 造一把不认识的钥匙签清单，验证**伪造签名会被拒**。
+- `internal/state` 22.9% → **91.1%**：15 个命令封装各两条（正常/ErrNotFound 原样上行）；传输原语用假 RoundTripper；升级链路跑到“验签失败”为止（不做只比 sha256 的降级）。
+- `internal/pkcli` 57.5% → **83.4%**（假 pk 脚本）；`autostart` 72.2% → **83.3%**（无 HOME / 目录被占 / 删不掉三条失败路径）。
+- 顺手修了两个真 bug：`orderSources` 不去重（CLI 重复报同一源时界面列两行、探测白跑）；`replaceGUI` 的 macOS 回滚（copyTree 失败时目标目录已存在，`os.Rename` 还原会失败 → 变成“旧应用没了、新的也不完整”。现在先清半成品再还原）。
+
+## GUI 0.13.0 收口候选（未发布，2026-11-17）
+
+`guiVersion` 已 bump 到 **0.13.0**（H1–H3 落地、等 H4 三平台真机一轮再发 1.0.0）。
+**没有发布**：`scripts/latest-gui` 与 `dist/gui/latest` 仍是 0.12.3，用户文档里的下载链接也仍是
+`gui-v0.12.3` —— 提前改这两个会让人去下不存在的 release。0.13.0 目前只作为本地产物存在
+（`dist/gui-test-0.13.0/`，含 sha256 清单，无签名：不是发布件）。
 
 ## GUI 0.12.3 已发布（2026-11-17）
 

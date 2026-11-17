@@ -28,7 +28,7 @@ import (
 
 // guiVersion 是 GUI 自己的版本（与 CLI 解耦；CLI 版本靠 pkcli 的启动门禁检查）。
 // 发布用的 tag 与产物文件名都跟它走：`gui-v<guiVersion>`。
-const guiVersion = "0.12.3"
+const guiVersion = "0.13.0"
 
 // 图标：packaging/genicon 生成（纯标准库画的"巢"标记）。
 //
@@ -63,7 +63,7 @@ func main() {
 	// 单实例：先占用一个固定回环端口当互斥锁（零依赖）；占不到说明已经开着一个 GUI。
 	single := &singleInstance{}
 	if err := single.acquire(*addr); err != nil {
-		log.Fatalf("已经有一个 packnest 界面在运行（%s）：%v", *addr, err)
+		log.Fatal(singleInstanceMsg(*addr, err))
 	}
 	defer single.release()
 
@@ -164,15 +164,15 @@ func (g *gui) start() {
 	// ⚠️ "退出"（托盘菜单 / ⌘Q / Dock 右键退出）也会走这里：那时必须放行，
 	// 否则 PreventDefault 会把退出取消掉 —— 表现就是"点了退出但进程还在后台"。
 	g.win.OnClose(func(e *mygo.CloseEvent) {
-		if g.quitting {
+		switch closeBehavior(g.quitting, trayErr == nil) {
+		case closeAllow:
 			return // 正在退出：让窗口正常关闭，进程随之结束
-		}
-		if trayErr == nil {
+		case closeHide:
 			e.PreventDefault()
 			g.win.Hide()
-			return
+		default: // closeQuit：没托盘（Linux 缺 appindicator），关窗就是退出
+			mygo.App.Quit()
 		}
-		mygo.App.Quit()
 	})
 
 	// 任何"退出"入口（⌘Q、Dock 菜单、系统注销）先打标记，再让 mygo 走正常退出流程
@@ -267,4 +267,31 @@ func (s *singleInstance) release() {
 	if s.ln != nil {
 		_ = s.ln.Close()
 	}
+}
+
+// singleInstanceMsg 是"已经有另一个界面在跑"时用户看到的话（带上下一步，不让人去猜）。
+// 独立成函数是为了让 `TestAcceptance_GUI2_TrayAndSingleInstance` 能钉住这句话。
+func singleInstanceMsg(addr string, err error) string {
+	return fmt.Sprintf("已经有一个 packnest 界面在运行（%s）：%v。先关掉那个窗口（或托盘菜单里点退出）再打开", addr, err)
+}
+
+// closeAction 是"点了窗口关闭"该干什么。
+type closeAction int
+
+const (
+	closeAllow closeAction = iota // 正在退出：放行，让进程真的结束
+	closeHide                     // 有托盘：关窗 = 收进托盘
+	closeQuit                     // 没托盘：关窗直接退出（不是崩，也不是什么都不做）
+)
+
+// closeBehavior 把 0.12.1 那个坑写成纯函数：退出入口也会走 OnClose，
+// 所以"正在退出"必须优先于"收进托盘"；Linux 缺 appindicator 时降级为关窗即退。
+func closeBehavior(quitting, hasTray bool) closeAction {
+	if quitting {
+		return closeAllow
+	}
+	if hasTray {
+		return closeHide
+	}
+	return closeQuit
 }
