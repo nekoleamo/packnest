@@ -49,6 +49,7 @@ func (g *gui) kvTable(c *ui.Context, key string, rows [][2]string) {
 	list.Key = func(i int) any { return rows[i][0] }
 	// 用 List + Row 而不是 Table：mygo 0.9.1 的 Table 在真实窗口（GPU）里只画表头，
 	// ui.Tester 里却正常 —— 这类"只有窗口里错"的问题只能靠 List 绕开（2026-11-15 实测）。
+	// 0.10.0 的 release notes 没有提 Table/GPU，未复核（本机 screencapture 没有权限），继续用 List。
 	// 高度必须显式给：放在 Scroll 里没有高度约束时 List 会被压成一行。
 	ui.Row(c).FillWidth().Gap(8).Children(func() {
 		ui.Text(c, g.t("键", "Key")).TextColor(c.Theme().TextMuted).Width(190)

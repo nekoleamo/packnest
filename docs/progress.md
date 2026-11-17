@@ -12,7 +12,7 @@
 | **M3** | go + python | ✅ 完成（2026-11-10，含真网实测） | `M3_GoNoDoubleDownload` ✅ · `_PythonNoCompile` ✅ · `_PbsDirectoryIndex` ✅ |
 | **M4** | 台账/引用计数/GC/全局包/启动清扫 | ✅ 完成（2026-11-10，含真网实测） | `M4_GcZeroRef` ✅ · `_LedgerRecover` ✅ · `_FrozenMismatchExitCode` ✅ · `_CtrlCNoPartial` ✅ · `_GlobalSurvivesNodeSwitch` ✅ · `_GlobalBinNoReshim` ✅ · `_NativeGlobalDetect` ✅ · `_StartupSweep` ✅ · `_CacheMax` ✅ | `M4_GcZeroRef` / `_LedgerRecover` / `_FrozenMismatchExitCode` / `_CtrlCNoPartial` / `_GlobalSurvivesNodeSwitch` / `_GlobalBinNoReshim` / `_NativeGlobalDetect` / `_StartupSweep` |
 | **M5** | CLI 收口（doctor 全量、`--json` 冻结、6 平台产物、分发） | ✅ 完成（2026-11-10） | 见下方 CLI-DONE 10 条 | §12.2 的 10 条 CLI-DONE |
-| G0–G2 | 桌面端：Wails v3.1.0 + Vue3（0.10–0.11）→ **mygo 原生 UI（0.12 起）** | ✅ 已发布 **`gui-v0.13.0`**（5 产物：mac arm64 / win amd64+arm64 / linux amd64+arm64）；1.0 口径见 `~/Documents/Plan/17-包管理器/pn-GUI-1.0-口径.md`（H1/H2 已落地） | `TestAcceptance_GUI1_CrossCompile` · `_GUI2_TrayAndSingleInstance` · `_GUI3_ReadOnlyPages` · `_GUI4_WriteGuards` · `_GUI6_I18nComplete` · `_GUI6_NoRawErrorInUI` · `_GUI7_StateShared` · `_GUI12_PrefsSchemaForwardCompat` |
+| G0–G2 | 桌面端：Wails v3.1.0 + Vue3（0.10–0.11）→ **mygo 原生 UI（0.12 起）** | ✅ 已发布 **`gui-v0.14.0`**（5 产物：mac arm64 / win amd64+arm64 / linux amd64+arm64）；1.0 口径见 `~/Documents/Plan/17-包管理器/pn-GUI-1.0-口径.md`（H1/H2 已落地） | `TestAcceptance_GUI1_CrossCompile` · `_GUI2_TrayAndSingleInstance` · `_GUI3_ReadOnlyPages` · `_GUI4_WriteGuards` · `_GUI6_I18nComplete` · `_GUI6_NoRawErrorInUI` · `_GUI7_StateShared` · `_GUI12_PrefsSchemaForwardCompat` |
 
 ## M0 交付清单（2026-11-10）
 
@@ -737,6 +737,72 @@ osx-arm64 自包含包，用真 `pwsh` 跑五个分支（gitee / `-Mirror cn` / 
 - `internal/state` 22.9% → **91.1%**：15 个命令封装各两条（正常/ErrNotFound 原样上行）；传输原语用假 RoundTripper；升级链路跑到“验签失败”为止（不做只比 sha256 的降级）。
 - `internal/pkcli` 57.5% → **83.4%**（假 pk 脚本）；`autostart` 72.2% → **83.3%**（无 HOME / 目录被占 / 删不掉三条失败路径）。
 - 顺手修了两个真 bug：`orderSources` 不去重（CLI 重复报同一源时界面列两行、探测白跑）；`replaceGUI` 的 macOS 回滚（copyTree 失败时目标目录已存在，`os.Rename` 还原会失败 → 变成“旧应用没了、新的也不完整”。现在先清半成品再还原）。
+
+## GUI 0.14.0 已发布（2026-11-18）
+
+`gui-v0.14.0`：gitee + GitHub 双源，5 产物 + `checksums.txt`(+sshsig)。
+`verify-release --gui`：签名 OK、5 个 sha256 全部一致；Scoop `packnest-desktop.json` 已推送为 0.14.0
+（amd64 + arm64），`release-taps.sh` 的 tap + bucket 线上回读都 OK。
+
+这一版 = **mygo v0.9.1 → v0.10.0**（Go API 无断裂；`x/sys` 0.50 / `x/net` 0.62 / `x/text` 0.44 /
+`x/image` 0.48 同批跟进；CLI 侧唯一被允许的第三方 `Masterminds/semver` v3.4.0 → v3.5.0）
++ **一轮全量 code review 修下来的 2 个 P0 / 4 个 P1**。
+
+### 两个 P0（都是“测试绿、真机错”）
+
+1. **点任意「复制」按钮必崩**：`copyText` 在“有窗口”分支里调用了自己 → 栈溢出。
+   `ui.Tester` 跑测试时走的是 `win == nil` 分支（那里只是记到 `g.clipboard`），
+   所以从 0.12 到 0.13 四个版本都没测出来。现在真写 `mygo.Clipboard.WriteText`，
+   并加一条源码断言（`TestP0_CopyTextWritesRealClipboard`）禁止再写成自递归。
+2. **安装队列一条都不装**：`runQueue` 用 `mygo.Window.Update`（**异步投递，返回不等执行**）
+   把“取下一条”投到主线程，投递完立刻在工作 goroutine 里 `if item == nil { break }` →
+   第一次循环就读到 nil，队列直接退出。改用阻塞的 `mygo.RunOnMain`（`onMainSync`），
+   选取规则抽成纯函数 `nextWaitingItem` 并单测。
+
+### 四个 P1
+
+- **macOS 扁平二进制的自升级会毁安装**：`make gui` 出的 `bin/pk-desktop` 不在 `.app` 里，
+  旧代码仍按“换整个 bundle”走：把 exe 当目录写、再把唯一那份二进制当“旧版本”删掉，最后返回成功。
+  新增 `replaceFlat`（`.new` → rename），并补 `TestReplaceGUI_DarwinFlatBinary`。
+- **升级中退出可能留下半个应用**：硬退出兜底只等 3 秒，而替换是“旧的挪开 → 拷新的 → 删旧的”。
+  现在 `applying` 期间兜底改成 2 分钟（`quitGraceAfterApply`，有单测）。
+- **升级成功后界面不回位**：`Restart` 是死分支（`UpdateAvailable` 一直为 true，且 case 顺序在前），
+  再点一次会重新下载 + 再替换一次。现在成功就清 `UpdateAvailable`、置 `Restart`，文案改成“托盘 → 退出 → 重新打开”。
+- **本机 HTTP 接口零鉴权**：桌面壳默认不带 token，任意网页都能 `POST /api/install|uninstall`。
+  新增 `sameOrigin` 中间件（`Origin` 必须与本机 Host 一致、`Sec-Fetch-Site: cross-site` 直接拒），
+  `/api/autostart` 的写分支也从 `ro()` 挪进 `rw()`。命令行（curl / install 脚本）不受影响。
+
+顺手修的：自更新下载原来被 `http.Client` 的 15s **全局**超时掐断（`Timeout` 覆盖读完 body，
+30MB 产物慢网必失败）→ 拆成“小文件 ctx 限 15s / 大文件由 `UpdateApply` 的 300s 管”，
+并加契约测试；`pkcli` 超时不再只显示 `signal: killed`；plist 路径 XML 转义；
+自启/浏览器地址跟 `--addr` 走；启动时清 `.old.*`；不在发布矩阵的平台不再提示“有新版”（避免点必 404）。
+
+### 真机验证
+
+- `make check` 12 项全绿（含 `-race`、6 平台交叉编译、fuzz、bench、golden、GUI 无窗口验收）。
+- **自升级端到端真跑**：临时把 `guiVersion` 降到 0.13.9 构建 .app，`PK_GUI_SMOKE=upgrade` 起窗口 →
+  下载 gitee 上的 0.14.0 → 验 sshsig + sha256 → 替换整个 bundle；替换后 `pk-desktop -version` 报 `0.14.0`，
+  且没有留下 `packnest.app.old.*`。
+- 启动/退出（`osascript quit`）在真窗口下正常。**截图权限拿不到（screencapture 被拒），视觉仍待真机 H4 那一轮。**
+
+### CLI 侧同一轮 review 的修复（**本版不发 CLI**，随下一次 v1.9.x 出厂）
+
+- `checksum.mode = "none"` 现在真的生效（以前这个字段只在 plan 里打印，实际仍报“没有校验源”，
+  与 `docs/troubleshooting.md` 的承诺正面矛盾）。
+- 外部清单的 `companions.*.target` 与 `layout.bins` 补越界校验：一条 `target = "../../.."` 的清单
+  以前能写到 PK_ROOT 之外，`archive.Replace` 还会先把原目录改名再删。
+- “已经是最新”的分支补发 `done` 事件（`--json` 契约写的是“结束看 done”，脚本/GUI 队列行会一直等）。
+- `.cmd` shim 转义 `%`（cmd.exe 在引号里也会展开 `%VAR%`）；卸载前校验台账 `path` 落在 `tools/` 下
+  （台账是纯文件，一条坏记录就能 RemoveAll 任意目录）；`docs/json-schema.md` 补 `plan` 与 done 的口径。
+
+**行数预算上调理由**（`tools/loc-budgets.txt`）：`cmd/pk-desktop` 2650 → 2800、
+`internal/update` 720 → 750、`internal/install` 3080 → 3120 —— 全是上面这些修复与其守卫/注释换来的。
+
+### 下一轮（未做，记在这里免得重找）
+
+review 里判定“可延后”的 P2：`pk install` 多工具失败目标的事件被整段丢弃、索引 meta 文件按 id 不按
+cacheName 分开（完整/轻量索引互相续命）、`state/cache.json` 读改写无锁、`.zshrc`/`.npmrc` 非原子写、
+解压无大小上限、Windows `\\?\` 长路径前缀化仍未实现。
 
 ## GUI 0.13.0 已发布（2026-11-17）
 
