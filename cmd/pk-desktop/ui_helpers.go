@@ -21,13 +21,13 @@ type installEvent = pkcli.Event
 // head 画一页的标题行：标题 + 忙指示 + 可选的刷新按钮。
 func (g *gui) head(c *ui.Context, zh, en, busyKey string, reload func()) {
 	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, g.t(zh, en)).FontSize(15).Bold()
+		ui.Text(c, g.t(zh, en)).FontSize(fontTitle).Bold()
 		if busyKey != "" && g.busy[busyKey] {
 			ui.Spinner(c)
 		}
 		ui.Row(c).Grow(1).Children(func() {})
 		if reload != nil {
-			ui.Button(c, g.t("刷新", "Refresh")).FontSize(12).OnClick(reload)
+			ui.Button(c, g.t("刷新", "Refresh")).FontSize(fontButton).OnClick(reload)
 		}
 	})
 }
@@ -56,7 +56,7 @@ func (g *gui) kvTable(c *ui.Context, key string, rows [][2]string) {
 		ui.Text(c, g.t("值", "Value")).TextColor(c.Theme().TextMuted)
 	})
 	ui.List(c, list, len(rows), func(i int) {
-		ui.Row(c).FillWidth().Gap(8).Padding(4).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).Padding(rowPadY).Children(func() {
 			ui.Text(c, rows[i][0]).Width(190).SingleLine()
 			ui.Text(c, rows[i][1]).SingleLine().Grow(1)
 		})
@@ -73,8 +73,8 @@ func codeBlock(c *ui.Context, s string) {
 // 深色下光靠 Surface 与 Background 的色差分不开卡片，边线才是分层的那根线；
 // 顺带把 GAP/内边距收成一处，卡片之间不再忽大忽小。
 func (g *gui) card(c *ui.Context, fn func()) {
-	ui.Column(c).FillWidth().Gap(6).Padding(12).
-		Background(c.Theme().Surface).Radius(8).
+	ui.Column(c).FillWidth().Gap(6).Padding(spaceLG).
+		Background(c.Theme().Surface).Radius(radiusCard).
 		Border(1, c.Theme().Border).Children(fn)
 }
 

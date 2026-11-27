@@ -31,7 +31,7 @@ func (g *gui) pageMirror(c *ui.Context) {
 	list.Key = func(i int) any { return mirrors[i].Name }
 	ui.List(c, list, len(mirrors), func(i int) {
 		m := mirrors[i]
-		ui.Row(c).FillWidth().Gap(8).Padding(6).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).Padding(spaceSM).Children(func() {
 			if m.Current {
 				ui.Badge(c, g.t("使用中", "in use"))
 			}
@@ -81,7 +81,7 @@ func (g *gui) pageMirror(c *ui.Context) {
 		}
 	})
 	ui.List(c, tl, len(rows), func(i int) {
-		ui.Row(c).FillWidth().Gap(8).Padding(4).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).Padding(rowPadY).Children(func() {
 			ui.Text(c, rows[i][0]).Width(200).SingleLine()
 			ui.Text(c, rows[i][1]).Width(200).SingleLine()
 			ui.Text(c, rows[i][2]).Width(80).SingleLine()

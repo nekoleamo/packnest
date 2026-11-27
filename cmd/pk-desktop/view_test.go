@@ -624,3 +624,38 @@ func TestAcceptance_GUI12_PrefsSchemaForwardCompat(t *testing.T) {
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
+
+// TestAcceptance_GUI13_NarrowLayout 守窄窗：侧栏必须整条收掉、内容不能跟着一起被收。
+//
+// 为什么值一条测试：侧栏宽 150 是 0.12 那版写死的，600 宽的窗口里它吃掉四分之一，
+// 剩下的正文被挤成一列竖字。这类问题只有真窗口才暴露，所以用两个宽度各跑几帧，
+// 断言"宽窗有侧栏、窄窗没有侧栏但正文还在、且文字没被压扁"。
+func TestAcceptance_GUI13_NarrowLayout(t *testing.T) {
+	g, _ := testGUI(t)
+
+	// 宽窗：侧栏在（"镜像"只在侧栏里出现，当前页是已装工具）
+	wide := ui.NewTester(g.view, 1200, 900)
+	wide.Frame()
+	wide.Frame()
+	if !wide.HasText("镜像") {
+		t.Fatalf("宽窗下侧栏丢了：%v", wide.Texts())
+	}
+
+	// 窄窗：宽度是量出来的，收栏发生在下一帧，所以要多跑几帧
+	narrow := ui.NewTester(g.view, 560, 820)
+	narrow.Frame()
+	narrow.Frame()
+	narrow.Frame()
+	if narrow.HasText("镜像") {
+		t.Fatalf("窄窗下侧栏没收（还占着 150 宽）：%v", narrow.Texts())
+	}
+	for _, want := range []string{"已装工具", "22.1.0", "名称", "刷新"} {
+		r, ok := narrow.Find(want)
+		if !ok {
+			t.Fatalf("窄窗下找不到 %q：%v", want, narrow.Texts())
+		}
+		if r.W <= 0 || r.H <= 0 {
+			t.Fatalf("窄窗下 %q 被压成 %.0fx%.0f", want, r.W, r.H)
+		}
+	}
+}

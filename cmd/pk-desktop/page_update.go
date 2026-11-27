@@ -26,8 +26,8 @@ func (g *gui) pageUpdate(c *ui.Context) {
 
 	// 升级中：阶段 + 进度条（下载大文件时按字节走），别再"点了没反应"
 	if g.busy["apply"] {
-		ui.Column(c).FillWidth().Gap(4).Padding(12).
-			Background(c.Theme().Surface).Radius(8).Border(1, c.Theme().Border).Children(func() {
+		ui.Column(c).FillWidth().Gap(4).Padding(spaceLG).
+			Background(c.Theme().Surface).Radius(radiusCard).Border(1, c.Theme().Border).Children(func() {
 			ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Spinner(c)
 				ui.Text(c, g.applyStage).Grow(1)
@@ -45,17 +45,17 @@ func (g *gui) pageUpdate(c *ui.Context) {
 
 	// 上一次升级的结果：成功后"要重开窗口才生效"这句话必须留在页面上，不能只弹个 toast
 	if g.applyMsg != "" {
-		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Padding(10).
-			Background(c.Theme().Surface).Radius(8).Border(1, c.Theme().Border).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Padding(spaceLG).
+			Background(c.Theme().Surface).Radius(radiusCard).Border(1, c.Theme().Border).Children(func() {
 			col := c.Theme().Success
 			if g.applyErr {
 				col = c.Theme().Warning
 			}
 			ui.Text(c, g.applyMsg).Grow(1).TextColor(col)
 			if g.applyErr {
-				ui.Button(c, g.t("复制错误", "Copy error")).FontSize(12).OnClick(func() { g.copyText(g.applyMsg) })
+				ui.Button(c, g.t("复制错误", "Copy error")).FontSize(fontButton).OnClick(func() { g.copyText(g.applyMsg) })
 			}
-			ui.Button(c, g.t("知道了", "Dismiss")).FontSize(12).OnClick(func() { g.applyMsg = "" })
+			ui.Button(c, g.t("知道了", "Dismiss")).FontSize(fontButton).OnClick(func() { g.applyMsg = "" })
 		})
 	}
 

@@ -22,14 +22,30 @@ var moreSVG []byte
 
 var iconMore = ui.MustParseSVG(moreSVG)
 
-// 列的宽度集中在这里：表头与每一行共用，改一个数字两边一起动。
-const (
-	colName  float32 = 64
-	colVer   float32 = 92
-	colBadge float32 = 148
-	colSize  float32 = 68
-	colOps   float32 = 48
-)
+// 六列的相对宽度与最小宽度：用权重而不是像素。
+//
+// 0.12 那版写死 64/92/148/68/48：窗口拉宽时右边永远空一截，切英文后中文列又被挤。
+// 自绘没有 @container（规格书 §10），响应式只能靠“权重 + 最小宽”两个数。
+var toolCols = [6]struct {
+	grow, min float32
+}{
+	{1.4, 56},  // 名称
+	{1.4, 66},  // 版本
+	{2.0, 112}, // 状态（最多挂三个徐标）
+	{3.4, 0},   // 路径（吃剩下的宽度，不设下限，反正单行截断）
+	{1.1, 54},  // 大小
+	{0.7, 34},  // 操作
+}
+
+// col 给第 i 列套宽度规则：表头与每一行共用，改一个数字两边一起动。
+func col(el ui.Element, i int) ui.Element {
+	c := toolCols[i]
+	el = el.Grow(c.grow)
+	if c.min > 0 {
+		el = el.MinWidth(c.min)
+	}
+	return el
+}
 
 func (g *gui) pageInstalled(c *ui.Context) {
 	g.head(c, "已装工具", "Installed tools", "tools", nil) // 全局刷新在顶栏，这页不再重复
@@ -44,10 +60,13 @@ func (g *gui) pageInstalled(c *ui.Context) {
 	if len(g.tools.Outdated) > 0 {
 		for _, o := range g.tools.Outdated {
 			o := o
-			ui.Row(c).FillWidth().Gap(8).Padding(6).Background(c.Theme().Surface).Radius(6).AlignItems(ui.Center).Children(func() {
+			// 一行一块：浅色下 Surface 与画布只差 1%，必须靠发丝边才看得出“这是可操作的一块”
+			// （只给背景的话，浅色下它和画布都是白、深色下和画布同值，两边都看不见）。
+			ui.Row(c).FillWidth().Gap(8).Padding(spaceSM).Background(c.Theme().Surface).
+				Radius(radiusRow).Border(1, c.Theme().Border).AlignItems(ui.Center).Children(func() {
 				ui.Badge(c, g.t("可升级", "update"))
 				ui.Textf(c, "%s %s → %s", o.Name, o.Installed, o.Latest).Grow(1)
-				ui.Button(c, g.t("升级", "Upgrade")).FontSize(12).OnClick(func() {
+				ui.Button(c, g.t("升级", "Upgrade")).FontSize(fontButton).OnClick(func() {
 					g.enqueue(o.Name + "@" + o.Latest)
 					g.page = "queue"
 					g.runQueue()
@@ -79,20 +98,14 @@ func (g *gui) pageInstalled(c *ui.Context) {
 	})
 
 	// 列头：让对齐自己解释自己（不然一排数字很难读）
-	ui.Row(c).FillWidth().Gap(10).Padding(0, 6).Children(func() {
-		for _, h := range [][2]any{
-			{g.t("名称", "Name"), colName},
-			{g.t("版本", "Version"), colVer},
-			{g.t("状态", "State"), colBadge},
-			{g.t("路径", "Path"), float32(0)},
-			{g.t("大小", "Size"), colSize},
-			{g.t("操作", "Actions"), colOps},
+	ui.Row(c).FillWidth().Gap(10).Padding(0, spaceSM).Children(func() {
+		for i, h := range []string{
+			g.t("名称", "Name"), g.t("版本", "Version"), g.t("状态", "State"),
+			g.t("路径", "Path"), g.t("大小", "Size"), g.t("操作", "Actions"),
 		} {
-			txt := ui.Text(c, h[0].(string)).FontSize(11).TextColor(c.Theme().TextMuted)
-			if w, ok := h[1].(float32); ok && w > 0 {
-				txt.Width(w)
-			} else {
-				txt.Grow(1)
+			header := col(ui.Text(c, h).FontSize(fontCaption).TextColor(c.Theme().TextMuted), i)
+			if i == 4 {
+				header.TextAlign(ui.End) // 数字右对齐：一排大小才能上下扫着看
 			}
 		}
 	})
@@ -101,10 +114,10 @@ func (g *gui) pageInstalled(c *ui.Context) {
 	list.Key = func(i int) any { return tools[i].Name + "@" + tools[i].Version }
 	ui.List(c, list, len(tools), func(i int) { // 列表撑满剩余高度，别在下面留一截空白
 		t := tools[i]
-		ui.Row(c).FillWidth().Gap(10).Padding(4, 6).AlignItems(ui.Center).Children(func() {
-			ui.Text(c, t.Name).Bold().Width(colName)
-			ui.Text(c, t.Version).Width(colVer)
-			ui.Row(c).Width(colBadge).Gap(4).Children(func() {
+		ui.Row(c).FillWidth().Gap(10).Padding(rowPadY, spaceSM).AlignItems(ui.Center).Children(func() {
+			col(ui.Text(c, t.Name).Bold(), 0)
+			col(ui.Text(c, t.Version), 1)
+			col(ui.Row(c).Gap(4), 2).Children(func() {
 				if t.Active {
 					ui.Badge(c, g.t("默认", "active"))
 				}
@@ -116,15 +129,15 @@ func (g *gui) pageInstalled(c *ui.Context) {
 					ui.Badge(c, "npm "+t.NPM.Version)
 				}
 			})
-			ui.Text(c, t.Path).TextColor(c.Theme().TextMuted).SingleLine().Grow(1)
+			col(ui.Text(c, t.Path).TextColor(c.Theme().TextMuted).SingleLine(), 3)
 			size := ""
 			if t.SizeBytes > 0 {
 				size = humanBytes(t.SizeBytes)
 			}
-			ui.Text(c, size).TextColor(c.Theme().TextMuted).Width(colSize)
+			col(ui.Text(c, size).TextColor(c.Theme().TextMuted).TextAlign(ui.End), 4)
 			// 行内动作收进一个菜单：三个按钮平铺会把"路径"挤没，也不好看
 			// 幽灵按钮：常驻不画底色（不然深色下像个浮在行上的小块），悬停/聚焦时才有面
-			ui.Button(c, "").Label(g.t("更多", "More")).Width(colOps).Height(22).
+			col(ui.Button(c, "").Label(g.t("更多", "More")).Height(22), 5).
 				Background(ui.Transparent).BorderWidth(0).Menu(func(m *ui.Menu) {
 				if m.Item(g.t("设为默认版本", "Make active")).Disabled(t.Active).Chosen() {
 					g.useVersion(t.Name, t.Version)
@@ -146,7 +159,7 @@ func (g *gui) installHint(c *ui.Context) {
 	ui.Row(c).FillWidth().Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, g.t("装一个试试：", "Try: ")).TextColor(c.Theme().TextMuted)
 		ui.Text(c, "pk install node@lts").Font("monospace").SingleLine()
-		ui.Button(c, g.t("复制", "Copy")).FontSize(12).OnClick(func() {
+		ui.Button(c, g.t("复制", "Copy")).FontSize(fontButton).OnClick(func() {
 			g.copyText("pk install node@lts")
 		})
 	})

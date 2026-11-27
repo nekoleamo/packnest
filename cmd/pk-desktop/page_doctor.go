@@ -45,7 +45,7 @@ func (g *gui) pageDoctor(c *ui.Context) {
 			ui.Text(c, g.t("说明", "Message")).TextColor(c.Theme().TextMuted)
 		})
 		ui.List(c, tl, len(rows), func(i int) {
-			ui.Row(c).FillWidth().Gap(8).Padding(4).Children(func() {
+			ui.Row(c).FillWidth().Gap(8).Padding(rowPadY).Children(func() {
 				ui.Text(c, rows[i][0]).Width(80).SingleLine()
 				ui.Text(c, rows[i][1]).Width(220).SingleLine()
 				ui.Text(c, rows[i][2]).SingleLine().Grow(1)

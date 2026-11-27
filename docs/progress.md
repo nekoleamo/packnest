@@ -12,7 +12,7 @@
 | **M3** | go + python | ✅ 完成（2026-11-10，含真网实测） | `M3_GoNoDoubleDownload` ✅ · `_PythonNoCompile` ✅ · `_PbsDirectoryIndex` ✅ |
 | **M4** | 台账/引用计数/GC/全局包/启动清扫 | ✅ 完成（2026-11-10，含真网实测） | `M4_GcZeroRef` ✅ · `_LedgerRecover` ✅ · `_FrozenMismatchExitCode` ✅ · `_CtrlCNoPartial` ✅ · `_GlobalSurvivesNodeSwitch` ✅ · `_GlobalBinNoReshim` ✅ · `_NativeGlobalDetect` ✅ · `_StartupSweep` ✅ · `_CacheMax` ✅ | `M4_GcZeroRef` / `_LedgerRecover` / `_FrozenMismatchExitCode` / `_CtrlCNoPartial` / `_GlobalSurvivesNodeSwitch` / `_GlobalBinNoReshim` / `_NativeGlobalDetect` / `_StartupSweep` |
 | **M5** | CLI 收口（doctor 全量、`--json` 冻结、6 平台产物、分发） | ✅ 完成（2026-11-10） | 见下方 CLI-DONE 10 条 | §12.2 的 10 条 CLI-DONE |
-| G0–G2 | 桌面端：Wails v3.1.0 + Vue3（0.10–0.11）→ **mygo 原生 UI（0.12 起）** | ✅ 已发布 **`gui-v0.14.0`**（5 产物：mac arm64 / win amd64+arm64 / linux amd64+arm64）；1.0 口径见 `~/Documents/Plan/17-包管理器/pn-GUI-1.0-口径.md`（H1/H2 已落地） | `TestAcceptance_GUI1_CrossCompile` · `_GUI2_TrayAndSingleInstance` · `_GUI3_ReadOnlyPages` · `_GUI4_WriteGuards` · `_GUI6_I18nComplete` · `_GUI6_NoRawErrorInUI` · `_GUI7_StateShared` · `_GUI12_PrefsSchemaForwardCompat` |
+| G0–G2 | 桌面端：Wails v3.1.0 + Vue3（0.10–0.11）→ **mygo 原生 UI（0.12 起）** → **CDS 令牌移植 + 窄窗响应式（0.15）** | ✅ 已发布 **`gui-v0.14.0`**，0.15.0 待发（5 产物：mac arm64 / win amd64+arm64 / linux amd64+arm64）；1.0 口径见 `~/Documents/Plan/17-包管理器/pn-GUI-1.0-口径.md`（H1/H2 已落地） | `TestAcceptance_GUI1_CrossCompile` · `_GUI2_TrayAndSingleInstance` · `_GUI3_ReadOnlyPages` · `_GUI4_WriteGuards` · `_GUI6_I18nComplete` · `_GUI6_NoRawErrorInUI` · `_GUI7_StateShared` · `_GUI8_ThemeContrast` · `_GUI12_PrefsSchemaForwardCompat` · `_GUI13_NarrowLayout` |
 
 ## M0 交付清单（2026-11-10）
 
@@ -933,6 +933,21 @@ Windows 侧复核（无 Windows 机器）：从**已发布的 zip** 里取出 ex
 
 Windows 侧核查（无 Windows 机器，靠静态+构建期）：PE 头 `subsystem=2`（GUI）逐架构确认、
 `GOOS=windows go vet` 通过、版本串在 exe 里、`-H windowsgui` 入三处构建脚本。
+
+## GUI 0.15.0：CDS 令牌移植 + 窄窗响应式（2026-11-28）
+
+**做了什么**（方案依据：`~/Documents/Plan/23-mygo-UI两条路线/mygo-ui-purego规格书.md`，走 purego 路线 B）：
+
+- 新增 `cmd/pk-desktop/tokens.go`：把规格书里**对控制台型界面有落点**的部分收进来 —— 灰阶 10 个落点、四层表面、字号/圆角/间距阶梯、三档时长、两条曲线；§8.3 弹簧与 §8.4 行为物理（图钉/死区/波形）在 pk 里没有落点，明确不收。
+- `themeFor` 从“只覆盖 9 个字段”补成**整张调色板**：之前 `Danger/Warning/Success/Focus/Inverse/Scrollbar/AccentHover/AccentPressed` 全是 mygo 默认值，在自定义 `#161616` 底上从没校过对比度。
+- 配色改 Claude/DSH 那套暖灰 + 陶土橙。**两档都过本项目的 `_GUI8_ThemeContrast`**：浅色把陶土橙压深到 `#b0512f`（白字 4.99:1），深色保持原值 `#d97757` 改配深字（5.88:1）—— 照抄上游 `#d97757`+白字只有 2.96:1，过不了门禁。
+- 字号/圆角/内边距从 11/17 处字面量收敛到常量（`Gap` 仍写字面量：行内微间距读数字比读名字快）。
+- 动效只加两处：切页自下方 6 DIP 消融（120ms，`Position` 单开，尺寸不跟着动）、侧栏 150↔120 平滑收放；toast 与确认框用 mygo 原生动效，不重复造。
+- **窄窗响应式**（本轮真正的“界面优化”）：已装页六列从写死像素（64/92/148/68/48）改成 `Grow` 权重 + 最小宽，`大小` 右对齐；`<620` 收掉侧栏改用顶栏页下拉，`780–620` 侧栏先收到 120；窄窗下顶栏让出 CLI 版本与路径，避免控件被挤成 0 宽。
+
+**验收**：`_GUI13_NarrowLayout`（新增：宽窗有侧栏 / 窄窗没侧栏但正文还在且没被压扁 / 顶栏「刷新」仍可见）、`_GUI8_ThemeContrast`、`_GUI5_LayoutNotCollapsed` 全绿；`go test -race ./...` 26 passed；`make gui-cross` 五份产物全成（`CGO_ENABLED=0`）；`make loc` 通过（`cmd/pk-desktop` 2,743 → 2,950，预算 2800 → 3050）。
+
+**没做/没验**：真窗口截图（本机 `screencapture` 无屏幕录制权限），视觉核对改用 `ui.Tester.Image()` 导出的 PNG（浅/深/窄窗各一张）；Windows WebView 无关（本界面无 webview），但**Windows/Linux 真机外观未看`。
 
 ## GUI 0.12.0 已发布（2026-11-15）
 

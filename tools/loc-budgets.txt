@@ -5,7 +5,7 @@
 # 规则：只增不减 —— 调高上限必须在 docs/progress.md 里给出理由（哪个功能换来的）。
 # 新增包必须在这里登记上限，否则 loccheck 会报"未登记"。
 #
-# cmd/pk-desktop 的预算（2026-11-15 GUI 换 mygo 原生 UI 时登记；同日界面排版一轮后 2300 → 2350 → 2400 → 2550 → 2650（0.12.3：自升级的阶段/进度/结果 UI）→ 2800（0.14.0：review 修 4 处真 bug））:
+# cmd/pk-desktop 的预算（2026-11-15 GUI 换 mygo 原生 UI 时登记；同日界面排版一轮后 2300 → 2350 → 2400 → 2550 → 2650（0.12.3：自升级的阶段/进度/结果 UI）→ 2800（0.14.0：review 修 4 处真 bug）→ 3050（0.15.0：CDS 令牌移植 + 窄窗响应式））:
 # 界面从 Vue(1318 行 TS) + Wails 壳(709 行) 变成 8 页原生视图 + internal/state 装配层，
 # 总量 2,329 → 4,269；换来的东西写在 docs/progress.md 与 pn-GUI-mygo原生界面重写-方案.md。
 #
@@ -28,7 +28,7 @@ internal/coded         120
 internal/shim          250
 internal/jsonout       250
 # GUI（cmd/pk-desktop，桌面补充界面）
-cmd/pk-desktop                 2800  # 0.14.0：review 修 4 处真 bug（复制自递归 / 队列异步投递 / 跨源请求 / 扁平二进制自升级）留下的守卫与注释
+cmd/pk-desktop                 3050  # 0.15.0：CDS 令牌移植（tokens.go 调色板/尺度表 + 主题字段补全 + 切页动效 + 窄窗响应式）；预算靠正文注释解释，不搞拆包钓鱼
 cmd/pk-desktop/internal/pkcli   700
 cmd/pk-desktop/internal/update  750  # 0.14.0：replaceFlat（不是 .app 的扁平二进制）+ 自更新平台白名单
 cmd/pk-desktop/internal/autostart 220

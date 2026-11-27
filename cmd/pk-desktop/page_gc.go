@@ -20,7 +20,7 @@ func (g *gui) pageGC(c *ui.Context) {
 		ui.Text(c, g.t("每工具保留", "Keep")).TextColor(c.Theme().TextMuted)
 		ui.NumberInput(c, &keep, 0, 20, 1).Width(70)
 		ui.Text(c, g.t("个版本", "versions")).TextColor(c.Theme().TextMuted)
-		ui.Text(c, g.t("（0 = 只留当前）", "(0 = active only)")).FontSize(11).TextColor(c.Theme().TextMuted)
+		ui.Text(c, g.t("（0 = 只留当前）", "(0 = active only)")).FontSize(fontCaption).TextColor(c.Theme().TextMuted)
 		ui.Row(c).Grow(1).Children(func() {})
 		if g.busy["gc"] {
 			ui.Spinner(c)

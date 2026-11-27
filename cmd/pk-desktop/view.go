@@ -81,6 +81,9 @@ type gui struct {
 	exitFn    func(int)
 	// addr 是本进程实际监听的回环地址（设置页“在浏览器里打开”要拼对端口）
 	addr string
+	// winWidth 是上一帧量到的窗口宽度：响应式分支（窄窗收侧栏）读它。
+	// 布局完了才量得到，所以收放有一帧滞后，肉眼无感。
+	winWidth float32
 
 	// 各页数据（每页自己刷，互不阻塞）
 	available []pkcli.AvailableTool
@@ -189,50 +192,56 @@ func (g *gui) view(c *ui.Context) {
 		c.Invalidate()
 	}
 
-	ui.Column(c).Fill().Children(func() {
+	root := ui.Column(c).Fill().Children(func() {
 		g.header(c)
 		ui.Divider(c)
 		// Stretch：侧边栏要整列铺满（默认 AlignItems 是 Center，会把它挤到竖直中间）
 		ui.Row(c).Fill().Grow(1).AlignItems(ui.Stretch).Children(func() {
 			// 平铺而不是分组：mygo 的分组标题没法调样式，加一层反而看不出层级
-			ui.Sidebar(c, &g.page, func() {
-				ui.SidebarItem(c, "installed", nil, g.t("已装工具", "Installed")).Children(func() {
-					if n := len(g.tools.Outdated); n > 0 {
-						ui.Badge(c, fmt.Sprint(n))
-					}
-				})
-				ui.SidebarItem(c, "queue", nil, g.t("安装", "Install")).Children(func() {
-					if n := g.queuePending(); n > 0 {
-						ui.Badge(c, fmt.Sprint(n))
-					}
-				})
-				ui.SidebarItem(c, "mirror", nil, g.t("镜像", "Mirrors"))
-				ui.SidebarItem(c, "env", nil, g.t("环境", "Environment"))
-				ui.SidebarItem(c, "update", nil, g.t("更新", "Update"))
-				ui.SidebarItem(c, "doctor", nil, g.t("体检", "Doctor")).Children(func() {
-					if n := len(g.doctor.Issues); n > 0 {
-						ui.Badge(c, fmt.Sprint(n))
-					}
-				})
-				ui.SidebarItem(c, "gc", nil, g.t("磁盘", "Storage"))
-				ui.SidebarItem(c, "settings", nil, g.t("设置", "Settings"))
-			}).Width(150)
+			// 窄窗（<620）整个收掉：150 宽在 600 宽的窗口里要吃四分之一，正文会被挤成一条竖线。
+			if !g.narrow() {
+				ui.Sidebar(c, &g.page, func() {
+					ui.SidebarItem(c, "installed", nil, g.t("已装工具", "Installed")).Children(func() {
+						if n := len(g.tools.Outdated); n > 0 {
+							ui.Badge(c, fmt.Sprint(n))
+						}
+					})
+					ui.SidebarItem(c, "queue", nil, g.t("安装", "Install")).Children(func() {
+						if n := g.queuePending(); n > 0 {
+							ui.Badge(c, fmt.Sprint(n))
+						}
+					})
+					ui.SidebarItem(c, "mirror", nil, g.t("镜像", "Mirrors"))
+					ui.SidebarItem(c, "env", nil, g.t("环境", "Environment"))
+					ui.SidebarItem(c, "update", nil, g.t("更新", "Update"))
+					ui.SidebarItem(c, "doctor", nil, g.t("体检", "Doctor")).Children(func() {
+						if n := len(g.doctor.Issues); n > 0 {
+							ui.Badge(c, fmt.Sprint(n))
+						}
+					})
+					ui.SidebarItem(c, "gc", nil, g.t("磁盘", "Storage"))
+					ui.SidebarItem(c, "settings", nil, g.t("设置", "Settings"))
+				}).Width(g.navWidth()).Transition(navResize)
+			}
 			if g.pageFills() {
 				// 列表页：不套 Scroll，让 List 自己占满并滚动（首帧就画对，不会先画两三行）
-				ui.Column(c).Fill().Grow(1).Padding(12, 14).Gap(6).Children(func() {
+				// Key=页 id + 入场动效：切页才重放，页内 ListState 在外部，不受影响。
+				ui.Column(c).Fill().Grow(1).Padding(spaceLG, pagePadX).Gap(6).
+					Key(g.page).Transition(pageEnter).Children(func() {
 					g.pageView(c)
 				})
 			} else {
-				ui.Scroll(c).Fill().Grow(1).Children(func() {
+				ui.Scroll(c).Fill().Grow(1).Key(g.page).Transition(pageEnter).Children(func() {
 					// 只填宽不填高：放在 Scroll 里时 Fill() 会把高度钉成视口高度，
 					// 后面的表格就只剩表头可见（2026-11-15 实测踩到）
-					ui.Column(c).FillWidth().Padding(12, 14).Gap(6).Children(func() {
+					ui.Column(c).FillWidth().Padding(spaceLG, pagePadX).Gap(6).Children(func() {
 						g.pageView(c)
 					})
 				})
 			}
 		})
 	})
+	g.measure(root)
 
 	g.confirmView(c)
 }
@@ -245,6 +254,64 @@ func (g *gui) pageFills() bool {
 		}
 	}
 	return false
+}
+
+// measure 记下这一帧量到的窗口宽度。Bounds 给的是布局结果，所以响应式分支
+// 总是晚一帧：拖窗口时第一帧还按旧宽度画，第二帧才收放（不这么做就得到处传视口）。
+func (g *gui) measure(root ui.Element) {
+	if b := root.Bounds(); b.W > 0 {
+		g.winWidth = b.W
+	}
+}
+
+// narrow 是“窄到放不下侧栏”的阈值（<620）：改用顶栏下拉选页。
+// 还没量到宽度时（第一帧）一律算宽：宁肯先用大布局，也别一开店就是窄窗版。
+func (g *gui) narrow() bool { return g.winWidth > 0 && g.winWidth < narrowWidth }
+
+// slim 是“侧栏先收一档”的阈值（780–620）：只压左侧留白，不动字号。
+func (g *gui) slim() bool { return g.winWidth > 0 && g.winWidth < slimWidth }
+
+func (g *gui) navWidth() float32 {
+	if g.slim() {
+		return sidebarSlimWidth
+	}
+	return sidebarFullWidth
+}
+
+// pagePicker 是窄窗下的页导航：侧栏收起来之后，页总得有个地方选。
+//
+// 绑定的是“当前页的文案”：Select 会写回 pick，Changed 时再反查 id。
+// 文案随语言变，所以反查也按当前语言的文案比，不能存中文字面量。
+func (g *gui) pagePicker(c *ui.Context) {
+	labels, ids := g.navPages()
+	pick := ""
+	for i, id := range ids {
+		if id == g.page {
+			pick = labels[i]
+		}
+	}
+	ui.Select(c, &pick, labels).Width(118)
+	if pick == "" {
+		return
+	}
+	for i, l := range labels {
+		if l == pick {
+			g.page = ids[i]
+			return
+		}
+	}
+}
+
+// navPages 是“画在导航里”的那几页（versions 只能从安装页跳进来，不进导航）。
+func (g *gui) navPages() (labels, ids []string) {
+	for _, p := range pages {
+		if p.id == "versions" {
+			continue
+		}
+		labels = append(labels, g.t(p.zh, p.en))
+		ids = append(ids, p.id)
+	}
+	return
 }
 
 // pageView 派发到当前页；第一次进某页时顺手把它的数据拉一次（每页只拉一次）。
@@ -305,11 +372,20 @@ func (g *gui) ensureLoaded(id string) {
 //
 // 只放"全局"的东西：每一页自己的刷新/操放在页标题行上，避免同一屏两个「刷新」。
 func (g *gui) header(c *ui.Context) {
-	ui.Row(c).FillWidth().Padding(6, 12).Gap(10).AlignItems(ui.Center).Children(func() {
-		ui.Text(c, "packnest").FontSize(15).Bold()
+	ui.Row(c).FillWidth().Padding(spaceSM, spaceLG).Gap(10).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, "packnest").FontSize(fontTitle).Bold()
+		if g.narrow() {
+			g.pagePicker(c)
+		}
 		if g.status.OK && g.status.CLI != nil {
-			ui.Text(c, "CLI "+g.status.CLI.Version).TextColor(c.Theme().TextMuted)
-			ui.Text(c, g.status.Path).TextColor(c.Theme().TextMuted).SingleLine().Grow(1)
+			if g.narrow() {
+				// 窄窗：CLI 版本与路径都让给控件，否则“CLI 1.9.1”会被折成两行、
+				// Refresh/语言/主题三个控件被挤到看不见（560 宽实测）。版本在设置页能看到。
+				ui.Row(c).Grow(1).Children(func() {})
+			} else {
+				ui.Text(c, "CLI "+g.status.CLI.Version).TextColor(c.Theme().TextMuted)
+				ui.Text(c, g.status.Path).TextColor(c.Theme().TextMuted).SingleLine().Grow(1)
+			}
 		} else {
 			ui.Badge(c, g.t("未装 CLI", "CLI missing"))
 			ui.Row(c).Grow(1).Children(func() {})
@@ -317,7 +393,7 @@ func (g *gui) header(c *ui.Context) {
 		if g.busy["refresh"] {
 			ui.Spinner(c)
 		}
-		ui.Button(c, g.t("刷新", "Refresh")).FontSize(12).OnClick(g.refreshAll)
+		ui.Button(c, g.t("刷新", "Refresh")).FontSize(fontButton).OnClick(g.refreshAll)
 		lang := g.lang
 		ui.Segmented(c, &g.langIdx, "中文", "EN")
 		if gotLang := langOf(g.langIdx); gotLang != lang {
@@ -333,7 +409,7 @@ func (g *gui) header(c *ui.Context) {
 
 	// 没装 CLI 时给"对应平台"的安装命令（Windows 用户不该被塞一条 sh 命令）
 	if !g.status.OK {
-		ui.Row(c).FillWidth().Padding(0, 16, 12, 16).Gap(8).Children(func() {
+		ui.Row(c).FillWidth().Padding(0, pagePadX, spaceLG, pagePadX).Gap(8).Children(func() {
 			ui.Text(c, g.t("首次使用先装 CLI：", "Install the CLI first:")).TextColor(c.Theme().Warning)
 			ui.Text(c, installCmd(g.status.Platform)).Font("monospace").SingleLine()
 			if ui.Button(c, g.t("复制", "Copy")).Clicked() {

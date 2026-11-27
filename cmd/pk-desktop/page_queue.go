@@ -36,7 +36,7 @@ func (g *gui) pageQueue(c *ui.Context) {
 		})
 		for i, q := range g.queue {
 			i, q := i, q
-			ui.Row(c).FillWidth().Gap(8).Padding(6).Children(func() {
+			ui.Row(c).FillWidth().Gap(8).Padding(spaceSM).Children(func() {
 				ui.Text(c, q.Spec).Width(200)
 				switch q.State {
 				case "wait":
@@ -62,7 +62,7 @@ func (g *gui) pageQueue(c *ui.Context) {
 
 	ui.Text(c, g.t("可装版本", "Available versions")).Bold()
 	ui.Text(c, g.t("索引缓存 24h 内不刷新；点版本号旁的操作即可装。", "Index is cached for 24h; install straight from a row.")).
-		FontSize(11).TextColor(c.Theme().TextMuted)
+		FontSize(fontCaption).TextColor(c.Theme().TextMuted)
 	if len(g.available) == 0 {
 		if g.busy["available"] {
 			ui.Spinner(c)
@@ -75,7 +75,7 @@ func (g *gui) pageQueue(c *ui.Context) {
 	list.Key = func(i int) any { return g.available[i].Name }
 	ui.List(c, list, len(g.available), func(i int) {
 		a := g.available[i]
-		ui.Row(c).FillWidth().Gap(8).Padding(6).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).Padding(spaceSM).Children(func() {
 			ui.Text(c, a.Name).Bold().Width(90)
 			ui.Text(c, a.Latest).Width(120)
 			if a.LTS != "" {
@@ -125,7 +125,7 @@ func (g *gui) pageVersions(c *ui.Context) {
 	list.Key = func(i int) any { return rows[i].Version }
 	ui.List(c, list, len(rows), func(i int) {
 		v := rows[i]
-		ui.Row(c).FillWidth().Gap(8).Padding(6).Children(func() {
+		ui.Row(c).FillWidth().Gap(8).Padding(spaceSM).Children(func() {
 			ui.Text(c, v.Version).Width(140)
 			if v.LTS != "" {
 				ui.Badge(c, "lts")
