@@ -8,77 +8,93 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="alternate" hreflang="zh-CN" href="./">
 <link rel="alternate" hreflang="en" href="en/">
-<link rel="stylesheet" href="style.css">
+<!-- 引入顺序固定：骨架令牌 → 融合令牌（只覆盖色）→ 通用组件 → packnest 专属组件 -->
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/tokens-pk.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/pk.css">
+<script>
+/* 深色档要在首次绘制前定下来，否则会闪一下白 */
+try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}
+</script>
 </head>
 <body>
-<main>
+<div class="page">
 
-<div class="top">
-  <span class="brand">packnest<span class="tag">pk</span></span>
-  <span class="ver">v__PK_VERSION__</span>
-  <nav>
-    <a class="hide-sm" href="#tools">工具</a>
-    <a class="hide-sm" href="#commands">命令</a>
-    <a class="hide-sm" href="#gui">桌面端</a>
-    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/cli.md">文档</a>
-    <a class="hide-xs" href="https://github.com/nekoleamo/packnest">GitHub</a>
-    <a class="hide-xs" href="https://gitee.com/null_593_5354/packnest">gitee</a>
-    <a class="lang" href="en/" hreflang="en" aria-label="Switch to English">EN</a>
-  </nav>
-</div>
-
-<header class="hero">
-  <span class="pill">国内镜像开箱可用 <b>·</b> MIT 开源</span>
-  <h1>一条命令，<br>装好你的<em>运行时</em></h1>
-  <p class="lede">
-    <span class="tk">node</span> · <span class="tk">npm</span> · <span class="tk">pnpm</span> ·
-    <span class="tk">bun</span> · <span class="tk">go</span> ·
-    <span class="tk">python</span>
-  </p>
-  <p class="lede lede-sub">
-    Go 单二进制 · 零 CGO · 六平台<br>
-    node 装完自动配对最新兼容的 npm
-  </p>
-
-  <div class="cta">
-    <div class="install">
-      <div class="row">
-        <span class="os">macOS · Linux</span>
-        <button class="copy" type="button" data-copy="curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh" aria-label="复制安装命令">复制</button>
+  <!-- ============ 顶栏 ============ -->
+  <div class="nav-wrap">
+    <nav class="nav" aria-label="主导航">
+      <a class="nav-brand" href="#"><span class="logo"></span><b>packnest</b></a>
+      <span class="tag">pk</span>
+      <span class="ver">v__PK_VERSION__</span>
+      <div class="nav-links">
+        <a href="#why">它解决什么</a>
+        <a href="#tools">工具</a>
+        <a href="#commands">命令</a>
+        <a href="#gui">桌面端</a>
+        <a href="#faq">常见问题</a>
       </div>
-      <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh</code>
-    </div>
-    <div class="install">
-      <div class="row">
-        <span class="os">Windows</span>
-        <button class="copy" type="button" data-copy="iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex" aria-label="复制安装命令">复制</button>
+      <div class="nav-actions">
+        <button class="theme-toggle" type="button" aria-pressed="false" aria-label="切换深浅色"></button>
+        <a class="lang" href="en/" hreflang="en" aria-label="Switch to English">EN</a>
+        <a class="nav-btn nav-btn--solid" href="#install">安装</a>
       </div>
-      <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex</code>
-    </div>
-    <div class="install">
-      <div class="row">
-        <span class="os">Homebrew</span>
-        <button class="copy" type="button" data-copy="brew install nekoleamo/packnest/packnest" aria-label="复制安装命令">复制</button>
-      </div>
-      <code>brew install nekoleamo/packnest/packnest</code>
-    </div>
-    <div class="install">
-      <div class="row">
-        <span class="os">Scoop</span>
-        <button class="copy" type="button" data-copy="scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket&#10;scoop install packnest" aria-label="复制安装命令">复制</button>
-      </div>
-      <code>scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket<br>scoop install packnest</code>
-    </div>
-    <p class="fallback">自托管：把 <code>make release</code> 的 <code>dist/</code> 丢到任意静态 host，
-      <button class="linkbtn" type="button" data-copy="curl -fsSL https://your-host/install.sh | sh -s -- --base https://your-host/packnest">--base</button> 指过去即可</p>
+    </nav>
   </div>
-</header>
 
-<div class="window" role="img" aria-label="pk install node@22 的真实输出">
-  <div class="bar">
-    <span class="lights"><i></i><i></i><i></i></span>
-    <span class="title">pk install node@22</span>
-  </div>
+  <!-- ============ Hero：左排版 + 右安装块 ============ -->
+  <header class="hero hero-split" id="install">
+    <div>
+      <p class="hero-pill">国内镜像开箱可用 <b>·</b> MIT 开源</p>
+      <h1>一条命令，<br>装好你的<em>运行时</em></h1>
+      <p class="hero-stack">node<i>·</i>npm<i>·</i>pnpm<i>·</i>bun<i>·</i>go<i>·</i>python</p>
+      <p class="trust">
+        <span>Go 单二进制</span><span>零 CGO</span><span>六平台</span><span>两个第三方依赖</span><span>不采集统计</span>
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn--primary" href="https://github.com/nekoleamo/packnest/releases">发布产物</a>
+        <a class="btn btn--ghost" href="https://github.com/nekoleamo/packnest/blob/main/docs/cli.md">命令手册</a>
+      </div>
+    </div>
+
+    <div>
+      <div class="install-grid">
+        <div class="install install--wide">
+          <div class="row"><span class="os">macOS · Linux</span>
+            <button class="copy" type="button" data-copy="curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh" aria-label="复制安装命令">复制</button>
+          </div>
+          <code title="curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh">curl -fsSL https://gitee.com/…/install.sh | sh</code>
+        </div>
+        <div class="install install--wide">
+          <div class="row"><span class="os">Windows</span>
+            <button class="copy" type="button" data-copy="iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex" aria-label="复制安装命令">复制</button>
+          </div>
+          <code title="iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex">iwr https://gitee.com/…/install.ps1 -UseB | iex</code>
+        </div>
+        <div class="install">
+          <div class="row"><span class="os">Homebrew</span>
+            <button class="copy" type="button" data-copy="brew install nekoleamo/packnest/packnest" aria-label="复制安装命令">复制</button>
+          </div>
+          <code>brew install nekoleamo/packnest/packnest</code>
+        </div>
+        <div class="install">
+          <div class="row"><span class="os">Scoop</span>
+            <button class="copy" type="button" data-copy="scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket&#10;scoop install packnest" aria-label="复制安装命令">复制</button>
+          </div>
+          <code>scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket<br>scoop install packnest</code>
+        </div>
+      </div>
+      <p class="fallback">自托管：把 <code>make release</code> 的 <code>dist/</code> 丢到任意静态 host，
+        <button class="linkbtn" type="button" data-copy="curl -fsSL https://your-host/install.sh | sh -s -- --base https://your-host/packnest">--base</button> 指过去即可</p>
+    </div>
+  </header>
+
+  <!-- ============ 终端窗 ============ -->
+  <div class="term" role="img" aria-label="pk install node@22 的真实输出">
+    <div class="term-bar">
+      <span class="term-lights"><i></i><i></i><i></i></span>
+      <span class="term-title">pk install node@22</span>
+    </div>
 <pre><span class="p">$</span> <span class="cmd">pk install node@22</span>
 <span class="dim">解析 node@22.23.4</span>
 <span class="dim">下载 47.7 MB/47.7 MB 100% (5.0 MB/s)</span>
@@ -86,183 +102,341 @@
 <span class="dim">伴生包 npm@12.2.2（replaced 10.9.9）</span>
 <span class="ok">装好 node@22.23.4</span> <span class="dim">→ ~/.packnest/tools/node/22.23.4（已设为全局默认）</span>
 <span class="p">$</span> <span class="cursor"></span></pre>
+  </div>
+
+  <!-- ============ 数字条 ============ -->
+  <ul class="stats">
+    <li><b>6</b><span>平台产物</span></li>
+    <li><b>0</b><span>CGO</span></li>
+    <li><b>2</b><span>第三方依赖</span></li>
+    <li><b>6</b><span>运行时</span></li>
+    <li><b>0</b><span>残留卸载</span></li>
+  </ul>
+
+  <!-- ============ 它解决什么：特性区（图位换成片段卡）+ 剩余释义 ============ -->
+  <section id="why">
+    <div class="section-head">
+      <h2 class="section-title">它解决什么</h2>
+      <p class="section-lede">四件事，都是国内环境下真会遇到的那四件。</p>
+    </div>
+    <div class="features">
+
+      <article class="feature">
+        <div class="feature-media" style="margin:0">
+          <div class="frag">
+            <span class="k">mirror</span>
+            <span class="v">default · cn · tuna
+aliyun · ustc
+<em>probe 500ms → 缓存 6h</em></span>
+          </div>
+        </div>
+        <div>
+          <h3 class="feature-name">国内网络</h3>
+          <ul class="feature-points">
+            <li>内置 <code>default</code> / <code>cn</code> / <code>tuna</code> / <code>aliyun</code> / <code>ustc</code> 五档</li>
+            <li><b>装第一个工具时做真实探测</b>（500ms HEAD，结果缓存 6h）：官方源通就直连，不通自动落国内档</li>
+            <li>也可以手动 <code>pk mirror use cn</code> 锁死某一档</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="feature">
+        <div class="feature-media" style="margin:0">
+          <div class="frag">
+            <span class="k">pair</span>
+            <span class="v">node@22.23.4
+→ npm@12.2.2
+<em>replaced 10.9.9</em></span>
+          </div>
+        </div>
+        <div>
+          <h3 class="feature-name">npm 配对</h3>
+          <ul class="feature-points">
+            <li>npm 不是独立工具，是 node 的伴生包，不单独暴露一个版本</li>
+            <li><b>按 node 的精确版本反查「最新兼容的 npm」</b>，替换掉发行版自带的旧版</li>
+            <li>按补丁号判分界（22.22.2 → npm 12.x、24.15.0 → 12.x），排除预发布</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="feature">
+        <div class="feature-media" style="margin:0">
+          <div class="frag">
+            <span class="k">verify</span>
+            <span class="v">sha256 × 2 源
+<em>TOFU 表</em>
+之后完全离线可验</span>
+          </div>
+        </div>
+        <div>
+          <h3 class="feature-name">校验</h3>
+          <ul class="feature-points">
+            <li>首次安装要求<b>至少两个源给出相同摘要</b>，并写进 TOFU 表</li>
+            <li>之后同一版本完全离线可验证</li>
+            <li>源之间矛盾时硬失败，并告诉你产物与哪个源一致</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="feature">
+        <div class="feature-media" style="margin:0">
+          <div class="frag">
+            <span class="k">uninstall</span>
+            <span class="v">pk uninstall
+  --all --self
+<em>残留 0</em></span>
+          </div>
+        </div>
+        <div>
+          <h3 class="feature-name">卸载</h3>
+          <ul class="feature-points">
+            <li>台账是唯一事实源：只删自己记录过的目录，1.9.2 起还会核一次「这条 path 真的在 <code>~/.packnest/tools</code> 下」，坏记录不会删到别处</li>
+            <li>切版本靠 shim 原子重指，卸载回到零残留</li>
+            <li><b><code>pk uninstall --all --self</code> 连 pk 自己一起清</b>（Windows 上延时删除）</li>
+          </ul>
+        </div>
+      </article>
+
+    </div>
+
+    <dl class="defs">
+      <dt>长尾工具</dt>
+      <dd>内嵌 6 个 provider，其余靠 <b>自写 TOML 清单</b>（<code>~/.packnest/providers/&lt;id&gt;.toml</code>）：索引、产物、校验、布局、伴生包全在清单里声明，纯数据不执行代码；字段见 <a href="https://github.com/nekoleamo/packnest/blob/main/docs/providers.md">docs/providers.md</a>。</dd>
+      <dt>下载</dt>
+      <dd>Range 续传 + <b>默认多连接</b>（≥8MB、冷启动、源支持 Range 时按大小自适应 2~8 段，异常自动退回单流；<code>--jobs 1</code> 可强制单流）。实测 48MB 的 node 包：单流 1.46s → 8 段 0.84s。索引走 gzip 传输，go 的索引 2.28MB → 557KB。</dd>
+      <dt>缓存</dt>
+      <dd>产物与索引缓存默认在 <code>~/.packnest/cache</code>；CI 或多机预热可以用 <code>PK_CACHE=&lt;目录&gt;</code> 把它搬到别处（台账、shim、锁不动），<code>--purge</code> 也不会动那个目录。
+      <b>热缓存对全新机器同样有效</b>：缓存里记着「上游公布的摘要 → 归档」的别名，新 runner 只发一次几 KB 的校验和请求就能命中 50 MB 的归档，不必先下再算摘要（1.8 起）。</dd>
+      <dt>体积</dt>
+      <dd>单个 Go 二进制，<code>CGO_ENABLED=0</code>，六平台构建，只依赖两个第三方库（semver、toml）。</dd>
+    </dl>
+  </section>
+
+  <!-- ============ 工具表 ============ -->
+  <section id="tools">
+    <div class="section-head">
+      <h2 class="section-title">能装什么</h2>
+      <p class="section-lede">6 个内嵌 provider；长尾工具自己写 TOML，纯数据不执行代码。</p>
+    </div>
+    <table class="doctable">
+      <thead><tr><th>工具</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>node</td><td>官方索引 + 国内镜像；装完自动配对 npm</td></tr>
+        <tr><td>npm</td><td>只作为 node 的伴生包出现，不单独暴露一个版本</td></tr>
+        <tr><td>pnpm</td><td>需要先有 node（不隐式安装运行时），<code>PNPM_HOME</code> 指向共享前缀</td></tr>
+        <tr><td>bun</td><td>单文件布局，官方 release + 镜像回退</td></tr>
+        <tr><td>go</td><td>装完把 <code>GOTOOLCHAIN=local</code> 写进环境，避免它自己去下一套工具链</td></tr>
+        <tr><td>python</td><td>只装 python-build-standalone 预编译版，永不源码编译</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============ 命令表 ============ -->
+  <section id="commands">
+    <div class="section-head">
+      <h2 class="section-title">命令</h2>
+      <p class="section-lede">10 个，命令面固定。全局开关 <code>--json</code> 是 GUI 与脚本的唯一契约。</p>
+    </div>
+    <table class="doctable">
+      <thead><tr><th>命令</th><th>做什么</th></tr></thead>
+      <tbody>
+        <tr><td>install</td><td>装工具（<b>多个工具跨工具并行</b>：下载、校验、解压同时跑，落盘与台账仍单线程）；无参数时按当前目录的 <code>pk.toml</code> 全装并刷新 <code>pk.lock</code>；只有 <code>package.json</code> 时读它的 <code>engines.node</code></td></tr>
+        <tr><td>uninstall</td><td><code>工具@版本</code> 删一个；<code>工具</code> 删该工具全部版本（先列版本再确认）；<code>--all</code> 清掉一切（<code>--purge</code> 连根删、<code>--self</code> 连自己）</td></tr>
+        <tr><td>use</td><td>切换全局默认版本；<code>--project</code> 固定到当前项目</td></tr>
+        <tr><td>list</td><td>已装工具与占用空间，版本落后时提示可升级（只读索引缓存、不联网）；<code>pk list node</code> 看单个工具的全部可装版本（<code>--major 22</code> / <code>--all</code>）</td></tr>
+        <tr><td>which</td><td>把 shim 解析回真实二进制路径</td></tr>
+        <tr><td>mirror</td><td><code>list</code> / <code>probe</code> / <code>use</code> / <code>write</code> 四个子命令管理镜像档</td></tr>
+        <tr><td>doctor</td><td>体检 PATH、台账、镜像、全局包、其他版本管理器；<code>--fix</code> 自动修 PATH 托管块与 pk/packnest 入口</td></tr>
+        <tr><td>env</td><td>输出 shell 片段；<code>--write</code> 写进托管块（Windows 走注册表用户 Path，不受执行策略限制）</td></tr>
+        <tr><td>gc</td><td>回收零引用版本与超限缓存；<code>--keep 2</code> 每个工具保留最新 2 个</td></tr>
+        <tr><td>upgrade</td><td>把已装工具一次升到索引最新（旧版本保留、全局默认跟着切、npm 随 node）；<code>--dry-run</code> 先看要升什么。<br><b>升级 pk 自己</b>：<code>pk upgrade --self</code>（地址按网络自动选 gitee/GitHub，验签后原子替换；brew/scoop 装的只提示渠道命令）</td></tr>
+      </tbody>
+    </table>
+    <p class="after">失败时 <code>--json</code> 额外输出一条 <code>{"schema":1,"error":{"code","args","msg","exit"}}</code>（1.8 起，只增不改；人读的 stderr 与退出码不变）</p>
+    <p class="after">全局开关 <code>--json</code>（GUI 与脚本的唯一契约）· <code>--offline</code> · <code>--yes</code> · <code>--root</code> · <code>--lang en</code>（英文输出，也可 <code>PK_LANG=en</code>）；退出码固定 0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用。</p>
+    <p class="after"><code>--dry-run</code> 是<b>只读预览</b>：不下载、不解压、不写 <code>pk.lock</code>、不清残留、不改 <code>config.toml</code>（1.5.1 起）。</p>
+    <p class="after">发布链可验签：<code>checksums.txt</code> 带 <code>sshsig</code> 签名（<code>checksums.txt.sig</code>），安装脚本在比对 sha256 之前先验签——镜像站与自托管源改不了清单（<code>brew</code>/<code>scoop</code> 只认 sha256，这是渠道边界）。</p>
+    <p class="after">长尾工具不用等发版：把 <code>~/.packnest/providers/&lt;id&gt;.toml</code> 放进去即可（纯数据、不执行代码；校验和、镜像回退、伴生包都在清单里声明，<code>pk doctor</code> 会指出清单哪一行不对）。</p>
+  </section>
+
+  <!-- ============ 桌面端 ============ -->
+  <section id="gui">
+    <div class="section-head">
+      <h2 class="section-title">桌面端</h2>
+      <p class="section-lede">可选 · 独立产物 · 必须先装 CLI。</p>
+    </div>
+
+    <p class="gui-lede">GUI（<b>pk-desktop</b>，原生界面：纯 Go、无 webview）只是 CLI 的可视化补充：
+      不 import 任何内部包，每个操作都是子进程调 <code>pk &lt;命令&gt;</code> <code>--json</code>，
+      业务真相始终在 CLI 和 <code>~/.packnest</code> 里。所以它永远比 CLI 晚半步，也不会替你下载第二份运行时。</p>
+
+    <ul class="feats two">
+      <li>已装工具表：<b>可升级</b>提示（点一下就 <code>pk install &lt;工具&gt;@latest</code>）、weak / 未校验 / npm 徽标、复制安装路径</li>
+      <li>安装队列：多条 spec 依次装，每行独立进度（NDJSON 的 <code>progress</code> 事件）</li>
+      <li>镜像档切换 + 各源延迟探测，写 <code>~/.npmrc</code> 前自动备份</li>
+      <li>体检页：全局包表格化、<code>--probe</code> 用 node 实测原生模块、<b>一键修复</b>（<code>pk doctor --fix</code>）</li>
+      <li>回收页：预演 / 真删、<code>--keep N</code> 每个工具保留最近 N 个版本</li>
+      <li>只读查看 <code>which</code>（命令 → 真实路径）与 <code>env</code>（PATH / 变量）</li>
+      <li>深浅色切换、<b>中英双语</b>（顶栏切换，默认跟系统语言）</li>
+      <li><b>检查更新</b>：同时看桌面端与 CLI 的版本，下载地址按当前网络自动挑（gitee / GitHub），一键升级并提示重启</li>
+      <li><b>开机自启</b>（默认关，只写用户级条目：LaunchAgent / HKCU Run / XDG autostart）</li>
+    </ul>
+
+    <table class="doctable" style="margin-top:32px">
+      <thead><tr><th>平台</th><th>怎么装</th><th>校验</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>macOS<br><span class="hint">arm64</span></td>
+          <td><b>脚本一行（推荐）</b><br>
+            <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.sh | sh</code><br>
+            可选参数：<code>--version</code> · <code>--dir</code>（默认 <code>~/Applications</code>）· <code>--dry-run</code><br>
+            或手动下 <code>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</code></td>
+          <td>先验 <code>checksums.txt.sig</code>（sshsig）再比 sha256</td>
+        </tr>
+        <tr>
+          <td>Windows<br><span class="hint">amd64 / arm64</span></td>
+          <td><b>PowerShell 一行（推荐）</b><br>
+            <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -UseB | iex</code><br>
+            <b>或 Scoop</b><br>
+            <code>scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket</code><br>
+            <code>scoop install packnest-desktop</code><span class="hint">（自动先装 CLI）</span><br>
+            或手动下 <code>packnest-desktop___GUI_VERSION___windows_amd64.zip</code>（ARM 机器用 <code>…_windows_arm64.zip</code>）</td>
+          <td>脚本：sshsig + sha256；Scoop：清单里的 sha256</td>
+        </tr>
+        <tr>
+          <td>Linux<br><span class="hint">amd64 / arm64</span></td>
+          <td><b>手动下载</b>（没有安装脚本）<br>
+            <code>packnest-desktop___GUI_VERSION___linux_amd64.tar.gz</code>（ARM 用 <code>…_linux_arm64.tar.gz</code>）→ 解压后跑 <code>./pk-desktop</code><br>
+            依赖：只要 GTK3；托盘另需 <code>libayatana-appindicator3</code></td>
+          <td>自己 <code>shasum -a 256</code> 对清单</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="after">产物都在独立 tag <code>gui-v__GUI_VERSION__</code> 下：
+    <a href="https://gitee.com/null_593_5354/packnest/releases/tag/gui-v__GUI_VERSION__">gitee</a> ·
+    <a href="https://github.com/nekoleamo/packnest/releases/tag/gui-v__GUI_VERSION__">GitHub</a>（附 <code>checksums.txt</code> + <code>.sig</code>）。
+    同目录还有 <code>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</code> 等 5 个产物原名（mac arm64、win amd64+arm64、linux amd64+arm64），方便手动核对。</p>
+    <p class="after">不发 Intel Mac 产物（要就自己 <code>make gui-app</code>）；Homebrew cask 不做（ad-hoc 签名过不了 Gatekeeper）。</p>
+
+    <dl class="defs">
+      <dt>前置条件</dt>
+      <dd>先装 CLI（<code>pk</code>）—— 没装时界面顶部会直接给出<b>当前平台</b>的安装命令（Windows 走 PowerShell，其余走 <code>sh</code>）并带复制按钮。
+      macOS 是 ad-hoc 签名，首次打开要在「系统设置 → 隐私与安全性」放行一次；Windows/Linux 不需要任何 webview 运行时（Linux 托盘另需 <code>libayatana-appindicator3</code>）。
+      浏览器形态 <code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code> 保留为兜底页（0.12 起冻结，排版与功能以原生界面为准）。</dd>
+      <dt>不是什么</dt>
+      <dd>不是第二个安装器：没有自己的台账，也不想再实现一遍升级逻辑 —— <b>升级 CLI 交给 <code>pk upgrade --self</code></b>，
+      <b>升级桌面端由 GUI 自己换产物</b>（下载 → 验签 → 比 sha256 → 替换，提示重启）；<code>scoop</code> 装的只提示
+      <code>scoop update packnest-desktop</code>。卸载仍指回 CLI（<code>pk uninstall --all --self</code>）。</dd>
+    </dl>
+  </section>
+
+  <!-- ============ 常见问题 ============ -->
+  <section id="faq">
+    <div class="section-head">
+      <h2 class="section-title">常见问题</h2>
+      <p class="section-lede">四条被问得最多的。</p>
+    </div>
+    <div class="faq">
+      <details open>
+        <summary><h3>它和 nvm / proto 有什么区别？</h3><span class="chev"></span></summary>
+        <p class="answer">nvm 只做 node，proto 是通用版本管理器但不带国内镜像探测。packnest 的重点是「国内网络下装得下来 + 装完能干净卸掉」，六平台单二进制，不依赖 nvm 的 shell 函数注入。</p>
+      </details>
+      <details>
+        <summary><h3>国内镜像失效了怎么办？</h3><span class="chev"></span></summary>
+        <p class="answer">探测是每次冷启动做的，缓存 6 小时。任一档失效会落到下一档；全都不通时用 <code>--offline</code> 走本地缓存，或 <code>pk mirror write</code> 自己写一档。</p>
+      </details>
+      <details>
+        <summary><h3>为什么 npm 不能单独装？</h3><span class="chev"></span></summary>
+        <p class="answer">因为 npm 是 node 的伴生包：脱离某个 node 版本谈 npm 版本没有意义。装 node 时按精确版本反查最新兼容的 npm 一起装，避免出现 node 22 配着 node 18 时代 npm 的情况。</p>
+      </details>
+      <details>
+        <summary><h3>装了桌面端还要装 CLI 吗？</h3><span class="chev"></span></summary>
+        <p class="answer">要。桌面端每个操作都是子进程调 <code>pk --json</code>，业务真相在 CLI 和 <code>~/.packnest</code> 里。没装 CLI 时界面顶部会直接给出当前平台的安装命令。</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- ============ 英文摘要 ============ -->
+  <section>
+    <div class="en-card" lang="en">
+      <h2>In English</h2>
+      <p>packnest (command <code>pk</code>) installs Node/npm/pnpm/bun/Go/Python as a single zero-CGO Go binary for six platforms, with only two third-party dependencies. It ships China mirror presets plus real reachability probing, pairs the newest npm compatible with the exact Node version being installed, verifies artifacts against multiple checksum sources (TOFU, offline-verifiable afterwards), and uninstalls back to zero residue — <code>pk uninstall --all --self</code> even removes pk itself.
+      <br>Install: <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh</code> (Windows: <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex</code>) — or via Homebrew / Scoop.</p>
+    </div>
+  </section>
+
+  <!-- ============ 页脚深色带 ============ -->
+  <footer class="foot">
+    <div class="foot-top">
+      <div class="mark">
+        <p class="name">packnest</p>
+        <p>国内网络开箱可用的运行时安装器</p>
+        <p>v__PK_VERSION__ · MIT</p>
+      </div>
+      <nav class="foot-cols">
+        <div class="foot-col">
+          <h4>项目</h4>
+          <a href="https://github.com/nekoleamo/packnest">源码</a>
+          <a href="https://github.com/nekoleamo/packnest/blob/main/docs/cli.md">命令手册</a>
+          <a href="https://github.com/nekoleamo/packnest/blob/main/docs/troubleshooting.md">故障排查</a>
+        </div>
+        <div class="foot-col">
+          <h4>桌面端</h4>
+          <a href="https://github.com/nekoleamo/packnest/blob/main/docs/gui.md">桌面端说明</a>
+          <a href="https://gitee.com/null_593_5354/packnest/releases">发布产物</a>
+        </div>
+        <div class="foot-col">
+          <h4>契约</h4>
+          <a href="https://github.com/nekoleamo/packnest/blob/main/docs/json-schema.md">--json 契约</a>
+          <a href="https://github.com/nekoleamo/packnest/blob/main/docs/providers.md">provider 清单</a>
+        </div>
+        <div class="foot-col">
+          <h4>镜像</h4>
+          <a href="https://gitee.com/null_593_5354/packnest">gitee 镜像</a>
+          <a href="https://github.com/nekoleamo/homebrew-packnest">Homebrew tap</a>
+          <a href="https://github.com/nekoleamo/scoop-bucket">Scoop bucket</a>
+        </div>
+        <div class="foot-col">
+          <h4>许可</h4>
+          <a href="https://github.com/nekoleamo/packnest/blob/main/LICENSE">MIT</a>
+        </div>
+      </nav>
+    </div>
+    <div class="foot-bottom">
+      <p>MIT · <b>不采集访问统计</b> · 不加载任何第三方资源</p>
+      <p>自托管安装：<b>--base</b> 指到任意静态 host</p>
+    </div>
+  </footer>
+
 </div>
-
-<ul class="stats">
-  <li><b>6</b><span>平台产物</span></li>
-  <li><b>0</b><span>CGO</span></li>
-  <li><b>2</b><span>第三方依赖</span></li>
-  <li><b>6</b><span>运行时</span></li>
-  <li><b>0</b><span>残留卸载</span></li>
-</ul>
-
-<section id="why">
-  <h2>它解决什么</h2>
-  <dl>
-    <dt>国内网络</dt>
-    <dd>内置 <code>default</code> / <code>cn</code> / <code>tuna</code> / <code>aliyun</code> / <code>ustc</code> 五档。<b>装第一个工具时做真实探测</b>（500ms HEAD，结果缓存 6h）：官方源通就直连，不通自动落国内档。</dd>
-    <dt>npm 配对</dt>
-    <dd>npm 不是独立工具，是 node 的伴生包：<b>按 node 的精确版本反查「最新兼容的 npm」</b>，替换掉发行版自带的旧版（按补丁号判分界，排除预发布）。</dd>
-    <dt>校验</dt>
-    <dd>首次安装要求<b>至少两个源给出相同摘要</b>并写进 TOFU 表，之后同一版本完全离线可验证；源之间矛盾时硬失败，并告诉你产物与哪个源一致。</dd>
-    <dt>卸载</dt>
-    <dd>台账是唯一事实源：只删自己记录过的目录（1.9.2 起还会核一次「这条 path 真的在 <code>~/.packnest/tools</code> 下」，坏记录不会删到别处），切版本靠 shim 原子重指，卸载回到零残留；<b><code>pk uninstall --all --self</code> 连 pk 自己一起清</b>（Windows 上延时删除）。</dd>
-    <dt>长尾工具</dt>
-    <dd>内嵌 6 个 provider，其余靠 <b>自写 TOML 清单</b>（<code>~/.packnest/providers/&lt;id&gt;.toml</code>）：索引、产物、校验、布局、伴生包全在清单里声明，纯数据不执行代码；字段见 <a href="https://github.com/nekoleamo/packnest/blob/main/docs/providers.md">docs/providers.md</a>。</dd>
-    <dt>下载</dt>
-    <dd>Range 续传 + <b>默认多连接</b>（≥8MB、冷启动、源支持 Range 时按大小自适应 2~8 段，异常自动退回单流；<code>--jobs 1</code> 可强制单流）。实测 48MB 的 node 包：单流 1.46s → 8 段 0.84s。索引走 gzip 传输，go 的索引 2.28MB → 557KB。</dd>
-    <dt>缓存</dt>
-    <dd>产物与索引缓存默认在 <code>~/.packnest/cache</code>；CI 或多机预热可以用 <code>PK_CACHE=&lt;目录&gt;</code> 把它搬到别处（台账、shim、锁不动），<code>--purge</code> 也不会动那个目录。
-    <b>热缓存对全新机器同样有效</b>：缓存里记着「上游公布的摘要 → 归档」的别名，新 runner 只发一次几 KB 的校验和请求就能命中 50 MB 的归档，不必先下再算摘要（1.8 起）。</dd>
-    <dt>体积</dt>
-    <dd>单个 Go 二进制，<code>CGO_ENABLED=0</code>，六平台构建，只依赖两个第三方库（semver、toml）。</dd>
-  </dl>
-</section>
-
-<section id="tools">
-  <h2>能装什么 <span class="hint">6 个内嵌 provider · 长尾工具自己写 TOML</span></h2>
-  <table>
-    <thead><tr><th>工具</th><th>说明</th></tr></thead>
-    <tbody>
-      <tr><td>node</td><td>官方索引 + 国内镜像；装完自动配对 npm</td></tr>
-      <tr><td>npm</td><td>只作为 node 的伴生包出现，不单独暴露一个版本</td></tr>
-      <tr><td>pnpm</td><td>需要先有 node（不隐式安装运行时），<code>PNPM_HOME</code> 指向共享前缀</td></tr>
-      <tr><td>bun</td><td>单文件布局，官方 release + 镜像回退</td></tr>
-      <tr><td>go</td><td>装完把 <code>GOTOOLCHAIN=local</code> 写进环境，避免它自己去下一套工具链</td></tr>
-      <tr><td>python</td><td>只装 python-build-standalone 预编译版，永不源码编译</td></tr>
-    </tbody>
-  </table>
-</section>
-
-<section id="commands">
-  <h2>命令 <span class="hint">10 个 · 命令面固定</span></h2>
-  <table>
-    <thead><tr><th>命令</th><th>做什么</th></tr></thead>
-    <tbody>
-      <tr><td>install</td><td>装工具（<b>多个工具跨工具并行</b>：下载、校验、解压同时跑，落盘与台账仍单线程）；无参数时按当前目录的 <code>pk.toml</code> 全装并刷新 <code>pk.lock</code>；只有 <code>package.json</code> 时读它的 <code>engines.node</code></td></tr>
-      <tr><td>uninstall</td><td><code>工具@版本</code> 删一个；<code>工具</code> 删该工具全部版本（先列版本再确认）；<code>--all</code> 清掉一切（<code>--purge</code> 连根删、<code>--self</code> 连自己）</td></tr>
-      <tr><td>use</td><td>切换全局默认版本；<code>--project</code> 固定到当前项目</td></tr>
-      <tr><td>list</td><td>已装工具与占用空间，版本落后时提示可升级（只读索引缓存、不联网）；<code>pk list node</code> 看单个工具的全部可装版本（<code>--major 22</code> / <code>--all</code>）</td></tr>
-      <tr><td>which</td><td>把 shim 解析回真实二进制路径</td></tr>
-      <tr><td>mirror</td><td><code>list</code> / <code>probe</code> / <code>use</code> / <code>write</code> 四个子命令管理镜像档</td></tr>
-      <tr><td>doctor</td><td>体检 PATH、台账、镜像、全局包、其他版本管理器；<code>--fix</code> 自动修 PATH 托管块与 pk/packnest 入口</td></tr>
-      <tr><td>env</td><td>输出 shell 片段；<code>--write</code> 写进托管块（Windows 走注册表用户 Path，不受执行策略限制）</td></tr>
-      <tr><td>gc</td><td>回收零引用版本与超限缓存；<code>--keep 2</code> 每个工具保留最新 2 个</td></tr>
-      <tr><td>upgrade</td><td>把已装工具一次升到索引最新（旧版本保留、全局默认跟着切、npm 随 node）；<code>--dry-run</code> 先看要升什么。<br><b>升级 pk 自己</b>：<code>pk upgrade --self</code>（地址按网络自动选 gitee/GitHub，验签后原子替换；brew/scoop 装的只提示渠道命令）</td></tr>
-    </tbody>
-  </table>
-  <p class="after">失败时 <code>--json</code> 额外输出一条 <code>{"schema":1,"error":{"code","args","msg","exit"}}</code>（1.8 起，只增不改；人读的 stderr 与退出码不变）</p>
-  <p class="after">全局开关 <code>--json</code>（GUI 与脚本的唯一契约）· <code>--offline</code> · <code>--yes</code> · <code>--root</code> · <code>--lang en</code>（英文输出，也可 <code>PK_LANG=en</code>）；退出码固定 0 成功 / 1 通用 / 2 用法 / 3 网络 / 4 校验 / 5 锁被占用。</p>
-  <p class="after"><code>--dry-run</code> 是<b>只读预览</b>：不下载、不解压、不写 <code>pk.lock</code>、不清残留、不改 <code>config.toml</code>（1.5.1 起）。</p>
-  <p class="after">发布链可验签：<code>checksums.txt</code> 带 <code>sshsig</code> 签名（<code>checksums.txt.sig</code>），安装脚本在比对 sha256 之前先验签——镜像站与自托管源改不了清单（<code>brew</code>/<code>scoop</code> 只认 sha256，这是渠道边界）。</p>
-  <p class="after">长尾工具不用等发版：把 <code>~/.packnest/providers/&lt;id&gt;.toml</code> 放进去即可（纯数据、不执行代码；校验和、镜像回退、伴生包都在清单里声明，<code>pk doctor</code> 会指出清单哪一行不对）。</p>
-</section>
-
-<section id="gui">
-  <h2>桌面端 <span class="hint">可选 · 独立产物 · 必须先装 CLI</span></h2>
-  <p class="gui-lede">GUI（<code>pk-desktop</code>，原生界面：纯 Go、无 webview）只是 CLI 的可视化补充：不 import 任何内部包，
-  每个操作都是子进程调 <code>pk &lt;命令&gt;</code> <code>--json</code>，业务真相始终在 CLI 和 <code>~/.packnest</code> 里。
-  所以它永远比 CLI 晚半步，也不会替你下载第二份运行时。</p>
-
-  <dl class="gui-facts">
-    <dt>能做什么</dt>
-    <dd>
-      <ul class="feats">
-        <li>已装工具表：<b>可升级</b>提示（点一下就 <code>pk install &lt;工具&gt;@latest</code>）、weak / 未校验 / npm 徽标、复制安装路径</li>
-        <li>安装队列：多条 spec 依次装，每行独立进度（NDJSON 的 <code>progress</code> 事件）</li>
-        <li>镜像档切换 + 各源延迟探测，写 <code>~/.npmrc</code> 前自动备份</li>
-        <li>体检页：全局包表格化、<code>--probe</code> 用 node 实测原生模块、<b>一键修复</b>（<code>pk doctor --fix</code>）</li>
-        <li>回收页：预演 / 真删、<code>--keep N</code> 每个工具保留最近 N 个版本</li>
-        <li>只读查看 <code>which</code>（命令 → 真实路径）与 <code>env</code>（PATH / 变量）</li>
-        <li>深浅色切换、<b>中英双语</b>（顶栏切换，默认跟系统语言）</li>
-        <li><b>检查更新</b>：同时看桌面端与 CLI 的版本，下载地址按当前网络自动挑（gitee / GitHub），一键升级并提示重启</li>
-        <li><b>开机自启</b>（默认关，只写用户级条目：LaunchAgent / HKCU Run / XDG autostart）</li>
-      </ul>
-    </dd>
-
-    <dt>四安装方式</dt>
-    <dd>
-      <table>
-        <thead><tr><th>平台</th><th>怎么装</th><th>校验</th></tr></thead>
-        <tbody>
-          <tr>
-            <td>macOS<br><span class="hint">arm64</span></td>
-            <td><b>脚本一行（推荐）</b><br>
-              <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.sh | sh</code><br>
-              可选参数：<code>--version</code> · <code>--dir</code>（默认 <code>~/Applications</code>）· <code>--dry-run</code><br>
-              或手动下 <code>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</code></td>
-            <td>先验 <code>checksums.txt.sig</code>（sshsig）再比 sha256</td>
-          </tr>
-          <tr>
-            <td>Windows<br><span class="hint">amd64 / arm64</span></td>
-            <td><b>PowerShell 一行（推荐）</b><br>
-              <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -UseB | iex</code><br>
-              <b>或 Scoop</b><br>
-              <code>scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket</code><br>
-              <code>scoop install packnest-desktop</code><span class="hint">（自动先装 CLI）</span><br>
-              或手动下 <code>packnest-desktop___GUI_VERSION___windows_amd64.zip</code>（ARM 机器用 <code>…_windows_arm64.zip</code>）</td>
-            <td>脚本：sshsig + sha256；Scoop：清单里的 sha256</td>
-          </tr>
-          <tr>
-            <td>Linux<br><span class="hint">amd64 / arm64</span></td>
-            <td><b>手动下载</b>（没有安装脚本）<br>
-              <code>packnest-desktop___GUI_VERSION___linux_amd64.tar.gz</code>（ARM 用 <code>…_linux_arm64.tar.gz</code>）→ 解压后跑 <code>./pk-desktop</code><br>
-              依赖：只要 GTK3；托盘另需 <code>libayatana-appindicator3</code></td>
-            <td>自己 <code>shasum -a 256</code> 对清单</td>
-          </tr>
-        </tbody>
-      </table>
-      <p class="after">产物都在独立 tag <code>gui-v__GUI_VERSION__</code> 下：
-      <a href="https://gitee.com/null_593_5354/packnest/releases/tag/gui-v__GUI_VERSION__">gitee</a> ·
-      <a href="https://github.com/nekoleamo/packnest/releases/tag/gui-v__GUI_VERSION__">GitHub</a>（附 <code>checksums.txt</code> + <code>.sig</code>）。
-      同目录还有 <code>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</code> 等 5 个产物原名（mac arm64、win amd64+arm64、linux amd64+arm64），方便手动核对。</p>
-      <p class="after">不发 Intel Mac 产物（要就自己 <code>make gui-app</code>）；Homebrew cask 不做（ad-hoc 签名过不了 Gatekeeper）。</p>
-    </dd>
-
-    <dt>前置条件</dt>
-    <dd>先装 CLI（<code>pk</code>）—— 没装时界面顶部会直接给出<b>当前平台</b>的安装命令（Windows 走 PowerShell，其余走 <code>sh</code>）并带复制按钮。
-    macOS 是 ad-hoc 签名，首次打开要在「系统设置 → 隐私与安全性」放行一次；Windows/Linux 不需要任何 webview 运行时（Linux 托盘另需 <code>libayatana-appindicator3</code>）。
-    浏览器形态 <code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code> 保留为兜底页（0.12 起冻结，排版与功能以原生界面为准）。</dd>
-
-    <dt>不是什么</dt>
-    <dd>不是第二个安装器：没有自己的台账，也不想再实现一遍升级逻辑 —— <b>升级 CLI 交给 <code>pk upgrade --self</code></b>，
-    <b>升级桌面端由 GUI 自己换产物</b>（下载 → 验签 → 比 sha256 → 替换，提示重启）；<code>scoop</code> 装的只提示
-    <code>scoop update packnest-desktop</code>。卸载仍指回 CLI（<code>pk uninstall --all --self</code>）。</dd>
-  </dl>
-</section>
-
-<section class="en" lang="en">
-  <h2>In English</h2>
-  <p>packnest (command <code>pk</code>) installs Node/npm/pnpm/bun/Go/Python as a single zero-CGO Go binary for six platforms, with only two third-party dependencies. It ships China mirror presets plus real reachability probing, pairs the newest npm compatible with the exact Node version being installed, verifies artifacts against multiple checksum sources (TOFU, offline-verifiable afterwards), and uninstalls back to zero residue — <code>pk uninstall --all --self</code> even removes pk itself.
-  <br>Install: <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh</code> (Windows: <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex</code>) — or via Homebrew / Scoop.</p>
-</section>
-
-<footer>
-  <nav>
-    <a href="https://github.com/nekoleamo/packnest">源码</a>
-    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/cli.md">命令手册</a>
-    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/troubleshooting.md">故障排查</a>
-    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/gui.md">桌面端说明</a>
-    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/json-schema.md">--json 契约</a>
-    <a href="https://gitee.com/null_593_5354/packnest">gitee 镜像</a>
-    <a href="https://gitee.com/null_593_5354/packnest/releases">发布产物</a>
-  </nav>
-  <span class="fine">MIT · 不采集访问统计 · 不加载任何第三方资源</span>
-</footer>
-
-</main>
 <script>
-(function(){
-  document.querySelectorAll('[data-copy]').forEach(function(el){
-    el.addEventListener('click',function(){
-      if(!navigator.clipboard)return;
-      if(!el.dataset.label)el.dataset.label=el.textContent;
-      navigator.clipboard.writeText(el.dataset.copy).then(function(){
-        el.textContent='已复制';el.classList.add('done');
-        setTimeout(function(){el.textContent=el.dataset.label;el.classList.remove('done');},1400);
-      });
+// 复制按钮：无 navigator.clipboard 时静默不动（与旧站一致）
+document.querySelectorAll('[data-copy]').forEach(function (el) {
+  el.addEventListener('click', function () {
+    if (!navigator.clipboard) return;
+    if (!el.dataset.label) el.dataset.label = el.textContent;
+    navigator.clipboard.writeText(el.dataset.copy).then(function () {
+      el.textContent = '已复制'; el.classList.add('done');
+      setTimeout(function () { el.textContent = el.dataset.label; el.classList.remove('done'); }, 1400);
     });
   });
+});
+
+// 明暗切换：写 data-theme + localStorage；没锁定过就跟随系统
+(function () {
+  var btn = document.querySelector('.theme-toggle');
+  if (!btn) return;
+  var root = document.documentElement;
+  var sysDark = matchMedia('(prefers-color-scheme: dark)');
+  function isDark() { return root.dataset.theme ? root.dataset.theme === 'dark' : sysDark.matches; }
+  function sync() { btn.setAttribute('aria-pressed', String(isDark())); }
+  btn.addEventListener('click', function () {
+    root.dataset.theme = isDark() ? 'light' : 'dark';
+    try { localStorage.setItem('theme', root.dataset.theme); } catch (e) {}
+    sync();
+  });
+  sync();
+  sysDark.addEventListener('change', sync);
 })();
 </script>
 </body>

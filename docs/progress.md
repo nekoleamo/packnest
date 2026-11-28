@@ -2273,3 +2273,18 @@ CLI 1.8.2 只有一件新增：`reload` 契约（`pk doctor --fix` / `pk env --w
 
 **升级路径**：`pk upgrade --self`（或重跑安装脚本 / `brew upgrade packnest`）。升级后**必须**再跑一次
 `pk env --write`，否则托管块里仍是旧默认值写的 `true`（`pk doctor --fix` 也会重写整块，效果相同）。
+
+## 官网换肤（2026-11-28，mole 排版骨架 × packnest 模块）
+
+样式来源 `~/Documents/Plan/24-官网样式样本/`（mole.fit 骨架 + 融合方案）。原来的单个 `site/style.css` 拆成 `site/css/` 四层，
+**引入顺序不能换**：`tokens.css`（骨架令牌）→ `tokens-pk.css`（只覆盖色 + 深色档 + 中文标题尺寸）→ `base.css`（12 个通用组件）
+→ `pk.css`（packnest 专属 8 个组件）。
+
+- 版式：顶栏改粘顶药丸；hero 由居中改双栏（左排版 / 右 2×2 安装块，长命令跨整列并省略中段 URL，全文在 `title` 与复制按钮里）；
+  特性区图位换成 mono 片段卡；表格去外框、≤720px 转卡片；新增 FAQ 4 条与全出血深色带页脚。
+- 配色由 teal 换成 GUI 的 clay（`#b0512f`，配 `--on-brand`），深浅两档与桌面端同色；新增顶栏明暗切换
+  （`data-theme` + `localStorage`，`<head>` 里先跑一次防白闪）。
+- 文案与事实密度不变（命令表、GUI 说明、英文摘要逐字保留），也不新增任何第三方资源。
+- 两处本仓补丁（样本里没有）：`code { overflow-wrap: anywhere }` —— `en-card` 里那条 84 字符的安装命令会把 390px 页面撑到 627px；
+  ≤640px 时 `.feature-media` 恢复自适应宽度 —— base 层给 mole 星球图留的 40px 会把片段卡挤成一团。
+- 验收：1440 / 390 / 深色三档截图核对，390px 下 `scrollWidth == 390`；`__PK_VERSION__` / `__GUI_VERSION__` 注入照旧。

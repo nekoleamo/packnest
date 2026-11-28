@@ -4,7 +4,8 @@
 #   sh scripts/build-site.sh            # 版本号取自 git tag（回退 dist/latest、dev）
 #   PK_VERSION=0.7.0 sh scripts/build-site.sh
 #
-# 语言：site/index.html（中文，默认）+ site/en/index.html（英文），共用 site/style.css。
+# 语言：site/index.html（中文，默认）+ site/en/index.html（英文），共用 site/css/ 四层样式
+#      （tokens → tokens-pk 覆盖色 → base 通用组件 → pk 专属组件；顺序不能换）。
 # 为什么版本号要注入而不是写死在 HTML 里：发版后忘了改站点，是最常见的静默腐化。
 set -eu
 cd "$(dirname "$0")/.."

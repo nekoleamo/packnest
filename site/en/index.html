@@ -8,78 +8,94 @@
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="alternate" hreflang="zh-CN" href="../">
 <link rel="alternate" hreflang="en" href="./">
-<link rel="stylesheet" href="../style.css">
+<!-- Load order is fixed: skeleton tokens → fusion tokens (colors only) → shared components → packnest components -->
+<link rel="stylesheet" href="../css/tokens.css">
+<link rel="stylesheet" href="../css/tokens-pk.css">
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/pk.css">
+<script>
+/* Set the theme before first paint so a dark reader never sees a white flash */
+try{var t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}
+</script>
 </head>
 <body>
-<main>
+<div class="page">
 
-<div class="top">
-  <span class="brand">packnest<span class="tag">pk</span></span>
-  <span class="ver">v__PK_VERSION__</span>
-  <nav>
-    <a class="hide-sm" href="#tools">Tools</a>
-    <a class="hide-sm" href="#commands">Commands</a>
-    <a class="hide-sm" href="#gui">Desktop app</a>
-    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/cli.md">Docs</a>
-    <a class="hide-xs" href="https://github.com/nekoleamo/packnest">GitHub</a>
-    <a class="hide-xs" href="https://gitee.com/null_593_5354/packnest">gitee</a>
-    <a class="lang" href="../" hreflang="zh-CN" aria-label="切换到中文">中文</a>
-  </nav>
-</div>
-
-<header class="hero">
-  <span class="pill">China mirrors, zero setup <b>·</b> MIT</span>
-  <h1>One command,<br>every <em>runtime</em></h1>
-  <p class="lede">
-    <span class="tk">node</span> · <span class="tk">npm</span> · <span class="tk">pnpm</span> ·
-    <span class="tk">bun</span> · <span class="tk">go</span> ·
-    <span class="tk">python</span>
-  </p>
-  <p class="lede lede-sub">
-    Single Go binary · zero CGO · six platforms<br>
-    installs the newest npm compatible with each Node version
-  </p>
-
-  <div class="cta">
-    <div class="install">
-      <div class="row">
-        <span class="os">macOS · Linux</span>
-        <button class="copy" type="button" data-copy="curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh" aria-label="Copy install command">Copy</button>
+  <!-- ============ Nav ============ -->
+  <div class="nav-wrap">
+    <nav class="nav" aria-label="Main navigation">
+      <a class="nav-brand" href="#"><span class="logo"></span><b>packnest</b></a>
+      <span class="tag">pk</span>
+      <span class="ver">v__PK_VERSION__</span>
+      <div class="nav-links">
+        <a href="#why">Features</a>
+        <a href="#tools">Tools</a>
+        <a href="#commands">Commands</a>
+        <a href="#gui">Desktop</a>
+        <a href="#faq">FAQ</a>
       </div>
-      <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh</code>
-    </div>
-    <div class="install">
-      <div class="row">
-        <span class="os">Windows</span>
-        <button class="copy" type="button" data-copy="iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex" aria-label="Copy install command">Copy</button>
+      <div class="nav-actions">
+        <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Toggle light/dark"></button>
+        <a class="lang" href="../" hreflang="zh-CN" aria-label="切换到中文">中文</a>
+        <a class="nav-btn nav-btn--solid" href="#install">Install</a>
       </div>
-      <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex</code>
-    </div>
-    <div class="install">
-      <div class="row">
-        <span class="os">Homebrew</span>
-        <button class="copy" type="button" data-copy="brew install nekoleamo/packnest/packnest" aria-label="Copy install command">Copy</button>
-      </div>
-      <code>brew install nekoleamo/packnest/packnest</code>
-    </div>
-    <div class="install">
-      <div class="row">
-        <span class="os">Scoop</span>
-        <button class="copy" type="button" data-copy="scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket&#10;scoop install packnest" aria-label="Copy install command">Copy</button>
-      </div>
-      <code>scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket<br>scoop install packnest</code>
-    </div>
-    <p class="fallback">Self-hosted: drop the <code>dist/</code> from <code>make release</code> on any static host and point
-      <button class="linkbtn" type="button" data-copy="curl -fsSL https://your-host/install.sh | sh -s -- --base https://your-host/packnest">--base</button> at it</p>
+    </nav>
   </div>
-</header>
 
-<div class="window" role="img" aria-label="Real output of pk install node@22">
-  <div class="bar">
-    <span class="lights"><i></i><i></i><i></i></span>
-    <span class="title">pk install node@22</span>
-    <span class="note">real output · CLI messages are Chinese</span>
-  </div>
+  <!-- ============ Hero: type block + install blocks ============ -->
+  <header class="hero hero-split" id="install">
+    <div>
+      <p class="hero-pill">China mirrors, zero setup <b>·</b> MIT</p>
+      <h1>One command,<br>every <em>runtime</em></h1>
+      <p class="hero-stack">node<i>·</i>npm<i>·</i>pnpm<i>·</i>bun<i>·</i>go<i>·</i>python</p>
+      <p class="trust">
+        <span>Single Go binary</span><span>Zero CGO</span><span>Six platforms</span><span>Two dependencies</span>
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn--primary" href="https://github.com/nekoleamo/packnest/releases">Downloads</a>
+        <a class="btn btn--ghost" href="https://github.com/nekoleamo/packnest/blob/main/docs/en/cli.md">CLI reference</a>
+      </div>
+    </div>
+
+    <div>
+      <div class="install-grid">
+        <div class="install install--wide">
+          <div class="row"><span class="os">macOS · Linux</span>
+            <button class="copy" type="button" data-copy="curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh" aria-label="Copy install command">Copy</button>
+          </div>
+          <code title="curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.sh | sh">curl -fsSL https://gitee.com/…/install.sh | sh</code>
+        </div>
+        <div class="install install--wide">
+          <div class="row"><span class="os">Windows</span>
+            <button class="copy" type="button" data-copy="iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex" aria-label="Copy install command">Copy</button>
+          </div>
+          <code title="iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install.ps1 -UseB | iex">iwr https://gitee.com/…/install.ps1 -UseB | iex</code>
+        </div>
+        <div class="install">
+          <div class="row"><span class="os">Homebrew</span>
+            <button class="copy" type="button" data-copy="brew install nekoleamo/packnest/packnest" aria-label="Copy install command">Copy</button>
+          </div>
+          <code>brew install nekoleamo/packnest/packnest</code>
+        </div>
+        <div class="install">
+          <div class="row"><span class="os">Scoop</span>
+            <button class="copy" type="button" data-copy="scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket&#10;scoop install packnest" aria-label="Copy install command">Copy</button>
+          </div>
+          <code>scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket<br>scoop install packnest</code>
+        </div>
+      </div>
+      <p class="fallback">Self-hosted: drop the <code>dist/</code> from <code>make release</code> on any static host and point
+        <button class="linkbtn" type="button" data-copy="curl -fsSL https://your-host/install.sh | sh -s -- --base https://your-host/packnest">--base</button> at it</p>
+    </div>
+  </header>
+
+  <!-- ============ Terminal window ============ -->
+  <div class="term" role="img" aria-label="Real output of pk install node@22">
+    <div class="term-bar">
+      <span class="term-lights"><i></i><i></i><i></i></span>
+      <span class="term-title">pk install node@22</span>
+      <span class="note">real output · CLI messages are Chinese</span>
+    </div>
 <pre><span class="p">$</span> <span class="cmd">pk install node@22</span>
 <span class="dim">解析 node@22.23.4</span>
 <span class="dim">下载 47.7 MB/47.7 MB 100% (5.0 MB/s)</span>
@@ -87,186 +103,345 @@
 <span class="dim">伴生包 npm@12.2.2（replaced 10.9.9）</span>
 <span class="ok">装好 node@22.23.4</span> <span class="dim">→ ~/.packnest/tools/node/22.23.4（已设为全局默认）</span>
 <span class="p">$</span> <span class="cursor"></span></pre>
+  </div>
+
+  <!-- ============ Stats band ============ -->
+  <ul class="stats">
+    <li><b>6</b><span>platforms</span></li>
+    <li><b>0</b><span>CGO</span></li>
+    <li><b>2</b><span>dependencies</span></li>
+    <li><b>6</b><span>runtimes</span></li>
+    <li><b>0</b><span>residue</span></li>
+  </ul>
+
+  <!-- ============ What it solves: features + remaining details ============ -->
+  <section id="why">
+    <div class="section-head">
+      <h2 class="section-title">What it solves</h2>
+      <p class="section-lede">Four things — the four you actually hit on a Chinese network.</p>
+    </div>
+    <div class="features">
+
+      <article class="feature">
+        <div class="feature-media" style="margin:0">
+          <div class="frag">
+            <span class="k">mirror</span>
+            <span class="v">default · cn · tuna
+aliyun · ustc
+<em>probe 500ms → cache 6h</em></span>
+          </div>
+        </div>
+        <div>
+          <h3 class="feature-name">China network</h3>
+          <ul class="feature-points">
+            <li>Five built-in profiles: <code>default</code> / <code>cn</code> / <code>tuna</code> / <code>aliyun</code> / <code>ustc</code></li>
+            <li><b>The first install probes for real</b> (500ms HEAD, cached for 6h): reachable upstream means direct, otherwise it falls back to a domestic mirror</li>
+            <li>Or pin one profile by hand with <code>pk mirror use cn</code></li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="feature">
+        <div class="feature-media" style="margin:0">
+          <div class="frag">
+            <span class="k">pair</span>
+            <span class="v">node@22.23.4
+→ npm@12.2.2
+<em>replaced 10.9.9</em></span>
+          </div>
+        </div>
+        <div>
+          <h3 class="feature-name">npm pairing</h3>
+          <ul class="feature-points">
+            <li>npm is not a standalone tool but a companion of Node, never exposed as its own version</li>
+            <li><b>The newest npm compatible with the exact Node version is looked up</b> and replaces the older one shipped in the tarball</li>
+            <li>Boundaries are patch-level (22.22.2 → npm 12.x, 24.15.0 → 12.x) and pre-releases are excluded</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="feature">
+        <div class="feature-media" style="margin:0">
+          <div class="frag">
+            <span class="k">verify</span>
+            <span class="v">sha256 × 2 sources
+<em>TOFU table</em>
+then fully offline</span>
+          </div>
+        </div>
+        <div>
+          <h3 class="feature-name">Checksums</h3>
+          <ul class="feature-points">
+            <li>The first install requires <b>at least two sources to agree on the digest</b> and records it in a TOFU table</li>
+            <li>Every later install of that version verifies fully offline</li>
+            <li>If sources disagree it fails hard and tells you which source the artifact actually matches</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="feature">
+        <div class="feature-media" style="margin:0">
+          <div class="frag">
+            <span class="k">uninstall</span>
+            <span class="v">pk uninstall
+  --all --self
+<em>0 residue</em></span>
+          </div>
+        </div>
+        <div>
+          <h3 class="feature-name">Uninstall</h3>
+          <ul class="feature-points">
+            <li>The ledger is the only source of truth: only recorded directories are removed — and since 1.9.2 each path is re-checked to really live under <code>~/.packnest/tools</code>, so a corrupt record can never delete something else</li>
+            <li>Version switches are atomic shim re-points; uninstalls leave zero residue</li>
+            <li><b><code>pk uninstall --all --self</code> removes pk itself too</b> (delayed delete on Windows)</li>
+          </ul>
+        </div>
+      </article>
+
+    </div>
+
+    <dl class="defs">
+      <dt>Long tail</dt>
+      <dd>Six providers are embedded; everything else comes from your own TOML manifest (<code>~/.packnest/providers/&lt;id&gt;.toml</code>): index, artifact, checksums, layout and companion packages are declarative data, no code executed. Field reference: <a href="https://github.com/nekoleamo/packnest/blob/main/docs/providers.md">docs/providers.md</a>.</dd>
+      <dt>Downloads</dt>
+      <dd>Range resume plus <b>parallel sharding by default</b> (≥8MB, cold start, Range-capable source; 2–8 shards picked by size, any trouble falls back to one stream; <code>--jobs 1</code> forces a single stream). Measured on a 48MB node tarball: 1.46s → 0.84s with 8 shards. Indexes travel gzipped: the Go index drops from 2.28MB to 557KB.</dd>
+      <dt>Cache</dt>
+      <dd>Artifact and index caches live in <code>~/.packnest/cache</code> by default; <code>PK_CACHE=&lt;dir&gt;</code> moves them elsewhere for CI or multi-machine warmup (ledger, shims and locks stay put), and <code>--purge</code> never deletes that directory.
+      <b>A warm cache also works on a brand-new machine</b>: the cache records "published digest → archive" aliases, so a fresh CI runner fetches a few KB of checksums and hits the 50 MB archive instead of downloading it (since 1.8).</dd>
+      <dt>Footprint</dt>
+      <dd>One Go binary with <code>CGO_ENABLED=0</code>, built for six targets, depending on exactly two third-party libraries (semver, toml).</dd>
+    </dl>
+  </section>
+
+  <!-- ============ Tools ============ -->
+  <section id="tools">
+    <div class="section-head">
+      <h2 class="section-title">What it installs</h2>
+      <p class="section-lede">Six embedded providers; write your own TOML for the long tail — pure data, no code.</p>
+    </div>
+    <table class="doctable">
+      <thead><tr><th>tool</th><th>notes</th></tr></thead>
+      <tbody>
+        <tr><td>node</td><td>official index + China mirrors; npm is auto-paired on install</td></tr>
+        <tr><td>npm</td><td>only appears as Node's companion; never exposed as its own version</td></tr>
+        <tr><td>pnpm</td><td>needs Node first (runtimes are never installed implicitly); <code>PNPM_HOME</code> points at the shared prefix</td></tr>
+        <tr><td>bun</td><td>single-file layout, official releases with mirror fallback</td></tr>
+        <tr><td>go</td><td>writes <code>GOTOOLCHAIN=local</code> into your environment so Go does not fetch a second toolchain</td></tr>
+        <tr><td>python</td><td>installs python-build-standalone prebuilt builds only, never compiles from source</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ============ Commands ============ -->
+  <section id="commands">
+    <div class="section-head">
+      <h2 class="section-title">Commands</h2>
+      <p class="section-lede">Ten, and the set is fixed. The global <code>--json</code> flag is the only contract for GUIs and scripts.</p>
+    </div>
+    <table class="doctable">
+      <thead><tr><th>command</th><th>what it does</th></tr></thead>
+      <tbody>
+        <tr><td>install</td><td>Install tools (<b>multiple tools run in parallel</b>: download, verify and extract concurrently, ledger writes stay single-threaded); no arguments = install everything in <code>pk.toml</code> and refresh <code>pk.lock</code>; with only a <code>package.json</code> it reads its <code>engines.node</code></td></tr>
+        <tr><td>uninstall</td><td><code>tool@version</code> one; <code>tool</code> every version (lists them, then asks); <code>--all</code> everything (<code>--purge</code> the root, <code>--self</code> the binary)</td></tr>
+        <tr><td>use</td><td>switches the global default; <code>--project</code> pins it for the current project</td></tr>
+        <tr><td>list</td><td>installed tools with disk usage, plus an upgrade hint when a newer release exists (from the index cache, never networked); <code>pk list node</code> browses every installable version (<code>--major 22</code> / <code>--all</code>)</td></tr>
+        <tr><td>which</td><td>resolves a shim back to the real binary path</td></tr>
+        <tr><td>mirror</td><td>four subcommands — <code>list</code> / <code>probe</code> / <code>use</code> / <code>write</code> — manage mirror profiles</td></tr>
+        <tr><td>doctor</td><td>checks PATH, ledger, mirrors, global packages and other version managers; <code>--fix</code> repairs the PATH managed block and the pk/packnest entries</td></tr>
+        <tr><td>env</td><td>prints a shell snippet; <code>--write</code> updates the managed block (on Windows the user Path registry value, immune to ExecutionPolicy)</td></tr>
+        <tr><td>gc</td><td>reclaims unreferenced versions and over-limit cache; <code>--keep 2</code> keeps the newest two per tool</td></tr>
+        <tr><td>upgrade</td><td>upgrades every installed tool to the newest indexed release (old versions kept, global default follows, npm follows node); <code>--dry-run</code> previews.<br><b>Upgrade pk itself</b>: <code>pk upgrade --self</code> (source auto-picked by network: gitee/GitHub; signature checked, replaced atomically; brew/scoop installs only get the command)</td></tr>
+      </tbody>
+    </table>
+    <p class="after">On failure <code>--json</code> also emits <code>{"schema":1,"error":{"code","args","msg","exit"}}</code> (since 1.8, additive only; the human stderr line and exit code are unchanged)</p>
+    <p class="after">Global flags: <code>--json</code> (the only contract for GUIs and scripts) · <code>--offline</code> · <code>--yes</code> · <code>--root</code> · <code>--lang en</code> (English output; <code>PK_LANG=en</code> also works). Fixed exit codes: 0 ok / 1 generic / 2 usage / 3 network / 4 checksum / 5 locked.</p>
+    <p class="after"><code>--dry-run</code> is a <b>read-only preview</b>: no download, no extraction, no <code>pk.lock</code>, no stale sweep, no <code>config.toml</code> change (since 1.5.1).</p>
+    <p class="after">Releases are signed: <code>checksums.txt</code> ships with an <code>sshsig</code> signature (<code>checksums.txt.sig</code>) and the install script verifies it before comparing sha256 — mirrors and self-hosted sources cannot rewrite the manifest (<code>brew</code>/<code>scoop</code> only check sha256; that is their limit).</p>
+    <p class="after">Long-tail tools need no release: drop <code>~/.packnest/providers/&lt;id&gt;.toml</code> in (pure data, no code executed; checksums, mirror fallback and companion packages are declared in the manifest, and <code>pk doctor</code> points at the offending line).</p>
+  </section>
+
+  <!-- ============ Desktop app ============ -->
+  <section id="gui">
+    <div class="section-head">
+      <h2 class="section-title">Desktop app</h2>
+      <p class="section-lede">Optional · separate artifact · requires the CLI.</p>
+    </div>
+
+    <p class="gui-lede">The GUI (<b>pk-desktop</b>, native UI — pure Go, no webview) is a visual supplement to the CLI, not a second installer:
+      it imports no internal packages and every action is a subprocess call to <code>pk &lt;command&gt;</code> <code>--json</code>,
+      so the truth always stays in the CLI and in <code>~/.packnest</code>. It is therefore always half a step behind the CLI, and it never downloads a second copy of your runtimes.</p>
+
+    <ul class="feats two">
+      <li>Installed-tools table with an <b>upgrade</b> hint (one click = <code>pk install &lt;tool&gt;@latest</code>), weak / unverified / npm badges, copy install path</li>
+      <li>Install queue: multiple specs run one after another, per-row progress (the NDJSON <code>progress</code> event)</li>
+      <li>Mirror profile switching with latency probing; writing <code>~/.npmrc</code> backs it up first</li>
+      <li>Doctor page: global packages in a table, <code>--probe</code> to really load native modules with node, <b>Fix now</b> (<code>pk doctor --fix</code>)</li>
+      <li>Reclaim page: preview or delete, <code>--keep N</code> keeps the newest N versions per tool</li>
+      <li>Read-only <code>which</code> (command → real path) and <code>env</code> (PATH / variables) views</li>
+      <li>Light/dark toggle and a <b>Chinese/English UI</b> (header switch, follows the system language)</li>
+      <li><b>Check for updates</b>: sees both desktop and CLI versions, picks the download source from current network conditions (gitee / GitHub), upgrades in place and asks for a restart</li>
+      <li><b>Launch at login</b> (off by default; user-level entry only: LaunchAgent / HKCU Run / XDG autostart)</li>
+    </ul>
+
+    <table class="doctable" style="margin-top:32px">
+      <thead><tr><th>Platform</th><th>How</th><th>Verification</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>macOS<br><span class="hint">arm64</span></td>
+          <td><b>One-liner (recommended)</b><br>
+            <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.sh | sh</code><br>
+            options: <code>--version</code> · <code>--dir</code> (default <code>~/Applications</code>) · <code>--dry-run</code><br>
+            or download <code>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</code> by hand</td>
+          <td><code>checksums.txt.sig</code> (sshsig) first, then sha256</td>
+        </tr>
+        <tr>
+          <td>Windows<br><span class="hint">amd64 / arm64</span></td>
+          <td><b>PowerShell one-liner (recommended)</b><br>
+            <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -UseB | iex</code><br>
+            <b>or Scoop</b><br>
+            <code>scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket</code><br>
+            <code>scoop install packnest-desktop</code><span class="hint"> (installs the CLI too)</span><br>
+            or download <code>packnest-desktop___GUI_VERSION___windows_amd64.zip</code> (ARM: <code>…_windows_arm64.zip</code>) by hand</td>
+          <td>script: sshsig + sha256 · Scoop: sha256 from the manifest</td>
+        </tr>
+        <tr>
+          <td>Linux<br><span class="hint">amd64 / arm64</span></td>
+          <td><b>Manual download</b> (no install script)<br>
+            <code>packnest-desktop___GUI_VERSION___linux_amd64.tar.gz</code> (ARM: <code>…_linux_arm64.tar.gz</code>) → unpack and run <code>./pk-desktop</code><br>
+            needs: GTK3 only; the tray icon also wants <code>libayatana-appindicator3</code></td>
+          <td>compare with <code>shasum -a 256</code> yourself</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="after">Artifacts live under the separate tag <code>gui-v__GUI_VERSION__</code>:
+    <a href="https://gitee.com/null_593_5354/packnest/releases/tag/gui-v__GUI_VERSION__">gitee</a> ·
+    <a href="https://github.com/nekoleamo/packnest/releases/tag/gui-v__GUI_VERSION__">GitHub</a>
+    (with <code>checksums.txt</code> + <code>.sig</code>). The same release carries the five original artifact names
+    (mac arm64, win amd64+arm64, linux amd64+arm64) for manual verification.</p>
+    <p class="after">No Intel Mac build (run <code>make gui-app</code> yourself); no Homebrew cask (ad-hoc signing cannot pass Gatekeeper).</p>
+
+    <dl class="defs">
+      <dt>Requirements</dt>
+      <dd>The CLI must be installed first — if it is missing, the header shows the install command for <b>your platform</b>
+      (PowerShell on Windows, <code>sh</code> elsewhere) with a copy button.
+      macOS builds are ad-hoc signed: allow the app once under System Settings → Privacy &amp; Security.
+      Windows and Linux need no webview runtime (the Linux tray icon wants <code>libayatana-appindicator3</code>).
+      The browser form (<code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code>) is kept as a frozen fallback
+      page — layout and features follow the native app.</dd>
+      <dt>What it is not</dt>
+      <dd>Not a second package manager: no separate ledger, and no second implementation of upgrading —
+      <b>the CLI upgrades itself via <code>pk upgrade --self</code></b>, while <b>the desktop app swaps its own artifacts</b>
+      (download → verify signature → sha256 → replace → ask to restart); <code>scoop</code> installs only get
+      <code>scoop update packnest-desktop</code>. Uninstall still goes through the CLI (<code>pk uninstall --all --self</code>).</dd>
+    </dl>
+  </section>
+
+  <!-- ============ FAQ ============ -->
+  <section id="faq">
+    <div class="section-head">
+      <h2 class="section-title">FAQ</h2>
+      <p class="section-lede">The four that come up most.</p>
+    </div>
+    <div class="faq">
+      <details open>
+        <summary><h3>How is this different from nvm or proto?</h3><span class="chev"></span></summary>
+        <p class="answer">nvm only handles Node; proto is a general version manager without mirror probing. packnest focuses on "it installs on a Chinese network, and it uninstalls clean" — one binary for six platforms, no shell-function injection like nvm.</p>
+      </details>
+      <details>
+        <summary><h3>What if a mirror dies?</h3><span class="chev"></span></summary>
+        <p class="answer">Probing happens on every cold start and is cached for six hours. A dead profile falls through to the next one; if none work, use <code>--offline</code> against the local cache, or add your own profile with <code>pk mirror write</code>.</p>
+      </details>
+      <details>
+        <summary><h3>Why can't npm be installed on its own?</h3><span class="chev"></span></summary>
+        <p class="answer">Because npm is Node's companion: an npm version means nothing without the Node version it belongs to. Installing Node looks up the newest compatible npm and installs it too, so you never end up with Node 22 paired with a Node-18-era npm.</p>
+      </details>
+      <details>
+        <summary><h3>Do I still need the CLI with the desktop app?</h3><span class="chev"></span></summary>
+        <p class="answer">Yes. Every action in the desktop app is a subprocess call to <code>pk --json</code>; the truth lives in the CLI and in <code>~/.packnest</code>. Without the CLI the header shows the install command for your platform.</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- ============ Chinese note ============ -->
+  <section>
+    <div class="en-card" lang="zh-CN">
+      <h2>中文</h2>
+      <p>本页是英文版。中文说明、命令手册与故障排查在中文页与 <code>docs/</code> 里：<a href="../">打开中文页</a>。</p>
+    </div>
+  </section>
+
+  <!-- ============ Footer ============ -->
+  <footer class="foot">
+    <div class="foot-top">
+      <div class="mark">
+        <p class="name">packnest</p>
+        <p>A runtime installer that just works on China's network</p>
+        <p>v__PK_VERSION__ · MIT</p>
+      </div>
+      <nav class="foot-cols">
+        <div class="foot-col">
+          <h4>Project</h4>
+          <a href="https://github.com/nekoleamo/packnest">Source</a>
+          <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/cli.md">CLI reference</a>
+          <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/troubleshooting.md">Troubleshooting</a>
+        </div>
+        <div class="foot-col">
+          <h4>Desktop app</h4>
+          <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/gui.md">Desktop app docs</a>
+          <a href="https://gitee.com/null_593_5354/packnest/releases">Releases</a>
+        </div>
+        <div class="foot-col">
+          <h4>Contracts</h4>
+          <a href="https://github.com/nekoleamo/packnest/blob/main/docs/json-schema.md">--json contract</a>
+          <a href="https://github.com/nekoleamo/packnest/blob/main/docs/providers.md">provider manifests</a>
+        </div>
+        <div class="foot-col">
+          <h4>Mirrors</h4>
+          <a href="https://gitee.com/null_593_5354/packnest">gitee mirror</a>
+          <a href="https://github.com/nekoleamo/homebrew-packnest">Homebrew tap</a>
+          <a href="https://github.com/nekoleamo/scoop-bucket">Scoop bucket</a>
+        </div>
+        <div class="foot-col">
+          <h4>License</h4>
+          <a href="https://github.com/nekoleamo/packnest/blob/main/LICENSE">MIT</a>
+        </div>
+      </nav>
+    </div>
+    <div class="foot-bottom">
+      <p>MIT · <b>no analytics</b> · no third-party requests</p>
+      <p>Self-hosted install: point <b>--base</b> at any static host</p>
+    </div>
+  </footer>
+
 </div>
-
-<ul class="stats">
-  <li><b>6</b><span>platforms</span></li>
-  <li><b>0</b><span>CGO</span></li>
-  <li><b>2</b><span>dependencies</span></li>
-  <li><b>6</b><span>runtimes</span></li>
-  <li><b>0</b><span>residue</span></li>
-</ul>
-
-<section id="why">
-  <h2>What it solves</h2>
-  <dl>
-    <dt>China network</dt>
-    <dd>Five built-in profiles: <code>default</code> / <code>cn</code> / <code>tuna</code> / <code>aliyun</code> / <code>ustc</code>. <b>The first install probes for real</b> (500ms HEAD, cached for 6h): reachable upstream means direct, otherwise it falls back to a domestic mirror automatically.</dd>
-    <dt>npm pairing</dt>
-    <dd>npm is not a standalone tool but a companion of Node: <b>the newest npm compatible with the exact Node version is looked up</b> and replaces the older one shipped in the tarball (boundaries are patch-level, pre-releases excluded).</dd>
-    <dt>Checksums</dt>
-    <dd>The first install requires <b>at least two sources to agree on the digest</b> and records it in a TOFU table; every later install of that version verifies fully offline. If sources disagree it fails hard and tells you which source the artifact actually matches.</dd>
-    <dt>Uninstall</dt>
-    <dd>The ledger is the only source of truth: only directories it recorded are removed (since 1.9.2 it double-checks that the recorded path really lives under <code>~/.packnest/tools</code>, so a corrupt record can never delete something else), version switches are atomic shim re-points, and uninstalls leave zero residue. <b><code>pk uninstall --all --self</code> removes pk itself too</b> (delayed delete on Windows).</dd>
-    <dt>Long tail</dt>
-    <dd>Six providers are embedded; everything else comes from your own TOML manifest (<code>~/.packnest/providers/&lt;id&gt;.toml</code>) — index, artifact, checksums, layout and companion packages are declarative data, no code executed. Field reference: <a href="https://github.com/nekoleamo/packnest/blob/main/docs/providers.md">docs/providers.md</a>.</dd>
-    <dt>Downloads</dt>
-    <dd>Range resume plus <b>parallel sharding by default</b> (≥8MB, cold start, Range-capable source; 2–8 shards picked by size, any trouble falls back to one stream; <code>--jobs 1</code> forces a single stream). Measured on a 48MB node tarball: 1.46s → 0.84s with 8 shards. Indexes travel gzipped: the Go index drops from 2.28MB to 557KB.</dd>
-    <dt>Cache</dt>
-    <dd>Artifact and index caches live in <code>~/.packnest/cache</code> by default; <code>PK_CACHE=&lt;dir&gt;</code> moves them elsewhere for CI or multi-machine warmup (ledger, shims and locks stay put), and <code>--purge</code> never deletes that directory.
-    <b>A warm cache also works on a brand-new machine</b>: the cache records "published digest → archive" aliases, so a fresh CI runner fetches a few KB of checksums and hits the 50 MB archive instead of downloading it (since 1.8).</dd>
-    <dt>Footprint</dt>
-    <dd>One Go binary with <code>CGO_ENABLED=0</code>, built for six targets, depending on exactly two third-party libraries (semver, toml).</dd>
-  </dl>
-</section>
-
-<section id="tools">
-  <h2>What it installs <span class="hint">6 embedded providers · write your own TOML for the long tail</span></h2>
-  <table>
-    <thead><tr><th>tool</th><th>notes</th></tr></thead>
-    <tbody>
-      <tr><td>node</td><td>official index + China mirrors; npm is auto-paired on install</td></tr>
-      <tr><td>npm</td><td>only appears as Node's companion; never exposed as its own version</td></tr>
-      <tr><td>pnpm</td><td>needs Node first (runtimes are never installed implicitly); <code>PNPM_HOME</code> points at the shared prefix</td></tr>
-      <tr><td>bun</td><td>single-file layout, official releases with mirror fallback</td></tr>
-      <tr><td>go</td><td>writes <code>GOTOOLCHAIN=local</code> into your environment so Go does not fetch a second toolchain</td></tr>
-      <tr><td>python</td><td>installs python-build-standalone prebuilt builds only, never compiles from source</td></tr>
-    </tbody>
-  </table>
-</section>
-
-<section id="commands">
-  <h2>Commands <span class="hint">10 fixed commands</span></h2>
-  <table>
-    <thead><tr><th>command</th><th>what it does</th></tr></thead>
-    <tbody>
-      <tr><td>install</td><td>Install tools (<b>multiple tools run in parallel</b>: download, verify and extract concurrently, ledger writes stay single-threaded); no arguments = install everything in <code>pk.toml</code> and refresh <code>pk.lock</code>; with only a <code>package.json</code> it reads its <code>engines.node</code></td></tr>
-      <tr><td>uninstall</td><td><code>tool@version</code> one; <code>tool</code> every version (lists them, then asks); <code>--all</code> everything (<code>--purge</code> the root, <code>--self</code> the binary)</td></tr>
-      <tr><td>use</td><td>switches the global default; <code>--project</code> pins it for the current project</td></tr>
-      <tr><td>list</td><td>installed tools with disk usage, plus an upgrade hint when a newer release exists (from the index cache, never networked); <code>pk list node</code> browses every installable version (<code>--major 22</code> / <code>--all</code>)</td></tr>
-      <tr><td>which</td><td>resolves a shim back to the real binary path</td></tr>
-      <tr><td>mirror</td><td>four subcommands — <code>list</code> / <code>probe</code> / <code>use</code> / <code>write</code> — manage mirror profiles</td></tr>
-      <tr><td>doctor</td><td>checks PATH, ledger, mirrors, global packages and other version managers; <code>--fix</code> repairs the PATH managed block and the pk/packnest entries</td></tr>
-      <tr><td>env</td><td>prints a shell snippet; <code>--write</code> updates the managed block (on Windows the user Path registry value, immune to ExecutionPolicy)</td></tr>
-      <tr><td>gc</td><td>reclaims unreferenced versions and over-limit cache; <code>--keep 2</code> keeps the newest two per tool</td></tr>
-      <tr><td>upgrade</td><td>upgrades every installed tool to the newest indexed release (old versions kept, global default follows, npm follows node); <code>--dry-run</code> previews.<br><b>Upgrade pk itself</b>: <code>pk upgrade --self</code> (source auto-picked by network: gitee/GitHub; signature checked, replaced atomically; brew/scoop installs only get the command)</td></tr>
-    </tbody>
-  </table>
-  <p class="after">On failure <code>--json</code> also emits <code>{"schema":1,"error":{"code","args","msg","exit"}}</code> (since 1.8, additive only; the human stderr line and exit code are unchanged)</p>
-  <p class="after">Global flags: <code>--json</code> (the only contract for GUIs and scripts) · <code>--offline</code> · <code>--yes</code> · <code>--root</code> · <code>--lang en</code> (English output; <code>PK_LANG=en</code> also works). Fixed exit codes: 0 ok / 1 generic / 2 usage / 3 network / 4 checksum / 5 locked.</p>
-  <p class="after"><code>--dry-run</code> is a <b>read-only preview</b>: no download, no extraction, no <code>pk.lock</code>, no stale sweep, no <code>config.toml</code> change (since 1.5.1).</p>
-  <p class="after">Releases are signed: <code>checksums.txt</code> ships with an <code>sshsig</code> signature (<code>checksums.txt.sig</code>) and the install script verifies it before comparing sha256 — mirrors and self-hosted sources cannot rewrite the manifest (<code>brew</code>/<code>scoop</code> only check sha256; that is their limit).</p>
-  <p class="after">Long-tail tools need no release: drop <code>~/.packnest/providers/&lt;id&gt;.toml</code> in (pure data, no code executed; checksums, mirror fallback and companion packages are declared in the manifest, and <code>pk doctor</code> points at the offending line).</p>
-</section>
-
-<section id="gui">
-  <h2>Desktop app <span class="hint">optional · separate artifact · requires the CLI</span></h2>
-  <p class="gui-lede">The GUI (<code>pk-desktop</code>, native UI — pure Go, no webview) is a visual supplement to the CLI, not a second installer:
-  it imports no internal packages and every action is a subprocess call to <code>pk &lt;command&gt;</code> <code>--json</code>,
-  so the truth always stays in the CLI and in <code>~/.packnest</code>.</p>
-
-  <dl class="gui-facts">
-    <dt>What it does</dt>
-    <dd>
-      <ul class="feats">
-        <li>Installed-tools table with an <b>upgrade</b> hint (one click = <code>pk install &lt;tool&gt;@latest</code>), weak / unverified / npm badges, copy install path</li>
-        <li>Install queue: multiple specs run one after another, per-row progress (the NDJSON <code>progress</code> event)</li>
-        <li>Mirror profile switching with latency probing; writing <code>~/.npmrc</code> backs it up first</li>
-        <li>Doctor page: global packages in a table, <code>--probe</code> to really load native modules with node, <b>Fix now</b> (<code>pk doctor --fix</code>)</li>
-        <li>Reclaim page: preview or delete, <code>--keep N</code> keeps the newest N versions per tool</li>
-        <li>Read-only <code>which</code> (command → real path) and <code>env</code> (PATH / variables) views</li>
-        <li>Light/dark toggle and a <b>Chinese/English UI</b> (header switch, follows the system language)</li>
-        <li><b>Check for updates</b>: sees both desktop and CLI versions, picks the download source from current network conditions (gitee / GitHub), upgrades in place and asks for a restart</li>
-        <li><b>Launch at login</b> (off by default; user-level entry only: LaunchAgent / HKCU Run / XDG autostart)</li>
-      </ul>
-    </dd>
-
-    <dt>Four ways to install</dt>
-    <dd>
-      <table>
-        <thead><tr><th>Platform</th><th>How</th><th>Verification</th></tr></thead>
-        <tbody>
-          <tr>
-            <td>macOS<br><span class="hint">arm64</span></td>
-            <td><b>One-liner (recommended)</b><br>
-              <code>curl -fsSL https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.sh | sh</code><br>
-              options: <code>--version</code> · <code>--dir</code> (default <code>~/Applications</code>) · <code>--dry-run</code><br>
-              or download <code>packnest-desktop___GUI_VERSION___darwin_arm64.app.zip</code> by hand</td>
-            <td><code>checksums.txt.sig</code> (sshsig) first, then sha256</td>
-          </tr>
-          <tr>
-            <td>Windows<br><span class="hint">amd64 / arm64</span></td>
-            <td><b>PowerShell one-liner (recommended)</b><br>
-              <code>iwr https://gitee.com/null_593_5354/packnest/raw/main/scripts/install-gui.ps1 -UseB | iex</code><br>
-              <b>or Scoop</b><br>
-              <code>scoop bucket add nekoleamo https://github.com/nekoleamo/scoop-bucket</code><br>
-              <code>scoop install packnest-desktop</code><span class="hint"> (installs the CLI too)</span><br>
-              or download <code>packnest-desktop___GUI_VERSION___windows_amd64.zip</code> (ARM: <code>…_windows_arm64.zip</code>) by hand</td>
-            <td>script: sshsig + sha256 · Scoop: sha256 from the manifest</td>
-          </tr>
-          <tr>
-            <td>Linux<br><span class="hint">amd64 / arm64</span></td>
-            <td><b>Manual download</b> (no install script)<br>
-              <code>packnest-desktop___GUI_VERSION___linux_amd64.tar.gz</code> (ARM: <code>…_linux_arm64.tar.gz</code>) → unpack and run <code>./pk-desktop</code><br>
-              needs: GTK3 only; the tray icon also wants <code>libayatana-appindicator3</code></td>
-            <td>compare with <code>shasum -a 256</code> yourself</td>
-          </tr>
-        </tbody>
-      </table>
-      <p class="after">Artifacts live under the separate tag <code>gui-v__GUI_VERSION__</code>:
-      <a href="https://gitee.com/null_593_5354/packnest/releases/tag/gui-v__GUI_VERSION__">gitee</a> ·
-      <a href="https://github.com/nekoleamo/packnest/releases/tag/gui-v__GUI_VERSION__">GitHub</a>
-      (with <code>checksums.txt</code> + <code>.sig</code>).</p>
-      <p class="after">No Intel Mac build (run <code>make gui-app</code> yourself); no Homebrew cask (ad-hoc signing cannot pass Gatekeeper).</p>
-    </dd>
-
-    <dt>Requirements</dt>
-    <dd>The CLI must be installed first — if it is missing, the header shows the install command for <b>your platform</b>
-    (PowerShell on Windows, <code>sh</code> elsewhere) with a copy button.
-    macOS builds are ad-hoc signed: allow the app once under System Settings → Privacy &amp; Security.
-    Windows and Linux need no webview runtime (the Linux tray icon wants <code>libayatana-appindicator3</code>).
-    The browser form (<code>pk-desktop --serve</code> → <code>http://127.0.0.1:7799/</code>) is kept as a frozen fallback
-    page — layout and features follow the native app.</dd>
-
-    <dt>What it is not</dt>
-    <dd>Not a second package manager: no separate ledger, and no second implementation of upgrading —
-    <b>the CLI upgrades itself via <code>pk upgrade --self</code></b>, while <b>the desktop app swaps its own artifacts</b>
-    (download → verify signature → sha256 → replace → ask to restart); <code>scoop</code> installs only get
-    <code>scoop update packnest-desktop</code>. Uninstall still goes through the CLI (<code>pk uninstall --all --self</code>).</dd>
-  </dl>
-</section>
-
-<section class="en" lang="zh-CN">
-  <h2>中文</h2>
-  <p>本页是英文版。中文说明、命令手册与故障排查在中文页与 <code>docs/</code> 里：<a href="../">打开中文页</a>。</p>
-</section>
-
-<footer>
-  <nav>
-    <a href="https://github.com/nekoleamo/packnest">Source</a>
-    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/gui.md">Desktop app</a>
-    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/cli.md">CLI reference</a>
-    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/en/troubleshooting.md">Troubleshooting</a>
-    <a href="https://github.com/nekoleamo/packnest/blob/main/docs/json-schema.md">--json contract</a>
-    <a href="https://gitee.com/null_593_5354/packnest">gitee mirror</a>
-    <a href="https://gitee.com/null_593_5354/packnest/releases">Releases</a>
-  </nav>
-  <span class="fine">MIT · no analytics · no third-party requests</span>
-</footer>
-
-</main>
 <script>
-(function(){
-  document.querySelectorAll('[data-copy]').forEach(function(el){
-    el.addEventListener('click',function(){
-      if(!navigator.clipboard)return;
-      if(!el.dataset.label)el.dataset.label=el.textContent;
-      navigator.clipboard.writeText(el.dataset.copy).then(function(){
-        el.textContent='Copied';el.classList.add('done');
-        setTimeout(function(){el.textContent=el.dataset.label;el.classList.remove('done');},1400);
-      });
+// Copy buttons: silently do nothing without navigator.clipboard
+document.querySelectorAll('[data-copy]').forEach(function (el) {
+  el.addEventListener('click', function () {
+    if (!navigator.clipboard) return;
+    if (!el.dataset.label) el.dataset.label = el.textContent;
+    navigator.clipboard.writeText(el.dataset.copy).then(function () {
+      el.textContent = 'Copied'; el.classList.add('done');
+      setTimeout(function () { el.textContent = el.dataset.label; el.classList.remove('done'); }, 1400);
     });
   });
+});
+
+// Light/dark: write data-theme + localStorage; follow the system until locked
+(function () {
+  var btn = document.querySelector('.theme-toggle');
+  if (!btn) return;
+  var root = document.documentElement;
+  var sysDark = matchMedia('(prefers-color-scheme: dark)');
+  function isDark() { return root.dataset.theme ? root.dataset.theme === 'dark' : sysDark.matches; }
+  function sync() { btn.setAttribute('aria-pressed', String(isDark())); }
+  btn.addEventListener('click', function () {
+    root.dataset.theme = isDark() ? 'light' : 'dark';
+    try { localStorage.setItem('theme', root.dataset.theme); } catch (e) {}
+    sync();
+  });
+  sync();
+  sysDark.addEventListener('change', sync);
 })();
 </script>
 </body>

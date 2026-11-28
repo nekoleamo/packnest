@@ -1,0 +1,107 @@
+/* ============================================================
+   mole.fit 风格设计令牌（Design Tokens）
+   来源：https://mole.fit/zh/  2026-11 实抓计算样式
+   用法：<link rel="stylesheet" href="tokens.css">
+        再叠自己的组件层样式（见 base.css）
+   改一整套配色只动这个文件的「色」段落。
+   ============================================================ */
+
+:root {
+  /* ---------- 底色：暖纸白三阶（整站的"纸"感来源） ---------- */
+  --parchment: #fbfaf6; /* 页面底色：暖白、比纯白软一档 */
+  --ivory:     #fefdfb; /* 浮起面：导航胶囊、卡片渐变终点 */
+  --warm-sand: #ebe9e1; /* 最深一阶，用于压暗的边缘 */
+
+  /* ---------- 品牌（唯一的彩度来源） ---------- */
+  --brand:       #144A74; /* 深钢蓝：主按钮、激活态、强调数字 */
+  --brand-light: #2D618C; /* hover */
+  --ink:         #34558A; /* 正文链接（比 brand 亮，钢笔蓝） */
+  --brand-tint:  #ECF3FA; /* 极浅蓝：标签/徽章底 */
+  /* 品牌色底上的字色。浅色档下 = ivory；深色档要反过来（见 fusion 令牌） */
+  --on-brand:    var(--ivory);
+
+  /* ---------- 文字灰阶（全部带暖调，不用纯灰） ---------- */
+  --near-black: #363433; /* 正文最深处 */
+  --heading:    #3d3d3a; /* 所有标题 + 字标，统一这一个墨色 */
+  --olive:      #504e49; /* 副文案、正文 */
+  --tagline:    #504e49; /* hero 副标题（对 paper 8.24:1） */
+  --stone:      #6b6a64; /* 元信息、小字、信用行 */
+
+  /* ---------- 分割线（三档软硬） ---------- */
+  --line:        #dcd9cd;
+  --border-soft: #ebe9df;
+  --line-faint:  #efede5;
+  --border-card: color-mix(in srgb, var(--border-soft) 70%, var(--line));
+
+  /* ---------- 深色带：页脚是整页唯一的深色块 ---------- */
+  --band-bg: #33302a; /* 墨褐黑，不是纯黑 */
+  --band-ink:  #f4f2ec; /* 深色上的文字 */
+
+  /* ---------- 字体：标题衬线 / 正文衬线 / 控件无衬线 ---------- */
+  /* 有品牌字体时把自家的放最前，后面这套是能落地的兜底 */
+  --font-display: "Spectral", Charter, Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", serif;
+  --font-body:    Charter, Georgia, "Songti SC", "Source Han Serif SC", "Noto Serif CJK SC", serif;
+  --font-ui:      -apple-system, "SF Pro Text", "PingFang SC", "Segoe UI", Roboto, sans-serif;
+  --font-mono:    "JetBrains Mono", "SF Mono", Consolas, Monaco, monospace;
+
+  /* 想改成"标题衬线 + 正文无衬线"（工程类官网更常见），把下面一行取消注释 */
+  /* --font-body: var(--font-ui); */
+
+  /* ---------- 字号阶（只有 8 档，别再加） ---------- */
+  --text-hero:    97px; /* 首页大标题，桌面 */
+  --text-section: 32px; /* 区块标题 h2 */
+  --text-title:   21px; /* 卡片标题、hero 副标题 */
+  --text-lede:    16px; /* 区块导语 */
+  --text-body:    16px;
+  --text-button:  15px;
+  --text-meta:    14px; /* 导航链接、页脚、信用行 */
+  --text-control: 13px; /* 药丸按钮、徽章 */
+  --text-price:   52px;
+
+  /* ---------- 布局 ---------- */
+  --page-max: 1128px; /* 内容栏最大宽度（约 142 个拉丁字符） */
+  --inset:    64px;   /* 桌面左右留白：880 以下 28，480 以下 22 */
+  --section-gap:  90px; /* 一级区块之间的唯一间距，880 以下 72 */
+  --head-gap:     24px; /* 区块标题到内容 */
+  --nav-gap:      48px; /* 导航到底部内容 */
+
+  /* ---------- 圆角 ---------- */
+  --r-pill: 999px;
+  --r-card: 14px; /* 引用卡、联系卡 */
+  --r-frame: 12px; /* 截图框 */
+  --r-big:  20px; /* 价格卡 */
+
+  /* ---------- 阴影（几乎看不见，只负责"浮起 1px"） ---------- */
+  --sh-nav:   0 1px 8px 1px rgba(0, 0, 0, 0.02);
+  --sh-frame: 0 1px 3px rgba(20, 19, 19, 0.10);
+  --sh-card:  0 1px 2px rgba(0, 0, 0, 0.04);
+
+  /* ---------- 动效 ---------- */
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --t-fast: 0.15s;
+  --t-card: 0.18s;
+
+  /* 卡片统一渐变：从纸色到象牙白，制造"略有厚度"的纸卡 */
+  --grad-card: linear-gradient(180deg, var(--parchment) 0%, var(--ivory) 100%);
+}
+
+/* 移动端只改节奏，不改配色 */
+@media (max-width: 880px) {
+  :root {
+    --text-hero: 84px;
+    --text-section: 26px;
+    --inset: 28px;
+    --section-gap: 72px;
+  }
+}
+@media (max-width: 640px) {
+  :root { --text-hero: 66px; --text-section: 26px; --head-gap: 20px; }
+}
+@media (max-width: 480px) {
+  :root { --inset: 22px; --text-price: 46px; }
+}
+
+/* 更省电/更可读的偏好：把细线加粗，别靠颜色区分 */
+@media (prefers-contrast: more) {
+  :root { --border-soft: #dcd9cd; --line: #c8c4b4; --line-faint: #e2dfd3; }
+}

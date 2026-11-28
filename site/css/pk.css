@@ -1,0 +1,566 @@
+/* ============================================================
+   packnest × mole 融合组件层
+   ------------------------------------------------------------
+   依赖（顺序）：tokens.css → tokens-pk.css
+                → base.css（mole 的 12 个通用组件）→ 本文件
+   本文件只放「packnest 有、mole 没有」的组件，共 8 个：
+     ① 安装块 .install  ② 终端窗 .term  ③ 数字条 .stats
+     ④ 释义格 .defs     ⑤ 文档表 .doctable  ⑥ 徽章 .ver / 语言 .lang
+     ⑦ 特性位片段卡 .frag  ⑧ 英文摘要卡 .en-card
+   ============================================================ */
+
+/* ---------- 顶栏补充：版本徽章 / 语言 / 明暗切换 ---------- */
+.ver {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: var(--brand-tint);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.lang, .theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 9px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--stone);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color var(--t-fast), border-color var(--t-fast);
+}
+.lang:hover, .theme-toggle:hover { color: var(--ink); border-color: var(--line); }
+
+.nav .tag {
+  padding: 1px 5px;
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--stone);
+  letter-spacing: 0.06em;
+}
+
+/* ============================================================
+   ① Hero 双栏：左排版（mole 尺度），右安装块（packnest 模块）
+   ============================================================ */
+.hero-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+  gap: 56px;
+  align-items: start;
+  margin-bottom: var(--section-gap);
+}
+
+/* mole 的 97px 是给拉丁的，中文落到 64px（见 tokens-pk.css） */
+.hero-split h1 {
+  margin: 0 0 20px;
+  font-size: var(--text-hero-cn);
+  line-height: var(--hero-leading);
+  letter-spacing: var(--hero-tracking);
+  font-weight: 500;
+  color: var(--heading);
+}
+.hero-split h1 em { font-style: normal; color: var(--brand); }
+
+.hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 22px;
+  padding: 4px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-pill);
+  background: var(--ivory);
+  font-size: var(--text-meta);
+  line-height: 1.5;
+  color: var(--stone);
+}
+.hero-pill b { color: var(--ink); font-weight: 500; }
+
+/* 运行时清单：mono + · 分隔，密度比一句话高 */
+.hero-stack {
+  margin: 0 0 14px;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--ink);
+}
+.hero-stack i { font-style: normal; color: var(--stone); opacity: 0.55; margin: 0 6px; }
+
+.hero .trust { margin-bottom: 30px; }
+
+@media (max-width: 1080px) {
+  .hero-split { grid-template-columns: 1fr; gap: 36px; }
+}
+@media (max-width: 480px) {
+  .hero-stack { font-size: 13.5px; line-height: 1.9; }
+}
+
+/* ============================================================
+   ② 安装块：packnest 最核心的模块（一条命令 + 复制）
+   改造点：从"4 条竖排白卡"变成"2×2 纸卡"，高度砍掉一半
+   ============================================================ */
+.install-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 560px) {
+  .install-grid { grid-template-columns: 1fr; }
+}
+
+.install--wide { grid-column: span 2; }
+@media (max-width: 560px) { .install--wide { grid-column: auto; } }
+
+.install {
+  min-width: 0;
+  padding: 11px 13px 12px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-frame);
+  background: var(--grad-card);
+  transition: border-color var(--t-card) ease, box-shadow var(--t-card) ease;
+}
+.install:hover { border-color: var(--line); box-shadow: var(--sh-card); }
+.install .row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+
+.install .os {
+  padding: 2px 7px;
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  background: var(--ivory);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--stone);
+  white-space: nowrap;
+}
+
+.copy {
+  margin-left: auto;
+  appearance: none;
+  cursor: pointer;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--brand);
+  border-radius: var(--r-pill);
+  background: var(--brand);
+  color: var(--on-brand);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 500;
+  transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-fast);
+}
+.copy:hover { background: var(--brand-light); border-color: var(--brand-light); }
+.copy:active { transform: scale(0.97); }
+.copy.done {
+  background: var(--brand-tint);
+  border-color: var(--brand);
+  color: var(--ink);
+}
+
+.install code {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--heading);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+/* "自托管"那种次要说明行 */
+.fallback {
+  margin: 10px 0 0;
+  font-size: var(--text-meta);
+  line-height: 1.7;
+  color: var(--stone);
+}
+.fallback code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--brand-tint);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+}
+.fallback .linkbtn {
+  padding: 0 0 1px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.fallback .linkbtn:hover { color: var(--ink); border-bottom-color: var(--brand); }
+
+/* ============================================================
+   ③ 终端窗：packnest 的"产品截图"
+   改造点：圆角/描边/阴影改用 mole 的截图框规格，底色用 GUI 深色档
+   ============================================================ */
+.term {
+  margin: 0 0 var(--section-gap);
+  border-radius: var(--r-frame);
+  overflow: hidden;
+  background: var(--term-bg);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--sh-frame);
+}
+.term-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border-bottom: 1px solid #ffffff12;
+  background: #ffffff06;
+}
+.term-lights { display: flex; gap: 5px; }
+.term-lights i { width: 9px; height: 9px; border-radius: 50%; background: #ffffff24; }
+.term-title {
+  margin-left: 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--term-dim);
+  letter-spacing: 0.02em;
+}
+.term pre {
+  margin: 0;
+  padding: 16px 18px 18px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--term-fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.term .p { color: var(--term-acc); }
+.term .cmd { color: #fff; }
+.term .dim { color: var(--term-dim); }
+.term .ok { color: var(--term-ok); }
+.term .cursor {
+  display: inline-block;
+  width: 0.5em; height: 1em;
+  vertical-align: -0.13em;
+  background: var(--term-acc);
+  animation: term-blink 1.2s steps(1) infinite;
+}
+@keyframes term-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .term .cursor { animation: none; } }
+
+/* ============================================================
+   ④ 数字条：packnest 的 5 个事实数字
+   改造点：数字用正文衬线（不用 mono，衬线数字更有印刷感），
+           标签保留 mono 大写小字
+   ============================================================ */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0;
+  list-style: none;
+  margin: 0 0 var(--section-gap);
+  padding: 20px 0;
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+}
+.stats li { position: relative; padding: 0 18px; min-width: 0; }
+.stats li:first-child { padding-left: 0; }
+/* 分隔用伪元素而非 border-left：不参与盒模型，视觉一致且更好对齐 */
+.stats li + li::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 2px; bottom: 2px;
+  width: 1px;
+  background: var(--line-faint);
+}
+.stats b {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--heading);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.stats span {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--stone);
+}
+@media (max-width: 880px) {
+  .stats { grid-template-columns: repeat(3, 1fr); gap: 16px 0; padding: 18px 0; }
+  .stats b { font-size: 24px; }
+  .stats li:nth-child(4) { padding-left: 0; }
+  .stats li:nth-child(4)::before { display: none; }
+}
+
+/* ============================================================
+   ⑤ 释义格：packnest 的 "它解决什么"（dt/dd）
+   改造点：dt 用 --stone 小字 + 右对齐基线，dd 用正文，间距按 mole 的 24px
+   ============================================================ */
+.defs {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 22px 40px;
+}
+.defs dt {
+  font-family: var(--font-ui);
+  font-size: var(--text-meta);
+  line-height: 1.75;
+  color: var(--stone);
+  padding-top: 2px;
+}
+.defs dd { margin: 0; font-size: var(--text-body); line-height: 1.75; color: var(--olive); }
+.defs dd b { color: var(--heading); font-weight: 500; }
+.defs code, .frag code, tr code, .gui-lede code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--brand-tint);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .defs { grid-template-columns: 1fr; gap: 6px; }
+  .defs dt { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 14px; }
+}
+
+/* ============================================================
+   ⑥ 文档表：packnest 的工具表 / 命令表
+   改造点：去外框，只留行分隔线；th 变成 mono 小字；首列 mono + brand
+   ============================================================ */
+.doctable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-body);
+  line-height: 1.65;
+}
+.doctable th {
+  padding: 0 16px 10px 0;
+  border-bottom: 1px solid var(--border-soft);
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--stone);
+}
+.doctable td {
+  padding: 14px 16px 14px 0;
+  border-bottom: 1px solid var(--line-faint);
+  vertical-align: top;
+  color: var(--olive);
+}
+.doctable td:first-child {
+  width: 9.5rem;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.doctable td b { color: var(--heading); font-weight: 500; }
+.doctable tbody tr { transition: background-color var(--t-fast); }
+.doctable tbody tr:hover { background: var(--row-hover); }
+
+/* 表格后的一小段补充说明 */
+.after {
+  margin: 12px 0 0;
+  font-size: var(--text-meta);
+  line-height: 1.75;
+  color: var(--stone);
+}
+.after code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--brand-tint);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.94em;
+}
+
+@media (max-width: 720px) {
+  /* 表格转卡片：不是 display:block 硬拆，而是让每个 tr 自带标签 */
+  .doctable, .doctable tbody, .doctable tr, .doctable td { display: block; }
+  .doctable thead { display: none; }
+  .doctable tr { padding: 14px 0; border-bottom: 1px solid var(--line-faint); }
+  .doctable td { padding: 0; border: 0; }
+  .doctable td:first-child { width: auto; margin-bottom: 4px; }
+  .doctable tbody tr:hover { background: none; }
+}
+
+/* ============================================================
+   ⑦ 特性位片段卡：mole 的特性区是"一边图一边字"，
+   packnest 没有插图 → 用一张 mono 片段卡占图位，保持同一套栅格
+   ============================================================ */
+.frag {
+  padding: 13px 15px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-frame);
+  background: var(--grad-card);
+  width: 200px;
+  min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  justify-content: center;
+}
+.frag .k {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--stone);
+}
+.frag .v {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--heading);
+  white-space: pre-wrap;
+}
+.frag .v em { font-style: normal; color: var(--ink); }
+
+@media (max-width: 880px) {
+  .frag { width: 150px; min-height: 108px; padding: 11px 12px; }
+  .frag .v { font-size: 12px; }
+}
+@media (max-width: 640px) {
+  /* 手机上不占图位，直接变成标题下的一行 mono 小卡 */
+  .frag { width: 100%; min-height: 0; flex-direction: row; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+  .frag .k { flex: none; }
+}
+
+/* ============================================================
+   ⑧ 桌面端说明卡 + 英文摘要卡：packnest 的两块"定位/收尾"
+   改造点：统一成 mole 的纸卡（渐变底 + border-card + 14 圆角）
+   ============================================================ */
+.gui-lede, .en-card {
+  margin: 0 0 var(--head-gap);
+  padding: 18px 22px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-card);
+  background: var(--grad-card);
+  font-size: var(--text-body);
+  line-height: 1.75;
+  color: var(--olive);
+}
+.gui-lede b { color: var(--heading); font-weight: 500; }
+
+/* 桌面端功能清单：mole 的圆点列表，桌面两列 */
+.feats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.feats li { position: relative; padding-left: 19px; font-size: var(--text-body); line-height: 1.6; color: var(--olive); }
+.feats li::before {
+  content: "";
+  position: absolute;
+  left: 2px; top: 0.62em;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--olive);
+  opacity: 0.55;
+}
+.feats li b { color: var(--heading); font-weight: 500; }
+@media (min-width: 881px) {
+  .feats.two { grid-template-columns: 1fr 1fr; gap: 10px 40px; }
+}
+
+.en-card { font-size: var(--text-meta); line-height: 1.85; color: var(--stone); }
+.en-card h2 { margin: 0 0 8px; font-size: var(--text-title); }
+.en-card code { color: var(--heading); }
+
+/* ============================================================
+   明暗切换按钮的图标（纯 CSS，不引外部资源）
+   ============================================================ */
+.theme-toggle::before {
+  content: "";
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  /* 半圆：左半实心读作「半明半暗」，比日月图标省事 */
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
+}
+.theme-toggle[aria-pressed="true"]::before {
+  background: currentColor;
+}
+
+/* 打印：终端窗和深色带不浪费墨水 */
+@media print {
+  .term { border: 1px solid var(--line); box-shadow: none; }
+  .term pre { color: #333; }
+  .install, .frag, .gui-lede, .en-card { background: none; }
+}
+
+/* ============================================================
+   本仓补充（来自 website-* 样本之外的三件小事）
+   ------------------------------------------------------------
+   1) .hint：原站 h2 里的副标题与表格里的次要说明，样本层没有；
+              h2 副标题已改用 .section-lede，这里只负责表格内的小字。
+   2) .term .note：终端窗标题栏右侧的一行说明（英文页用）。
+   3) 区块内的间距：.defs 跟在特性区/表格后面时需要一层呼吸。
+   ============================================================ */
+.hint {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--stone);
+  font-weight: 400;
+}
+
+.term .note {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: var(--term-dim);
+  opacity: 0.75;
+}
+
+.features + .defs,
+.doctable + .defs,
+.after + .defs { margin-top: 48px; }
+
+/* 4) 长命令装在正文里（en-card / gui-lede / after / defs / 表格）时必须能断行：
+      一行 curl 命令是 84 个不中断字符，默认不换行会把 390px 的页面撑到 627px。 */
+code { overflow-wrap: anywhere; }
+
+/* 5) ≤640px 时该让位的不是片段卡，而是图位：
+      base.css 把 .feature-media 收到 40px（给 mole 的星球图用），
+      但我们的图位里是整张片段卡，压到 40px 会把 k/v 挤成一团。 */
+@media (max-width: 640px) {
+  .feature-media { width: auto; height: auto; }
+}
+
+/* 6) 顶栏在 390px 下本来就满：`.tag`（pk）是装饰，先让它让位，
+      否则英文页的 中文 + Install 两颗药丸会被挤出视口（实测 SW=397 / CW=390）。 */
+@media (max-width: 480px) {
+  .nav .tag { display: none; }
+  .nav-actions { gap: 8px; }
+}
+
+/* 7) 顶栏里的小药丸不许被 flex 挤窄：宽 900px 时「中文」会被挤成两行（每个字一行）。 */
+.nav .lang, .nav .theme-toggle, .nav .ver, .nav .tag { flex: 0 0 auto; white-space: nowrap; }

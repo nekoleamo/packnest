@@ -1,0 +1,563 @@
+/* ============================================================
+   mole.fit 风格组件层
+   依赖 tokens.css（先引入）
+   每个组件都写成"独立可搬"的块，改造成别的站时按需摘取。
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--parchment);
+  color: var(--olive);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 数字统一等宽、齐底，避免 Charter/Georgia 的旧式数字下沉 */
+b, strong, .num, time { font-variant-numeric: lining-nums; }
+
+a { color: var(--ink); text-decoration: none; }
+a:hover { color: var(--brand); }
+
+img { max-width: 100%; display: block; }
+
+::selection { background: var(--brand-tint); }
+
+/* ---------- 页面容器 ---------- */
+.page {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 16px var(--inset) 84px;
+}
+
+/* ============================================================
+   1. 导航：粘顶的象牙白药丸
+   ============================================================ */
+.nav-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  /* 负边距把胶囊顶到页面留白里，并向两侧出血到视口边 */
+  margin: -16px calc(50% - 50vw) var(--nav-gap);
+  padding: 16px calc(50vw - 50% - 14px) 0;
+  pointer-events: none; /* 只有胶囊本身可点 */
+}
+
+.nav {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 55px;
+  padding: 10px 14px;
+  border-radius: var(--r-pill);
+  background: var(--ivory);
+  border: 1px solid transparent;
+  box-shadow: var(--sh-nav);
+  font-family: var(--font-ui);
+  color: var(--brand);
+}
+
+.nav-brand { display: flex; align-items: center; gap: 8px; color: var(--near-black); flex: none; }
+.nav-brand .logo { width: 28px; height: 28px; border-radius: 7px; background: var(--brand); }
+.nav-brand b { font-family: var(--font-display); font-size: 18px; font-weight: 500; letter-spacing: -0.02em; }
+
+.nav-links { display: flex; gap: 2px; margin-left: 8px; }
+.nav-links a {
+  font-size: var(--text-meta);
+  line-height: 1;
+  padding: 8px 11px;
+  border-radius: var(--r-pill);
+  color: var(--near-black);
+  transition: background var(--t-fast), color var(--t-fast);
+  white-space: nowrap;
+}
+.nav-links a:hover { background: var(--brand-tint); color: var(--brand); }
+
+.nav-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+
+/* 手机上导航链接收起来，只留字标 + 两颗药丸，否则药丸条会横向溢出 */
+@media (max-width: 880px) {
+  .nav-links { display: none; }
+  .nav { gap: 12px; }
+}
+@media (max-width: 480px) {
+  .nav { padding: 7px 11px; min-height: 0; }
+  .nav-actions { gap: 10px; }
+}
+
+/* 导航里的两颗小药丸（13px） */
+.nav-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 15px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-ui);
+  font-size: var(--text-control);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+.nav-btn--solid { background: var(--brand); border: 1px solid var(--brand); color: var(--on-brand) !important; }
+.nav-btn--solid:hover { background: var(--brand-light); border-color: var(--brand-light); }
+.nav-btn--line { background: transparent; border: 1px solid var(--brand); color: var(--brand) !important; }
+.nav-btn--line:hover { background: var(--brand-tint); }
+
+/* ============================================================
+   2. Hero：留白即设计
+   ============================================================ */
+.hero { margin-bottom: var(--section-gap); }
+
+.hero h1 {
+  margin: 0 0 36px;
+  font-family: var(--font-display);
+  font-size: var(--text-hero);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.045em; /* 大字号必须负字距，否则显散 */
+  color: var(--heading);
+}
+
+.hero .tagline {
+  margin: 0 0 16px;
+  max-width: 940px;
+  font-size: var(--text-title);
+  line-height: 1.4;
+  color: var(--tagline);
+}
+
+/* 一行 · 分隔的"事实条"：先试后买 · 14 天退款 · MIT */
+.trust {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0 0 32px;
+  font-size: var(--text-meta);
+  color: var(--stone);
+}
+.trust > * + *::before {
+  content: "·";
+  margin: 0 10px;
+  color: color-mix(in srgb, var(--stone) 58%, transparent);
+}
+@media (max-width: 880px) {
+  .trust > * + *::before { content: none; margin: 0; }
+}
+
+.hero-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+
+/* ---------- 按钮：52px 高的全圆药丸 ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 52px;
+  min-width: 158px;
+  padding: 0 28px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-ui);
+  font-size: var(--text-button);
+  font-weight: 500;
+  line-height: 23px;
+  letter-spacing: normal;
+  cursor: pointer;
+  transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast), transform var(--t-fast);
+}
+.btn--primary { background: var(--brand); border: 1px solid var(--brand); color: var(--on-brand) !important; }
+.btn--primary:hover { background: var(--brand-light); border-color: var(--brand-light); transform: translateY(-1px); }
+.btn--ghost { background: transparent; border: 1px solid var(--line); color: var(--near-black) !important; }
+.btn--ghost:hover { border-color: var(--stone); transform: translateY(-1px); }
+
+@media (max-width: 480px) {
+  .btn { height: 42px; min-width: 128px; padding: 0 22px; }
+}
+
+/* ============================================================
+   3. 区块：只有一种间距，一种标题
+   ============================================================ */
+section { margin-bottom: var(--section-gap); }
+
+.section-head { margin-bottom: var(--head-gap); }
+
+.section-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-section);
+  font-weight: 500;
+  line-height: 1.33;
+  letter-spacing: normal;
+  color: var(--heading);
+}
+
+.section-lede {
+  margin: 12px 0 0;
+  font-size: var(--text-lede);
+  line-height: 1.65;
+  color: var(--olive);
+}
+
+/* ============================================================
+   4. 截图框 + 分页药丸
+   ============================================================ */
+.shot { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); column-gap: 24px; align-items: baseline; }
+
+.shot-frame {
+  grid-column: 1 / -1;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-frame);
+  overflow: hidden;
+  box-shadow: var(--sh-frame);
+  background: var(--ivory);
+}
+.shot-frame img { width: 100%; }
+
+.shot-caption {
+  grid-column: 1;
+  grid-row: 2;
+  min-height: 48px;
+  padding: 12px 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.shot-caption .title { font-family: var(--font-ui); font-size: var(--text-lede); font-weight: 500; color: var(--brand); }
+.shot-caption .line { font-size: var(--text-button); color: var(--olive); }
+
+.shot-tabs { grid-column: 2; grid-row: 2; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-top: 12px; }
+.shot-tabs button {
+  appearance: none;
+  padding: 6px 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--olive);
+  font-family: var(--font-ui);
+  font-size: var(--text-control);
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--t-card), border-color var(--t-card), background var(--t-card);
+}
+.shot-tabs button:hover { color: var(--brand); border-color: var(--line); }
+.shot-tabs button[aria-selected="true"] { background: var(--brand); border-color: var(--brand); color: var(--ivory); }
+
+@media (max-width: 880px) {
+  .shot-caption, .shot-tabs { grid-column: 1; grid-row: auto; }
+  .shot-tabs { justify-content: flex-start; }
+}
+@media (max-width: 480px) {
+  .shot-caption { display: none; }
+}
+
+/* ============================================================
+   5. 特性列表：左图右文，偶数行镜像，行间用一道弧线分隔
+   ============================================================ */
+.features { display: flex; flex-direction: column; margin-top: 48px; }
+
+.feature {
+  display: grid;
+  grid-template-columns: minmax(0, 200px) minmax(0, 624px);
+  justify-content: space-between;
+  gap: 24px 64px;
+  align-items: start;
+}
+.feature:nth-child(even) { grid-template-columns: minmax(0, 624px) minmax(0, 200px); }
+.feature:nth-child(even) .feature-media { order: 2; }
+
+.feature-media { width: 200px; }
+.feature-media img, .feature-media .orb {
+  width: 200px; height: 200px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: radial-gradient(circle at 36% 30%, #eaf1f6 0%, #ccd3cc 62%, #b3b8ad 100%);
+}
+
+.feature-name {
+  margin: 0 0 24px;
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  font-weight: 500;
+  line-height: 1.33;
+  color: var(--heading);
+}
+
+.feature-points { margin: 0; padding: 0; list-style: none; display: grid; gap: 16px; }
+.feature-points li { position: relative; padding-left: 19px; font-size: var(--text-body); line-height: 1.5; color: var(--olive); }
+.feature-points li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.62em;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--olive);
+  opacity: 0.55;
+}
+
+/* 行间分隔：一道极淡的抛物线 + 一颗缓慢漂移的星点 */
+.feature + .feature {
+  position: relative;
+  margin-top: 44px;
+  padding-top: 60px;
+}
+.feature + .feature::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 16px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 16' preserveAspectRatio='none'%3E%3Cpath d='M0,14 Q300,-8 600,14' fill='none' stroke='%23b2ae9e' stroke-opacity='.22' stroke-width='1'/%3E%3C/svg%3E") repeat-x;
+  background-size: 600px 16px;
+}
+.feature + .feature::after {
+  content: "";
+  position: absolute;
+  top: 11.8px; left: 20%;
+  width: 4.4px; height: 4.4px;
+  border-radius: 50%;
+  background: rgba(163, 159, 142, 0.45);
+  animation: orbit-drift 90s linear infinite;
+}
+@keyframes orbit-drift {
+  from { left: 2%; transform: translateY(0); }
+  50%  { transform: translateY(-8px); }
+  to   { left: 96%; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .feature + .feature::after { animation: none; }
+}
+
+@media (max-width: 880px) {
+  .feature, .feature:nth-child(even) { grid-template-columns: minmax(0, 150px) minmax(0, 1fr); align-items: center; }
+  .feature-media, .feature-media img, .feature-media .orb { width: 150px; height: 150px; }
+  .feature + .feature { margin-top: 24px; padding-top: 44px; }
+}
+@media (max-width: 640px) {
+  .feature, .feature:nth-child(even) { display: block; }
+  .feature:nth-child(even) .feature-media { order: 0; }
+  .feature-media, .feature-media img, .feature-media .orb { width: 40px; height: 40px; margin-bottom: 14px; }
+  .feature-name { font-size: 20px; margin-bottom: 16px; }
+  .feature-points { gap: 20px; }
+}
+
+/* ============================================================
+   6. 口碑墙：CSS 多列瀑布流（天然错落，不用 JS）
+   ============================================================ */
+.wall { column-width: 272px; column-gap: 12px; }
+
+.quote {
+  break-inside: avoid;
+  margin: 0 0 12px;
+  padding: 15px 16px 13px;
+  background: var(--grad-card);
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-card);
+  transition: border-color var(--t-card) ease, box-shadow var(--t-card) ease;
+}
+.quote:hover { border-color: var(--line); box-shadow: var(--sh-card); }
+.quote p { margin: 0 0 12px; font-size: var(--text-body); line-height: 1.5; color: var(--olive); overflow-wrap: break-word; }
+.quote-author { display: flex; align-items: center; gap: 10px; font-size: var(--text-meta); }
+.quote-author .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--warm-sand); flex: none; }
+.quote-author b { display: block; color: var(--heading); font-weight: 500; line-height: 1.3; }
+.quote-author span { display: block; color: var(--stone); font-size: var(--text-control); line-height: 1.3; }
+
+/* 数字/统计块（GitHub star 之类） */
+.stat-row { display: flex; gap: 20px; flex-wrap: wrap; font-size: var(--text-meta); color: var(--olive); }
+.stat-row b { color: var(--heading); font-weight: 600; }
+
+/* 徽章：浅蓝底小药丸 */
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--r-pill);
+  background: var(--brand-tint);
+  color: var(--brand);
+  font-family: var(--font-ui);
+  font-size: var(--text-control);
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   7. 应用/生态图标墙：8 列，图标 64px
+   ============================================================ */
+.icon-wall {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 24px 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.icon-wall li { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.icon-wall .art {
+  width: 64px; height: 64px;
+  display: grid; place-items: center;
+  border-radius: 16px;
+  background: var(--ivory);
+  border: 1px solid var(--border-soft);
+  font-family: var(--font-ui);
+  font-size: 20px;
+  color: var(--brand);
+}
+.icon-wall span { font-family: var(--font-ui); font-size: var(--text-meta); color: var(--near-black); }
+
+@media (max-width: 880px) { .icon-wall { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .icon-wall { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px 8px; } .icon-wall .art { width: 52px; height: 52px; } }
+
+/* ============================================================
+   8. 价格/赞助卡：整块浅色卡片居中，没有描边对比，只有一圈细线
+   ============================================================ */
+.price-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 50px 48px 40px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-big);
+  background: var(--grad-card);
+}
+
+.price-amount {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.02em;
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-price);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -1px;
+  color: var(--heading);
+  font-variant-numeric: lining-nums proportional-nums;
+}
+.price-amount .cur { font-size: 0.54em; position: relative; top: -0.27em; }
+.price-amount s { font-size: 20px; letter-spacing: 0; color: var(--stone); margin-left: 12px; text-decoration-thickness: 1px; }
+
+.price-note { margin: 12px 0 24px; font-size: var(--text-body); color: var(--olive); }
+.price-card .btn { min-width: 220px; padding: 0 40px; margin: 0 0 20px; }
+.price-terms { margin: 0; font-size: var(--text-meta); color: var(--stone); }
+
+@media (max-width: 880px) { .price-card { padding: 34px 22px 30px; border-radius: 16px; } }
+
+/* ============================================================
+   9. FAQ：原生 details，箭头 + 旋转 135° 变 ×
+   ============================================================ */
+.faq { border-top: 1px solid var(--border-soft); }
+.faq details { border-bottom: 1px solid var(--line-faint); padding: 20px 0; }
+.faq summary {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  list-style: none; cursor: pointer;
+}
+.faq summary::-webkit-details-marker { display: none; }
+.faq h3 { margin: 0; font-size: var(--text-lede); font-weight: 500; line-height: 1.5; color: var(--heading); }
+.faq .chev { position: relative; flex: none; width: 15px; height: 15px; margin-right: 10px; transition: transform 0.25s ease-out; }
+.faq .chev::before, .faq .chev::after {
+  content: "";
+  position: absolute; top: 50%; left: 50%;
+  width: 13px; height: 1.4px; border-radius: 1px;
+  background: color-mix(in srgb, var(--stone) 68%, transparent);
+  transform: translate(-50%, -50%);
+}
+.faq .chev::after { transform: translate(-50%, -50%) rotate(90deg); }
+.faq details[open] .chev { transform: rotate(135deg); }
+.faq summary:hover h3 { color: var(--ink); }
+.faq summary:hover .chev::before, .faq summary:hover .chev::after { background: var(--brand-light); }
+.faq .answer { margin: 0; padding: 12px 0 4px; font-size: var(--text-body); line-height: 1.5; color: var(--olive); }
+
+/* ============================================================
+   10. 联系方式卡：两列
+   ============================================================ */
+.contact-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+.contact { margin: var(--section-gap) 0; }
+.contact-card {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 18px 20px;
+  border: 1px solid var(--border-card);
+  border-radius: var(--r-card);
+  background: var(--grad-card);
+  transition: border-color var(--t-card) ease, box-shadow var(--t-card) ease;
+}
+.contact-card:hover { border-color: var(--line); box-shadow: var(--sh-card); }
+.contact-card .head { display: flex; align-items: center; gap: 10px; }
+.contact-card .head b { color: var(--heading); font-weight: 500; }
+.contact-card .head .badge { margin-left: auto; }
+.contact-card p { margin: 0; font-size: var(--text-body); line-height: 1.55; color: var(--olive); }
+@media (max-width: 700px) { .contact-cards { grid-template-columns: 1fr; } }
+
+/* ============================================================
+   11. 文章列表：左标题右日期，靠基线对齐
+   ============================================================ */
+.post-list { list-style: none; margin: 0; padding: 0; }
+.post-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; padding: 10px 0; }
+.post-list a { color: var(--olive); }
+.post-list a:hover { color: var(--brand); }
+.post-list time { font-size: var(--text-meta); color: var(--stone); flex: none; }
+
+/* ============================================================
+   12. 页脚：全宽深色带，是整页唯一的深色块
+   ============================================================ */
+.foot {
+  margin: var(--section-gap) calc(50% - 50vw) -84px;
+  padding: 60px calc(50vw - 50%) 20px;
+  background: var(--band-bg);
+  color: color-mix(in srgb, var(--band-ink) 72%, transparent);
+  font-size: var(--text-meta);
+}
+.foot-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.foot .mark { flex: 0 0 auto; }
+.foot .mark .name { margin: 0; font-family: var(--font-display); font-size: var(--text-title); font-weight: 400; line-height: 1.1; letter-spacing: -0.2px; color: #fff; }
+.foot .mark p { margin: 8px 0 0; font-size: var(--text-meta); line-height: 1.5; color: color-mix(in srgb, var(--band-ink) 62%, transparent); }
+
+.foot-cols {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(6, auto);
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+.foot-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.foot-col h4 {
+  margin: 0 0 4px;
+  font-size: var(--text-meta);
+  font-weight: 600;
+  color: color-mix(in srgb, #fff 92%, transparent);
+}
+.foot-col a { font-size: var(--text-meta); line-height: 1.35; color: color-mix(in srgb, var(--band-ink) 68%, transparent); }
+.foot-col a:hover { color: #fff; }
+
+.foot-bottom {
+  display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap;
+  gap: 12px 24px; margin-top: 32px;
+  font-size: var(--text-meta);
+  /* 原站是 50%，在 #33302a 上只有 4.18:1（低于 AA 4.5），这里提到 58% = 5.09:1 */
+  color: color-mix(in srgb, var(--band-ink) 58%, transparent);
+}
+.foot-bottom b { color: color-mix(in srgb, var(--band-ink) 72%, transparent); font-weight: 600; }
+
+@media (max-width: 1000px) {
+  .foot { padding-top: 40px; }
+  .foot-top { display: block; }
+  .foot .mark { margin-bottom: 32px; }
+  .foot-cols { grid-template-columns: repeat(2, minmax(140px, 1fr)); gap: 24px 32px; }
+  .foot-bottom { flex-direction: column; align-items: flex-start; gap: 8px; }
+}
+
+/* 焦点可见：全站一套，不要删 */
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 4px; }
+
+/* 打印：去掉深色带和粘顶导航 */
+@media print {
+  .nav-wrap { position: static; }
+  .foot { background: none; color: var(--olive); margin: 0; padding: 24px 0; }
+  .foot a, .foot .mark p { color: var(--olive); }
+}

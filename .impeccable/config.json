@@ -2,6 +2,16 @@
   "detector": {
     "ignoreRules": [],
     "ignoreFiles": [],
-    "ignoreValues": []
+    "ignoreValues": [
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "site/**"
+        ],
+        "createdAt": "2026-11-28T08:56:13.757Z",
+        "reason": "证据: 站点样式全在 site/css/*.css(令牌 97/64/32/21/16px,步骤 4x/2x/1.31x 均 ≥1.25); write 钩子只读内联样式(内联 64/32/21/16 的探针通过,链接 external CSS 的同页被误判),故为检测器不解析外链 CSS 的假阳性"
+      }
+    ]
   }
 }
