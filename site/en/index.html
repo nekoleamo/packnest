@@ -413,6 +413,12 @@ then fully offline</span>
     </div>
   </footer>
 
+  <!-- ============ Back to top ============ -->
+  <button class="to-top" type="button" aria-label="Back to top">
+    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 13V3.6M3.4 8.2 8 3.6l4.6 4.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Top</span>
+  </button>
+
 </div>
 <script>
 // Copy buttons: silently do nothing without navigator.clipboard
@@ -442,6 +448,28 @@ document.querySelectorAll('[data-copy]').forEach(function (el) {
   });
   sync();
   sysDark.addEventListener('change', sync);
+})();
+
+// Back to top: appears once the first viewport is behind you; respects reduced motion
+(function () {
+  var btn = document.querySelector('.to-top');
+  if (!btn) return;
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  var ticking = false;
+  function sync() {
+    ticking = false;
+    btn.classList.toggle('is-on', window.scrollY > window.innerHeight * 0.9);
+  }
+  addEventListener('scroll', function () {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(sync);
+  }, { passive: true });
+  addEventListener('resize', sync);
+  btn.addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: reduce.matches ? 'auto' : 'smooth' });
+  });
+  sync();
 })();
 </script>
 </body>

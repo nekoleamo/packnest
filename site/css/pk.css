@@ -570,3 +570,57 @@ code { overflow-wrap: anywhere; }
 .nav-brand .logo { background: none; border-radius: 0; }
 .nav-brand .logo rect { fill: var(--brand); }
 .nav-brand .logo path { stroke: var(--on-brand); }
+
+/* ============================================================
+   9) 回到顶部：右下角悬浮药丸
+   ------------------------------------------------------------
+   显示/隐藏靠 `visibility` 而不是 `display`：不可见时它也不进 Tab 序，
+   但仍然可以做淡入淡出（`[hidden]` 会把过渡一起吃掉）。
+   触发阈值在 JS 里（滚过首屏约 90%），所以这里只管样子。
+   ============================================================ */
+.to-top {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 70;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 15px 0 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-pill);
+  background: var(--ivory);
+  box-shadow: var(--sh-nav);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--text-control);
+  line-height: 1;
+  cursor: pointer;
+  /* 默认态：淡出 + 下沉，且不可聚焦 */
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity var(--t-fast) ease, transform var(--t-fast) ease,
+              visibility 0s linear var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+.to-top.is-on {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+  transition-delay: 0s;
+}
+.to-top:hover { border-color: var(--brand); color: var(--brand); }
+.to-top svg { flex: none; }
+
+@media (max-width: 480px) {
+  /* 手机上正文跑满整宽，带字的药丸会盖住两行字 → 收成纯图标圆按钮 */
+  .to-top { right: 14px; bottom: 14px; width: 38px; height: 38px; padding: 0; justify-content: center; }
+  .to-top span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .to-top { transform: none; transition: border-color var(--t-fast), color var(--t-fast); }
+}
+@media print {
+  .to-top { display: none; }
+}
