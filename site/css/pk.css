@@ -564,3 +564,9 @@ code { overflow-wrap: anywhere; }
 
 /* 7) 顶栏里的小药丸不许被 flex 挤窄：宽 900px 时「中文」会被挤成两行（每个字一行）。 */
 .nav .lang, .nav .theme-toggle, .nav .ver, .nav .tag { flex: 0 0 auto; white-space: nowrap; }
+
+/* 8) 字标用真图标（与 favicon 同一个 P 标记，颜色走令牌，深色档自动反色），
+      不要再拿 base 层那个空白色块当占位——那个方块里什么都没画。 */
+.nav-brand .logo { background: none; border-radius: 0; }
+.nav-brand .logo rect { fill: var(--brand); }
+.nav-brand .logo path { stroke: var(--on-brand); }
